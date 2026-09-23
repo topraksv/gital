@@ -1,0 +1,16 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    // Named rather than left to the automatic `@types/*` scan: Helix measured a
+    // clean `npm ci` whose hoisting left `node:*` unregistered and 206 errors on
+    // an unchanged tree. The major matches `.nvmrc`, so the gate cannot accept
+    // an API the runtime does not have.
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

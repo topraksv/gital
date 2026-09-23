@@ -1,0 +1,105 @@
+# A GitHub Release for every version tag, with the changelog as its body.
+#
+# Ported from Helix, where the tags existed for five versions before anyone
+# could read them anywhere but a file: a release is where GitHub puts the "what
+# changed" question, and the answer already sits in `CHANGELOG.md`.
+#
+# Notes come from the changelog rather than from the commit range: the commits
+# are how the work happened and the changelog is what it means, and only one of
+# those is worth a reader's time. `scripts/release-notes.mjs` fails when the
+# section is missing, so a tag pushed without its entry stops here instead of
+# publishing an empty release.
+#
+# This deploys nothing. `ci.yml` triggers on pushes to `main`, and a tag push
+# does not match that, so the two never race for the same artifact.
+name: release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+# One publish per tag at a time, and a second run waits rather than racing the
+# first: both would otherwise call `gh release create` for the same tag and one
+# would lose. Never cancel-in-progress — a run killed between creating the
+# release and finishing is the state that needs the least help.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # The one job in this repository that writes to the repository itself.
+      contents: write
+      # Reads `ci`'s run history for the tagged commit.
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Publish the release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          # `app.json` is the version of record, so a tag that does not match it
+          # is a tagging mistake and must not become a release.
+          shipped=$(node -p "require('./app.json').expo.version")
+          if [ "$version" != "$shipped" ]; then
+            echo "::error::tag $TAG does not match app.json's $shipped"
+            exit 1
+          fi
+          # A tag is what bisecting and rolling back trust, so it has to name a
+          # commit that shipped: one whose `ci` push run finished green, which
+          # is the run that publishes.
+          # The tags stay the owner's own, signed; this only refuses to turn a
+          # mistaken one into a release. A tag pushed before its run finishes
+          # stops here too, and re-running this job once that run is green
+          # publishes it.
+          shipped_in=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&status=success&per_page=1" \
+            --jq '.workflow_runs[0].html_url // ""')
+          if [ -z "$shipped_in" ]; then
+            echo "::error::$TAG names $GITHUB_SHA, which has no green ci push run; tag the commit that shipped, or re-run this job once its run is green"
+            exit 1
+          fi
+          echo "$TAG shipped in $shipped_in"
+          node scripts/release-notes.mjs "$version" > /tmp/notes.md
+          # `gh release create` is not idempotent, and this job has every reason
+          # to run twice: a transient `gh` failure after the release was already
+          # created, a manual re-run, a tag re-pushed at a corrected commit. A
+          # bare create fails those permanently with `release already exists`,
+          # leaving the one workflow that holds `contents: write` red until
+          # someone deletes the release by hand. Converge instead: the notes are
+          # derived from the changelog, so rewriting them is the same answer
+          # arrived at twice, not a second publication.
+          #
+          # Driven off create's OWN error rather than a preceding `gh release
+          # view`. `view` exits non-zero for a rate limit, a 5xx and a bad token
+          # exactly as it does for a genuine 404, so branching on it would send
+          # a rate-limited re-run into `create` and reproduce the permanent red
+          # this block exists to remove. Only "already exists" converges; every
+          # other failure still fails, with its own message.
+          if ! output=$(gh release create "$TAG" --title "$TAG" --notes-file /tmp/notes.md --verify-tag 2>&1); then
+            case "$output" in
+              *"already exists"*)
+                echo "release $TAG already existed; refreshing its notes from the changelog"
+                gh release edit "$TAG" --title "$TAG" --notes-file /tmp/notes.md
+                ;;
+              *)
+                echo "$output" >&2
+                echo "::error::could not publish $TAG"
+                exit 1
+                ;;
+            esac
+          fi

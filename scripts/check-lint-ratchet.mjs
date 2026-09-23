@@ -1,0 +1,168 @@
+#!/usr/bin/env node
+/**
+ * Fail when a lint rule fires more often than it did last time.
+ *
+ * `expo lint` exits 0 on warnings, so without this nothing records that the
+ * count was meant to go down rather than up. Failing on every warning would
+ * stop each commit until the backlog was cleared; failing on a NEW one is what
+ * a ratchet says and a threshold cannot. Carried from Helix, where 262 warnings
+ * had accumulated before it existed.
+ *
+ * Per rule rather than per file. A per-file baseline would have to be rewritten
+ * every time a file moved, and the question worth asking is "did this commit
+ * introduce a kind of problem", not "which line is it on".
+ *
+ * `--record` adopts the current counts. That is a decision made after reading
+ * the diff, and it is why nothing here adopts automatically. `--status <path>`
+ * writes the comparison as JSON instead of failing, for the session-start hook.
+ *
+ * WHY IT SHELLS OUT TO `expo lint` rather than importing ESLint: `expo lint`
+ * is what `npm run verify` and CI run, and it resolves the flat config through
+ * Expo's own loader. Helix measured a direct `npx eslint .` reporting a
+ * different set, so a ratchet built on it would count something the gate does
+ * not.
+ *
+ * ALSO WHY THE CACHE MATTERS. `expo lint` passes `--cache`, and a warm
+ * `.eslintcache` reports nothing for unchanged files, so a ratchet fed by a
+ * partial run would ratchet down to whatever happened to be cached. This
+ * always lints cold.
+ */
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+
+const BASELINE = "lint-baseline.json";
+
+/** ESLint's JSON, out of a command that also prints its own env preamble. */
+export function parseLintReport(output) {
+  const start = output.indexOf("[{");
+  const end = output.lastIndexOf("}]");
+  if (start < 0 || end < 0) throw new Error("no ESLint JSON report in the lint output");
+  return JSON.parse(output.slice(start, end + 2));
+}
+
+export function countsFrom(report) {
+  const rules = {};
+  let errors = 0;
+  for (const file of report) {
+    errors += file.errorCount ?? 0;
+    for (const message of file.messages ?? []) {
+      if (message.severity !== 1) continue;
+      const rule = message.ruleId ?? "(no rule)";
+      rules[rule] = (rules[rule] ?? 0) + 1;
+    }
+  }
+  return { rules, errors };
+}
+
+/**
+ * @param {Record<string, number>} measured
+ * @param {{ rules: Record<string, number> }} baseline
+ */
+export function evaluate(measured, baseline) {
+  const recorded = baseline.rules ?? {};
+  const problems = [];
+  const improvements = [];
+  for (const [rule, count] of Object.entries(measured)) {
+    const previous = recorded[rule];
+    if (previous === undefined) {
+      problems.push(`NEW RULE ${rule} fired ${count} time(s) and has no recorded baseline.`);
+    } else if (count > previous) {
+      problems.push(`WORSE ${rule}: ${previous} -> ${count}.`);
+    } else if (count < previous) {
+      improvements.push(`${rule}: ${previous} -> ${count}`);
+    }
+  }
+  for (const [rule, previous] of Object.entries(recorded)) {
+    if (measured[rule] === undefined) improvements.push(`${rule}: ${previous} -> 0`);
+  }
+  return { problems, improvements };
+}
+
+function runLint() {
+  // Cold, for the reason in the header. `expo lint` exits non-zero on a real
+  // error, and the report still has to be read in that case.
+  rmSync(".eslintcache", { force: true });
+  try {
+    return execFileSync("npx", ["expo", "lint", "--", "--format", "json"], {
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch (error) {
+    if (typeof error.stdout === "string" && error.stdout.includes("[{")) return error.stdout;
+    throw error;
+  }
+}
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
+  const report = parseLintReport(runLint());
+  const { rules, errors } = countsFrom(report);
+  const total = Object.values(rules).reduce((sum, count) => sum + count, 0);
+
+  const record = process.argv.includes("--record");
+  if (record) {
+    // Printed before the decision, because `runLint` deletes `.eslintcache`
+    // first: an operator sent away without the measurement pays a second full
+    // cold lint of the tree to find out what it was.
+    for (const rule of Object.keys(rules).sort()) {
+      console.log(`  ${String(rules[rule]).padStart(4)}  ${rule}`);
+    }
+    console.log(`\n${total} warning(s), ${errors} error(s).`);
+    // The same partial-run hazard the header describes for `.eslintcache`,
+    // on the other path. A file ESLint cannot parse arrives as one fatal
+    // message with no rule results, so its warnings go uncounted; adopting
+    // that undercount writes a floor nobody measured, and every run after the
+    // parse error is fixed then fails `WORSE` on a tree nobody made worse.
+    if (errors > 0) {
+      const failing = report.filter((file) => (file.errorCount ?? 0) > 0).map((file) => file.filePath);
+      console.error(
+        `\nLint reported ${errors} error(s), so this run did not measure the whole tree:\n` +
+          `  ${failing.join("\n  ")}\n\n` +
+          `Fix them and record again: a partial run must not become the baseline.`,
+      );
+      process.exit(1);
+    }
+    writeFileSync(BASELINE, `${JSON.stringify({ total, rules }, null, 2)}\n`);
+    console.log(`Recorded ${total} warning(s) across ${Object.keys(rules).length} rule(s) in ${BASELINE}.`);
+    process.exit(0);
+  }
+
+  if (!existsSync(BASELINE)) {
+    console.error(`No ${BASELINE}. Read the current findings, then run \`npm run lint:record\`.`);
+    process.exit(1);
+  }
+  const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
+  const { problems, improvements } = evaluate(rules, baseline);
+
+  const statusAt = process.argv.indexOf("--status");
+  if (statusAt !== -1) {
+    const head = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim();
+    const status = { head, regression: problems.length > 0 || errors > 0, worsened: problems, errors };
+    writeFileSync(process.argv[statusAt + 1], `${JSON.stringify(status, null, 2)}\n`);
+    process.exit(0);
+  }
+
+  for (const rule of Object.keys({ ...baseline.rules, ...rules }).sort()) {
+    const now = rules[rule] ?? 0;
+    const was = baseline.rules?.[rule];
+    const mark = was === undefined ? "  new" : now > was ? " WORSE" : now < was ? " better" : "     ok";
+    console.log(`${mark}  ${String(now).padStart(4)}  (was ${was ?? "unrecorded"})  ${rule}`);
+  }
+  console.log(`\n${total} warning(s), ${errors} error(s).`);
+
+  if (improvements.length > 0) {
+    console.log(
+      `\n${improvements.length} rule(s) fired less than the baseline:\n  ${improvements.join("\n  ")}\n` +
+        `  Lock them in with \`npm run lint:record\` once the fix is committed.`,
+    );
+  }
+
+  if (errors > 0) {
+    console.error("\nLint reported errors, which are not ratcheted: they fail outright.");
+    process.exit(1);
+  }
+  if (problems.length > 0) {
+    console.error(`\n${problems.join("\n")}\n\nFix the new findings, or explain in the commit why the count legitimately grew.`);
+    process.exit(1);
+  }
+  console.log("\nNo lint rule fires more than its recorded baseline.");
+}
