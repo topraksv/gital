@@ -9,3 +9,10 @@ cannot be released.
 
 - The project stands up as Gital: the two repositories, CI, the release
   workflow, the Supabase heartbeat and the planning documents. No app yet.
+- The Supabase project's configuration and the heartbeat's table, the EAS
+  project and `expo-updates`, so each delivery surface has a target.
+- The first screens: five tabs (Listeler, Kiler, İstekler, Geçmiş, Ayarlar)
+  on Helix's floating tab bar, still empty apart from Ayarlar.
+- Ayarlar chooses the theme (Sistem, Açık, Koyu) and one of Helix's three
+  palettes (Amber, Petrol, Servi); the choice stays on the device and the
+  first frame already wears it.

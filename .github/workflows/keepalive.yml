@@ -7,11 +7,6 @@
 # (the read must contain an "id"), but printing them would put PostgREST output
 # into a public Actions log for no diagnostic gain over the status code.
 #
-# Dormant until the Supabase project exists: with no secrets it says so as a
-# warning on the run instead of failing every third day. The guard is removed
-# in the slice that creates the project and the `keep_alive` table, because
-# from then on a missing secret is a real failure.
-#
 # GitHub disables a public repository's scheduled workflows after 60 days with
 # no repository activity; docs/RELEASE.md says what to do then.
 name: supabase-keepalive
@@ -34,10 +29,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "::warning::no Supabase project is configured yet; nothing to keep awake"
-            exit 0
-          fi
           write_status=$(curl -sS -o /tmp/write.json -w "%{http_code}" \
             -X POST "$SUPABASE_URL/rest/v1/keep_alive?on_conflict=id" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \

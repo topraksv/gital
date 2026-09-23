@@ -8,9 +8,11 @@
     "scheme": "gital",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.toprak.gital",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.toprak.gital",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,11 +26,24 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "baseUrl": "/gital"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "74fb4649-4ce6-4ae9-a098-c1f99ae95cdd"
+      }
+    },
+    "owner": "topraksv",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
     }
   }
 }

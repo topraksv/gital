@@ -1,71 +1,512 @@
 /**
- * The only file allowed to hold a literal colour, spacing step, type size or
- * duration. Everything else names one of these; `tests/theme-contract.test.ts`
- * enforces both the values and the monopoly.
+ * The only file allowed to hold a literal colour, size or duration. Everything
+ * else names one of these; `tests/theme-contract.test.ts` enforces both the
+ * values and the monopoly.
  *
- * Pure data on purpose: no React Native import, so the contract test runs in
- * Node. The hook that picks a palette lives in `use-palette.ts`.
+ * Ported from Helix's `src/ui/theme.ts`, whose reasons are not repeated here;
+ * what Gital leaves out is dated in `docs/ARCHITECTURE.md`. It imports React
+ * and never React Native, so the contract test runs in Node.
  */
+
+import { createContext, useContext } from "react";
 
 export interface Palette {
   background: string;
   surface: string;
+  surfaceAlt: string;
+  surfaceStrong: string;
   border: string;
+  controlBorder: string;
+
+  textStrong: string;
   text: string;
+  textSecondary: string;
   textMuted: string;
+
   primary: string;
+  primaryStrong: string;
+  primarySoft: string;
+  accentText: string;
+  primaryText: string;
   onPrimary: string;
+
+  secondary: string;
+  secondaryStrong: string;
+  secondarySoft: string;
+  secondaryText: string;
+  onSecondary: string;
+  tertiary: string;
+  tertiaryStrong: string;
+  tertiarySoft: string;
+  tertiaryText: string;
+  onTertiary: string;
+
+  shadow: string;
+  shadowStrong: string;
+  scrim: string;
+
   destructive: string;
   onDestructive: string;
+  error: string;
+  errorText: string;
+  success: string;
+  successText: string;
+  warning: string;
+  warningText: string;
   focus: string;
 }
 
-// Warm neutrals with one green accent. No pure black or white: both read as
-// harsher than the ramp around them, and the contract test refuses them.
-export const lightPalette: Palette = {
-  background: "#F6F4EF",
-  surface: "#FFFDF8",
-  border: "#DDD8CE",
-  text: "#1F1D1A",
-  textMuted: "#625D54",
-  primary: "#2F6B4F",
-  onPrimary: "#F6F4EF",
-  destructive: "#B3261E",
-  onDestructive: "#FFF8F6",
-  focus: "#2F6B4F",
+type SemanticPalette = Pick<Palette,
+  | "destructive" | "onDestructive" | "error" | "errorText"
+  | "success" | "successText" | "warning" | "warningText" | "focus"
+>;
+
+// Status keeps its meaning across themes: done stays green, an error stays red.
+const lightSemanticColors = {
+  destructive: "#A94F48",
+  onDestructive: "#FBF4F1",
+  error: "#A94F48",
+  errorText: "#833832",
+  success: "#4D775B",
+  successText: "#365D43",
+  warning: "#9A703A",
+  warningText: "#745126",
+  focus: "#3C6F96",
+} satisfies SemanticPalette;
+
+const darkSemanticColors = {
+  destructive: "#D77C74",
+  onDestructive: "#3A2726",
+  error: "#D77C74",
+  errorText: "#F0A49E",
+  success: "#82A68A",
+  successText: "#B0CFB5",
+  warning: "#CFA667",
+  warningText: "#E6C78F",
+  focus: "#7EADD0",
+} satisfies SemanticPalette;
+
+// Amber — linen ground, terracotta, olive and aged brass.
+const amberLight: Palette = {
+  background: "#F1EDE8",
+  surface: "#FFFDFB",
+  surfaceAlt: "#E7DFD7",
+  surfaceStrong: "#C2B2A3",
+  border: "#8B796A",
+  controlBorder: "#6D5B4D",
+  textStrong: "#2A211B",
+  text: "#3A3028",
+  textSecondary: "#62564C",
+  textMuted: "#6D6157",
+  primary: "#A55335",
+  primaryStrong: "#88432D",
+  primarySoft: "#EED8CC",
+  accentText: "#7B3A28",
+  primaryText: "#2A211B",
+  onPrimary: "#FBF4EF",
+  secondary: "#6C7047",
+  secondaryStrong: "#585C39",
+  secondarySoft: "#E2E1C9",
+  secondaryText: "#555937",
+  onSecondary: "#FAF8F0",
+  tertiary: "#91672F",
+  tertiaryStrong: "#765226",
+  tertiarySoft: "#EDDFC5",
+  tertiaryText: "#775624",
+  onTertiary: "#FBF7EE",
+  shadow: "rgba(63, 45, 34, 0.08)",
+  shadowStrong: "rgba(63, 45, 34, 0.20)",
+  scrim: "rgba(39, 29, 23, 0.52)",
+  ...lightSemanticColors,
 };
 
-export const darkPalette: Palette = {
-  background: "#151412",
-  surface: "#1E1C19",
-  border: "#3A3631",
-  text: "#EEEAE3",
-  textMuted: "#A8A196",
-  primary: "#86C4A0",
-  onPrimary: "#10231A",
-  destructive: "#F2B8B5",
-  onDestructive: "#3A0B08",
-  focus: "#86C4A0",
+const amberDark: Palette = {
+  background: "#090807",
+  surface: "#191512",
+  surfaceAlt: "#27211D",
+  surfaceStrong: "#473D36",
+  border: "#807064",
+  controlBorder: "#8F8176",
+  textStrong: "#F2ECE6",
+  text: "#E5DDD6",
+  textSecondary: "#BEB2A8",
+  textMuted: "#9D9289",
+  primary: "#D88967",
+  primaryStrong: "#BE6B4A",
+  primarySoft: "#3C2A22",
+  accentText: "#E7A68B",
+  primaryText: "#F2ECE6",
+  onPrimary: "#2C1D17",
+  secondary: "#A3A774",
+  secondaryStrong: "#898E5E",
+  secondarySoft: "#3A3B2B",
+  secondaryText: "#CED1A5",
+  onSecondary: "#25261B",
+  tertiary: "#CAA05F",
+  tertiaryStrong: "#AD8549",
+  tertiarySoft: "#443824",
+  tertiaryText: "#E3C187",
+  onTertiary: "#2D2416",
+  shadow: "rgba(9, 7, 6, 0.30)",
+  shadowStrong: "rgba(9, 7, 6, 0.50)",
+  scrim: "rgba(10, 8, 7, 0.68)",
+  ...darkSemanticColors,
 };
 
-/** A 4-point scale. A gap two screens both need gets a name in `layout`. */
-export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+// Petrol — mineral grey, petrol blue and a small coral counterweight.
+const petrolLight: Palette = {
+  background: "#ECEEEE",
+  surface: "#FEFEFD",
+  surfaceAlt: "#E6E9EA",
+  surfaceStrong: "#C1C8CB",
+  border: "#808B91",
+  controlBorder: "#5E6B72",
+  textStrong: "#20292E",
+  text: "#2B353A",
+  textSecondary: "#566268",
+  textMuted: "#626D72",
+  primary: "#315F78",
+  primaryStrong: "#244C63",
+  primarySoft: "#DCE8EE",
+  accentText: "#284F65",
+  primaryText: "#20292E",
+  onPrimary: "#F7FAFB",
+  secondary: "#63847D",
+  secondaryStrong: "#4E6C66",
+  secondarySoft: "#DFE9E6",
+  secondaryText: "#44645D",
+  onSecondary: "#F6FAF8",
+  tertiary: "#A8604C",
+  tertiaryStrong: "#874937",
+  tertiarySoft: "#F0E0DA",
+  tertiaryText: "#7E4434",
+  onTertiary: "#FFF9F6",
+  shadow: "rgba(28, 37, 42, 0.06)",
+  shadowStrong: "rgba(28, 37, 42, 0.18)",
+  scrim: "rgba(24, 29, 32, 0.50)",
+  ...lightSemanticColors,
+};
 
+const petrolDark: Palette = {
+  background: "#0B0D0F",
+  surface: "#15191C",
+  surfaceAlt: "#20262A",
+  surfaceStrong: "#3A444A",
+  border: "#687882",
+  controlBorder: "#89969D",
+  textStrong: "#F1F3F3",
+  text: "#E2E6E7",
+  textSecondary: "#B8C0C4",
+  textMuted: "#98A3A8",
+  primary: "#7FAAC2",
+  primaryStrong: "#628FA8",
+  primarySoft: "#263842",
+  accentText: "#AFCCE0",
+  primaryText: "#F1F3F3",
+  onPrimary: "#1B2A32",
+  secondary: "#91B1A9",
+  secondaryStrong: "#75978F",
+  secondarySoft: "#2D3D39",
+  secondaryText: "#C2D7D1",
+  onSecondary: "#202C29",
+  tertiary: "#D08C79",
+  tertiaryStrong: "#B4715F",
+  tertiarySoft: "#44312D",
+  tertiaryText: "#EDB9AA",
+  onTertiary: "#2D201D",
+  shadow: "rgba(0, 0, 0, 0.30)",
+  shadowStrong: "rgba(0, 0, 0, 0.52)",
+  scrim: "rgba(4, 5, 6, 0.70)",
+  ...darkSemanticColors,
+};
+
+// Servi — warm stone neutrals, deep cypress and a measured wild plum.
+const serviLight: Palette = {
+  background: "#ECEBE7",
+  surface: "#FFFDF9",
+  surfaceAlt: "#E8E6DF",
+  surfaceStrong: "#C5C2B8",
+  border: "#817E74",
+  controlBorder: "#625F56",
+  textStrong: "#292C29",
+  text: "#343734",
+  textSecondary: "#60645F",
+  textMuted: "#60645F",
+  primary: "#3D5D49",
+  primaryStrong: "#2E4938",
+  primarySoft: "#DFE7E1",
+  accentText: "#35513F",
+  primaryText: "#292C29",
+  onPrimary: "#F4F7F1",
+  secondary: "#8A7346",
+  secondaryStrong: "#6E5A35",
+  secondarySoft: "#ECE5D5",
+  secondaryText: "#66532F",
+  onSecondary: "#1A1A12",
+  tertiary: "#885966",
+  tertiaryStrong: "#704551",
+  tertiarySoft: "#EADDE0",
+  tertiaryText: "#69414C",
+  onTertiary: "#F9F3F4",
+  shadow: "rgba(39, 42, 39, 0.06)",
+  shadowStrong: "rgba(39, 42, 39, 0.18)",
+  scrim: "rgba(29, 31, 29, 0.50)",
+  ...lightSemanticColors,
+};
+
+const serviDark: Palette = {
+  background: "#0C0D0C",
+  surface: "#171917",
+  surfaceAlt: "#232623",
+  surfaceStrong: "#414641",
+  border: "#6F786F",
+  controlBorder: "#8B938C",
+  textStrong: "#F0F2ED",
+  text: "#E2E7E1",
+  textSecondary: "#BBC5BA",
+  textMuted: "#9AA69A",
+  primary: "#8FAB94",
+  primaryStrong: "#739078",
+  primarySoft: "#2B3830",
+  accentText: "#BED1C0",
+  primaryText: "#F0F2ED",
+  onPrimary: "#263128",
+  secondary: "#B1AA76",
+  secondaryStrong: "#96905F",
+  secondarySoft: "#403D2C",
+  secondaryText: "#D9D4A6",
+  onSecondary: "#29271B",
+  tertiary: "#BE8E95",
+  tertiaryStrong: "#A4747C",
+  tertiarySoft: "#443335",
+  tertiaryText: "#DFC0C4",
+  onTertiary: "#2D2123",
+  shadow: "rgba(0, 0, 0, 0.30)",
+  shadowStrong: "rgba(0, 0, 0, 0.52)",
+  scrim: "rgba(5, 6, 5, 0.70)",
+  ...darkSemanticColors,
+};
+
+export type PaletteId = "clay" | "ocean" | "forest";
+
+export const DEFAULT_PALETTE_ID: PaletteId = "clay";
+
+export const PALETTES: Record<PaletteId, { light: Palette; dark: Palette }> = {
+  clay: { light: amberLight, dark: amberDark },
+  ocean: { light: petrolLight, dark: petrolDark },
+  forest: { light: serviLight, dark: serviDark },
+};
+
+/** A stored preference that names no palette falls back rather than blanking the theme. */
+export function resolvePaletteId(value: string | null): PaletteId {
+  // `hasOwn`, not `in`: "constructor" is `in` every object.
+  return value != null && Object.hasOwn(PALETTES, value) ? (value as PaletteId) : DEFAULT_PALETTE_ID;
+}
+
+export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+
+/**
+ * Optical offsets under the grid: a caption tucked under its title, a hairline
+ * rule. The 4-point grid spaces blocks; these place a line against its partner.
+ */
+export const offset = { hair: 1, tight: 2, tuck: 3 } as const;
+
+/** How wide a screen's column may grow, named by what the screen holds. */
+export const contentWidth = {
+  focus: 560,
+  form: 860,
+  workspace: 1180,
+  wide: 1560,
+} as const;
+
+export type ContentWidth = keyof typeof contentWidth;
+
+export const radius = { sm: 8, md: 10, lg: 14, xl: 18, full: 999 } as const;
+
+export function circle(size: number): number {
+  return size / 2;
+}
+
+export const density = {
+  list: { sectionGap: spacing.lg, cardPadding: spacing.md, rowGap: spacing.sm },
+} as const;
+
+export const motion = {
+  /** A pointer arriving on a control: slower than a press, so a passing pointer does not flicker. */
+  hover: 170,
+  /** Light to dark: the one moment the whole window changes, so it is the longest. */
+  theme: 600,
+  /** Held past a CSS fade before its layer unmounts, so the unmount cannot cut the last frame. */
+  fadeTail: 50,
+  /** The ease-out every web CSS transition uses. */
+  webEase: "cubic-bezier(0.22, 1, 0.36, 1)",
+  spring: {
+    entrance: { damping: 18, stiffness: 170, mass: 1 },
+  },
+} as const;
+
+/**
+ * One alpha of the palette's own ink over whatever a control sits on, so a
+ * hover is the same size in every theme. It and `composite` live here rather
+ * than in `interaction.ts` because the contract test measures what they paint
+ * and cannot import React Native.
+ */
+export const INTERACTION_ALPHA = { hover: 0.06, pressed: 0.11 } as const;
+
+/** `alpha` of `tint` over an opaque `base`, both `#RRGGBB`. */
+export function composite(base: string, tint: string, alpha: number): string {
+  const channel = (hex: string, at: number) => parseInt(hex.slice(at, at + 2), 16);
+  return `#${[1, 3, 5]
+    .map((at) => Math.round(channel(base, at) * (1 - alpha) + channel(tint, at) * alpha))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+/** WCAG 1.4.4's 200%, applied only where a box cannot grow with its text. */
+export const maxFontScale = { measuredBox: 2 } as const;
+
+/**
+ * `selected` is a chosen tile's ring: constant weight, so choosing never
+ * re-wraps the row. `outline` edges the appearance card's miniatures.
+ */
+export const borderWidth = { outline: 1, selected: 2 } as const;
+
+/** Alpha channels appended to a palette hex, so a softened edge or tint is written once. */
+export const alpha = { edge: "70", tileEdge: "80", selectedTint: "14" } as const;
+
+export const stateOpacity = { pressed: 0.85 } as const;
+
+/** Every face here is loaded in `src/app/_layout.tsx`; an unused one is ~175 KB of TTF. */
+export const font = {
+  regular: "Inter_400Regular",
+  medium: "Inter_500Medium",
+  semibold: "Inter_600SemiBold",
+  serif: "IBMPlexSerif_600SemiBold",
+} as const;
+
+// Static faces carry one weight each, so a role sets fontFamily and never
+// fontWeight, which iOS would synthesise into a second face.
 export const type = {
-  caption: { fontSize: 13, lineHeight: 18 },
-  body: { fontSize: 16, lineHeight: 22 },
-  title: { fontSize: 22, lineHeight: 28 },
-  display: { fontSize: 30, lineHeight: 36 },
+  title: { fontSize: 26, fontFamily: font.serif, letterSpacing: -0.2 },
+  sectionTitle: { fontSize: 16, fontFamily: font.semibold, letterSpacing: -0.2 },
+  body: { fontSize: 15, fontFamily: font.regular },
+  small: { fontSize: 12, fontFamily: font.regular },
+  caption: { fontSize: 11, fontFamily: font.regular },
 } as const;
 
-export const radius = { sm: 6, md: 10, lg: 16 } as const;
+/** Prose leading, applied on web only: RN Web's `font` shorthand resets it to ~1.21. */
+export const proseLeading = 1.5;
 
-/** Milliseconds. `docs/UI.md` "Motion" says when each may run at all. */
-export const motion = { fast: 120, base: 200, slow: 320 } as const;
-
-/** Named thresholds: a measurement with a reason, never a number typed twice. */
-export const layout = {
-  screenGutter: space.lg,
-  // Apple HIG's minimum; Material's 48dp is met by padding, not by this.
-  minTouchTarget: 44,
+export const themeShadow = {
+  overlay: (palette: Palette) => ({ boxShadow: `0 16px 40px ${palette.shadowStrong}` } as const),
 } as const;
+
+/** The floating tab bar, measured from Helix's `tab-bar.tsx`. */
+export const TAB_BAR = {
+  height: 56,
+  /** Taller on web so ç and ğ are not clipped. */
+  webHeight: 60,
+  minBottomGap: 10,
+  sideInset: 12,
+  gap: 10,
+  maxWidth: 560,
+  /** The bar's outline; the columns share what is inside it. */
+  border: 1,
+  /** The bar's own inset; the selection slides inside it. */
+  padding: 2,
+  icon: 20,
+  iconBox: { width: 30, height: 28 },
+  labelGap: 1,
+  /** The glass highlight along the top edge, fainter when the bar is opaque. */
+  highlight: { top: 1, inset: 18, thickness: 1, glassAlpha: "18", solidAlpha: "0D" },
+  /** The travelling selection's outline, heavier along its bottom edge. */
+  selection: { border: 1, bottomEdge: 2 },
+} as const;
+
+export function tabBarHeight(isWeb: boolean): number {
+  return isWeb ? TAB_BAR.webHeight : TAB_BAR.height;
+}
+
+/** How far the bar's bottom edge sits above the screen's: over the home indicator, never around it. */
+export function tabBarBottomOffset(bottomInset: number): number {
+  return Math.max(bottomInset, TAB_BAR.minBottomGap);
+}
+
+/** Space a tab scene leaves under its content; the bar floats over the scene. */
+export function navigationInset({ bottomInset, isWeb }: { bottomInset: number; isWeb: boolean }): { bottom: number } {
+  return { bottom: tabBarHeight(isWeb) + tabBarBottomOffset(bottomInset) + TAB_BAR.gap };
+}
+
+/**
+ * The bar is a veil over the page, not a lid. Web can be thinner because a
+ * real backdrop blur removes the detail behind an 11px label; native has no
+ * blur in Expo Go and keeps a denser fill.
+ */
+export const NAV_GLASS = {
+  webAlpha: "70",
+  mobileWebAlpha: "80",
+  nativeAlpha: "C0",
+  blur: "blur(30px) saturate(180%)",
+} as const;
+
+export function navigationMaterial(surface: string, { glass, isWeb, compact = false }: { glass: boolean; isWeb: boolean; compact?: boolean }): string {
+  if (!glass) return surface;
+  return surface + (isWeb ? compact ? NAV_GLASS.mobileWebAlpha : NAV_GLASS.webAlpha : NAV_GLASS.nativeAlpha);
+}
+
+export const sectionMark = { width: 3, height: 18, radius: 2 } as const;
+
+/** Helix's appearance card: each tile is drawn in the scheme or palette it chooses. */
+export const appearanceTile = {
+  theme: { minHeight: 82, swatch: { width: 58, height: 34 }, icon: 16 },
+  palette: {
+    minHeight: 92,
+    wideMinHeight: 150,
+    swatch: { width: 92, height: 68, wideHeight: 78 },
+    /** Room the mock card leaves on its right for the primary dot. */
+    cardRight: 32,
+    wideCardRight: 42,
+    lineGap: 5,
+    lines: [
+      { width: "62%", height: 5, radius: 3 },
+      { width: "84%", height: 3, radius: 2 },
+      { width: "70%", height: 3, radius: 2 },
+    ],
+    dot: 24,
+    pip: 7,
+    pipGap: 3,
+    check: 18,
+    checkIcon: 12,
+    checkStroke: 3,
+  },
+} as const;
+
+/** The pressed tile sinks by this much. */
+export const pressDepth = 1;
+
+export type ThemePreference = "system" | "light" | "dark";
+
+/**
+ * Device-local, as in Helix: read before the first frame, by the web shell
+ * (`src/app/+html.tsx`) and by the root layout, so the wrong ground never shows.
+ */
+export const APPEARANCE_KEYS = { theme: "gital.theme", palette: "gital.palette" } as const;
+
+export interface Theme {
+  palette: Palette;
+  scheme: "light" | "dark";
+  paletteId: PaletteId;
+  /** What the person chose; `scheme` is what it resolved to. */
+  preference: ThemePreference;
+}
+
+export const ThemeContext = createContext<Theme>({
+  palette: PALETTES[DEFAULT_PALETTE_ID].light,
+  scheme: "light",
+  paletteId: DEFAULT_PALETTE_ID,
+  preference: "system",
+});
+
+export function useTheme(): Theme {
+  return useContext(ThemeContext);
+}

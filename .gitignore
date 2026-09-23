@@ -52,6 +52,7 @@ supabase/.temp/
 /AGENTS.md
 /CLAUDE.md
 /docs/
+/skills-lock.json
 
 # The private mirror lives in its own git directory beside this one.
 /.private.git/

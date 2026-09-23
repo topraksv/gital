@@ -15,12 +15,13 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-23 on the first screen: entry 1_114_845, all JS 1_114_845,
-// export 1_202_203.
+// Measured 2026-09-23 on the walking skeleton (five tabs, the appearance card,
+// four font faces, the web shell): entry 1_253_505, all JS 1_253_505, export
+// 2_128_449.
 const CEILINGS = {
-  entryJs: 1_126_000,
-  totalJs: 1_126_000,
-  totalExport: 1_215_000,
+  entryJs: 1_266_000,
+  totalJs: 1_266_000,
+  totalExport: 2_145_000,
 };
 
 const root = process.argv[2] ?? "dist";
