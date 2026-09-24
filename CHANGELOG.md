@@ -29,3 +29,6 @@ cannot be released.
   product already on the list, it joins that one.
 - Each list card on Listeler says how many items it holds and how far the
   shop has got.
+- On the phone, swiping an item right ticks it or takes the tick back, and
+  swiping it left deletes it, with undo; the circle and the item panel do the
+  same everywhere.

@@ -32,7 +32,7 @@ import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
 import { ItemSheet } from "../../ui/item-sheet";
-import { RowMotion } from "../../ui/list-motion";
+import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { navigateBack } from "../../ui/navigation";
 import {
   borderWidth,
@@ -92,8 +92,8 @@ export default function ListScreen() {
     }
   };
 
+  // The circle's tap plays its own touch; a swipe has already played one at its threshold.
   const toggle = async (item: Item) => {
-    selectionTap();
     try {
       await toggleChecked(item.id);
     } catch {
@@ -126,7 +126,16 @@ export default function ListScreen() {
   const row = (item: Item) => (
     <RowMotion key={item.id}>
       <SlideUp distance={motion.travel.bar}>
-        <ItemRow item={item} onOpen={() => setEditing(item)} onToggle={() => toggle(item)} />
+        <RowSwipe checked={item.checkedAt != null} onTick={() => toggle(item)} onDelete={() => removeItem(item)}>
+          <ItemRow
+            item={item}
+            onOpen={() => setEditing(item)}
+            onToggle={() => {
+              selectionTap();
+              void toggle(item);
+            }}
+          />
+        </RowSwipe>
       </SlideUp>
     </RowMotion>
   );

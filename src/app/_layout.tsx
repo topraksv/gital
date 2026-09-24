@@ -11,6 +11,7 @@ import { kv } from "../services/kv";
 import { Button, EmptyState } from "../ui/components";
 import { DialogHost, PromptHost } from "../ui/dialog";
 import { KeyboardSafeRoot } from "../ui/keyboard-safe";
+import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
 import { UndoSnackbar } from "../ui/undo";
@@ -102,44 +103,46 @@ export default function RootLayout() {
 
   return (
     <ThemeContext.Provider value={theme}>
-      <KeyboardSafeRoot>
-        <View style={{ flex: 1, backgroundColor: theme.palette.background }}>
-          {database === "failed" ? (
-            <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }}>
-              <EmptyState
-                icon={DatabaseZap}
-                title={tr.errors.bootFailedTitle}
-                hint={tr.errors.bootFailedHint}
-                action={
-                  <Button
-                    label={tr.common.retry}
-                    onPress={() => {
-                      // Helix measured that on the web a failed open leaves
-                      // wa-sqlite's VFS in "Invalid VFS state" for this
-                      // document: opening again in the same page fails the
-                      // same way for ever, while a reload (new realm, new
-                      // worker) succeeds. Native re-opens the file for real.
-                      if (Platform.OS === "web" && typeof window !== "undefined") {
-                        window.location.reload();
-                        return;
-                      }
-                      setDatabase("opening");
-                      setOpenAttempt((n) => n + 1);
-                    }}
-                  />
-                }
-              />
-            </View>
-          ) : (
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
-          )}
-          <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-          <UndoSnackbar />
-          <PromptHost />
-          <DialogHost />
-          <ThemeDissolve />
-        </View>
-      </KeyboardSafeRoot>
+      <GestureRoot>
+        <KeyboardSafeRoot>
+          <View style={{ flex: 1, backgroundColor: theme.palette.background }}>
+            {database === "failed" ? (
+              <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }}>
+                <EmptyState
+                  icon={DatabaseZap}
+                  title={tr.errors.bootFailedTitle}
+                  hint={tr.errors.bootFailedHint}
+                  action={
+                    <Button
+                      label={tr.common.retry}
+                      onPress={() => {
+                        // Helix measured that on the web a failed open leaves
+                        // wa-sqlite's VFS in "Invalid VFS state" for this
+                        // document: opening again in the same page fails the
+                        // same way for ever, while a reload (new realm, new
+                        // worker) succeeds. Native re-opens the file for real.
+                        if (Platform.OS === "web" && typeof window !== "undefined") {
+                          window.location.reload();
+                          return;
+                        }
+                        setDatabase("opening");
+                        setOpenAttempt((n) => n + 1);
+                      }}
+                    />
+                  }
+                />
+              </View>
+            ) : (
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
+            )}
+            <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+            <UndoSnackbar />
+            <PromptHost />
+            <DialogHost />
+            <ThemeDissolve />
+          </View>
+        </KeyboardSafeRoot>
+      </GestureRoot>
     </ThemeContext.Provider>
   );
 }

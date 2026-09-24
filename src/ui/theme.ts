@@ -496,8 +496,11 @@ export const listCard = { tile: 46 } as const;
 /**
  * An item's row: a smaller tile than a list's, since a list holds dozens, and
  * the check circle drawn inside its 44-point target (`docs/UI.md` section 6).
+ * `swipe` is how far the row travels before a swipe acts (section 8); `slop`
+ * is how far a finger moves before the row decides whether it is a swipe or a
+ * scroll, gesture-handler's own default.
  */
-export const itemRow = { tile: 40, check: 26 } as const;
+export const itemRow = { tile: 40, check: 26, swipe: 88, slop: 10 } as const;
 
 /** The item panel's quantity, wide enough for "10,5 paket" so − and + never move as it changes. */
 export const itemPanel = { quantityWidth: 84 } as const;
