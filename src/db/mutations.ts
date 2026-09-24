@@ -147,9 +147,15 @@ export function editRow(table: SyncedTableName, stored: RowSnapshot, patch: Reco
   return Object.entries(patch).every(([key, value]) => row[key] === value) ? [] : [{ table, row: { ...row, ...patch } }];
 }
 
-export async function findLiveRow(table: SyncedTableName, id: string): Promise<RowSnapshot | null> {
+/** The row under `id`, live or a tombstone. */
+export async function findRow(table: SyncedTableName, id: string): Promise<RowSnapshot | null> {
   const sqlite = await getSqliteAsync();
-  return sqlite.getFirstAsync<RowSnapshot>(`SELECT * FROM ${table} WHERE id = ? AND deleted_at IS NULL`, [id]);
+  return sqlite.getFirstAsync<RowSnapshot>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+}
+
+export async function findLiveRow(table: SyncedTableName, id: string): Promise<RowSnapshot | null> {
+  const row = await findRow(table, id);
+  return row?.deleted_at == null ? row : null;
 }
 
 /** The live row, or a refusal: a stale screen must not revive a row deleted under it. */
@@ -183,10 +189,55 @@ export async function softDelete(table: SyncedTableName, id: string): Promise<Ro
  */
 export async function restoreRow(table: SyncedTableName, snapshot: RowSnapshot): Promise<void> {
   const row: Record<string, unknown> = { ...fromDbShape(table, snapshot), deletedAt: null };
-  const sqlite = await getSqliteAsync();
   await writeRows(async () => {
-    const current = await sqlite.getFirstAsync<ExistingRow>(`SELECT deleted_at FROM ${table} WHERE id = ?`, [String(row.id)]);
+    const current = await findRow(table, String(row.id));
     if (current?.deleted_at == null) throw new Error(`Cannot restore ${table} row without its tombstone`);
     return [{ table, row }];
+  });
+}
+
+/** What undoing a write needs: each row it wrote, and that row as it was before, or `null` when it made it. */
+export interface RowsWritten {
+  writes: readonly RowWrite[];
+  before: readonly (RowSnapshot | null)[];
+}
+
+/** `writeRows`, keeping each row as the transaction found it, for `revertRows`. */
+export async function writeUndoable(build: () => Promise<readonly RowWrite[]>): Promise<RowsWritten> {
+  let written!: RowsWritten;
+  await writeRows(async () => {
+    const writes = await build();
+    const before: (RowSnapshot | null)[] = [];
+    for (const { table, row } of writes) before.push(await findRow(table, String(row.id)));
+    written = { writes, before };
+    return writes;
+  });
+  return written;
+}
+
+/** Columns the write layer stamps; every other column is what the caller wrote. */
+const STAMPED = new Set(["createdAt", "updatedAt", "tombstoneVersion"]);
+
+/**
+ * Undo a `writeUndoable` write: each row back as it was, and a row it made
+ * tombstoned. Refused, whole, when any of them has changed since — a tick, an
+ * edit, a sync — because the snapshot would overwrite the newer write. The
+ * same row written twice in one write is refused too. `check` runs first, in
+ * the same transaction.
+ */
+export function revertRows({ writes, before }: RowsWritten, check: () => Promise<unknown>): Promise<void> {
+  return writeRows(async () => {
+    await check();
+    const reverts: RowWrite[] = [];
+    for (const [at, { table, row }] of writes.entries()) {
+      const stored = await findRow(table, String(row.id));
+      const current = stored && fromDbShape(table, stored);
+      if (!current || !Object.entries(row).every(([key, value]) => STAMPED.has(key) || current[key] === value)) {
+        throw new Error(`Cannot undo: the ${table} row has changed since`);
+      }
+      const was = before[at];
+      reverts.push({ table, row: was ? fromDbShape(table, was) : { ...current, deletedAt: nowIso() } });
+    }
+    return reverts;
   });
 }

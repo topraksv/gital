@@ -10,10 +10,13 @@ import {
   nowIso,
   readLiveRow,
   restoreRow,
+  revertRows,
   softDelete,
   writeRows,
+  writeUndoable,
   type RowSnapshot,
   type RowWrite,
+  type RowsWritten,
 } from "../db/mutations";
 import { items, lists } from "../db/schema";
 import { NOTE_MAX, foldName, itemNameFrom, type Entry, type ItemChange, type KnownProduct } from "../domain/items";
@@ -115,10 +118,6 @@ export async function addEntries(listId: string, added: readonly Entry[]): Promi
   const sqlite = await getSqliteAsync();
   await writeRows(async () => {
     await readLiveRow("lists", listId);
-    const top = await sqlite.getFirstAsync<{ low: number | null }>(
-      "SELECT MIN(sort_order) AS low FROM items WHERE list_id = ? AND shop_id IS NULL AND deleted_at IS NULL",
-      [listId],
-    );
     const unique = [...entries.keys()];
     const live = new Map(
       (
@@ -128,17 +127,24 @@ export async function addEntries(listId: string, added: readonly Entry[]): Promi
         )
       ).map((row) => [row.id, row]),
     );
-    let sortOrder = (top?.low ?? 0) - entries.size;
+    let sortOrder = (await topPlace(listId)) - entries.size;
     const writes: RowWrite[] = [];
     for (const [id, entry] of entries) {
-      const stored = live.get(id);
-      if (!stored) writes.push({ table: "items", row: { id, listId, ...entry, sortOrder: sortOrder++, checkedAt: null, deletedAt: null } });
-      // Already there, the row keeps its name and place and takes a quantity named again.
-      else if (entry.quantityMilli != null) writes.push(...editRow("items", stored, { quantityMilli: entry.quantityMilli, unit: entry.unit }));
+      writes.push(...land(id, live.get(id) ?? null, { listId, ...entry, sortOrder: sortOrder++, checkedAt: null }));
     }
     return writes;
   });
   return [...entries.keys()];
+}
+
+/** The place of what is on top of a list's open items; what lands goes above it. */
+async function topPlace(listId: string): Promise<number> {
+  const sqlite = await getSqliteAsync();
+  const top = await sqlite.getFirstAsync<{ low: number | null }>(
+    "SELECT MIN(sort_order) AS low FROM items WHERE list_id = ? AND shop_id IS NULL AND deleted_at IS NULL",
+    [listId],
+  );
+  return top?.low ?? 0;
 }
 
 /** A stale screen must not edit an item whose list is gone, nor make one under it. */
@@ -162,6 +168,24 @@ function editItem(stored: RowSnapshot, patch: Record<string, unknown>): RowWrite
 }
 
 /**
+ * An item arriving under a product's id, whether added, renamed or moved.
+ * Onto the product's live row it lands as adding it again would (2.5): that
+ * row keeps its name, place and tick, and takes whatever the arriving item
+ * has, keeping its own where the item has none. With no live row there, the
+ * arriving item is the row, new or back.
+ */
+function land(id: string, there: RowSnapshot | null, arriving: Record<string, unknown>): RowWrite[] {
+  if (!there) return [{ table: "items", row: settled({ ...arriving, id, deletedAt: null }) }];
+  return editItem(there, {
+    ...(arriving.quantityMilli != null && { quantityMilli: arriving.quantityMilli, unit: arriving.unit }),
+    ...(arriving.note != null && { note: arriving.note }),
+    ...(arriving.urgent === true && { urgent: true }),
+    ...(arriving.notFound === true && { notFound: true }),
+    ...(arriving.boughtInstead != null && { boughtInstead: arriving.boughtInstead }),
+  });
+}
+
+/**
  * Tick an item into the basket or take it back out (SPEC 3.1). The tick is
  * read inside the write, so a second tap before the screen has refreshed takes
  * it back rather than repeating it. Taken back out, what was bought in its
@@ -182,38 +206,59 @@ export function toggleChecked(id: string): Promise<void> {
  * the new one carries everything else, or merges into the product's row when
  * it is already there. Renamed in place, "süt" → "ayran" would leave the row
  * where the next "süt" lands, and that "süt" would overwrite the ayran.
+ *
+ * With `to`, the same write sends the item to another list, or with `keep` a
+ * copy of it (SPEC 4.3). It lands as adding it there would, with its name,
+ * quantity, note and urgency: a new row goes on top, to buy. Its tick, and
+ * what was or was not found, belong to this list's shop and do not go.
  */
-export async function updateItem(id: string, change: ItemChange): Promise<void> {
+export async function updateItem(
+  id: string,
+  change: ItemChange,
+  to?: { listId: string; keep: boolean },
+): Promise<{ name: string; written: RowsWritten }> {
   const name = itemNameFrom(change.name);
   if (name == null) throw new Error("An item needs a name");
   const note = change.note == null ? null : nameFrom(change.note, NOTE_MAX);
   const boughtInstead = change.boughtInstead == null ? null : itemNameFrom(change.boughtInstead);
-  await writeRows(async () => {
+  const saved = { name, quantityMilli: change.quantityMilli, unit: change.unit, note, urgent: change.urgent, notFound: change.notFound, boughtInstead };
+  const written = await writeUndoable(async () => {
     const stored = await readLiveItem(id);
-    const quantity = { quantityMilli: change.quantityMilli, unit: change.unit };
-    const saved = { name, ...quantity, note, urgent: change.urgent, notFound: change.notFound, boughtInstead };
-    const target = await openItemId(String(stored.list_id), name);
-    if (target === id) return editItem(stored, saved);
-    const row = fromDbShape("items", stored);
-    const gone: RowWrite = { table: "items", row: { ...row, deletedAt: nowIso() } };
-    // Onto a product already on the list, the save lands as adding it again
-    // would (2.5): that row keeps its name, place and tick, takes the quantity,
-    // note and urgency the panel shows, and keeps its own where the panel has none.
-    const there = await findLiveRow("items", target);
-    if (there) {
-      return [
-        gone,
-        ...editItem(there, {
-          ...(quantity.quantityMilli != null && quantity),
-          ...(note != null && { note }),
-          ...(change.urgent && { urgent: true }),
-          ...(change.notFound && { notFound: true }),
-          ...(boughtInstead != null && { boughtInstead }),
-        }),
-      ];
-    }
-    return [gone, { table: "items", row: settled({ ...row, ...saved, id: target, deletedAt: null, tombstoneVersion: 0 }) }];
+    const here = !to || to.keep ? await saveHere(stored, saved) : editRow("items", stored, { deletedAt: nowIso() });
+    if (!to) return here;
+    if (to.listId === stored.list_id) throw new Error("An item is sent to another list");
+    await readLiveRow("lists", to.listId);
+    const target = await openItemId(to.listId, name);
+    const { quantityMilli, unit, urgent } = saved;
+    return [
+      ...here,
+      ...land(target, await findLiveRow("items", target), {
+        listId: to.listId,
+        name,
+        quantityMilli,
+        unit,
+        note,
+        urgent,
+        sortOrder: (await topPlace(to.listId)) - 1,
+        checkedAt: null,
+      }),
+    ];
   });
+  return { name, written };
+}
+
+async function saveHere(stored: RowSnapshot, saved: Record<string, unknown>): Promise<RowWrite[]> {
+  const target = await openItemId(String(stored.list_id), String(saved.name));
+  if (target === stored.id) return editItem(stored, saved);
+  return [
+    ...editRow("items", stored, { deletedAt: nowIso() }),
+    ...land(target, await findLiveRow("items", target), { ...fromDbShape("items", stored), ...saved, tombstoneVersion: 0 }),
+  ];
+}
+
+/** Take back a save that sent an item elsewhere, unless the list it left is gone. */
+export function undoSave(written: RowsWritten, listId: string): Promise<void> {
+  return revertRows(written, () => readLiveRow("lists", listId));
 }
 
 /** Returns what undo needs, or `null` when the item was already gone. */

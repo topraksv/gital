@@ -595,7 +595,8 @@ export function Body({ children, muted, style }: { children: ReactNode; muted?: 
 /**
  * One tile, one answer. The shell will not let a caller change the box when
  * it is chosen — a thickening ring or a bolder label re-wraps the row — so
- * colour, fill and the accessible state carry the choice.
+ * colour, fill and the accessible state carry the choice. Pressed again, a
+ * chosen tile does nothing: no touch, and no write for its caller to make.
  */
 export function ChoiceTile({
   label,
@@ -633,7 +634,11 @@ export function ChoiceTile({
       aria-checked={selected}
       accessibilityState={{ checked: selected, disabled }}
       disabled={disabled}
-      onPress={onPress}
+      onPress={() => {
+        if (selected) return;
+        selectionTap();
+        onPress();
+      }}
       style={(state) => ({
         flexGrow: 1,
         flexBasis: basis ?? 0,

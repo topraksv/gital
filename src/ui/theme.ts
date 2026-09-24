@@ -505,8 +505,14 @@ export const toggleSize = { width: 46, height: 28, padding: 3, glyph: 11, glyphI
  */
 export const itemRow = { tile: 40, check: 26, swipe: 88, slop: 10 } as const;
 
-/** The item panel's quantity, wide enough for "10,5 paket" so − and + never move as it changes. */
-export const itemPanel = { quantityWidth: 84 } as const;
+/**
+ * The item panel. `quantityWidth` fits "10,5 paket", so − and + never move as
+ * it changes. `listColumns` puts at most three lists to a row, so a
+ * household's few fit on one or two; every cell, empty ones too, starts from
+ * `listCellBasis` and grows by the same share, so a tile's padding cannot
+ * make a short last row's tiles wider than the rest.
+ */
+export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25%" } as const;
 
 export const progressBar = { height: 6 } as const;
 

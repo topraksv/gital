@@ -49,3 +49,6 @@ cannot be released.
   rest and says so in orange until it is ticked. Once not found, or in the
   basket, its panel takes what was bought instead ("Yerine: Sütaş"), which
   puts it in the basket and stays in Geçmiş; taking the tick back forgets it.
+- An item's panel sends it to another list, or with "Bu listede de kalsın"
+  a copy: it lands on top there, or joins the same product already on that
+  list, and the bar takes the save back for six seconds.

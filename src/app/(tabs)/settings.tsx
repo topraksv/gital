@@ -6,7 +6,6 @@ import Sun from "lucide-react-native/icons/sun";
 
 import { tr } from "../../i18n/tr";
 import { Body, Card, ChoiceTile, Screen, SectionHeader } from "../../ui/components";
-import { selectionTap } from "../../ui/haptics";
 import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, borderWidth, circle, PALETTES, radius, spacing, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
 import { setAppearance } from "../_layout";
@@ -42,12 +41,7 @@ export default function SettingsScreen() {
               selected={preference === value}
               light={PALETTES[paletteId].light}
               dark={PALETTES[paletteId].dark}
-              onPress={() => {
-                // A chosen tile does nothing: no touch, no write, no veil armed.
-                if (preference === value) return;
-                selectionTap();
-                setAppearance({ theme: value }, palette.background);
-              }}
+              onPress={() => setAppearance({ theme: value }, palette.background)}
             />
           ))}
         </View>
@@ -61,11 +55,7 @@ export default function SettingsScreen() {
               swatch={PALETTES[id][scheme]}
               selected={paletteId === id}
               stacked={stacked}
-              onPress={() => {
-                if (paletteId === id) return;
-                selectionTap();
-                setAppearance({ palette: id }, palette.background);
-              }}
+              onPress={() => setAppearance({ palette: id }, palette.background)}
             />
           ))}
         </View>

@@ -8,7 +8,7 @@ import Plus from "lucide-react-native/icons/plus";
 import Trash from "lucide-react-native/icons/trash";
 
 import { useItems, useKnownProducts, useLists } from "../../data/hooks";
-import { addEntries, deleteItem, restoreItem, toggleChecked, updateItem, type Item } from "../../data/items";
+import { addEntries, deleteItem, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, renameList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
 import { ENTRY_MAX, parseEntry, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
@@ -33,7 +33,7 @@ import {
 import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
-import { ItemSheet } from "../../ui/item-sheet";
+import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { navigateBack } from "../../ui/navigation";
 import { controlSize, density, motion, spacing, type, useTheme } from "../../ui/theme";
@@ -89,10 +89,14 @@ export default function ListScreen() {
     }
   };
 
-  const save = async (item: Item, change: ItemChange) => {
+  // Sent elsewhere, the row leaves or is copied, so the save says where and can be taken back.
+  const save = async (item: Item, change: ItemChange, to: ItemDestination | null) => {
     setEditing(null);
     try {
-      await updateItem(item.id, change);
+      const saved = await updateItem(item.id, change, to ? { listId: to.list.id, keep: to.keep } : undefined);
+      if (!to) return;
+      selectionTap();
+      showUndo((to.keep ? tr.items.copied : tr.items.moved)(saved.name, to.list.name), () => undoSave(saved.written, id));
     } catch {
       void appError(tr.errors.saveFailed);
     }
@@ -196,7 +200,9 @@ export default function ListScreen() {
         <ItemSheet
           key={editing.id}
           item={editing}
-          onSave={(change) => save(editing, change)}
+          listId={id}
+          lists={lists.data}
+          onSave={(change, to) => save(editing, change, to)}
           onDelete={() => removeItem(editing)}
           onClose={() => setEditing(null)}
         />

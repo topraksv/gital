@@ -21,8 +21,9 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, deleteItem, readItems, readKnownProducts, readShopItems, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
+const { addEntries, deleteItem, readItems, readKnownProducts, readShopItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
 const { NOTE_MAX, parseEntry } = await import("../../src/domain/items");
+type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
 const { finishShop } = await import("../../src/data/shops");
@@ -340,6 +341,80 @@ describe("not found, and bought instead", () => {
     const [ayran] = await addItems(listId, "ayran");
     await updateItem(sut!, { ...as("ayran"), boughtInstead: "Kefir" });
     expect(await readItems(listId)).toMatchObject([{ id: ayran, name: "Ayran", boughtInstead: "Kefir", checkedAt: expect.any(String) }]);
+  });
+});
+
+describe("a save that sends an item to another list, and its undo", () => {
+  const send = (id: string, change: ItemChange, to: string, keep = false) => updateItem(id, change, { listId: to, keep });
+
+  it("sends what the item needs to the top of the other list, to buy, and undo takes the whole save back", async () => {
+    const eczane = await createList("Eczane");
+    await addItems(eczane, "vitamin");
+    const [sut] = await addItems(listId, "süt, ekmek");
+    await toggleChecked(sut!);
+    const market = await readItems(listId);
+    later(1000);
+    const saved = await send(sut!, { ...as("Süt", 2000, "lt"), note: "Pınar", boughtInstead: "Sütaş" }, eczane);
+    expect(saved.name).toBe("Süt");
+    expect(await names(listId)).toEqual(["Ekmek"]);
+    // The tick and the substitute were this list's shop, and stay with it.
+    expect(await readItems(eczane)).toMatchObject([
+      { name: "Süt", quantityMilli: 2000, unit: "lt", note: "Pınar", notFound: false, boughtInstead: null, checkedAt: null },
+      { name: "Vitamin" },
+    ]);
+    await undoSave(saved.written, listId);
+    expect(await readItems(listId)).toEqual(market);
+    expect(await names(eczane)).toEqual(["Vitamin"]);
+  });
+
+  it("with keep, saves the item here and merges a copy into the product on the other list; undo takes back both", async () => {
+    const eczane = await createList("Eczane");
+    const [there] = await addItems(eczane, "süt");
+    await toggleChecked(there!);
+    const [sut] = await addItems(listId, "süt");
+    const before = [await readItems(listId), await readItems(eczane)];
+    later(1000);
+    const saved = await send(sut!, { ...as("Süt", 2000, "lt"), urgent: true }, eczane, true);
+    expect(await readItems(listId)).toMatchObject([{ id: sut, quantityMilli: 2000, urgent: true }]);
+    // That product's row keeps its name, place and tick, and takes what the item has.
+    expect(await readItems(eczane)).toMatchObject([{ id: there, quantityMilli: 2000, urgent: true, checkedAt: T0.toISOString() }]);
+    await undoSave(saved.written, listId);
+    expect([await readItems(listId), await readItems(eczane)]).toEqual(before);
+  });
+
+  it("sends the item that was opened, and leaves the product it was renamed to here", async () => {
+    const eczane = await createList("Eczane");
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek");
+    await toggleChecked(ekmek!);
+    await send(sut!, as("ekmek"), eczane);
+    expect(await readItems(listId)).toMatchObject([{ id: ekmek, checkedAt: T0.toISOString() }]);
+    expect(await readItems(eczane)).toMatchObject([{ name: "Ekmek", checkedAt: null }]);
+  });
+
+  it("refuses an undo over a change made since, or under a list that is gone, and a send to its own list or a deleted one", async () => {
+    const eczane = await createList("Eczane");
+    const [old] = await addItems(eczane, "süt");
+    await updateItem(old!, { ...as("Süt"), note: "eski" });
+    await deleteItem(old!);
+    const [sut] = await addItems(listId, "süt");
+    const saved = await send(sut!, as("Süt"), eczane);
+    expect(await readItems(eczane)).toMatchObject([{ id: old, note: null }]);
+    later(1000);
+    await toggleChecked(old!);
+    await expect(undoSave(saved.written, listId)).rejects.toThrow();
+    // Taken back out of the basket, the row is as the save wrote it again.
+    await toggleChecked(old!);
+    await undoSave(saved.written, listId);
+    expect(await names(eczane)).toEqual([]);
+    expect(stored(old!)).toMatchObject({ note: "eski", deleted_at: expect.any(String) });
+    expect(await names(listId)).toEqual(["Süt"]);
+    const pazar = await createList("Pazar");
+    await deleteList(pazar);
+    await expect(send(sut!, as("Süt"), pazar)).rejects.toThrow();
+    await expect(send(sut!, as("Süt"), listId, true)).rejects.toThrow();
+    const again = await send(sut!, as("Süt"), eczane);
+    await deleteList(listId);
+    await expect(undoSave(again.written, listId)).rejects.toThrow();
   });
 });
 
