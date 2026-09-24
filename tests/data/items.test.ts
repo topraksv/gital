@@ -21,7 +21,11 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addItems, deleteItem, readItems, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
+const { addEntries, deleteItem, readItems, readKnownProducts, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
+const { parseEntry } = await import("../../src/domain/items");
+/** The quick-add field's Enter. */
+const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
+const { finishShop } = await import("../../src/data/shops");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { migratedDatabase } = await import("../helpers");
@@ -270,6 +274,26 @@ describe("readLists counts", () => {
     expect(await readLists()).toMatchObject([
       { name: "Market", total: 3, inBasket: 1 },
       { name: "Pazar", total: 0, inBasket: 0 },
+    ]);
+  });
+});
+
+describe("readKnownProducts", () => {
+  it("knows each product once, spelled as last written, latest first, counting each time it was bought", async () => {
+    const [sut] = await addItems(listId, "süt, ekmek, peynir");
+    await toggleChecked(sut!);
+    later(1000);
+    await finishShop(listId);
+    later(2000);
+    await addItems(listId, "SÜT");
+    const peynir = (await readItems(listId)).find((item) => item.name === "Peynir")!;
+    await deleteItem(peynir.id);
+    const other = await createList("Pazar");
+    await addItems(other, "domates");
+    await deleteList(other);
+    expect(await readKnownProducts()).toEqual([
+      { key: "sut", name: "SÜT", times: 2 },
+      { key: "ekmek", name: "Ekmek", times: 1 },
     ]);
   });
 });

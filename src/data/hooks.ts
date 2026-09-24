@@ -1,7 +1,7 @@
 /** React's side of the live stores; what they decide lives in `live-query.ts`. */
 
 import { useMemo, useSyncExternalStore } from "react";
-import { readItems, readShopItems } from "./items";
+import { readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
 import { readShops } from "./shops";
@@ -32,4 +32,12 @@ export function useShops() {
 export function useShopItems(shopId: string) {
   const store = useMemo(() => liveStore(() => readShopItems(shopId), ["items"]), [shopId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+// Watched only while the quick-add field holds text, when the suggestions are
+// mounted: every tick changes `items`, and nobody is waiting on this in between.
+const knownStore = liveStore(readKnownProducts, ["items", "lists"]);
+
+export function useKnownProducts() {
+  return useSyncExternalStore(knownStore.subscribe, knownStore.getSnapshot, knownStore.getSnapshot);
 }

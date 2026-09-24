@@ -39,3 +39,6 @@ cannot be released.
   and any item goes back onto its list with its quantity in one tap.
 - On a wide screen, Listeler, a list and Geçmiş take the same width as the
   other tabs, so the page no longer narrows when you switch to them.
+- Typing a product in a list's field offers what the household had before
+  as chips under it — `sut` finds Süt, and `pe` finds Beyaz peynir too; one
+  tap adds it with the quantity typed, and the keyboard stays up.

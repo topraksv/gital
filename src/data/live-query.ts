@@ -130,7 +130,6 @@ export function liveStore<T>(query: () => PromiseLike<T[]>, tables: readonly Syn
     subscribe: (onChange) => {
       listeners.add(onChange);
       if (!runner) {
-        state = { ...NOT_YET, retry };
         runner = startRunner(query, tables, (next) => {
           state = { ...next(state), retry };
           for (const notify of listeners) notify();
@@ -141,6 +140,10 @@ export function liveStore<T>(query: () => PromiseLike<T[]>, tables: readonly Syn
         if (listeners.size > 0 || !runner) return;
         runner.stop();
         runner = null;
+        // Its answer goes with it: the next screen reads the snapshot in its
+        // first render, before it subscribes, and would draw what this one
+        // last saw and then nothing while the query runs again.
+        state = { ...NOT_YET, retry };
       };
     },
     getSnapshot: () => state,

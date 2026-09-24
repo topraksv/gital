@@ -1,6 +1,6 @@
 /** A list's items, and what the list screen can do to one. */
 
-import { and, asc, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, max, sql, type SQL } from "drizzle-orm";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import {
@@ -15,8 +15,8 @@ import {
   type RowSnapshot,
   type RowWrite,
 } from "../db/mutations";
-import { items } from "../db/schema";
-import { foldName, itemNameFrom, parseEntry, type Entry } from "../domain/items";
+import { items, lists } from "../db/schema";
+import { foldName, itemNameFrom, type Entry, type KnownProduct } from "../domain/items";
 
 export interface Item extends Entry {
   id: string;
@@ -37,6 +37,32 @@ export function readItems(listId: string): Promise<Item[]> {
   return readItemsWhere(and(eq(items.listId, listId), isNull(items.shopId)));
 }
 
+/**
+ * Every product on a live list, open or bought, one per folded name and
+ * spelled as it was last written. A deleted item or list is not something the
+ * household has.
+ */
+export async function readKnownProducts(): Promise<KnownProduct[]> {
+  const rows = await getDb()
+    .select({ name: items.name, times: count() })
+    .from(items)
+    .innerJoin(lists, and(eq(lists.id, items.listId), isNull(lists.deletedAt)))
+    .where(isNull(items.deletedAt))
+    .groupBy(items.name)
+    // One entry writes its items with one stamp; the name keeps their order fixed.
+    .orderBy(desc(max(items.updatedAt)), asc(items.name));
+  const known = new Map<string, KnownProduct>();
+  // The latest first, so a product keeps the spelling it was last written in,
+  // and the list stays in the order `suggestProducts` settles a tie by.
+  for (const row of rows) {
+    const key = foldName(row.name);
+    const held = known.get(key);
+    if (held) held.times += row.times;
+    else known.set(key, { key, name: row.name, times: row.times });
+  }
+  return [...known.values()];
+}
+
 export function readShopItems(shopId: string): Promise<Item[]> {
   return readItemsWhere(eq(items.shopId, shopId));
 }
@@ -47,15 +73,11 @@ export function openItemId(listId: string, name: string): Promise<string> {
 }
 
 /**
- * Add what an entry names (SPEC 2.1–2.5) and return the ids of its rows. A
- * product already on the list is merged into its row rather than added again,
- * and one deleted from it, or bought, comes back on top.
+ * Add what the quick-add field, a suggestion or a shop's history names (SPEC
+ * 2.1–2.5, 3.5) and return the ids of its rows. A product already on the list
+ * is merged into its row rather than added again, and one deleted from it, or
+ * bought, comes back on top.
  */
-export function addItems(listId: string, text: string): Promise<string[]> {
-  return addEntries(listId, parseEntry(text));
-}
-
-/** `addItems` for entries already read: what a shop bought, added again (SPEC 3.5). */
 export async function addEntries(listId: string, added: readonly Entry[]): Promise<string[]> {
   const entries = new Map<string, Entry>();
   const ids = await Promise.all(added.map((entry) => openItemId(listId, entry.name)));

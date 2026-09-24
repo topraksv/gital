@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { foldName, formatQuantity, parseEntry, stepQuantity } from "../../src/domain/items";
+import {
+  foldName,
+  formatQuantity,
+  parseEntry,
+  pickEntries,
+  stepQuantity,
+  suggestProducts,
+  typedProduct,
+  type Entry,
+  type KnownProduct,
+} from "../../src/domain/items";
 
 describe("parseEntry", () => {
   it.each([
@@ -163,5 +173,71 @@ describe("stepQuantity", () => {
     expect(stepQuantity({ quantityMilli: 500, unit: "kg" }, -1)).toBeNull();
     expect(stepQuantity({ quantityMilli: 50_000, unit: "g" }, -1)).toBeNull();
     expect(stepQuantity({ quantityMilli: 9_999_000, unit: "adet" }, 1)).toBeNull();
+  });
+});
+
+describe("typedProduct", () => {
+  it.each([
+    ["sü", "su"],
+    ["ekmek, 2 kg dom", "dom"],
+    ["süt ve PEY", "pey"],
+    ["İki kilo doma", "doma"],
+    ["süt, bir de pe", "pe"],
+    ["2 lim", "lim"],
+    ["Beyaz pe", "beyaz pe"],
+    ["bir", "bir"],
+    ["0 dom", "0 dom"],
+  ])("reads the product begun at the end of %j as %j", (text, key) => {
+    expect(typedProduct(text)?.key).toBe(key);
+  });
+
+  it.each(["", "s", "süt, ", "süt, ı", "2"])("has nothing to suggest for %j", (text) => {
+    expect(typedProduct(text)).toBeNull();
+  });
+});
+
+describe("pickEntries", () => {
+  const pick = (text: string, name: string) => pickEntries(typedProduct(text)!, name);
+
+  it("keeps what was typed before and the quantity, and the product's name as it is", () => {
+    expect(pick("ekmek, 2 lt tu", "Tuz ve karabiber")).toEqual([
+      { name: "Ekmek", quantityMilli: null, unit: null },
+      { name: "Tuz ve karabiber", quantityMilli: 2000, unit: "lt" },
+    ]);
+  });
+
+  it("reads a number word that begins the product's name as its name", () => {
+    expect(pick("yarım ya", "Yarım yağlı süt")).toEqual([{ name: "Yarım yağlı süt", quantityMilli: null, unit: null }]);
+    expect(pick("süt, bir de yarım ya", "Yağ")).toEqual([
+      { name: "Süt", quantityMilli: null, unit: null },
+      { name: "Yağ", quantityMilli: 500, unit: "adet" },
+    ]);
+  });
+});
+
+describe("suggestProducts", () => {
+  const known = (key: string, times: number): KnownProduct => ({ key, name: key, times });
+  const keys = (products: KnownProduct[]) => products.map((product) => product.key);
+  const listed = (name: string): Entry => ({ name, quantityMilli: null, unit: null });
+
+  it("puts a name that begins with what is typed before one with a word that does, each by how often it was had", () => {
+    const products = [known("beyaz peynir", 9), known("pekmez", 1), known("peynir", 3), known("biber", 5)];
+    expect(keys(suggestProducts(products, typedProduct("pe")!, []))).toEqual(["peynir", "pekmez", "beyaz peynir"]);
+  });
+
+  it("keeps the order it was given for a tie, and matches no word in the middle", () => {
+    const products = [known("sut", 2), known("sucuk", 2), known("tursu", 8)];
+    expect(keys(suggestProducts(products, typedProduct("su")!, []))).toEqual(["sut", "sucuk"]);
+  });
+
+  it("puts first a product the quantity's words begin", () => {
+    const products = [known("yag", 4), known("yarim yagli sut", 1)];
+    expect(keys(suggestProducts(products, typedProduct("yarım ya")!, []))).toEqual(["yarim yagli sut", "yag"]);
+  });
+
+  it("leaves out what the list already holds, unless a quantity is typed for it, and stops at five", () => {
+    const products = ["sua", "sub", "suc", "sud", "sue", "suf", "sug"].map((key) => known(key, 1));
+    expect(keys(suggestProducts(products, typedProduct("su")!, [listed("Sua")]))).toEqual(["sub", "suc", "sud", "sue", "suf"]);
+    expect(keys(suggestProducts([known("sut", 1)], typedProduct("3 su")!, [listed("Süt")]))).toEqual(["sut"]);
   });
 });

@@ -83,18 +83,27 @@ function quantityFrom(number: string, unit: string | undefined): Quantity | null
   return { quantityMilli, unit: unit ? UNIT_WORDS[unit]! : "adet" };
 }
 
-function entryFrom(segment: string): Entry | null {
-  // Matched lower-cased, so "İki kilo" reads as "iki kilo"; the name is cut
-  // from the text as typed, which the Turkish lower-casing keeps aligned.
+/**
+ * A segment matched lower-cased, so "İki kilo" reads as "iki kilo", and the
+ * quantity it opens with, if it does, with the name after it cut from the text
+ * as typed, which the Turkish lower-casing keeps aligned.
+ */
+function readSegment(segment: string) {
   const lower = segment.toLocaleLowerCase("tr-TR");
   const typed = lower.length === segment.length ? segment : lower;
+  const match = LEADING.exec(lower);
+  const leading = match && { quantity: quantityFrom(match[1]!, match[2]), name: typed.slice(typed.length - match[3]!.length) };
+  return { lower, typed, leading };
+}
+
+function entryFrom(segment: string): Entry | null {
+  const { lower, typed, leading } = readSegment(segment);
   let rawName = segment;
   let quantity: Quantity | null = null;
-  const leading = LEADING.exec(lower);
   const trailing = leading ? null : TRAILING.exec(lower);
   if (leading) {
-    quantity = quantityFrom(leading[1]!, leading[2]);
-    if (quantity) rawName = typed.slice(typed.length - leading[3]!.length);
+    quantity = leading.quantity;
+    if (quantity) rawName = leading.name;
   } else if (trailing) {
     quantity = quantityFrom(trailing[2]!, trailing[3]);
     if (quantity) rawName = typed.slice(0, trailing[1]!.length);
@@ -178,4 +187,74 @@ export function stepQuantity(quantity: Quantity, direction: 1 | -1): { quantityM
     : (Math.ceil(current.quantityMilli / step) - 1) * step;
   if (next < step || next > QUANTITY_MAX_MILLI) return null;
   return { quantityMilli: next, unit: current.unit };
+}
+
+/** A product the household has had on a live list, for the quick-add suggestions (`docs/SPEC.md` 2.4). */
+export interface KnownProduct {
+  /** `foldName` of the name, which is how two spellings are one product. */
+  key: string;
+  name: string;
+  /** Rows it has: each time it was bought, and once more if it is on a list now. */
+  times: number;
+}
+
+/** One letter would fill the row with half the pantry. */
+const SUGGEST_FROM = 2;
+
+const SUGGESTIONS_MAX = 5;
+
+/**
+ * The product being typed at the end of an entry, read as `parseEntry` would
+ * read it: `before` is the items typed ahead of it, `key` what is typed of its
+ * name, folded, and `whole` the same with its quantity's words, for a product
+ * whose name begins with them ("yarım ya" is the start of Yarım yağlı süt).
+ */
+export interface TypedProduct {
+  before: string;
+  quantity: Quantity;
+  key: string;
+  whole: string;
+}
+
+/** `null` while too little of a product is typed to suggest one. */
+export function typedProduct(text: string): TypedProduct | null {
+  const raw = text.split(SEPARATOR).at(-1)!;
+  const segment = raw.trimStart().replace(ALSO, "");
+  const { typed, leading } = readSegment(segment);
+  const quantity = leading?.quantity;
+  const key = foldName(quantity ? leading!.name : typed);
+  if (Array.from(key).length < SUGGEST_FROM) return null;
+  return {
+    before: text.slice(0, text.length - raw.length),
+    quantity: quantity ?? { quantityMilli: null, unit: null },
+    key,
+    whole: foldName(segment),
+  };
+}
+
+/**
+ * What a suggestion picked adds: the items typed before it, and the product
+ * under the name it is stored with — handed over whole, since read back as
+ * text "Tuz ve karabiber" would be two items.
+ */
+export function pickEntries(typed: TypedProduct, name: string): Entry[] {
+  const named = foldName(name).startsWith(typed.whole);
+  return [...parseEntry(typed.before), { name, ...(named ? { quantityMilli: null, unit: null } : typed.quantity) }];
+}
+
+/**
+ * What to offer: products whose name begins with what is typed — with its
+ * quantity's words first, then without — and then those with a later word
+ * that does ("pe" finds Beyaz peynir), each by how often it was had; `known`
+ * comes latest first, which settles a tie. What the list holds is left out
+ * unless a quantity is typed, which the merge (2.5) gives it; without one, a
+ * tap on it would do nothing.
+ */
+export function suggestProducts(known: readonly KnownProduct[], typed: TypedProduct, listed: readonly Entry[]): KnownProduct[] {
+  const onList = new Set(typed.quantity.quantityMilli == null ? listed.map((entry) => foldName(entry.name)) : []);
+  const rank = ({ key }: KnownProduct) => (key.startsWith(typed.whole) ? 0 : key.startsWith(typed.key) ? 1 : 2);
+  return known
+    .filter(({ key }) => (key.startsWith(typed.whole) || ` ${key}`.includes(` ${typed.key}`)) && !onList.has(key))
+    .sort((a, b) => rank(a) - rank(b) || b.times - a.times)
+    .slice(0, SUGGESTIONS_MAX);
 }

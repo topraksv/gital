@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import { Pressable, ScrollView, Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import CheckCheck from "lucide-react-native/icons/check-check";
 import ListPlus from "lucide-react-native/icons/list-plus";
@@ -7,11 +7,11 @@ import Pencil from "lucide-react-native/icons/pencil";
 import Plus from "lucide-react-native/icons/plus";
 import Trash from "lucide-react-native/icons/trash";
 
-import { useItems, useLists } from "../../data/hooks";
-import { addItems, deleteItem, restoreItem, toggleChecked, updateItem, type Item } from "../../data/items";
+import { useItems, useKnownProducts, useLists } from "../../data/hooks";
+import { addEntries, deleteItem, restoreItem, toggleChecked, updateItem, type Item } from "../../data/items";
 import { deleteList, renameList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
-import { ENTRY_MAX, formatQuantity, parseEntry, type Entry } from "../../domain/items";
+import { ENTRY_MAX, formatQuantity, parseEntry, pickEntries, suggestProducts, typedProduct, type Entry } from "../../domain/items";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import {
@@ -157,7 +157,7 @@ export default function ListScreen() {
         <ReadFailed queries={[lists, items]} />
       ) : list && items.updatedAt != null ? (
         <ArrivalScope>
-          <QuickAdd listId={list.id} />
+          <QuickAdd listId={list.id} items={items.data} />
           {items.data.length === 0 ? (
             <EmptyState icon={ListPlus} title={tr.items.emptyTitle} hint={tr.items.emptyHint} />
           ) : (
@@ -209,41 +209,86 @@ export default function ListScreen() {
  * keeps the keyboard up for the next item; the field empties at once, so the
  * next can be typed while the last is still being written.
  */
-function QuickAdd({ listId }: { listId: string }) {
+function QuickAdd({ listId, items }: { listId: string; items: readonly Item[] }) {
   const [text, setText] = useState("");
+  const field = useRef<TextInput>(null);
 
-  const submit = async () => {
+  const add = async (entries: Entry[]) => {
     // An entry that names nothing — blank, or "3 adet" alone — stays in the
     // field to be finished rather than vanishing without an item.
-    if (parseEntry(text).length === 0) return;
-    const entry = text;
+    if (entries.length === 0) return;
+    const typed = text;
     setText("");
     try {
-      await addItems(listId, entry);
+      await addEntries(listId, entries);
       selectionTap();
     } catch {
-      setText((current) => (current === "" ? entry : current));
+      setText((current) => (current === "" ? typed : current));
       void appError(tr.errors.saveFailed);
     }
   };
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
-      <TextField
-        value={text}
-        onChangeText={setText}
-        onSubmitEditing={submit}
-        // Enter adds and keeps the keyboard up (SPEC 2.1). React Native Web
-        // reads `blurOnSubmit` and not `submitBehavior`, so the older prop.
-        blurOnSubmit={false}
-        returnKeyType="done"
-        accessibilityLabel={tr.items.addLabel}
-        placeholder={tr.items.addPlaceholder}
-        maxLength={ENTRY_MAX}
-        style={{ flex: 1 }}
-      />
-      <IconButton icon={Plus} label={tr.items.add} tone="primary" onPress={submit} />
+    <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <TextField
+          ref={field}
+          value={text}
+          onChangeText={setText}
+          onSubmitEditing={() => add(parseEntry(text))}
+          // Enter adds and keeps the keyboard up (SPEC 2.1). React Native Web
+          // reads `blurOnSubmit` and not `submitBehavior`, so the older prop.
+          blurOnSubmit={false}
+          returnKeyType="done"
+          accessibilityLabel={tr.items.addLabel}
+          placeholder={tr.items.addPlaceholder}
+          maxLength={ENTRY_MAX}
+          style={{ flex: 1 }}
+        />
+        <IconButton icon={Plus} label={tr.items.add} tone="primary" onPress={() => add(parseEntry(text))} />
+      </View>
+      {/* Mounted while anything is typed rather than while a product is, so
+          the products are read once an entry, not again after every comma. */}
+      {text ? (
+        <Suggestions
+          text={text}
+          items={items}
+          onPick={(entries) => {
+            void add(entries);
+            // A pressed chip takes the web's focus; the phone's field never lost it.
+            field.current?.focus();
+          }}
+        />
+      ) : null}
     </View>
+  );
+}
+
+/**
+ * What the household had before that begins with what is typed (SPEC 2.4).
+ * It offers and never takes: the field keeps its text and its focus until a
+ * chip is pressed (`docs/UI.md` section 5).
+ */
+function Suggestions({ text, items, onPick }: { text: string; items: readonly Item[]; onPick: (entries: Entry[]) => void }) {
+  const known = useKnownProducts();
+  const typed = typedProduct(text);
+  const picks = typed ? suggestProducts(known.data, typed, items) : [];
+  if (!typed || picks.length === 0) return null;
+  return (
+    <SlideUp distance={motion.travel.rise}>
+      <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+        {picks.map((product) => (
+          <IconButton
+            key={product.key}
+            icon={Plus}
+            text={product.name}
+            label={tr.items.suggestion(product.name)}
+            tone="primary"
+            onPress={() => onPick(pickEntries(typed, product.name))}
+          />
+        ))}
+      </ScrollView>
+    </SlideUp>
   );
 }
 

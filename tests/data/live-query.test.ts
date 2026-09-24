@@ -188,6 +188,8 @@ describe("liveStore", () => {
     expect(sqlite.listeners.size).toBe(1);
     second();
     expect(sqlite.listeners.size).toBe(0);
+    // What a screen mounting next reads in its first render, before it subscribes.
+    expect(store.getSnapshot()).toMatchObject({ status: "loading", data: [], updatedAt: undefined });
     change("lists");
     await vi.advanceTimersByTimeAsync(100);
     expect(query).toHaveBeenCalledTimes(1);

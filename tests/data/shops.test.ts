@@ -21,7 +21,10 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, addItems, deleteItem, readItems, readShopItems, toggleChecked, updateItem } = await import("../../src/data/items");
+const { addEntries, deleteItem, readItems, readShopItems, toggleChecked, updateItem } = await import("../../src/data/items");
+const { parseEntry } = await import("../../src/domain/items");
+/** The quick-add field's Enter. */
+const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
 const { finishShop, readShops, reopenShop } = await import("../../src/data/shops");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");

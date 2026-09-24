@@ -5,7 +5,7 @@
  * files because it has sixty components; Gital has a dozen.
  */
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import {
   Animated,
   Platform,
@@ -48,6 +48,7 @@ import {
   iconStroke,
   itemRow,
   listCard,
+  maxFontScale,
   navigationInset,
   offset,
   pressDepth,
@@ -409,7 +410,7 @@ export function ProgressBar({ value }: { value: number }) {
  * The app's text field: one fill, edge, padding and type for the prompt, the
  * item panel and the quick-add field. A caller's `style` places it.
  */
-export function TextField({ style, ...props }: TextInputProps) {
+export function TextField({ style, ...props }: TextInputProps & { ref?: Ref<TextInput> }) {
   const { palette } = useTheme();
   return (
     <TextInput
@@ -651,17 +652,20 @@ export function Button({
  * Helix's icon button: the pressable box is the 44-point minimum, the chip
  * painted inside it the compact one. Its label is required, because an icon
  * alone says nothing to a screen reader — and a record's control names the
- * record (`docs/UI.md` section 6).
+ * record (`docs/UI.md` section 6). `text` writes words beside the icon, for a
+ * row that offers several of one action, which the icon alone cannot tell apart.
  */
 export function IconButton({
   icon: Icon,
   label,
+  text,
   onPress,
   tone = "default",
   disabled = false,
 }: {
   icon: LucideIcon;
   label: string;
+  text?: string;
   onPress: () => void;
   tone?: "default" | "danger" | "primary";
   disabled?: boolean;
@@ -682,8 +686,11 @@ export function IconButton({
       {(state) => (
         <View
           style={{
-            width: controlSize.compact,
+            width: text ? undefined : controlSize.compact,
             height: controlSize.compact,
+            paddingHorizontal: text ? spacing.md : undefined,
+            flexDirection: "row",
+            gap: spacing.xs,
             borderRadius: radius.sm,
             ...interactionSurface(palette, state, { base: tone === "primary" ? palette.primarySoft : palette.surface, enabled: !disabled }),
             alignItems: "center",
@@ -693,7 +700,12 @@ export function IconButton({
             transform: [{ translateY: state.pressed && !disabled ? pressDepth : 0 }],
           }}
         >
-          <Icon accessible={false} size={iconSize.control} color={color} strokeWidth={iconStroke.regular} />
+          <Icon accessible={false} size={text ? iconSize.compact : iconSize.control} color={color} strokeWidth={iconStroke.regular} />
+          {text ? (
+            <Text maxFontSizeMultiplier={maxFontScale.measuredBox} style={[type.buttonCompact, { color }]}>
+              {text}
+            </Text>
+          ) : null}
         </View>
       )}
     </Pressable>

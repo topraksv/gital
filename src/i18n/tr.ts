@@ -74,6 +74,7 @@ export const tr = {
     less: (name: string) => `${name} miktarını azalt`,
     more: (name: string) => `${name} miktarını artır`,
     delete: (name: string) => `${name} ürününü sil`,
+    suggestion: (name: string) => `${name} ürününü ekle`,
     finish: "Alışverişi Bitir",
     finished: (count: number) => `Alışveriş bitti, ${count} ürün geçmişe taşındı`,
   },
