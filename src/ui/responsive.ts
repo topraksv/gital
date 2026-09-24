@@ -44,3 +44,18 @@ export function tabLabelsFit(labelWidth: number, slotWidth: number): boolean {
   if (labelWidth <= 0 || slotWidth <= 0) return true;
   return labelWidth <= slotWidth - LABEL_BREATHING;
 }
+
+/** Whether a browser's visual viewport can be shrunk by a software keyboard. */
+export function isMobileViewportWidth(viewportWidth: number): boolean {
+  return viewportWidth < DESKTOP_WIDTH;
+}
+
+/**
+ * The same line the dialog asks about: a phone gets a sheet from the bottom
+ * edge its thumb reaches, a pointer gets a centred box.
+ */
+const SHEET_WIDTH = 640;
+
+export function shouldPresentAsSheet(viewportWidth: number): boolean {
+  return viewportWidth < SHEET_WIDTH;
+}

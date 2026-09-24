@@ -1,5 +1,6 @@
-import { useSyncExternalStore } from "react";
-import { AccessibilityInfo, type EmitterSubscription } from "react-native";
+import { useEffect, useSyncExternalStore } from "react";
+import { AccessibilityInfo, Animated, Platform, type EmitterSubscription } from "react-native";
+import { motion } from "./theme";
 
 let reducedMotion = false;
 let nativeSubscription: EmitterSubscription | null = null;
@@ -37,6 +38,25 @@ export function useReducedMotion(): boolean {
  */
 export function isReducedMotion(): boolean {
   return reducedMotion;
+}
+
+/** The spring every moving part shares, so a gesture's settle and a mount's arrival feel alike. */
+export function springTo(value: Animated.Value, toValue: number): Animated.CompositeAnimation {
+  return Animated.spring(value, { toValue, useNativeDriver: Platform.OS !== "web", ...motion.spring.entrance });
+}
+
+/** Springs `value` to `target` whenever the target moves; under reduced motion it jumps there. */
+export function useSpringTo(value: Animated.Value, target: number): void {
+  const reducedMotion = useReducedMotion();
+  useEffect(() => {
+    if (reducedMotion) {
+      value.setValue(target);
+      return;
+    }
+    const animation = springTo(value, target);
+    animation.start();
+    return () => animation.stop();
+  }, [value, target, reducedMotion]);
 }
 
 let reduceTransparency = false;

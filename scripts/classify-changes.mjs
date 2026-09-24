@@ -30,6 +30,7 @@ export const CI_EXECUTED_SCRIPTS = [
 const HIGH_RISK = [
   /^src\/domain\//,
   /^src\/data\//,
+  /^src\/db\//,
   /^supabase\//,
   /^package(-lock)?\.json$/,
   /^\.nvmrc$/,

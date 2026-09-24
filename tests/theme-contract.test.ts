@@ -97,6 +97,10 @@ describe.each(schemes)("%s", (_, p) => {
     ["textMuted", "surface"],
     ["accentText", "surface"],
     ["primaryText", "primarySoft"],
+    // A list's tile: its initial on one of three soft tones.
+    ["accentText", "primarySoft"],
+    ["secondaryText", "secondarySoft"],
+    ["tertiaryText", "tertiarySoft"],
     ["onPrimary", "primary"],
     ["onDestructive", "destructive"],
     ["successText", "surface"],

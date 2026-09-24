@@ -1,0 +1,5 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": ["babel.config.js", "src/db/expo-sqlite.server.js"],
+  "ignoreDependencies": ["babel-plugin-inline-import", "babel-preset-expo"]
+}

@@ -11,13 +11,13 @@
  * selection haptic, once per crossing. Helix also tapped here, which doubled it.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Platform, Pressable, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useReducedMotion, useReduceTransparency } from "./motion";
+import { useReduceTransparency, useSpringTo } from "./motion";
 import { shouldUseCompactNavigationMaterial, tabLabelsFit, tooWide } from "./responsive";
-import { alpha, font, maxFontScale, motion, NAV_GLASS, navigationMaterial, radius, stateOpacity, TAB_BAR, tabBarBottomOffset, tabBarHeight, themeShadow, type, useTheme } from "./theme";
+import { alpha, font, maxFontScale, NAV_GLASS, navigationMaterial, radius, stateOpacity, TAB_BAR, tabBarBottomOffset, tabBarHeight, themeShadow, type, useTheme } from "./theme";
 
 /** A tap slides a little; a scrub is a distance nobody crosses by accident. */
 const DRAG_CLAIM_DISTANCE = 24;
@@ -50,7 +50,6 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const reduceTransparency = useReduceTransparency();
-  const reducedMotion = useReducedMotion();
   const isWeb = Platform.OS === "web";
   const glass = !reduceTransparency;
   const webMaterial = isWeb
@@ -73,19 +72,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     ? (barWidth - edge * 2) / state.routes.length
     : 0;
   const [selection] = useState(() => new Animated.Value(state.index));
-  useEffect(() => {
-    if (reducedMotion) {
-      selection.setValue(state.index);
-      return;
-    }
-    const animation = Animated.spring(selection, {
-      toValue: state.index,
-      useNativeDriver: Platform.OS !== "web",
-      ...motion.spring.entrance,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [state.index, selection, reducedMotion]);
+  useSpringTo(selection, state.index);
 
   // Rebuilt only when the bar moves, never mid-scrub: a new responder would
   // drop the gesture in flight. The current tab is read from the navigator at

@@ -327,6 +327,22 @@ export function circle(size: number): number {
   return size / 2;
 }
 
+/** Helix's tile: a rounded square whose corner grows with it (`docs/UI.md` section 6). */
+export function tileRadius(size: number): number {
+  return size / 3;
+}
+
+/**
+ * `minimumTarget` is the 44-point floor every pressable box keeps, because the
+ * web ignores `hitSlop`; `compact` is the chip painted inside it.
+ */
+export const controlSize = { compact: 36, minimumTarget: 44, regular: 48 } as const;
+
+export const iconSize = { compact: 15, control: 17, headerBack: 24 } as const;
+
+/** lucide's stroke, heavier than its default so a small mark holds its weight beside text. */
+export const iconStroke = { regular: 2.2, mark: 2.5, quiet: 1.8 } as const;
+
 export const density = {
   list: { sectionGap: spacing.lg, cardPadding: spacing.md, rowGap: spacing.sm },
 } as const;
@@ -338,11 +354,22 @@ export const motion = {
   theme: 600,
   /** Held past a CSS fade before its layer unmounts, so the unmount cannot cut the last frame. */
   fadeTail: 50,
+  /** A dragged-away bar leaving: quick, because the finger already said where it goes. */
+  feedback: 120,
+  /** How long the undo bar waits to be used before it leaves on its own. */
+  undoHold: 6000,
   /** The ease-out every web CSS transition uses. */
   webEase: "cubic-bezier(0.22, 1, 0.36, 1)",
   spring: {
     entrance: { damping: 18, stiffness: 170, mass: 1 },
   },
+  /**
+   * How far a thing travels as it arrives. A block rising into empty space
+   * lifts a little; the undo bar comes up off the edge near where it lands; a
+   * phone-width sheet is pulled up off the screen's edge and needs the longer
+   * travel to read as one (Helix's picker).
+   */
+  travel: { rise: 10, bar: 24, sheet: 40 },
 } as const;
 
 /**
@@ -372,7 +399,7 @@ export const maxFontScale = { measuredBox: 2 } as const;
 export const borderWidth = { outline: 1, selected: 2 } as const;
 
 /** Alpha channels appended to a palette hex, so a softened edge or tint is written once. */
-export const alpha = { edge: "70", tileEdge: "80", selectedTint: "14" } as const;
+export const alpha = { edge: "70", tileEdge: "80", controlEdge: "90", selectedTint: "14", inverseTint: "18" } as const;
 
 export const stateOpacity = { pressed: 0.85 } as const;
 
@@ -388,8 +415,12 @@ export const font = {
 // fontWeight, which iOS would synthesise into a second face.
 export const type = {
   title: { fontSize: 26, fontFamily: font.serif, letterSpacing: -0.2 },
+  heading: { fontSize: 18, fontFamily: font.semibold },
   sectionTitle: { fontSize: 16, fontFamily: font.semibold, letterSpacing: -0.2 },
+  field: { fontSize: 16, fontFamily: font.regular },
   body: { fontSize: 15, fontFamily: font.regular },
+  button: { fontSize: 15, fontFamily: font.medium },
+  buttonCompact: { fontSize: 13, fontFamily: font.medium },
   small: { fontSize: 12, fontFamily: font.regular },
   caption: { fontSize: 11, fontFamily: font.regular },
 } as const;
@@ -398,6 +429,7 @@ export const type = {
 export const proseLeading = 1.5;
 
 export const themeShadow = {
+  card: (palette: Palette) => ({ boxShadow: `0 8px 24px ${palette.shadow}` } as const),
   overlay: (palette: Palette) => ({ boxShadow: `0 16px 40px ${palette.shadowStrong}` } as const),
 } as const;
 
@@ -455,6 +487,25 @@ export function navigationMaterial(surface: string, { glass, isWeb, compact = fa
 }
 
 export const sectionMark = { width: 3, height: 18, radius: 2 } as const;
+
+/** A list's card on Listeler: its initial on a tone, Helix's tile at this side. */
+export const listCard = { tile: 46 } as const;
+
+export const emptyState = { disc: 56, icon: 26 } as const;
+
+/**
+ * Helix's dialog. `keyboardGap` is the air kept between the caret and a
+ * native keyboard, capped at a share of the window so a short phone keeps
+ * the sheet on screen.
+ */
+export const dialog = {
+  maxWidth: 400,
+  handle: { width: 36, height: 4 },
+  keyboardGap: 140,
+  keyboardGapShare: 0.22,
+} as const;
+
+export const undoBar = { mark: 26, markIcon: 15, actionIcon: 14 } as const;
 
 /** Helix's appearance card: each tile is drawn in the scheme or palette it chooses. */
 export const appearanceTile = {

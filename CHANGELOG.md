@@ -16,3 +16,7 @@ cannot be released.
 - Ayarlar chooses the theme (Sistem, Açık, Koyu) and one of Helix's three
   palettes (Amber, Petrol, Servi); the choice stays on the device and the
   first frame already wears it.
+- Listeler makes, renames and deletes lists; a delete can be taken back from
+  the bar that confirms it for six seconds.
+- Lists are kept in a database on the device, so they are there offline and
+  after a restart; nothing leaves the device yet.

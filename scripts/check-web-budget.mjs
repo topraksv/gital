@@ -15,13 +15,13 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-23 on the walking skeleton (five tabs, the appearance card,
-// four font faces, the web shell): entry 1_253_505, all JS 1_253_505, export
-// 2_128_449.
+// Measured 2026-09-23 on Listeler (local storage: Drizzle, expo-sqlite and its
+// worker and wasm; the dialog and undo bar): entry 1_528_502, all JS
+// 1_661_172, export 3_176_860. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 1_266_000,
-  totalJs: 1_266_000,
-  totalExport: 2_145_000,
+  entryJs: 1_544_000,
+  totalJs: 1_678_000,
+  totalExport: 3_209_000,
 };
 
 const root = process.argv[2] ?? "dist";

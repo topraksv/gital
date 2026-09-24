@@ -1,22 +1,44 @@
 /**
  * The primitives every screen is built from, ported from Helix's
- * `components.tsx`, `primitives.tsx` and `selection-controls.tsx` as the first
- * screens need them. Helix keeps three files because it has sixty components;
- * Gital has five.
+ * `components.tsx`, `primitives.tsx`, `motion-primitives.tsx` and
+ * `selection-controls.tsx` as the first screens need them. Helix keeps four
+ * files because it has sixty components; Gital has a dozen.
  */
 
-import { useRef, type ReactNode } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle } from "react-native";
-import { useScrollToTop, useSegments } from "expo-router";
+import { useRef, useState, type ReactNode } from "react";
+import {
+  Animated,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
+import { useRouter, useScrollToTop, useSegments, type Href } from "expo-router";
+import ChevronLeft from "lucide-react-native/icons/chevron-left";
+import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { tr } from "../i18n/tr";
 import { interactionSurface } from "./interaction";
+import { useReducedMotion, useSpringTo } from "./motion";
+import { navigateBack } from "./navigation";
 import { shouldUseWideGutter } from "./responsive";
 import {
   alpha,
   borderWidth,
+  circle,
   contentWidth,
+  controlSize,
   density,
+  emptyState,
   font,
+  iconSize,
+  iconStroke,
   navigationInset,
   offset,
   pressDepth,
@@ -31,6 +53,63 @@ import {
 } from "./theme";
 
 /**
+ * A spring from 0 to 1 on mount, or 1 at once under reduced motion. It starts
+ * where it will be drawn, so the first painted frame is already right: seeding
+ * at rest and moving it in an effect showed one frame in the settled position.
+ */
+function useEntranceProgress(): Animated.Value {
+  const reducedMotion = useReducedMotion();
+  const [progress] = useState(() => new Animated.Value(reducedMotion ? 1 : 0));
+  useSpringTo(progress, 1);
+  return progress;
+}
+
+/**
+ * Fades in from below, so it reads as "this just happened" rather than "this
+ * was always here". `distance` is one of `motion.travel`: a block arriving into
+ * empty space rises, a bar or a sheet comes up from the edge it is anchored to.
+ */
+export function SlideUp({
+  children,
+  style,
+  distance,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  distance: number;
+}) {
+  const progress = useEntranceProgress();
+  return (
+    <Animated.View
+      style={[
+        {
+          opacity: progress,
+          transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [distance, 0] }) }],
+        },
+        style,
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/** A confirmation that lands rather than appears: a small scale pop on the entrance spring. */
+export function SuccessPop({ children }: { children: ReactNode }) {
+  const progress = useEntranceProgress();
+  return (
+    <Animated.View
+      style={{
+        opacity: progress,
+        transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] }) }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
  * Every routed surface renders one Screen, which owns what a screen never
  * restates: the gutter, the top inset, the clearance under the floating tab
  * bar, and a centred column capped by a named width (`docs/UI.md` section 3).
@@ -38,10 +117,16 @@ import {
 export function Screen({
   children,
   title,
+  back,
+  actions,
   width: widthName = "form",
 }: {
   children?: ReactNode;
   title?: string;
+  /** A pushed screen's parent, for the back control when there is no history to pop. */
+  back?: Href;
+  /** Controls at the title's trailing edge, centred on it. */
+  actions?: ReactNode;
   width?: ContentWidth;
 }) {
   const { palette } = useTheme();
@@ -83,14 +168,22 @@ export function Screen({
           flexGrow: 1,
         }}
       >
-        {title != null ? (
-          <Text
-            accessibilityRole="header"
-            aria-level={1}
-            style={[type.title, { color: palette.textStrong, marginBottom: spacing.lg }]}
-          >
-            {title}
-          </Text>
+        {title != null || back != null ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
+            {back != null ? <BackButton fallback={back} /> : null}
+            {/* No title yet — a pushed screen before its record has loaded —
+                is no heading, or a screen reader announces an empty one. */}
+            {title != null ? (
+              <Text
+                accessibilityRole="header"
+                aria-level={1}
+                style={[type.title, { color: palette.textStrong, flex: 1, minWidth: 0 }]}
+              >
+                {title}
+              </Text>
+            ) : null}
+            {actions}
+          </View>
         ) : null}
         {children}
       </ScrollView>
@@ -98,21 +191,21 @@ export function Screen({
   );
 }
 
+/** The box every card draws, pressable or not, so the two cannot drift apart. */
+export function cardEdge(palette: Palette): ViewStyle {
+  return {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border + alpha.edge,
+    borderRadius: radius.lg,
+    borderCurve: "continuous",
+    padding: density.list.cardPadding,
+  };
+}
+
 export function Card({ children }: { children: ReactNode }) {
   const { palette } = useTheme();
   return (
-    <View
-      style={{
-        backgroundColor: palette.surface,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: palette.border + alpha.edge,
-        borderRadius: radius.lg,
-        padding: density.list.cardPadding,
-        marginBottom: spacing.md,
-        overflow: "hidden",
-        borderCurve: "continuous",
-      }}
-    >
+    <View style={{ ...cardEdge(palette), backgroundColor: palette.surface, marginBottom: spacing.md, overflow: "hidden" }}>
       {children}
     </View>
   );
@@ -241,6 +334,184 @@ export function ChoiceTile({
         ) : null}
       </View>
     </Pressable>
+  );
+}
+
+/**
+ * Helix's back control. A pushed screen has no native header here, so the
+ * control sits in the title row; its chevron is pulled out to the gutter, or
+ * the title would start a chevron's padding to the right of every other one.
+ */
+function BackButton({ fallback }: { fallback: Href }) {
+  const router = useRouter();
+  const { palette } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={tr.common.back}
+      onPress={() => navigateBack(router, fallback)}
+      style={(state) => ({
+        width: controlSize.minimumTarget,
+        height: controlSize.minimumTarget,
+        marginLeft: -(controlSize.minimumTarget - iconSize.headerBack) / 2,
+        borderRadius: radius.full,
+        ...interactionSurface(palette, state),
+        alignItems: "center",
+        justifyContent: "center",
+      })}
+    >
+      <ChevronLeft accessible={false} size={iconSize.headerBack} color={palette.accentText} strokeWidth={iconStroke.regular} />
+    </Pressable>
+  );
+}
+
+/**
+ * Helix's button, in the two variants Gital draws: `primary` for the one
+ * action a surface is for, `ghost` for the way out beside it.
+ */
+export function Button({
+  label,
+  onPress,
+  variant = "primary",
+  disabled = false,
+  icon: Icon,
+  size = "md",
+}: {
+  label: string;
+  onPress: () => void;
+  variant?: "primary" | "ghost";
+  disabled?: boolean;
+  icon?: LucideIcon;
+  size?: "md" | "sm";
+}) {
+  const { palette } = useTheme();
+  const small = size === "sm";
+  const colors = disabled
+    ? { background: variant === "ghost" ? undefined : palette.surfaceAlt, foreground: palette.textSecondary }
+    : variant === "primary"
+      ? { background: palette.primary, foreground: palette.onPrimary }
+      : { background: undefined, foreground: palette.accentText };
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={(state) => ({
+        ...interactionSurface(palette, state, { base: colors.background, enabled: !disabled }),
+        borderRadius: radius.md,
+        borderCurve: "continuous",
+        paddingVertical: small ? spacing.sm : spacing.md,
+        paddingHorizontal: small ? spacing.md : spacing.lg,
+        // The box is the minimum target even when small: `hitSlop` does nothing on the web.
+        minHeight: small ? controlSize.minimumTarget : controlSize.regular,
+        flexDirection: "row",
+        gap: spacing.sm,
+        alignItems: "center",
+        justifyContent: "center",
+        transform: [{ translateY: state.pressed && !disabled ? pressDepth : 0 }],
+      })}
+    >
+      {Icon ? (
+        <Icon accessible={false} size={small ? iconSize.compact : iconSize.control} color={colors.foreground} strokeWidth={iconStroke.regular} />
+      ) : null}
+      <Text style={[small ? type.buttonCompact : type.button, { color: colors.foreground, textAlign: "center", flexShrink: 1 }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Helix's icon button: the pressable box is the 44-point minimum, the chip
+ * painted inside it the compact one. Its label is required, because an icon
+ * alone says nothing to a screen reader — and a record's control names the
+ * record (`docs/UI.md` section 6).
+ */
+export function IconButton({
+  icon: Icon,
+  label,
+  onPress,
+  tone = "default",
+}: {
+  icon: LucideIcon;
+  label: string;
+  onPress: () => void;
+  tone?: "default" | "danger" | "primary";
+}) {
+  const { palette } = useTheme();
+  const color = tone === "danger" ? palette.destructive : tone === "primary" ? palette.accentText : palette.textSecondary;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={{ minWidth: controlSize.minimumTarget, minHeight: controlSize.minimumTarget, alignItems: "center", justifyContent: "center" }}
+    >
+      {(state) => (
+        <View
+          style={{
+            width: controlSize.compact,
+            height: controlSize.compact,
+            borderRadius: radius.sm,
+            ...interactionSurface(palette, state, { base: tone === "primary" ? palette.primarySoft : palette.surface }),
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: palette.border + alpha.controlEdge,
+            transform: [{ translateY: state.pressed ? pressDepth : 0 }],
+          }}
+        >
+          <Icon accessible={false} size={iconSize.control} color={color} strokeWidth={iconStroke.regular} />
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+/**
+ * What a screen says when it has nothing to show, and the way out of it. It
+ * grows to centre itself, so on a tall window the sentence is not left against
+ * the header with the page empty beneath it; on a phone it is the padded block
+ * it would have been anyway. It does not animate in: it is what a page is,
+ * and a page does not replay an entrance on every visit (`docs/UI.md` §7).
+ */
+export function EmptyState({
+  icon: Icon,
+  title,
+  hint,
+  action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  hint: string;
+  action?: ReactNode;
+}) {
+  const { palette } = useTheme();
+  return (
+    <View style={{ flexGrow: 1, justifyContent: "center", padding: spacing.xxl, alignItems: "center", gap: spacing.sm }}>
+      <View
+        style={{
+          width: emptyState.disc,
+          height: emptyState.disc,
+          borderRadius: circle(emptyState.disc),
+          backgroundColor: palette.surfaceAlt,
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: spacing.xs,
+        }}
+      >
+        <Icon accessible={false} size={emptyState.icon} color={palette.textSecondary} strokeWidth={iconStroke.quiet} />
+      </View>
+      <Text accessibilityRole="header" aria-level={2} style={[type.heading, { color: palette.text, textAlign: "center" }]}>
+        {title}
+      </Text>
+      <Body muted style={{ textAlign: "center" }}>
+        {hint}
+      </Body>
+      {action ? <View style={{ marginTop: spacing.md }}>{action}</View> : null}
+    </View>
   );
 }
 

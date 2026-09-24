@@ -3,10 +3,17 @@ import { Platform, View, useColorScheme } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
+import DatabaseZap from "lucide-react-native/icons/database-zap";
 
+import { migrateDb } from "../db/migrate";
+import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
+import { Button, EmptyState } from "../ui/components";
+import { DialogHost, PromptHost } from "../ui/dialog";
+import { KeyboardSafeRoot } from "../ui/keyboard-safe";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
+import { UndoSnackbar } from "../ui/undo";
 
 // Helix's subset faces, byte for byte (`docs/ARCHITECTURE.md`, "The fonts are Helix's").
 const Inter_400Regular = require("../../assets/fonts/Inter_400Regular.ttf");
@@ -43,6 +50,21 @@ export default function RootLayout() {
   const [appearance, setAppearanceState] = useState<Appearance | null>(null);
   const [fontGrace, setFontGrace] = useState(false);
   const [fontsLoaded, fontsError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, IBMPlexSerif_600SemiBold });
+  const [database, setDatabase] = useState<"opening" | "ready" | "failed">("opening");
+  const [openAttempt, setOpenAttempt] = useState(0);
+
+  // Every screen reads the database, so none is drawn until it is migrated;
+  // a failure gets its own screen with a retry rather than empty lists.
+  useEffect(() => {
+    let cancelled = false;
+    migrateDb().then(
+      () => !cancelled && setDatabase("ready"),
+      () => !cancelled && setDatabase("failed"),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [openAttempt]);
 
   useEffect(() => {
     const timer = setTimeout(() => setFontGrace(true), FONT_GRACE_MS);
@@ -72,7 +94,7 @@ export default function RootLayout() {
     document.documentElement.style.colorScheme = scheme;
   }, [scheme]);
 
-  const ready = appearance != null && (fontsLoaded || fontsError != null || fontGrace);
+  const ready = appearance != null && database !== "opening" && (fontsLoaded || fontsError != null || fontGrace);
   // On the web the document already wears the stored ground (`+html.tsx`), and
   // a colour here would differ between the static render and the first client
   // render, which hydration never repairs.
@@ -80,11 +102,44 @@ export default function RootLayout() {
 
   return (
     <ThemeContext.Provider value={theme}>
-      <View style={{ flex: 1, backgroundColor: theme.palette.background }}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
-        <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-        <ThemeDissolve />
-      </View>
+      <KeyboardSafeRoot>
+        <View style={{ flex: 1, backgroundColor: theme.palette.background }}>
+          {database === "failed" ? (
+            <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }}>
+              <EmptyState
+                icon={DatabaseZap}
+                title={tr.errors.bootFailedTitle}
+                hint={tr.errors.bootFailedHint}
+                action={
+                  <Button
+                    label={tr.common.retry}
+                    onPress={() => {
+                      // Helix measured that on the web a failed open leaves
+                      // wa-sqlite's VFS in "Invalid VFS state" for this
+                      // document: opening again in the same page fails the
+                      // same way for ever, while a reload (new realm, new
+                      // worker) succeeds. Native re-opens the file for real.
+                      if (Platform.OS === "web" && typeof window !== "undefined") {
+                        window.location.reload();
+                        return;
+                      }
+                      setDatabase("opening");
+                      setOpenAttempt((n) => n + 1);
+                    }}
+                  />
+                }
+              />
+            </View>
+          ) : (
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
+          )}
+          <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+          <UndoSnackbar />
+          <PromptHost />
+          <DialogHost />
+          <ThemeDissolve />
+        </View>
+      </KeyboardSafeRoot>
     </ThemeContext.Provider>
   );
 }

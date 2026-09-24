@@ -12,6 +12,7 @@ describe("classify-changes", () => {
     ["no diff could be taken", null, true],
     ["a record's meaning moved", ["src/domain/list.ts"], true],
     ["the database moved", ["supabase/migrations/0001_init.sql"], true],
+    ["the local database moved", ["src/db/migrations/0001_items.sql"], true],
     ["the dependency tree moved", ["package-lock.json"], true],
     ["the root layout moved", ["src/app/_layout.tsx"], true],
     ["a script the gate runs moved", ["scripts/check-web-budget.mjs"], true],
