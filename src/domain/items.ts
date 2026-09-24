@@ -21,10 +21,12 @@ export interface Entry extends Quantity {
 /** A brand and a word to whoever shops: "Pınar olsun, yoksa Sütaş". */
 export const NOTE_MAX = 120;
 
-/** What the item panel adds to an entry (`docs/SPEC.md` 2.6, 2.16); a product added again comes without both. */
+/** What the item panel adds to an entry (`docs/SPEC.md` 2.6, 2.16, 3.7); a product added again comes without any of it. */
 export interface ItemChange extends Entry {
   note: string | null;
   urgent: boolean;
+  notFound: boolean;
+  boughtInstead: string | null;
 }
 
 /** What people type or say for each unit, lower-cased the Turkish way. */

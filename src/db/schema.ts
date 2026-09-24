@@ -48,6 +48,10 @@ export const items = sqliteTable(
     checkedAt: text("checked_at"),
     note: text("note"),
     urgent: integer("urgent", { mode: "boolean" }).notNull().default(false),
+    /** Looked for and not in the shop (SPEC 3.7); a tick clears it. */
+    notFound: integer("not_found", { mode: "boolean" }).notNull().default(false),
+    /** What was bought in its place; taking the tick back clears it. */
+    boughtInstead: text("bought_instead"),
     /** Set on the copy a finished shop keeps of what it bought; `null` on the list. */
     shopId: text("shop_id"),
   },

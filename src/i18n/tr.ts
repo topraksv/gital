@@ -16,6 +16,8 @@ function basketProgress(done: number, total: number): string {
 
 export const tr = {
   common: {
+    /** Between the parts of a line as drawn; read aloud, an item's parts are joined by commas. */
+    separator: " · ",
     back: "Geri",
     cancel: "Vazgeç",
     deleted: (name: string) => `${name} silindi`,
@@ -74,8 +76,10 @@ export const tr = {
     noteLabel: "Not",
     notePlaceholder: "Not ya da marka: Pınar olsun",
     urgent: "Acil",
-    /** An item's second line as drawn; read aloud, `common.withDetail` joins it with commas. */
-    detail: (parts: readonly string[]) => parts.join(" · "),
+    notFound: "Bulunamadı",
+    insteadLabel: "Yerine alınan",
+    insteadPlaceholder: "Yerine alınan: Sütaş",
+    instead: (name: string) => `Yerine: ${name}`,
     less: (name: string) => `${name} miktarını azalt`,
     more: (name: string) => `${name} miktarını artır`,
     delete: (name: string) => `${name} ürününü sil`,
@@ -87,7 +91,7 @@ export const tr = {
     emptyTitle: "Henüz biten alışveriş yok",
     emptyHint: "Sepete attıklarını “Alışverişi Bitir” ile buraya taşı. Her birini tek dokunuşla listesine geri ekleyebilirsin.",
     /** A shop's card and the line above what it bought. */
-    summary: (finishedAt: string, bought: number) => `${dateTimeLabel(finishedAt)} · ${bought} ürün`,
+    summary: (finishedAt: string, bought: number) => `${dateTimeLabel(finishedAt)}${tr.common.separator}${bought} ürün`,
     openHint: "Alınanları gör",
     addBack: (name: string) => `${name} ürününü listeye geri ekle`,
     addedBack: (name: string) => `${name} listeye eklendi`,

@@ -45,3 +45,7 @@ cannot be released.
 - An item's panel takes a note or a brand ("Pınar olsun"), shown under its
   name, and an "Acil" switch that lifts it to the top of the list and marks
   it in red; a product added again comes back without either.
+- An item can be marked "Bulunamadı": it stays on the list, drops below the
+  rest and says so in orange until it is ticked. Once not found, or in the
+  basket, its panel takes what was bought instead ("Yerine: Sütaş"), which
+  puts it in the basket and stays in Geçmiş; taking the tick back forgets it.

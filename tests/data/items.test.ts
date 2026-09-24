@@ -62,9 +62,9 @@ describe("addItems", () => {
     const ids = await addItems(listId, "2 kg domates, 1,5 lt süt ve ekmek");
     expect(ids).toHaveLength(3);
     expect(await readItems(listId)).toEqual([
-      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false },
-      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false },
-      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false },
+      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null },
+      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null },
+      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null },
     ]);
     expect(outboxCount()).toBe(3);
   });
@@ -188,7 +188,7 @@ describe("toggleChecked", () => {
   });
 });
 
-const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => ({ name, quantityMilli, unit, note: null, urgent: false });
+const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => ({ name, quantityMilli, unit, note: null, urgent: false, notFound: false, boughtInstead: null });
 
 describe("updateItem", () => {
 
@@ -220,8 +220,8 @@ describe("updateItem", () => {
     await toggleChecked(ayran!);
     await updateItem(sut!, as("ayran"));
     expect(await readItems(listId)).toEqual([
-      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false },
-      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false },
+      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null },
+      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false, notFound: false, boughtInstead: null },
     ]);
     expect(stored(sut!).deleted_at).not.toBeNull();
   });
@@ -300,6 +300,46 @@ describe("a note and urgency", () => {
     const [sut, ayran] = await addItems(listId, "süt, ayran");
     await updateItem(sut!, change("ayran", "Sütaş", true));
     expect(await readItems(listId)).toMatchObject([{ id: ayran, note: "Sütaş", urgent: true }]);
+  });
+});
+
+describe("not found, and bought instead", () => {
+  it("keeps an item not found on the list, below what is still to find, until it is ticked", async () => {
+    const [sut, ekmek, peynir] = await addItems(listId, "süt, ekmek, peynir");
+    await updateItem(sut!, { ...as("Süt"), urgent: true, notFound: true });
+    await updateItem(peynir!, { ...as("Peynir"), urgent: true });
+    expect(await readItems(listId)).toMatchObject([
+      { id: peynir, notFound: false },
+      { id: ekmek, notFound: false },
+      { id: sut, notFound: true, checkedAt: null },
+    ]);
+    await toggleChecked(sut!);
+    expect(await readItems(listId)).toMatchObject([{ id: peynir }, { id: ekmek }, { id: sut, notFound: false, checkedAt: T0.toISOString() }]);
+    // Not found cannot be saved onto what is in the basket, by any path.
+    await updateItem(sut!, { ...as("Süt"), notFound: true });
+    await addItems(listId, "ayran");
+    await updateItem(ekmek!, { ...as("Ekmek"), notFound: true });
+    later(1000);
+    await toggleChecked(ekmek!);
+    await updateItem(peynir!, { ...as("ekmek"), notFound: true });
+    expect((await readItems(listId)).map(({ name, notFound }) => [name, notFound])).toEqual([["Ayran", false], ["Ekmek", false], ["Süt", false]]);
+  });
+
+  it("puts what was bought instead in the basket, keeps it in history, and forgets it when the tick is taken back", async () => {
+    const [sut] = await addItems(listId, "süt");
+    await updateItem(sut!, { ...as("Süt"), notFound: true, boughtInstead: "  sütaş " });
+    expect(await readItems(listId)).toMatchObject([{ id: sut, notFound: false, boughtInstead: "Sütaş", checkedAt: T0.toISOString() }]);
+    await toggleChecked(sut!);
+    expect(await readItems(listId)).toMatchObject([{ id: sut, boughtInstead: null, checkedAt: null }]);
+    await updateItem(sut!, { ...as("Süt"), boughtInstead: "Sütaş" });
+    const shop = await finishShop(listId);
+    expect(await readShopItems(shop!.id)).toMatchObject([{ name: "Süt", boughtInstead: "Sütaş" }]);
+    await addItems(listId, "süt");
+    expect(await readItems(listId)).toMatchObject([{ id: sut, boughtInstead: null, checkedAt: null }]);
+    // Renamed onto a product already on the list, that product was what was bought around.
+    const [ayran] = await addItems(listId, "ayran");
+    await updateItem(sut!, { ...as("ayran"), boughtInstead: "Kefir" });
+    expect(await readItems(listId)).toMatchObject([{ id: ayran, name: "Ayran", boughtInstead: "Kefir", checkedAt: expect.any(String) }]);
   });
 });
 

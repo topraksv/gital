@@ -24,7 +24,10 @@ export interface Item extends ItemChange {
   checkedAt: string | null;
 }
 
-/** Urgent first, then in order; the basket after, the latest tick first. Everything a shop bought was ticked. */
+/**
+ * What is still to find, urgent first, then what was not found; the basket
+ * after, the latest tick first. Everything a shop bought was ticked.
+ */
 function readItemsWhere(where: SQL | undefined): Promise<Item[]> {
   return getDb()
     .select({
@@ -34,11 +37,20 @@ function readItemsWhere(where: SQL | undefined): Promise<Item[]> {
       unit: items.unit,
       note: items.note,
       urgent: items.urgent,
+      notFound: items.notFound,
+      boughtInstead: items.boughtInstead,
       checkedAt: items.checkedAt,
     })
     .from(items)
     .where(and(where, isNull(items.deletedAt)))
-    .orderBy(sql`${items.checkedAt} IS NOT NULL`, desc(items.checkedAt), desc(items.urgent), asc(items.sortOrder), asc(items.id));
+    .orderBy(
+      sql`${items.checkedAt} IS NOT NULL`,
+      desc(items.checkedAt),
+      asc(items.notFound),
+      desc(items.urgent),
+      asc(items.sortOrder),
+      asc(items.id),
+    );
 }
 
 /** What is left to buy in its order, then the basket (SPEC 3.1). */
@@ -137,19 +149,35 @@ async function readLiveItem(id: string): Promise<RowSnapshot> {
 }
 
 /**
+ * An item as it is written, whatever the path: what was bought instead was
+ * bought, so it is in the basket, and what is in the basket was found (SPEC 3.7).
+ */
+function settled(row: Record<string, unknown>): Record<string, unknown> {
+  const checkedAt = row.boughtInstead == null ? row.checkedAt : (row.checkedAt ?? nowIso());
+  return { ...row, checkedAt, notFound: checkedAt == null && row.notFound === true };
+}
+
+function editItem(stored: RowSnapshot, patch: Record<string, unknown>): RowWrite[] {
+  return editRow("items", stored, settled({ ...fromDbShape("items", stored), ...patch }));
+}
+
+/**
  * Tick an item into the basket or take it back out (SPEC 3.1). The tick is
  * read inside the write, so a second tap before the screen has refreshed takes
- * it back rather than repeating it.
+ * it back rather than repeating it. Taken back out, what was bought in its
+ * place was not bought after all.
  */
 export function toggleChecked(id: string): Promise<void> {
   return writeRows(async () => {
     const stored = await readLiveItem(id);
-    return editRow("items", stored, { checkedAt: stored.checked_at == null ? nowIso() : null });
+    return editItem(stored, stored.checked_at == null ? { checkedAt: nowIso() } : { checkedAt: null, boughtInstead: null });
   });
 }
 
 /**
- * Save the item panel: its name, quantity, note and urgency, in one write. The id is the
+ * Save the item panel: its name, quantity, note, urgency, and whether it was
+ * not found or something else was bought instead, in one write. What was
+ * bought instead was bought, so it goes into the basket (SPEC 3.7). The id is the
  * product's, so a new product means a new row: the old one is tombstoned and
  * the new one carries everything else, or merges into the product's row when
  * it is already there. Renamed in place, "süt" → "ayran" would leave the row
@@ -159,12 +187,13 @@ export async function updateItem(id: string, change: ItemChange): Promise<void> 
   const name = itemNameFrom(change.name);
   if (name == null) throw new Error("An item needs a name");
   const note = change.note == null ? null : nameFrom(change.note, NOTE_MAX);
+  const boughtInstead = change.boughtInstead == null ? null : itemNameFrom(change.boughtInstead);
   await writeRows(async () => {
     const stored = await readLiveItem(id);
     const quantity = { quantityMilli: change.quantityMilli, unit: change.unit };
-    const saved = { name, ...quantity, note, urgent: change.urgent };
+    const saved = { name, ...quantity, note, urgent: change.urgent, notFound: change.notFound, boughtInstead };
     const target = await openItemId(String(stored.list_id), name);
-    if (target === id) return editRow("items", stored, saved);
+    if (target === id) return editItem(stored, saved);
     const row = fromDbShape("items", stored);
     const gone: RowWrite = { table: "items", row: { ...row, deletedAt: nowIso() } };
     // Onto a product already on the list, the save lands as adding it again
@@ -174,14 +203,16 @@ export async function updateItem(id: string, change: ItemChange): Promise<void> 
     if (there) {
       return [
         gone,
-        ...editRow("items", there, {
+        ...editItem(there, {
           ...(quantity.quantityMilli != null && quantity),
           ...(note != null && { note }),
           ...(change.urgent && { urgent: true }),
+          ...(change.notFound && { notFound: true }),
+          ...(boughtInstead != null && { boughtInstead }),
         }),
       ];
     }
-    return [gone, { table: "items", row: { ...row, ...saved, id: target, deletedAt: null, tombstoneVersion: 0 } }];
+    return [gone, { table: "items", row: settled({ ...row, ...saved, id: target, deletedAt: null, tombstoneVersion: 0 }) }];
   });
 }
 

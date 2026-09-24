@@ -5,7 +5,7 @@
  * files because it has sixty components; Gital has a dozen.
  */
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import {
   Animated,
   Platform,
@@ -282,17 +282,31 @@ function LetterTile({ id, name, size }: { id: string; name: string; size: number
   );
 }
 
-type ShownItem = ItemChange & { checkedAt: string | null };
+export type ShownItem = ItemChange & { checkedAt: string | null };
 
-/** An item's second line: urgency while it is still to buy, then quantity and note. */
-function detailOf(item: ShownItem) {
-  return { urgent: item.urgent && item.checkedAt == null, rest: [formatQuantity(item), item.note ?? ""].filter(Boolean) };
+type DetailPart = { text: string; tone?: "errorText" | "warningText" };
+
+/**
+ * An item's second line: whether it is urgent while it is still to buy, and
+ * whether it was not found, which a ticked item never is, each in its own
+ * colour; then what was bought in its place, its quantity and its note.
+ */
+function detailOf(item: ShownItem): DetailPart[] {
+  const parts: DetailPart[] = [
+    { text: item.urgent && item.checkedAt == null ? tr.items.urgent : "", tone: "errorText" },
+    { text: item.notFound ? tr.items.notFound : "", tone: "warningText" },
+    { text: item.boughtInstead ? tr.items.instead(item.boughtInstead) : "" },
+    { text: formatQuantity(item) },
+    { text: item.note ?? "" },
+  ];
+  return parts.filter((part) => part.text);
 }
 
 /** For a row's accessible label, which a screen reader hears in place of what the row draws. */
 export function itemDetail(item: ShownItem): string {
-  const { urgent, rest } = detailOf(item);
-  return (urgent ? [tr.items.urgent, ...rest] : rest).join(", ");
+  return detailOf(item)
+    .map((part) => part.text)
+    .join(", ");
 }
 
 /**
@@ -304,8 +318,7 @@ export function itemDetail(item: ShownItem): string {
  */
 export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: boolean }) {
   const { palette } = useTheme();
-  const { urgent, rest } = detailOf(item);
-  const detail = tr.items.detail(rest);
+  const parts = detailOf(item);
   return (
     <>
       <LetterTile id={foldName(item.name)} name={item.name} size={itemRow.tile} />
@@ -322,11 +335,14 @@ export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: 
         >
           {item.name}
         </Text>
-        {urgent || detail ? (
+        {parts.length > 0 ? (
           <Text style={[type.small, { color: palette.textSecondary }]}>
-            {urgent ? <Text style={{ fontFamily: font.semibold, color: palette.errorText }}>{tr.items.urgent}</Text> : null}
-            {urgent && detail ? " · " : null}
-            {detail}
+            {parts.map((part, at) => (
+              <Fragment key={at}>
+                {at > 0 ? tr.common.separator : null}
+                {part.tone ? <Text style={{ fontFamily: font.semibold, color: palette[part.tone] }}>{part.text}</Text> : part.text}
+              </Fragment>
+            ))}
           </Text>
         ) : null}
       </View>
