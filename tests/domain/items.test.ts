@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   foldName,
+  formatList,
   formatQuantity,
   parseEntry,
   pickEntries,
@@ -9,6 +10,7 @@ import {
   suggestProducts,
   typedProduct,
   type Entry,
+  type ItemChange,
   type KnownProduct,
 } from "../../src/domain/items";
 
@@ -145,6 +147,27 @@ describe("formatQuantity", () => {
 
   it("writes nothing for an item without a quantity", () => {
     expect(formatQuantity({ quantityMilli: null, unit: null })).toBe("");
+  });
+});
+
+describe("formatList", () => {
+  const item = (name: string, more: Partial<ItemChange> = {}) => ({
+    name,
+    quantityMilli: null,
+    unit: null,
+    note: null,
+    urgent: false,
+    ...more,
+  });
+
+  it("writes the name, then a line per item in the order given, quantity first", () => {
+    expect(
+      formatList("Market", [
+        item("Ekmek", { urgent: true }),
+        item("Domates", { quantityMilli: 2000, unit: "kg" }),
+        item("Süt", { quantityMilli: 1500, unit: "lt", note: "Pınar olsun" }),
+      ]),
+    ).toBe("Market\n❗ Ekmek\n• 2 kg Domates\n• 1,5 lt Süt (Pınar olsun)");
   });
 });
 

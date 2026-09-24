@@ -1,7 +1,8 @@
 /**
- * The undo bar, Helix's `undo.tsx`: shown after a delete, it restores the
- * tombstoned row. Helix's second line and second action are left out until a
- * save has an effect worth reporting.
+ * The undo bar, Helix's `undo.tsx`: it takes back what just happened, and
+ * without an action it confirms what has nothing to take back. Helix's second
+ * line and second action are left out until a save has an effect worth
+ * reporting.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -20,7 +21,7 @@ import { alpha, controlSize, font, iconStroke, motion, navigationInset, radius, 
 
 interface UndoOffer {
   message: string;
-  onUndo: () => Promise<unknown>;
+  onUndo: (() => Promise<unknown>) | null;
   /** `warning` once an undo has failed and the bar is offering it again. */
   tone: "success" | "warning";
 }
@@ -40,9 +41,18 @@ function clearUndo(): void {
  * haptic; the bar plays none, or a delete would be felt twice.
  */
 export function showUndo(message: string, onUndo: () => Promise<unknown>, tone: UndoOffer["tone"] = "success"): void {
+  present({ message, onUndo, tone });
+}
+
+export function showNotice(message: string): void {
+  present({ message, onUndo: null, tone: "success" });
+}
+
+function present(offer: UndoOffer): void {
   if (hideTimer) clearTimeout(hideTimer);
-  useUndo.setState({ offer: { message, onUndo, tone } });
-  hideTimer = setTimeout(clearUndo, motion.undoHold);
+  useUndo.setState({ offer });
+  // Helix's two holds: a bare confirmation leaves quickly, an offer stays long enough to be taken.
+  hideTimer = setTimeout(clearUndo, offer.onUndo ? motion.undoHold : motion.noticeHold);
 }
 
 /**
@@ -96,7 +106,7 @@ export function UndoSnackbar() {
   const nav = navigationInset({ bottomInset: insets.bottom, isWeb: Platform.OS === "web" });
 
   const undo = async () => {
-    if (undoing) return;
+    if (undoing || !onUndo) return;
     selectionTap();
     setUndoing(true);
     try {
@@ -163,7 +173,7 @@ export function UndoSnackbar() {
             </SuccessPop>
           </View>
           <Text style={[type.body, { color: palette.background, flexShrink: 1, minWidth: 0 }]}>{message}</Text>
-          <Pressable
+          {onUndo ? <Pressable
             accessibilityRole="button"
             accessibilityState={{ busy: undoing, disabled: undoing }}
             disabled={undoing}
@@ -185,7 +195,7 @@ export function UndoSnackbar() {
               <RotateCcw accessible={false} size={undoBar.actionIcon} color={palette.background} />
               <Text style={[type.body, { color: palette.background, fontFamily: font.semibold }]}>{tr.common.undo}</Text>
             </View>
-          </Pressable>
+          </Pressable> : null}
         </Animated.View>
       </SlideUp>
     </View>

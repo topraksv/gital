@@ -178,6 +178,20 @@ export function formatQuantity({ quantityMilli, unit }: Quantity): string {
   return `${String(quantityMilli / 1000).replace(".", ",")} ${unit}`;
 }
 
+/**
+ * A list as a message (`docs/SPEC.md` 6.1): its name, then a line per item in
+ * the order given, quantity first, an urgent one marked as the app marks it in
+ * red. Reading it back is 6.2's, which needs more than `parseEntry`: the name
+ * line, the bracketed note and the mark are not products.
+ */
+export function formatList(name: string, items: readonly (Entry & Pick<ItemChange, "note" | "urgent">)[]): string {
+  const lines = items.map((item) => {
+    const text = [formatQuantity(item), item.name].filter(Boolean).join(" ");
+    return `${item.urgent ? "❗" : "•"} ${text}${item.note ? ` (${item.note})` : ""}`;
+  });
+  return [name, ...lines].join("\n");
+}
+
 /** What one press of − or + moves: a whole piece, half a kilo or litre, 100 g or ml. */
 const STEP_MILLI: Record<Unit, number> = { adet: 1000, paket: 1000, kg: 500, lt: 500, g: 100_000, ml: 100_000 };
 

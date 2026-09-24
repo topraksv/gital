@@ -360,6 +360,8 @@ export const motion = {
   standard: 220,
   /** How long the undo bar waits to be used before it leaves on its own. */
   undoHold: 6000,
+  /** The same bar with nothing to take back. */
+  noticeHold: 3600,
   /** The ease-out every web CSS transition uses. */
   webEase: "cubic-bezier(0.22, 1, 0.36, 1)",
   spring: {

@@ -37,6 +37,7 @@ export const tr = {
     saveFailed: "Kaydedilemedi. Lütfen tekrar dene.",
     deleteFailed: "Silinemedi. Lütfen tekrar dene.",
     undoFailed: "Geri alınamadı. Lütfen tekrar dene.",
+    shareFailed: "Paylaşılamadı. Lütfen tekrar dene.",
   },
   tabs: {
     lists: "Listeler",
@@ -55,6 +56,8 @@ export const tr = {
     renameMessage: "Listenin yeni adı.",
     rename: (name: string) => `${name} listesini yeniden adlandır`,
     delete: (name: string) => `${name} listesini sil`,
+    share: (name: string) => `${name} listesini paylaş`,
+    copied: "Liste panoya kopyalandı",
     openHint: "Listeyi aç",
     emptyTitle: "Henüz liste yok",
     emptyHint: "Market, pazar, eczane — her alışveriş için bir liste aç.",

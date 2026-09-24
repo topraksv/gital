@@ -5,15 +5,17 @@ import CheckCheck from "lucide-react-native/icons/check-check";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Pencil from "lucide-react-native/icons/pencil";
 import Plus from "lucide-react-native/icons/plus";
+import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
 import { useItems, useKnownProducts, useLists } from "../../data/hooks";
 import { addEntries, deleteItem, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, renameList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
-import { ENTRY_MAX, parseEntry, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
+import { ENTRY_MAX, formatList, parseEntry, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
+import { shareText } from "../../services/share";
 import {
   ArrivalScope,
   Button,
@@ -37,7 +39,7 @@ import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { navigateBack } from "../../ui/navigation";
 import { controlSize, density, motion, spacing, type, useTheme } from "../../ui/theme";
-import { showUndo } from "../../ui/undo";
+import { showNotice, showUndo } from "../../ui/undo";
 
 export default function ListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -64,6 +66,18 @@ export default function ListScreen() {
       await renameList(current.id, name);
     } catch {
       void appError(tr.errors.saveFailed);
+    }
+  };
+
+  const open = items.data.filter((item) => item.checkedAt == null);
+  const basket = items.data.filter((item) => item.checkedAt != null);
+
+  // What is still to buy: the basket is already bought, and would only be read out.
+  const share = async (current: ListSummary) => {
+    try {
+      if ((await shareText(formatList(current.name, open))) === "clipboard") showNotice(tr.lists.copied);
+    } catch {
+      void appError(tr.errors.shareFailed);
     }
   };
 
@@ -125,8 +139,6 @@ export default function ListScreen() {
     }
   };
 
-  const open = items.data.filter((item) => item.checkedAt == null);
-  const basket = items.data.filter((item) => item.checkedAt != null);
   const row = (item: Item) => (
     <RowMotion key={item.id}>
       <SlideUp distance={motion.travel.bar}>
@@ -152,6 +164,7 @@ export default function ListScreen() {
       actions={
         list && !leaving ? (
           <>
+            <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={open.length === 0} onPress={() => share(list)} />
             <IconButton icon={Pencil} label={tr.lists.rename(list.name)} onPress={() => rename(list)} />
             <IconButton icon={Trash} label={tr.lists.delete(list.name)} tone="danger" onPress={() => remove(list)} />
           </>

@@ -52,3 +52,8 @@ cannot be released.
 - An item's panel sends it to another list, or with "Bu listede de kalsın"
   a copy: it lands on top there, or joins the same product already on that
   list, and the bar takes the save back for six seconds.
+- A list's header shares what is still to buy as text — its name, then a
+  line per item, quantity first — to any app the phone offers; a browser
+  without a share sheet copies it.
+- A list's and a finished shop's title sit on their own line under the back
+  button, so a long name no longer breaks mid-word beside the buttons.

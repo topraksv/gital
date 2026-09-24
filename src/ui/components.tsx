@@ -163,7 +163,7 @@ export function Screen({
   title?: string;
   /** A pushed screen's parent, for the back control when there is no history to pop. */
   back?: Href;
-  /** Controls at the title's trailing edge, centred on it. */
+  /** Controls at the title's trailing edge, or on a pushed screen the back button's. */
   actions?: ReactNode;
   width?: ContentWidth;
 }) {
@@ -209,21 +209,27 @@ export function Screen({
           flexGrow: 1,
         }}
       >
-        {title != null || back != null ? (
+        {/* A pushed screen's title takes a row of its own, under the back
+            button and the record's actions: beside three of them, a one-word
+            list name at 360 dp had 130 px and broke mid-word. */}
+        {back != null ? (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm }}>
+            <BackButton fallback={back} />
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>{actions}</View>
+          </View>
+        ) : null}
+        {/* No title yet — a pushed screen before its record has loaded — is
+            no heading, or a screen reader announces an empty one. */}
+        {title != null ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
-            {back != null ? <BackButton fallback={back} /> : null}
-            {/* No title yet — a pushed screen before its record has loaded —
-                is no heading, or a screen reader announces an empty one. */}
-            {title != null ? (
-              <Text
-                accessibilityRole="header"
-                aria-level={1}
-                style={[type.title, { color: palette.textStrong, flex: 1, minWidth: 0 }]}
-              >
-                {title}
-              </Text>
-            ) : null}
-            {actions}
+            <Text
+              accessibilityRole="header"
+              aria-level={1}
+              style={[type.title, { color: palette.textStrong, flex: 1, minWidth: 0 }]}
+            >
+              {title}
+            </Text>
+            {back == null ? actions : null}
           </View>
         ) : null}
         {children}
