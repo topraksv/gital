@@ -22,9 +22,13 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useRouter, useScrollToTop, useSegments, type Href } from "expo-router";
+import Check from "lucide-react-native/icons/check";
 import ChevronLeft from "lucide-react-native/icons/chevron-left";
+import ChevronRight from "lucide-react-native/icons/chevron-right";
+import DatabaseZap from "lucide-react-native/icons/database-zap";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { foldName, formatQuantity, type Entry } from "../domain/items";
 import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { interactionSurface } from "./interaction";
@@ -42,6 +46,8 @@ import {
   font,
   iconSize,
   iconStroke,
+  itemRow,
+  listCard,
   navigationInset,
   offset,
   pressDepth,
@@ -245,7 +251,7 @@ export function Card({ children }: { children: ReactNode }) {
  * Helix's tile with a record's first letter on one of three soft tones, until
  * the record has a picture of its own (`docs/UI.md` section 6).
  */
-export function LetterTile({ id, name, size }: { id: string; name: string; size: number }) {
+function LetterTile({ id, name, size }: { id: string; name: string; size: number }) {
   const { palette } = useTheme();
   const tones = [
     { fill: palette.primarySoft, ink: palette.accentText },
@@ -268,6 +274,103 @@ export function LetterTile({ id, name, size }: { id: string; name: string; size:
     >
       <Text style={[type.heading, { color: tone.ink }]}>{initialOf(name)}</Text>
     </View>
+  );
+}
+
+/**
+ * An item's tile, name and quantity, as every row that shows an item draws
+ * them; `struck` is the basket's line through a ticked one. The tile's tone is
+ * the product's, not the row's: history keeps its own copy of a bought item,
+ * and "Süt" should wear one tone on its list and in every shop.
+ */
+export function ItemLabel({ item, struck = false }: { item: Entry; struck?: boolean }) {
+  const { palette } = useTheme();
+  const quantity = formatQuantity(item);
+  return (
+    <>
+      <LetterTile id={foldName(item.name)} name={item.name} size={itemRow.tile} />
+      <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
+        <Text
+          style={[
+            type.body,
+            {
+              fontFamily: font.medium,
+              color: struck ? palette.textSecondary : palette.textStrong,
+              textDecorationLine: struck ? "line-through" : "none",
+            },
+          ]}
+        >
+          {item.name}
+        </Text>
+        {quantity ? <Text style={[type.small, { color: palette.textSecondary }]}>{quantity}</Text> : null}
+      </View>
+    </>
+  );
+}
+
+const checkCircle = {
+  width: itemRow.check,
+  height: itemRow.check,
+  borderRadius: circle(itemRow.check),
+  alignItems: "center",
+  justifyContent: "center",
+} as const;
+
+/** The empty ring, or the filled circle and its tick popping in (`docs/UI.md` section 7, Check). */
+export function CheckMark({ checked }: { checked: boolean }) {
+  const { palette } = useTheme();
+  return checked ? (
+    <SuccessPop>
+      <View style={[checkCircle, { backgroundColor: palette.secondary }]}>
+        <Check accessible={false} size={iconSize.compact} color={palette.onSecondary} strokeWidth={iconStroke.mark} />
+      </View>
+    </SuccessPop>
+  ) : (
+    <View style={[checkCircle, { borderWidth: borderWidth.selected, borderColor: palette.controlBorder }]} />
+  );
+}
+
+/**
+ * A card that opens a screen: its tile, its name, one line under it and a
+ * chevron. A list on Listeler, a finished shop on Geçmiş.
+ */
+export function LinkCard({
+  tileId,
+  title,
+  detail,
+  hint,
+  onOpen,
+}: {
+  /** What the tile's tone is taken from, so a shop wears its list's tone. */
+  tileId: string;
+  title: string;
+  detail: string;
+  hint: string;
+  onOpen: () => void;
+}) {
+  const { palette } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={tr.common.withDetail(title, detail)}
+      accessibilityHint={hint}
+      onPress={onOpen}
+      style={(state) => ({
+        ...cardEdge(palette),
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        ...interactionSurface(palette, state, { base: palette.surface }),
+        transform: [{ translateY: state.pressed ? pressDepth : 0 }],
+      })}
+    >
+      <LetterTile id={tileId} name={title} size={listCard.tile} />
+      <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
+        <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold }]}>{title}</Text>
+        <Text style={[type.small, { color: palette.textSecondary }]}>{detail}</Text>
+      </View>
+      <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
+    </Pressable>
   );
 }
 
@@ -594,6 +697,21 @@ export function IconButton({
         </View>
       )}
     </Pressable>
+  );
+}
+
+/**
+ * What a screen shows while its reads keep failing. The live queries retry on
+ * their own; the button retries now.
+ */
+export function ReadFailed({ queries }: { queries: readonly { retry: () => void }[] }) {
+  return (
+    <EmptyState
+      icon={DatabaseZap}
+      title={tr.errors.readFailedTitle}
+      hint={tr.errors.readFailedHint}
+      action={<Button label={tr.common.retry} onPress={() => queries.forEach((query) => query.retry())} />}
+    />
   );
 }
 

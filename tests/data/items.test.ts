@@ -73,7 +73,9 @@ describe("addItems", () => {
 
   it("gives the same product on the same list the same id on every device", async () => {
     const [id] = await addItems(listId, "Süt");
-    expect(id).toBe(await deterministicId(naturalKeys.openItem(listId, "sut", 0)));
+    expect(id).toBe(await deterministicId(naturalKeys.openItem(listId, "sut")));
+    // The key rows already on devices were made with, when it still counted shops.
+    expect(id).toBe(await deterministicId(`item:${listId}:sut:0`));
   });
 
   it("merges the same product into one row: a quantity named again replaces the old one", async () => {
@@ -197,7 +199,7 @@ describe("updateItem", () => {
     const [sut] = await addItems(listId, "2 lt süt, ekmek");
     await toggleChecked(sut!);
     await updateItem(sut!, as("Ayran", 2000, "lt"));
-    const ayran = await deterministicId(naturalKeys.openItem(listId, "ayran", 0));
+    const ayran = await deterministicId(naturalKeys.openItem(listId, "ayran"));
     expect(await readItems(listId)).toMatchObject([
       { name: "Ekmek" },
       { id: ayran, name: "Ayran", quantityMilli: 2000, unit: "lt", checkedAt: T0.toISOString() },

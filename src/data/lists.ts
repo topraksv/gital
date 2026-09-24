@@ -10,7 +10,7 @@ import { nameFrom } from "../domain/names";
 export interface ListSummary {
   id: string;
   name: string;
-  /** Items on the list, the basket included. */
+  /** Items on the list, the basket included; a finished shop's are history. */
   total: number;
   inBasket: number;
 }
@@ -20,7 +20,7 @@ export function readLists(): Promise<ListSummary[]> {
   return getDb()
     .select({ id: lists.id, name: lists.name, total: count(items.id), inBasket: count(items.checkedAt) })
     .from(lists)
-    .leftJoin(items, and(eq(items.listId, lists.id), isNull(items.deletedAt)))
+    .leftJoin(items, and(eq(items.listId, lists.id), isNull(items.shopId), isNull(items.deletedAt)))
     .where(isNull(lists.deletedAt))
     .groupBy(lists.id)
     .orderBy(asc(lists.createdAt), asc(lists.id));

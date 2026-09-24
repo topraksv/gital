@@ -32,3 +32,10 @@ cannot be released.
 - On the phone, swiping an item right ticks it or takes the tick back, and
   swiping it left deletes it, with undo; the circle and the item panel do the
   same everywhere.
+- A list's basket ends in "Alışverişi Bitir": what is in it is filed as a
+  finished shop and leaves the list, what was not bought stays, and the bar
+  takes it back for six seconds.
+- Geçmiş lists finished shops, newest first; each opens to what it bought,
+  and any item goes back onto its list with its quantity in one tap.
+- On a wide screen, Listeler, a list and Geçmiş take the same width as the
+  other tabs, so the page no longer narrows when you switch to them.

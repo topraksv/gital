@@ -1,5 +1,14 @@
 /** Every string a user reads. Turkish in the interface, English in code. */
 
+/** Helix's `dateTimeLabel`, its formatter made once: "24 Eylül 2026 14:05", on the device's clock. */
+const DATE_TIME = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long", timeStyle: "short" });
+
+function dateTimeLabel(iso: string): string {
+  const value = new Date(iso);
+  // A stamp this device cannot read shows as it is rather than throwing in render.
+  return Number.isNaN(value.getTime()) ? iso : DATE_TIME.format(value);
+}
+
 /** How far a shop has got, on a list's card and above its items alike. */
 function basketProgress(done: number, total: number): string {
   return done === total ? "Hepsi sepette" : `${done}/${total} sepette`;
@@ -10,6 +19,8 @@ export const tr = {
     back: "Geri",
     cancel: "Vazgeç",
     deleted: (name: string) => `${name} silindi`,
+    /** What a screen reader hears for a card or a row: its name, then its line when it has one. */
+    withDetail: (title: string, detail: string) => (detail ? `${title}, ${detail}` : title),
     done: "Tamam",
     retry: "Tekrar Dene",
     save: "Kaydet",
@@ -42,7 +53,6 @@ export const tr = {
     renameMessage: "Listenin yeni adı.",
     rename: (name: string) => `${name} listesini yeniden adlandır`,
     delete: (name: string) => `${name} listesini sil`,
-    open: (name: string, summary: string) => `${name}, ${summary}`,
     openHint: "Listeyi aç",
     emptyTitle: "Henüz liste yok",
     emptyHint: "Market, pazar, eczane — her alışveriş için bir liste aç.",
@@ -58,13 +68,23 @@ export const tr = {
     emptyHint: "Yukarıya yaz. Virgülle ya da “ve” ile ayırırsan birkaç ürün birden eklenir.",
     basket: "Sepette",
     progress: basketProgress,
-    open: (name: string, quantity: string) => (quantity ? `${name}, ${quantity}` : name),
     openHint: "Düzenlemek için aç",
     nameLabel: "Ürünün adı",
     quantity: "Miktar",
     less: (name: string) => `${name} miktarını azalt`,
     more: (name: string) => `${name} miktarını artır`,
     delete: (name: string) => `${name} ürününü sil`,
+    finish: "Alışverişi Bitir",
+    finished: (count: number) => `Alışveriş bitti, ${count} ürün geçmişe taşındı`,
+  },
+  history: {
+    emptyTitle: "Henüz biten alışveriş yok",
+    emptyHint: "Sepete attıklarını “Alışverişi Bitir” ile buraya taşı. Her birini tek dokunuşla listesine geri ekleyebilirsin.",
+    /** A shop's card and the line above what it bought. */
+    summary: (finishedAt: string, bought: number) => `${dateTimeLabel(finishedAt)} · ${bought} ürün`,
+    openHint: "Alınanları gör",
+    addBack: (name: string) => `${name} ürününü listeye geri ekle`,
+    addedBack: (name: string) => `${name} listeye eklendi`,
   },
   settings: {
     appSection: "Uygulama",

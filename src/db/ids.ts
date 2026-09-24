@@ -19,9 +19,13 @@ export async function deterministicId(naturalKey: string): Promise<string> {
 
 export const naturalKeys = {
   /**
-   * An item still to buy (`docs/ARCHITECTURE.md`, Tables). The shop number
-   * starts a fresh row once a shop has filed the old one into history, so
-   * "süt" bought last week and "süt" needed today are two rows.
+   * An item on a list (`docs/ARCHITECTURE.md`, Tables): one row per product,
+   * which is 2.5's merge. The `:0` counted finished shops once; rows already
+   * on devices were made under it, so it stays.
    */
-  openItem: (listId: string, foldedName: string, shopsFinished: number) => `item:${listId}:${foldedName}:${shopsFinished}`,
+  openItem: (listId: string, foldedName: string) => `item:${listId}:${foldedName}:0`,
+  /** A list's nth finished shop, so two members finishing at once write one. */
+  shop: (listId: string, number: number) => `shop:${listId}:${number}`,
+  /** What a shop bought of a product: history's own row, apart from the list's. */
+  boughtItem: (shopId: string, foldedName: string) => `bought:${shopId}:${foldedName}`,
 };

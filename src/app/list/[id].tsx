@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import Check from "lucide-react-native/icons/check";
-import DatabaseZap from "lucide-react-native/icons/database-zap";
+import CheckCheck from "lucide-react-native/icons/check-check";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Pencil from "lucide-react-native/icons/pencil";
 import Plus from "lucide-react-native/icons/plus";
@@ -11,44 +10,32 @@ import Trash from "lucide-react-native/icons/trash";
 import { useItems, useLists } from "../../data/hooks";
 import { addItems, deleteItem, restoreItem, toggleChecked, updateItem, type Item } from "../../data/items";
 import { deleteList, renameList, restoreList, type ListSummary } from "../../data/lists";
+import { finishShop, reopenShop } from "../../data/shops";
 import { ENTRY_MAX, formatQuantity, parseEntry, type Entry } from "../../domain/items";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import {
   ArrivalScope,
   Button,
+  CheckMark,
   EmptyState,
   IconButton,
-  LetterTile,
+  ItemLabel,
   ProgressBar,
+  ReadFailed,
   Screen,
   SectionHeader,
   SlideUp,
-  SuccessPop,
   TextField,
   cardEdge,
 } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
-import { mediumImpact, selectionTap } from "../../ui/haptics";
+import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
 import { ItemSheet } from "../../ui/item-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { navigateBack } from "../../ui/navigation";
-import {
-  borderWidth,
-  circle,
-  controlSize,
-  density,
-  font,
-  iconSize,
-  iconStroke,
-  itemRow,
-  motion,
-  offset,
-  spacing,
-  type,
-  useTheme,
-} from "../../ui/theme";
+import { controlSize, density, motion, spacing, type, useTheme } from "../../ui/theme";
 import { showUndo } from "../../ui/undo";
 
 export default function ListScreen() {
@@ -121,6 +108,18 @@ export default function ListScreen() {
     }
   };
 
+  // What is in the basket is filed and leaves; the rest stays on the list (SPEC 3.4).
+  const finish = async () => {
+    try {
+      const shop = await finishShop(id);
+      if (!shop) return;
+      successNotice();
+      showUndo(tr.items.finished(shop.bought), () => reopenShop(shop.id));
+    } catch {
+      void appError(tr.errors.saveFailed);
+    }
+  };
+
   const open = items.data.filter((item) => item.checkedAt == null);
   const basket = items.data.filter((item) => item.checkedAt != null);
   const row = (item: Item) => (
@@ -144,6 +143,7 @@ export default function ListScreen() {
     <Screen
       back="/"
       title={list?.name}
+      width="workspace"
       actions={
         list && !leaving ? (
           <>
@@ -154,20 +154,7 @@ export default function ListScreen() {
       }
     >
       {lists.status === "error" || items.status === "error" ? (
-        <EmptyState
-          icon={DatabaseZap}
-          title={tr.errors.readFailedTitle}
-          hint={tr.errors.readFailedHint}
-          action={
-            <Button
-              label={tr.common.retry}
-              onPress={() => {
-                lists.retry();
-                items.retry();
-              }}
-            />
-          }
-        />
+        <ReadFailed queries={[lists, items]} />
       ) : list && items.updatedAt != null ? (
         <ArrivalScope>
           <QuickAdd listId={list.id} />
@@ -189,6 +176,15 @@ export default function ListScreen() {
                     </RowMotion>
                   ) : null,
                   ...basket.map(row),
+                  basket.length > 0 ? (
+                    <RowMotion key="finish">
+                      <SlideUp distance={motion.travel.bar}>
+                        <View style={{ marginTop: spacing.md }}>
+                          <Button label={tr.items.finish} icon={CheckCheck} onPress={finish} />
+                        </View>
+                      </SlideUp>
+                    </RowMotion>
+                  ) : null,
                 ]}
               </View>
             </>
@@ -276,7 +272,7 @@ function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; o
     <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={tr.items.open(item.name, quantity)}
+        accessibilityLabel={tr.common.withDetail(item.name, quantity)}
         accessibilityHint={tr.items.openHint}
         onPress={onOpen}
         style={(state) => ({
@@ -289,22 +285,7 @@ function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; o
           ...interactionSurface(palette, state),
         })}
       >
-        <LetterTile id={item.id} name={item.name} size={itemRow.tile} />
-        <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
-          <Text
-            style={[
-              type.body,
-              {
-                fontFamily: font.medium,
-                color: checked ? palette.textSecondary : palette.textStrong,
-                textDecorationLine: checked ? "line-through" : "none",
-              },
-            ]}
-          >
-            {item.name}
-          </Text>
-          {quantity ? <Text style={[type.small, { color: palette.textSecondary }]}>{quantity}</Text> : null}
-        </View>
+        <ItemLabel item={item} struck={checked} />
       </Pressable>
       <Pressable
         accessibilityRole="checkbox"
@@ -319,24 +300,9 @@ function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; o
           ...interactionSurface(palette, state),
         })}
       >
-        {checked ? (
-          <SuccessPop>
-            <View style={[checkCircle, { backgroundColor: palette.secondary }]}>
-              <Check accessible={false} size={iconSize.compact} color={palette.onSecondary} strokeWidth={iconStroke.mark} />
-            </View>
-          </SuccessPop>
-        ) : (
-          <View style={[checkCircle, { borderWidth: borderWidth.selected, borderColor: palette.controlBorder }]} />
-        )}
+        <CheckMark checked={checked} />
       </Pressable>
     </View>
   );
 }
 
-const checkCircle = {
-  width: itemRow.check,
-  height: itemRow.check,
-  borderRadius: circle(itemRow.check),
-  alignItems: "center",
-  justifyContent: "center",
-} as const;

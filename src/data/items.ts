@@ -1,6 +1,6 @@
 /** A list's items, and what the list screen can do to one. */
 
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import {
@@ -23,37 +23,49 @@ export interface Item extends Entry {
   checkedAt: string | null;
 }
 
-/** What is left to buy in its order, then the basket, the latest tick first (SPEC 3.1). */
-export function readItems(listId: string): Promise<Item[]> {
+/** The basket's order, the latest tick first; everything a shop bought was ticked. */
+function readItemsWhere(where: SQL | undefined): Promise<Item[]> {
   return getDb()
     .select({ id: items.id, name: items.name, quantityMilli: items.quantityMilli, unit: items.unit, checkedAt: items.checkedAt })
     .from(items)
-    .where(and(eq(items.listId, listId), isNull(items.deletedAt)))
+    .where(and(where, isNull(items.deletedAt)))
     .orderBy(sql`${items.checkedAt} IS NOT NULL`, desc(items.checkedAt), asc(items.sortOrder), asc(items.id));
 }
 
-/** No shop can be finished yet (SPEC 3.4 has no slice), so every open item is in the first. */
-const SHOPS_FINISHED = 0;
+/** What is left to buy in its order, then the basket (SPEC 3.1). */
+export function readItems(listId: string): Promise<Item[]> {
+  return readItemsWhere(and(eq(items.listId, listId), isNull(items.shopId)));
+}
 
-function openItemId(listId: string, name: string): Promise<string> {
-  return deterministicId(naturalKeys.openItem(listId, foldName(name), SHOPS_FINISHED));
+export function readShopItems(shopId: string): Promise<Item[]> {
+  return readItemsWhere(eq(items.shopId, shopId));
+}
+
+/** A product's row on a list: bought and needed again, it comes back under the same id. */
+export function openItemId(listId: string, name: string): Promise<string> {
+  return deterministicId(naturalKeys.openItem(listId, foldName(name)));
 }
 
 /**
  * Add what an entry names (SPEC 2.1–2.5) and return the ids of its rows. A
  * product already on the list is merged into its row rather than added again,
- * and one deleted from it comes back on top.
+ * and one deleted from it, or bought, comes back on top.
  */
-export async function addItems(listId: string, text: string): Promise<string[]> {
+export function addItems(listId: string, text: string): Promise<string[]> {
+  return addEntries(listId, parseEntry(text));
+}
+
+/** `addItems` for entries already read: what a shop bought, added again (SPEC 3.5). */
+export async function addEntries(listId: string, added: readonly Entry[]): Promise<string[]> {
   const entries = new Map<string, Entry>();
-  const parsed = parseEntry(text);
-  const ids = await Promise.all(parsed.map((entry) => openItemId(listId, entry.name)));
-  parsed.forEach((entry, at) => {
+  const ids = await Promise.all(added.map((entry) => openItemId(listId, entry.name)));
+  // Only an entry's own fields: an item from history also carries its id and tick.
+  added.forEach(({ name, quantityMilli, unit }, at) => {
     const id = ids[at]!;
     const held = entries.get(id);
     // Named twice, a product keeps its first place and the last quantity given.
-    if (!held) entries.set(id, entry);
-    else if (entry.quantityMilli != null) entries.set(id, { ...held, quantityMilli: entry.quantityMilli, unit: entry.unit });
+    if (!held) entries.set(id, { name, quantityMilli, unit });
+    else if (quantityMilli != null) entries.set(id, { ...held, quantityMilli, unit });
   });
   if (entries.size === 0) return [];
 
@@ -61,7 +73,7 @@ export async function addItems(listId: string, text: string): Promise<string[]> 
   await writeRows(async () => {
     await readLiveRow("lists", listId);
     const top = await sqlite.getFirstAsync<{ low: number | null }>(
-      "SELECT MIN(sort_order) AS low FROM items WHERE list_id = ? AND deleted_at IS NULL",
+      "SELECT MIN(sort_order) AS low FROM items WHERE list_id = ? AND shop_id IS NULL AND deleted_at IS NULL",
       [listId],
     );
     const unique = [...entries.keys()];

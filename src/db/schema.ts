@@ -46,8 +46,27 @@ export const items = sqliteTable(
     /** Helix's order column. A new item takes the lowest, so it lands on top. */
     sortOrder: integer("sort_order").notNull().default(0),
     checkedAt: text("checked_at"),
+    /** Set on the copy a finished shop keeps of what it bought; `null` on the list. */
+    shopId: text("shop_id"),
   },
-  (t) => [index("idx_items_list_id").on(t.listId)],
+  // The list's open items are `shop_id IS NULL`, and history grows under them.
+  (t) => [index("idx_items_list_id_shop_id").on(t.listId, t.shopId), index("idx_items_shop_id").on(t.shopId)],
+);
+
+/**
+ * A finished shop (SPEC 3.4). Its id comes from the list and `number`, so two
+ * members finishing at once write one shop; `finished_at` is its own column
+ * because an undone shop finished again keeps its first `created_at`.
+ */
+export const shops = sqliteTable(
+  "shops",
+  {
+    ...syncColumns,
+    listId: text("list_id").notNull(),
+    number: integer("number").notNull(),
+    finishedAt: text("finished_at").notNull(),
+  },
+  (t) => [index("idx_shops_list_id").on(t.listId)],
 );
 
 /** Local only: every write waiting to be pushed. Never synced itself. */
@@ -68,6 +87,6 @@ export const outbox = sqliteTable(
   ],
 );
 
-export const SYNCED_TABLES = { lists, items } as const;
+export const SYNCED_TABLES = { lists, items, shops } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;
