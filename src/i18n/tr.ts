@@ -71,6 +71,11 @@ export const tr = {
     openHint: "Düzenlemek için aç",
     nameLabel: "Ürünün adı",
     quantity: "Miktar",
+    noteLabel: "Not",
+    notePlaceholder: "Not ya da marka: Pınar olsun",
+    urgent: "Acil",
+    /** An item's second line as drawn; read aloud, `common.withDetail` joins it with commas. */
+    detail: (parts: readonly string[]) => parts.join(" · "),
     less: (name: string) => `${name} miktarını azalt`,
     more: (name: string) => `${name} miktarını artır`,
     delete: (name: string) => `${name} ürününü sil`,

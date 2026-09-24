@@ -26,11 +26,13 @@ import Check from "lucide-react-native/icons/check";
 import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
 import DatabaseZap from "lucide-react-native/icons/database-zap";
+import Minus from "lucide-react-native/icons/minus";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { foldName, formatQuantity, type Entry } from "../domain/items";
+import { foldName, formatQuantity, type ItemChange } from "../domain/items";
 import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
+import { selectionTap } from "./haptics";
 import { interactionSurface } from "./interaction";
 import { useReducedMotion, useSpringTo } from "./motion";
 import { navigateBack } from "./navigation";
@@ -57,7 +59,9 @@ import {
   radius,
   sectionMark,
   spacing,
+  stateOpacity,
   tileRadius,
+  toggleSize,
   type,
   useTheme,
   type ContentWidth,
@@ -278,15 +282,30 @@ function LetterTile({ id, name, size }: { id: string; name: string; size: number
   );
 }
 
+type ShownItem = ItemChange & { checkedAt: string | null };
+
+/** An item's second line: urgency while it is still to buy, then quantity and note. */
+function detailOf(item: ShownItem) {
+  return { urgent: item.urgent && item.checkedAt == null, rest: [formatQuantity(item), item.note ?? ""].filter(Boolean) };
+}
+
+/** For a row's accessible label, which a screen reader hears in place of what the row draws. */
+export function itemDetail(item: ShownItem): string {
+  const { urgent, rest } = detailOf(item);
+  return (urgent ? [tr.items.urgent, ...rest] : rest).join(", ");
+}
+
 /**
- * An item's tile, name and quantity, as every row that shows an item draws
- * them; `struck` is the basket's line through a ticked one. The tile's tone is
- * the product's, not the row's: history keeps its own copy of a bought item,
- * and "Süt" should wear one tone on its list and in every shop.
+ * An item's tile, name, and a line under it (`docs/UI.md` section 6), as every
+ * row that shows an item draws them; `struck` is the basket's line through a
+ * ticked one. The tile's tone is the product's, not the row's: history keeps
+ * its own copy of a bought item, and "Süt" should wear one tone on its list
+ * and in every shop.
  */
-export function ItemLabel({ item, struck = false }: { item: Entry; struck?: boolean }) {
+export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: boolean }) {
   const { palette } = useTheme();
-  const quantity = formatQuantity(item);
+  const { urgent, rest } = detailOf(item);
+  const detail = tr.items.detail(rest);
   return (
     <>
       <LetterTile id={foldName(item.name)} name={item.name} size={itemRow.tile} />
@@ -303,7 +322,13 @@ export function ItemLabel({ item, struck = false }: { item: Entry; struck?: bool
         >
           {item.name}
         </Text>
-        {quantity ? <Text style={[type.small, { color: palette.textSecondary }]}>{quantity}</Text> : null}
+        {urgent || detail ? (
+          <Text style={[type.small, { color: palette.textSecondary }]}>
+            {urgent ? <Text style={{ fontFamily: font.semibold, color: palette.errorText }}>{tr.items.urgent}</Text> : null}
+            {urgent && detail ? " · " : null}
+            {detail}
+          </Text>
+        ) : null}
       </View>
     </>
   );
@@ -328,6 +353,83 @@ export function CheckMark({ checked }: { checked: boolean }) {
     </SuccessPop>
   ) : (
     <View style={[checkCircle, { borderWidth: borderWidth.selected, borderColor: palette.controlBorder }]} />
+  );
+}
+
+/**
+ * Helix's switch: the track fills with the brand colour and the thumb slides
+ * across on the shared spring. Custom rather than React Native's, whose web
+ * and Android faces differ from iOS and from this palette. On carries a tick
+ * and off a dash, so the state never rests on colour alone. The fill fades in
+ * over a still track rather than tweening its colour, which keeps the spring
+ * on the native driver. Unlike Helix's, it draws its label and the whole row
+ * is the control, so a screen reader meets one element rather than a label
+ * and then the same name again.
+ */
+export function Toggle({ value, onValueChange, label }: { value: boolean; onValueChange: (value: boolean) => void; label: string }) {
+  const { palette } = useTheme();
+  const [progress] = useState(() => new Animated.Value(value ? 1 : 0));
+  useSpringTo(progress, value ? 1 : 0);
+  const thumb = toggleSize.height - toggleSize.padding * 2;
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      aria-checked={value}
+      accessibilityState={{ checked: value }}
+      onPress={() => {
+        selectionTap();
+        onValueChange(!value);
+      }}
+      style={({ pressed }) => ({
+        minHeight: controlSize.minimumTarget,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+        opacity: pressed ? stateOpacity.pressed : 1,
+      })}
+    >
+      <Text style={[type.body, { color: palette.text, flex: 1 }]}>{label}</Text>
+      <View
+        style={{
+          width: toggleSize.width,
+          height: toggleSize.height,
+          borderRadius: circle(toggleSize.height),
+          // Inside the border, so the thumb sits `padding` from the track's edge.
+          paddingHorizontal: toggleSize.padding - borderWidth.outline,
+          overflow: "hidden",
+          justifyContent: "center",
+          backgroundColor: palette.surfaceAlt,
+          borderWidth: borderWidth.outline,
+          borderColor: value ? palette.primaryStrong : palette.controlBorder,
+        }}
+      >
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.primary, opacity: progress }]} />
+        {/* The mark sits on the side the thumb has left. */}
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            { paddingHorizontal: toggleSize.glyphInset, justifyContent: "center", alignItems: value ? "flex-start" : "flex-end" },
+          ]}
+        >
+          {value ? (
+            <Check accessible={false} size={toggleSize.glyph} color={palette.onPrimary} strokeWidth={iconStroke.mark} />
+          ) : (
+            <Minus accessible={false} size={toggleSize.glyph} color={palette.textSecondary} strokeWidth={iconStroke.mark} />
+          )}
+        </View>
+        <Animated.View
+          style={{
+            width: thumb,
+            height: thumb,
+            borderRadius: circle(thumb),
+            backgroundColor: value ? palette.onPrimary : palette.textSecondary,
+            transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, toggleSize.width - toggleSize.height] }) }],
+          }}
+        />
+      </View>
+    </Pressable>
   );
 }
 

@@ -46,6 +46,8 @@ export const items = sqliteTable(
     /** Helix's order column. A new item takes the lowest, so it lands on top. */
     sortOrder: integer("sort_order").notNull().default(0),
     checkedAt: text("checked_at"),
+    note: text("note"),
+    urgent: integer("urgent", { mode: "boolean" }).notNull().default(false),
     /** Set on the copy a finished shop keeps of what it bought; `null` on the list. */
     shopId: text("shop_id"),
   },

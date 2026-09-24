@@ -42,3 +42,6 @@ cannot be released.
 - Typing a product in a list's field offers what the household had before
   as chips under it — `sut` finds Süt, and `pe` finds Beyaz peynir too; one
   tap adds it with the quantity typed, and the keyboard stays up.
+- An item's panel takes a note or a brand ("Pınar olsun"), shown under its
+  name, and an "Acil" switch that lifts it to the top of the list and marks
+  it in red; a product added again comes back without either.

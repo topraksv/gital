@@ -16,20 +16,29 @@ import {
   type RowWrite,
 } from "../db/mutations";
 import { items, lists } from "../db/schema";
-import { foldName, itemNameFrom, type Entry, type KnownProduct } from "../domain/items";
+import { NOTE_MAX, foldName, itemNameFrom, type Entry, type ItemChange, type KnownProduct } from "../domain/items";
+import { nameFrom } from "../domain/names";
 
-export interface Item extends Entry {
+export interface Item extends ItemChange {
   id: string;
   checkedAt: string | null;
 }
 
-/** The basket's order, the latest tick first; everything a shop bought was ticked. */
+/** Urgent first, then in order; the basket after, the latest tick first. Everything a shop bought was ticked. */
 function readItemsWhere(where: SQL | undefined): Promise<Item[]> {
   return getDb()
-    .select({ id: items.id, name: items.name, quantityMilli: items.quantityMilli, unit: items.unit, checkedAt: items.checkedAt })
+    .select({
+      id: items.id,
+      name: items.name,
+      quantityMilli: items.quantityMilli,
+      unit: items.unit,
+      note: items.note,
+      urgent: items.urgent,
+      checkedAt: items.checkedAt,
+    })
     .from(items)
     .where(and(where, isNull(items.deletedAt)))
-    .orderBy(sql`${items.checkedAt} IS NOT NULL`, desc(items.checkedAt), asc(items.sortOrder), asc(items.id));
+    .orderBy(sql`${items.checkedAt} IS NOT NULL`, desc(items.checkedAt), desc(items.urgent), asc(items.sortOrder), asc(items.id));
 }
 
 /** What is left to buy in its order, then the basket (SPEC 3.1). */
@@ -140,27 +149,39 @@ export function toggleChecked(id: string): Promise<void> {
 }
 
 /**
- * Save the item panel: its name and quantity, in one write. The id is the
+ * Save the item panel: its name, quantity, note and urgency, in one write. The id is the
  * product's, so a new product means a new row: the old one is tombstoned and
  * the new one carries everything else, or merges into the product's row when
  * it is already there. Renamed in place, "süt" → "ayran" would leave the row
  * where the next "süt" lands, and that "süt" would overwrite the ayran.
  */
-export async function updateItem(id: string, entry: Entry): Promise<void> {
-  const name = itemNameFrom(entry.name);
+export async function updateItem(id: string, change: ItemChange): Promise<void> {
+  const name = itemNameFrom(change.name);
   if (name == null) throw new Error("An item needs a name");
+  const note = change.note == null ? null : nameFrom(change.note, NOTE_MAX);
   await writeRows(async () => {
     const stored = await readLiveItem(id);
-    const quantity = { quantityMilli: entry.quantityMilli, unit: entry.unit };
+    const quantity = { quantityMilli: change.quantityMilli, unit: change.unit };
+    const saved = { name, ...quantity, note, urgent: change.urgent };
     const target = await openItemId(String(stored.list_id), name);
-    if (target === id) return editRow("items", stored, { name, ...quantity });
+    if (target === id) return editRow("items", stored, saved);
     const row = fromDbShape("items", stored);
     const gone: RowWrite = { table: "items", row: { ...row, deletedAt: nowIso() } };
     // Onto a product already on the list, the save lands as adding it again
-    // would (2.5): that row keeps its name, place and tick, and takes a quantity.
+    // would (2.5): that row keeps its name, place and tick, takes the quantity,
+    // note and urgency the panel shows, and keeps its own where the panel has none.
     const there = await findLiveRow("items", target);
-    if (there) return [gone, ...(quantity.quantityMilli == null ? [] : editRow("items", there, quantity))];
-    return [gone, { table: "items", row: { ...row, name, ...quantity, id: target, deletedAt: null, tombstoneVersion: 0 } }];
+    if (there) {
+      return [
+        gone,
+        ...editRow("items", there, {
+          ...(quantity.quantityMilli != null && quantity),
+          ...(note != null && { note }),
+          ...(change.urgent && { urgent: true }),
+        }),
+      ];
+    }
+    return [gone, { table: "items", row: { ...row, ...saved, id: target, deletedAt: null, tombstoneVersion: 0 } }];
   });
 }
 

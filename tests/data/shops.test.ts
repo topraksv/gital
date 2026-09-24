@@ -150,7 +150,7 @@ describe("the list after a shop", () => {
     const [sut] = await shopFor("süt", ["Süt"]);
     const shopId = await finish();
     await expect(toggleChecked(sut!)).rejects.toThrow();
-    await expect(updateItem(sut!, { name: "Ayran", quantityMilli: null, unit: null })).rejects.toThrow();
+    await expect(updateItem(sut!, { name: "Ayran", quantityMilli: null, unit: null, note: null, urgent: false })).rejects.toThrow();
     expect(await deleteItem(sut!)).toBeNull();
     expect(await history(shopId)).toMatchObject([{ name: "Süt" }]);
   });
@@ -230,7 +230,7 @@ describe("addEntries from history", () => {
     await shopFor("2 lt süt", ["Süt"]);
     const [item] = await readShopItems(await finish());
     const [back] = await addEntries(listId, [item!]);
-    expect(await readItems(listId)).toEqual([{ id: back, name: "Süt", quantityMilli: 2000, unit: "lt", checkedAt: null }]);
+    expect(await readItems(listId)).toEqual([{ id: back, name: "Süt", quantityMilli: 2000, unit: "lt", checkedAt: null, note: null, urgent: false }]);
     expect(back).not.toBe(item!.id);
   });
 

@@ -28,10 +28,17 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
+/**
+ * camelCase write → snake_case stored row, every column named: the upsert
+ * updates only what a write supplies, so a column left out would keep what a
+ * revived row held before its delete — a product added again would come back
+ * with its old note. Left out, a column takes its default.
+ */
 function toDbShape(table: SyncedTableName, row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, column] of Object.entries(getTableColumns(SYNCED_TABLES[table]))) {
-    if (key in row) out[column.name] = row[key] ?? null;
+    const value = key in row ? row[key] : column.default;
+    out[column.name] = value == null ? null : column.mapToDriverValue(value);
   }
   return out;
 }
@@ -43,7 +50,8 @@ export function fromDbShape(table: SyncedTableName, dbRow: object): Record<strin
   const source = dbRow as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const [key, column] of Object.entries(getTableColumns(SYNCED_TABLES[table]))) {
-    if (column.name in source) out[key] = source[column.name];
+    // Drizzle's own mapping, so a boolean stored as 1 is the `true` an edit compares it with.
+    if (column.name in source) out[key] = source[column.name] == null ? null : column.mapFromDriverValue(source[column.name]);
   }
   return out;
 }

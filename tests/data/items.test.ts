@@ -21,8 +21,8 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, deleteItem, readItems, readKnownProducts, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
-const { parseEntry } = await import("../../src/domain/items");
+const { addEntries, deleteItem, readItems, readKnownProducts, readShopItems, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
+const { NOTE_MAX, parseEntry } = await import("../../src/domain/items");
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
 const { finishShop } = await import("../../src/data/shops");
@@ -62,9 +62,9 @@ describe("addItems", () => {
     const ids = await addItems(listId, "2 kg domates, 1,5 lt süt ve ekmek");
     expect(ids).toHaveLength(3);
     expect(await readItems(listId)).toEqual([
-      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null },
-      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null },
-      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null },
+      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false },
+      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false },
+      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false },
     ]);
     expect(outboxCount()).toBe(3);
   });
@@ -188,8 +188,9 @@ describe("toggleChecked", () => {
   });
 });
 
+const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => ({ name, quantityMilli, unit, note: null, urgent: false });
+
 describe("updateItem", () => {
-  const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => ({ name, quantityMilli, unit });
 
   it("saves the name and the stepped quantity in place when the product stays the same", async () => {
     const [id] = await addItems(listId, "sut");
@@ -219,8 +220,8 @@ describe("updateItem", () => {
     await toggleChecked(ayran!);
     await updateItem(sut!, as("ayran"));
     expect(await readItems(listId)).toEqual([
-      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null },
-      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString() },
+      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false },
+      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false },
     ]);
     expect(stored(sut!).deleted_at).not.toBeNull();
   });
@@ -234,6 +235,8 @@ describe("updateItem", () => {
   it("writes nothing when nothing has changed", async () => {
     const [id] = await addItems(listId, "süt");
     const before = outboxCount();
+    // A later stamp, or the outbox key would repeat and hide a second write.
+    later(1000);
     await updateItem(id!, as("Süt"));
     expect(outboxCount()).toBe(before);
   });
@@ -251,6 +254,52 @@ describe("updateItem", () => {
     await expect(updateItem(id!, as("  "))).rejects.toThrow();
     await deleteItem(id!);
     await expect(updateItem(id!, as("Ayran"))).rejects.toThrow();
+  });
+});
+
+describe("a note and urgency", () => {
+  const change = (name: string, note: string | null, urgent: boolean) => ({ ...as(name), note, urgent });
+
+  it("saves a note folded and cut, a blank one as none, and puts an urgent item above the rest until it is ticked", async () => {
+    const [sut, ekmek, peynir] = await addItems(listId, "süt, ekmek, peynir");
+    await updateItem(peynir!, change("Peynir", "  Pınar   olsun ", true));
+    expect(await readItems(listId)).toMatchObject([
+      { id: peynir, note: "Pınar olsun", urgent: true },
+      { id: sut, note: null, urgent: false },
+      { id: ekmek },
+    ]);
+    // Saved again unchanged, it is not an edit: the stored 1 is the panel's true.
+    const before = outboxCount();
+    later(1000);
+    await updateItem(peynir!, change("Peynir", "Pınar olsun", true));
+    expect(outboxCount()).toBe(before);
+    await toggleChecked(peynir!);
+    expect((await readItems(listId)).map((item) => item.id)).toEqual([sut, ekmek, peynir]);
+    await updateItem(ekmek!, change("Ekmek", "x".repeat(NOTE_MAX + 20), false));
+    await updateItem(sut!, change("Süt", "   ", false));
+    expect((await readItems(listId)).map((item) => item.note?.length ?? null)).toEqual([null, NOTE_MAX, 11]);
+  });
+
+  it("brings a product added again, after it was deleted or bought, back without either", async () => {
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek");
+    await updateItem(sut!, change("Süt", "Pınar olsun", true));
+    await updateItem(ekmek!, change("Ekmek", "Tam buğday", true));
+    await deleteItem(ekmek!);
+    await toggleChecked(sut!);
+    const shop = await finishShop(listId);
+    await addItems(listId, "süt, ekmek");
+    expect(await readItems(listId)).toMatchObject([
+      { id: sut, note: null, urgent: false },
+      { id: ekmek, note: null, urgent: false },
+    ]);
+    // What was bought keeps both: the row shows urgency only while it is still to buy.
+    expect(await readShopItems(shop!.id)).toMatchObject([{ name: "Süt", note: "Pınar olsun", urgent: true }]);
+  });
+
+  it("gives the product an item is renamed onto the note and urgency the panel saved", async () => {
+    const [sut, ayran] = await addItems(listId, "süt, ayran");
+    await updateItem(sut!, change("ayran", "Sütaş", true));
+    expect(await readItems(listId)).toMatchObject([{ id: ayran, note: "Sütaş", urgent: true }]);
   });
 });
 

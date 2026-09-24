@@ -28,6 +28,10 @@ describe("nameFrom", () => {
     expect(Array.from(stored ?? "")).toHaveLength(NAME_MAX);
     expect(stored?.endsWith("🛒")).toBe(true);
   });
+
+  it("cuts at the limit it is given", () => {
+    expect(nameFrom("Pınar olsun", 5)).toBe("Pınar");
+  });
 });
 
 describe("initialOf", () => {

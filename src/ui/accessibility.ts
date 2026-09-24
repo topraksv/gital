@@ -18,7 +18,7 @@ function moveAccessibilityFocus(target: View | null): void {
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(
-    container.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [contenteditable="true"], [role="button"]'),
+    container.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="switch"]'),
   ).filter(
     (element) =>
       element.tabIndex >= 0 &&

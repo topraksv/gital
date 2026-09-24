@@ -11,7 +11,7 @@ import { useItems, useKnownProducts, useLists } from "../../data/hooks";
 import { addEntries, deleteItem, restoreItem, toggleChecked, updateItem, type Item } from "../../data/items";
 import { deleteList, renameList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
-import { ENTRY_MAX, formatQuantity, parseEntry, pickEntries, suggestProducts, typedProduct, type Entry } from "../../domain/items";
+import { ENTRY_MAX, parseEntry, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import {
@@ -21,6 +21,7 @@ import {
   EmptyState,
   IconButton,
   ItemLabel,
+  itemDetail,
   ProgressBar,
   ReadFailed,
   Screen,
@@ -88,7 +89,7 @@ export default function ListScreen() {
     }
   };
 
-  const save = async (item: Item, change: Entry) => {
+  const save = async (item: Item, change: ItemChange) => {
     setEditing(null);
     try {
       await updateItem(item.id, change);
@@ -312,12 +313,11 @@ function Progress({ done, total }: { done: number; total: number }) {
 function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; onToggle: () => void }) {
   const { palette } = useTheme();
   const checked = item.checkedAt != null;
-  const quantity = formatQuantity(item);
   return (
     <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={tr.common.withDetail(item.name, quantity)}
+        accessibilityLabel={tr.common.withDetail(item.name, itemDetail(item))}
         accessibilityHint={tr.items.openHint}
         onPress={onOpen}
         style={(state) => ({

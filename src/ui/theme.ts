@@ -493,6 +493,9 @@ export const sectionMark = { width: 3, height: 18, radius: 2 } as const;
 /** A list's card on Listeler: its initial on a tone, Helix's tile at this side. */
 export const listCard = { tile: 46 } as const;
 
+/** Helix's switch, drawn the same on every platform, so its geometry is one contract. */
+export const toggleSize = { width: 46, height: 28, padding: 3, glyph: 11, glyphInset: 7 } as const;
+
 /**
  * An item's row: a smaller tile than a list's, since a list holds dozens, and
  * the check circle drawn inside its 44-point target (`docs/UI.md` section 6).
