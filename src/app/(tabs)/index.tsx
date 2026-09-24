@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
@@ -8,9 +7,9 @@ import ShoppingBasket from "lucide-react-native/icons/shopping-basket";
 
 import { useLists } from "../../data/hooks";
 import { createList, type ListSummary } from "../../data/lists";
-import { LIST_NAME_MAX, listInitial, listTone } from "../../domain/lists";
+import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
-import { Button, EmptyState, IconButton, Screen, SlideUp, cardEdge } from "../../ui/components";
+import { ArrivalScope, Button, EmptyState, IconButton, LetterTile, Screen, SlideUp, cardEdge } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { selectionTap } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
@@ -21,9 +20,9 @@ import {
   iconStroke,
   listCard,
   motion,
+  offset,
   pressDepth,
   spacing,
-  tileRadius,
   type,
   useTheme,
 } from "../../ui/theme";
@@ -31,20 +30,17 @@ import {
 export default function Lists() {
   const lists = useLists();
   const router = useRouter();
-  // Only the list just made slides in: a screen arriving never animates as a whole.
-  const [arrived, setArrived] = useState<string | null>(null);
 
   const create = async () => {
     const name = await appPrompt(tr.lists.createTitle, tr.lists.createMessage, {
       placeholder: tr.lists.namePlaceholder,
       confirmLabel: tr.lists.createConfirm,
-      maxLength: LIST_NAME_MAX,
+      maxLength: NAME_MAX,
     });
     if (name == null) return;
     try {
-      const id = await createList(name);
+      await createList(name);
       selectionTap();
-      setArrived(id);
     } catch {
       void appError(tr.errors.saveFailed);
     }
@@ -65,41 +61,37 @@ export default function Lists() {
           hint={tr.errors.readFailedHint}
           action={<Button label={tr.common.retry} onPress={lists.retry} />}
         />
-      ) : !answered ? null : lists.data.length === 0 ? (
-        <EmptyState
-          icon={ShoppingBasket}
-          title={tr.lists.emptyTitle}
-          hint={tr.lists.emptyHint}
-          action={<Button label={tr.lists.create} icon={Plus} onPress={create} />}
-        />
-      ) : (
-        <View style={{ gap: density.list.rowGap }}>
-          {lists.data.map((list) => (
-            <ListCard
-              key={list.id}
-              list={list}
-              arrived={list.id === arrived}
-              onOpen={() => router.push({ pathname: "/list/[id]", params: { id: list.id } })}
+      ) : answered ? (
+        <ArrivalScope>
+          {lists.data.length === 0 ? (
+            <EmptyState
+              icon={ShoppingBasket}
+              title={tr.lists.emptyTitle}
+              hint={tr.lists.emptyHint}
+              action={<Button label={tr.lists.create} icon={Plus} onPress={create} />}
             />
-          ))}
-        </View>
-      )}
+          ) : (
+            <View style={{ gap: density.list.rowGap }}>
+              {lists.data.map((list) => (
+                <SlideUp key={list.id} distance={motion.travel.bar}>
+                  <ListCard list={list} onOpen={() => router.push({ pathname: "/list/[id]", params: { id: list.id } })} />
+                </SlideUp>
+              ))}
+            </View>
+          )}
+        </ArrivalScope>
+      ) : null}
     </Screen>
   );
 }
 
-function ListCard({ list, arrived, onOpen }: { list: ListSummary; arrived: boolean; onOpen: () => void }) {
+function ListCard({ list, onOpen }: { list: ListSummary; onOpen: () => void }) {
   const { palette } = useTheme();
-  const tones = [
-    { fill: palette.primarySoft, ink: palette.accentText },
-    { fill: palette.secondarySoft, ink: palette.secondaryText },
-    { fill: palette.tertiarySoft, ink: palette.tertiaryText },
-  ];
-  const tone = tones[listTone(list.id, tones.length)]!;
-  const card = (
+  return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={tr.lists.open(list.name)}
+      accessibilityLabel={tr.lists.open(list.name, tr.lists.summary(list.total, list.inBasket))}
+      accessibilityHint={tr.lists.openHint}
       onPress={onOpen}
       style={(state) => ({
         ...cardEdge(palette),
@@ -110,23 +102,12 @@ function ListCard({ list, arrived, onOpen }: { list: ListSummary; arrived: boole
         transform: [{ translateY: state.pressed ? pressDepth : 0 }],
       })}
     >
-      <View
-        accessible={false}
-        style={{
-          width: listCard.tile,
-          height: listCard.tile,
-          borderRadius: tileRadius(listCard.tile),
-          borderCurve: "continuous",
-          backgroundColor: tone.fill,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Text style={[type.heading, { color: tone.ink }]}>{listInitial(list.name)}</Text>
+      <LetterTile id={list.id} name={list.name} size={listCard.tile} />
+      <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
+        <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold }]}>{list.name}</Text>
+        <Text style={[type.small, { color: palette.textSecondary }]}>{tr.lists.summary(list.total, list.inBasket)}</Text>
       </View>
-      <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold, flex: 1, minWidth: 0 }]}>{list.name}</Text>
       <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
     </Pressable>
   );
-  return arrived ? <SlideUp distance={motion.travel.bar}>{card}</SlideUp> : card;
 }

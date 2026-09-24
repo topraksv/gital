@@ -5,7 +5,7 @@
  * files because it has sixty components; Gital has a dozen.
  */
 
-import { useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Animated,
   Platform,
@@ -13,9 +13,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
   type StyleProp,
+  type TextInputProps,
   type TextStyle,
   type ViewStyle,
 } from "react-native";
@@ -23,6 +25,7 @@ import { useRouter, useScrollToTop, useSegments, type Href } from "expo-router";
 import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { interactionSurface } from "./interaction";
 import { useReducedMotion, useSpringTo } from "./motion";
@@ -42,24 +45,31 @@ import {
   navigationInset,
   offset,
   pressDepth,
+  progressBar,
   proseLeading,
   radius,
   sectionMark,
   spacing,
+  tileRadius,
   type,
   useTheme,
   type ContentWidth,
   type Palette,
 } from "./theme";
 
+// Outside a scope, everything mounts as an event.
+const ScopePainted = createContext(true);
+
 /**
- * A spring from 0 to 1 on mount, or 1 at once under reduced motion. It starts
+ * A spring from 0 to 1 on mount, or 1 at once under reduced motion or when it
+ * arrived with its `ArrivalScope`. It starts
  * where it will be drawn, so the first painted frame is already right: seeding
  * at rest and moving it in an effect showed one frame in the settled position.
  */
 function useEntranceProgress(): Animated.Value {
   const reducedMotion = useReducedMotion();
-  const [progress] = useState(() => new Animated.Value(reducedMotion ? 1 : 0));
+  const painted = useContext(ScopePainted);
+  const [progress] = useState(() => new Animated.Value(reducedMotion || !painted ? 1 : 0));
   useSpringTo(progress, 1);
   return progress;
 }
@@ -92,6 +102,23 @@ export function SlideUp({
       {children}
     </Animated.View>
   );
+}
+
+/**
+ * Where things arrive. An entrance mounted with the scope came with the screen
+ * and is drawn at rest; one mounted after the scope painted is an event —
+ * typed, ticked, restored by undo, or synced in — and plays, so a screen
+ * arriving never animates as a whole (`docs/UI.md` section 7). Decided at
+ * mount, so a row that moves or is merged again never remounts. The scope sits
+ * above the empty state, so a first row plays too.
+ */
+export function ArrivalScope({ children }: { children: ReactNode }) {
+  const [painted, setPainted] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setPainted(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return <ScopePainted.Provider value={painted}>{children}</ScopePainted.Provider>;
 }
 
 /** A confirmation that lands rather than appears: a small scale pop on the entrance spring. */
@@ -158,6 +185,9 @@ export function Screen({
       <ScrollView
         ref={scrollRef}
         automaticallyAdjustContentInsets={false}
+        // A tap on a control while the keyboard is up lands on the first try,
+        // so the quick-add field's + and a row's check need no second tap.
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           paddingHorizontal: gutter,
           paddingTop: topPad,
@@ -208,6 +238,97 @@ export function Card({ children }: { children: ReactNode }) {
     <View style={{ ...cardEdge(palette), backgroundColor: palette.surface, marginBottom: spacing.md, overflow: "hidden" }}>
       {children}
     </View>
+  );
+}
+
+/**
+ * Helix's tile with a record's first letter on one of three soft tones, until
+ * the record has a picture of its own (`docs/UI.md` section 6).
+ */
+export function LetterTile({ id, name, size }: { id: string; name: string; size: number }) {
+  const { palette } = useTheme();
+  const tones = [
+    { fill: palette.primarySoft, ink: palette.accentText },
+    { fill: palette.secondarySoft, ink: palette.secondaryText },
+    { fill: palette.tertiarySoft, ink: palette.tertiaryText },
+  ];
+  const tone = tones[tileTone(id, tones.length)]!;
+  return (
+    <View
+      accessible={false}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: tileRadius(size),
+        borderCurve: "continuous",
+        backgroundColor: tone.fill,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={[type.heading, { color: tone.ink }]}>{initialOf(name)}</Text>
+    </View>
+  );
+}
+
+/**
+ * A share filling on the spring from wherever it was last drawn, never from
+ * zero (`docs/UI.md` section 7). Decoration: the figure beside it is the text.
+ */
+export function ProgressBar({ value }: { value: number }) {
+  const { palette } = useTheme();
+  const [width, setWidth] = useState(0);
+  const [progress] = useState(() => new Animated.Value(value));
+  useSpringTo(progress, value);
+  return (
+    <View
+      accessible={false}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      style={{ height: progressBar.height, borderRadius: circle(progressBar.height), backgroundColor: palette.surfaceAlt, overflow: "hidden" }}
+    >
+      {/* Slid in from the left rather than widened, so the spring runs on the
+          native driver and the rounded end stays round. Hidden until measured,
+          or the first frame would draw it full. */}
+      <Animated.View
+        style={{
+          height: progressBar.height,
+          borderRadius: circle(progressBar.height),
+          backgroundColor: palette.secondary,
+          opacity: width > 0 ? 1 : 0,
+          transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }) }],
+        }}
+      />
+    </View>
+  );
+}
+
+/**
+ * The app's text field: one fill, edge, padding and type for the prompt, the
+ * item panel and the quick-add field. A caller's `style` places it.
+ */
+export function TextField({ style, ...props }: TextInputProps) {
+  const { palette } = useTheme();
+  return (
+    <TextInput
+      placeholderTextColor={palette.textSecondary}
+      autoCapitalize="sentences"
+      {...props}
+      style={[
+        {
+          minHeight: controlSize.regular,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: palette.border,
+          borderRadius: radius.sm,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm + offset.tight,
+          color: palette.text,
+          backgroundColor: palette.surfaceAlt,
+          fontFamily: font.regular,
+          fontSize: type.field.fontSize,
+        },
+        style,
+      ]}
+    />
   );
 }
 
@@ -434,18 +555,24 @@ export function IconButton({
   label,
   onPress,
   tone = "default",
+  disabled = false,
 }: {
   icon: LucideIcon;
   label: string;
   onPress: () => void;
   tone?: "default" | "danger" | "primary";
+  disabled?: boolean;
 }) {
   const { palette } = useTheme();
-  const color = tone === "danger" ? palette.destructive : tone === "primary" ? palette.accentText : palette.textSecondary;
+  const color = disabled
+    ? palette.textMuted
+    : tone === "danger" ? palette.destructive : tone === "primary" ? palette.accentText : palette.textSecondary;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={{ minWidth: controlSize.minimumTarget, minHeight: controlSize.minimumTarget, alignItems: "center", justifyContent: "center" }}
     >
@@ -455,12 +582,12 @@ export function IconButton({
             width: controlSize.compact,
             height: controlSize.compact,
             borderRadius: radius.sm,
-            ...interactionSurface(palette, state, { base: tone === "primary" ? palette.primarySoft : palette.surface }),
+            ...interactionSurface(palette, state, { base: tone === "primary" ? palette.primarySoft : palette.surface, enabled: !disabled }),
             alignItems: "center",
             justifyContent: "center",
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: palette.border + alpha.controlEdge,
-            transform: [{ translateY: state.pressed ? pressDepth : 0 }],
+            transform: [{ translateY: state.pressed && !disabled ? pressDepth : 0 }],
           }}
         >
           <Icon accessible={false} size={iconSize.control} color={color} strokeWidth={iconStroke.regular} />

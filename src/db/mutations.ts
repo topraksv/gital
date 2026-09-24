@@ -24,7 +24,7 @@ export interface RowWrite {
 /** A row as SQLite stores it, snake_case, taken before a delete so undo can restore it. */
 export type RowSnapshot = Record<string, unknown>;
 
-function nowIso(): string {
+export function nowIso(): string {
   return new Date().toISOString();
 }
 
@@ -81,15 +81,15 @@ function upsertSql(table: SyncedTableName, dbRow: Record<string, unknown>): { sq
 type ExistingRow = { deleted_at: string | null; tombstone_version: number };
 
 /**
- * Upsert each row and queue its outbox event, all in one transaction.
- * `validate` runs first, inside the same transaction, so no other local write
- * can land between the check and the commit.
+ * Upsert each row and queue its outbox event, all in one transaction. A write
+ * that depends on what is stored passes a function: it reads inside the same
+ * transaction, so no other local write can land between its read and the
+ * commit, and it refuses by throwing.
  */
-export async function writeRows(writes: readonly RowWrite[], validate?: () => Promise<void>): Promise<void> {
+export async function writeRows(writes: readonly RowWrite[] | (() => Promise<readonly RowWrite[]>)): Promise<void> {
   const sqlite = await getSqliteAsync();
   await withTransaction(async () => {
-    await validate?.();
-    for (const { table, row } of writes) {
+    for (const { table, row } of typeof writes === "function" ? await writes() : writes) {
       const id = row.id;
       if (typeof id !== "string" || id === "") throw new Error(`Write row id is invalid in ${table}`);
       const existing = await sqlite.getFirstAsync<ExistingRow>(
@@ -127,7 +127,19 @@ export async function writeRows(writes: readonly RowWrite[], validate?: () => Pr
   });
 }
 
-async function findLiveRow(table: SyncedTableName, id: string): Promise<RowSnapshot | null> {
+/**
+ * The write an edit makes: the whole stored row with `patch` over it, or none
+ * when every patched column already holds its value. Nothing new is not an
+ * edit: stamped as one, it would beat a real change made elsewhere under
+ * last-writer-wins. The whole row, never the changed columns alone, because
+ * the server may meet this event before it has the row.
+ */
+export function editRow(table: SyncedTableName, stored: RowSnapshot, patch: Record<string, unknown>): RowWrite[] {
+  const row = fromDbShape(table, stored);
+  return Object.entries(patch).every(([key, value]) => row[key] === value) ? [] : [{ table, row: { ...row, ...patch } }];
+}
+
+export async function findLiveRow(table: SyncedTableName, id: string): Promise<RowSnapshot | null> {
   const sqlite = await getSqliteAsync();
   return sqlite.getFirstAsync<RowSnapshot>(`SELECT * FROM ${table} WHERE id = ? AND deleted_at IS NULL`, [id]);
 }
@@ -142,19 +154,16 @@ export async function readLiveRow(table: SyncedTableName, id: string): Promise<R
 /**
  * Tombstone a row. Returns what it was, for undo, or `null` when it was not there.
  *
- * The row is read outside the transaction, so it is checked again inside:
- * a write that landed in between would be reverted by this one, and undo would
- * restore the older copy. Helix's reads once; a rename and a delete queued
- * together are what that misses.
+ * The row is read inside the transaction: read before it, a write that landed
+ * in between would be reverted by this one, and undo would restore the older
+ * copy. Helix reads outside; a rename and a delete queued together are what
+ * that misses.
  */
 export async function softDelete(table: SyncedTableName, id: string): Promise<RowSnapshot | null> {
-  const previous = await findLiveRow(table, id);
-  if (!previous) return null;
-  await writeRows([{ table, row: { ...fromDbShape(table, previous), deletedAt: nowIso() } }], async () => {
-    const current = await findLiveRow(table, id);
-    if (!current || Object.keys(previous).some((column) => current[column] !== previous[column])) {
-      throw new Error(`The ${table} row changed before its delete`);
-    }
+  let previous: RowSnapshot | null = null;
+  await writeRows(async () => {
+    previous = await findLiveRow(table, id);
+    return previous ? [{ table, row: { ...fromDbShape(table, previous), deletedAt: nowIso() } }] : [];
   });
   return previous;
 }
@@ -167,8 +176,9 @@ export async function softDelete(table: SyncedTableName, id: string): Promise<Ro
 export async function restoreRow(table: SyncedTableName, snapshot: RowSnapshot): Promise<void> {
   const row: Record<string, unknown> = { ...fromDbShape(table, snapshot), deletedAt: null };
   const sqlite = await getSqliteAsync();
-  await writeRows([{ table, row }], async () => {
+  await writeRows(async () => {
     const current = await sqlite.getFirstAsync<ExistingRow>(`SELECT deleted_at FROM ${table} WHERE id = ?`, [String(row.id)]);
     if (current?.deleted_at == null) throw new Error(`Cannot restore ${table} row without its tombstone`);
+    return [{ table, row }];
   });
 }

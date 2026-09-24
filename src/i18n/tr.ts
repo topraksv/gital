@@ -1,8 +1,15 @@
 /** Every string a user reads. Turkish in the interface, English in code. */
+
+/** How far a shop has got, on a list's card and above its items alike. */
+function basketProgress(done: number, total: number): string {
+  return done === total ? "Hepsi sepette" : `${done}/${total} sepette`;
+}
+
 export const tr = {
   common: {
     back: "Geri",
     cancel: "Vazgeç",
+    deleted: (name: string) => `${name} silindi`,
     done: "Tamam",
     retry: "Tekrar Dene",
     save: "Kaydet",
@@ -35,12 +42,29 @@ export const tr = {
     renameMessage: "Listenin yeni adı.",
     rename: (name: string) => `${name} listesini yeniden adlandır`,
     delete: (name: string) => `${name} listesini sil`,
-    deleted: (name: string) => `${name} silindi`,
-    open: (name: string) => `${name} listesini aç`,
+    open: (name: string, summary: string) => `${name}, ${summary}`,
+    openHint: "Listeyi aç",
     emptyTitle: "Henüz liste yok",
     emptyHint: "Market, pazar, eczane — her alışveriş için bir liste aç.",
-    itemsEmptyTitle: "Bu liste boş",
-    itemsEmptyHint: "Ürün eklemek yakında burada olacak.",
+    /** A list card's second line: what is on it, and how far the shop has got. */
+    summary: (total: number, inBasket: number) =>
+      total === 0 ? "Boş" : inBasket === 0 ? `${total} ürün` : basketProgress(inBasket, total),
+  },
+  items: {
+    add: "Ekle",
+    addLabel: "Listeye ürün ekle",
+    addPlaceholder: "2 kg domates, süt ve ekmek",
+    emptyTitle: "Bu liste boş",
+    emptyHint: "Yukarıya yaz. Virgülle ya da “ve” ile ayırırsan birkaç ürün birden eklenir.",
+    basket: "Sepette",
+    progress: basketProgress,
+    open: (name: string, quantity: string) => (quantity ? `${name}, ${quantity}` : name),
+    openHint: "Düzenlemek için aç",
+    nameLabel: "Ürünün adı",
+    quantity: "Miktar",
+    less: (name: string) => `${name} miktarını azalt`,
+    more: (name: string) => `${name} miktarını artır`,
+    delete: (name: string) => `${name} ürününü sil`,
   },
   settings: {
     appSection: "Uygulama",

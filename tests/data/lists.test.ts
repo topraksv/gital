@@ -86,8 +86,8 @@ describe("readLists", () => {
     const eczane = await createList("Eczane");
     await deleteList(pazar);
     expect(await readLists()).toEqual([
-      { id: market, name: "Market" },
-      { id: eczane, name: "Eczane" },
+      { id: market, name: "Market", total: 0, inBasket: 0 },
+      { id: eczane, name: "Eczane", total: 0, inBasket: 0 },
     ]);
   });
 
@@ -170,12 +170,12 @@ describe("deleteList and restoreList", () => {
       // pre-delete row must lose to this one.
       tombstone_version: 1,
     });
-    expect(await readLists()).toEqual([{ id, name: "Market" }]);
+    expect(await readLists()).toMatchObject([{ id, name: "Market" }]);
   });
 
-  it("will not revert a rename that landed between its read and its write", async () => {
+  it("deletes what a rename queued before it left, so undo brings back the new name", async () => {
     const id = await createList("Market");
-    // The queue is held, so the rename waits to commit while the delete reads.
+    // The queue is held, so the rename and the delete wait in line together.
     let release!: () => void;
     const held = withTransaction(() => new Promise<void>((done) => (release = done)));
     const rename = renameList(id, "Pazar");
@@ -183,15 +183,17 @@ describe("deleteList and restoreList", () => {
     const removal = deleteList(id);
     await nextTask();
     release();
-    await Promise.allSettled([held, rename, removal]);
-    await expect(removal).rejects.toThrow();
+    await Promise.all([held, rename]);
+    const snapshot = await removal;
+    expect(snapshot).toMatchObject({ name: "Pazar" });
+    await restoreList(snapshot!);
     expect(stored(id)).toMatchObject({ name: "Pazar", deleted_at: null });
   });
 
   it("deletes once when asked twice at the same moment", async () => {
     const id = await createList("Market");
-    const outcomes = await Promise.allSettled([deleteList(id), deleteList(id)]);
-    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual(["fulfilled", "rejected"]);
+    const snapshots = await Promise.all([deleteList(id), deleteList(id)]);
+    expect(snapshots.filter((snapshot) => snapshot != null)).toHaveLength(1);
     expect(stored(id)).toMatchObject({ tombstone_version: 1 });
   });
 

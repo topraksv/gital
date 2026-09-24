@@ -15,13 +15,13 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-23 on Listeler (local storage: Drizzle, expo-sqlite and its
-// worker and wasm; the dialog and undo bar): entry 1_528_502, all JS
-// 1_661_172, export 3_176_860. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-24 on a list's items (the item screen and panel, and
+// expo-crypto's 10 KB for deterministic ids): entry 1_561_248, all JS
+// 1_693_918, export 3_209_606. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 1_544_000,
-  totalJs: 1_678_000,
-  totalExport: 3_209_000,
+  entryJs: 1_577_000,
+  totalJs: 1_711_000,
+  totalExport: 3_242_000,
 };
 
 const root = process.argv[2] ?? "dist";

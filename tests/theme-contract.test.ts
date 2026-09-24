@@ -117,6 +117,9 @@ describe.each(schemes)("%s", (_, p) => {
     ["focus", "surface"],
     ["focus", "surfaceAlt"],
     ["primary", "surface"],
+    // A ticked item's circle, and the mark drawn in it: graphics, not text.
+    ["secondary", "surface"],
+    ["onSecondary", "secondary"],
   ] as const)("%s on %s reaches 3:1", (fg, bg) => {
     expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(NON_TEXT);
   });

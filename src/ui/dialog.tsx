@@ -12,18 +12,18 @@
  */
 
 import { useState, type ReactNode, type RefObject } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Modal, Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
-import { Body, Button, SlideUp } from "./components";
+import { Body, Button, SlideUp, TextField } from "./components";
 import { errorNotice } from "./haptics";
 import { KeyboardSafeScrollView } from "./keyboard-safe";
 import { useReducedMotion } from "./motion";
 import { closeRequest, emptyRequestQueue, enqueueRequest, type RequestQueue } from "./request-queue";
 import { shouldPresentAsSheet } from "./responsive";
-import { circle, dialog, font, motion, offset, radius, spacing, themeShadow, type, useTheme } from "./theme";
+import { circle, dialog, motion, radius, spacing, themeShadow, type, useTheme } from "./theme";
 
 interface DialogRequest {
   message: string;
@@ -80,12 +80,12 @@ export function appPrompt(
 }
 
 /**
- * The overlay both hosts render, so what must not drift between them is
- * written once: the scrim that dismisses, the container Pressables marked
- * `accessible={false}` (or they swallow their children), the modal's name,
- * and the heading that takes focus.
+ * The overlay every dialog and sheet renders, so what must not drift between
+ * them is written once: the scrim that dismisses, the container Pressables
+ * marked `accessible={false}` (or they swallow their children), the modal's
+ * name, and the heading that takes focus.
  */
-function DialogShell({
+export function DialogShell({
   title,
   message,
   titleRef,
@@ -93,7 +93,7 @@ function DialogShell({
   children,
 }: {
   title: string;
-  message: string;
+  message?: string;
   titleRef: RefObject<View | null>;
   onDismiss: () => void;
   children: ReactNode;
@@ -135,7 +135,7 @@ function DialogShell({
       <View ref={titleRef} accessible accessibilityRole="header" aria-level={2} tabIndex={-1}>
         <Text style={[type.heading, { color: palette.text, marginBottom: spacing.sm }]}>{title}</Text>
       </View>
-      <Body muted>{message}</Body>
+      {message ? <Body muted>{message}</Body> : null}
       {children}
     </>
   );
@@ -177,43 +177,29 @@ function DialogShell({
   );
 }
 
-function Actions({ children }: { children: ReactNode }) {
+export function Actions({ children }: { children: ReactNode }) {
   return <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.lg }}>{children}</View>;
 }
 
 function PromptBody({ request, onClose }: { request: PromptRequest; onClose: (value: string | null) => void }) {
-  const { palette } = useTheme();
   const [value, setValue] = useState(request.initialValue);
   const titleRef = useModalAccessibility(true, request.id, false);
   const ready = value.trim() !== "";
   return (
     <DialogShell title={request.title} message={request.message} titleRef={titleRef} onDismiss={() => onClose(null)}>
-      <TextInput
+      <TextField
         value={value}
         maxLength={request.maxLength}
         onChangeText={setValue}
         accessibilityLabel={request.title}
         accessibilityHint={request.message}
         placeholder={request.placeholder}
-        placeholderTextColor={palette.textSecondary}
         autoFocus
         // A rename opens on the whole name selected, so typing replaces it.
         selectTextOnFocus={request.initialValue !== ""}
-        autoCapitalize="sentences"
         returnKeyType="done"
         onSubmitEditing={() => ready && onClose(value)}
-        style={{
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: palette.border,
-          borderRadius: radius.sm,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm + offset.tight,
-          color: palette.text,
-          backgroundColor: palette.surfaceAlt,
-          marginTop: spacing.lg,
-          fontFamily: font.regular,
-          fontSize: type.field.fontSize,
-        }}
+        style={{ marginTop: spacing.lg }}
       />
       <Actions>
         <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={() => onClose(null)} />

@@ -10,9 +10,9 @@ export default defineConfig({
       // glob rather than a list: a new file there is gated the day it lands,
       // with nobody having to remember to add it. Screens and tokens are not
       // here — their rules are owned by contract tests, not by line counts.
-      // The write layer is named alone: the rest of `src/db` opens the native
-      // driver or imports `.sql`, which Vitest cannot load.
-      include: ["src/domain/**/*.ts", "src/data/**/*.ts", "src/db/mutations.ts"],
+      // The write layer and its ids are named alone: the rest of `src/db`
+      // opens the native driver or imports `.sql`, which Vitest cannot load.
+      include: ["src/domain/**/*.ts", "src/data/**/*.ts", "src/db/mutations.ts", "src/db/ids.ts"],
       // React's binding over the live stores: one hook call per store, and
       // what it would decide is `live-query.ts`, which is gated.
       exclude: ["src/data/hooks.ts"],

@@ -356,6 +356,8 @@ export const motion = {
   fadeTail: 50,
   /** A dragged-away bar leaving: quick, because the finger already said where it goes. */
   feedback: 120,
+  /** A row making room or closing a gap: Helix's `LinearTransition`. */
+  standard: 220,
   /** How long the undo bar waits to be used before it leaves on its own. */
   undoHold: 6000,
   /** The ease-out every web CSS transition uses. */
@@ -490,6 +492,17 @@ export const sectionMark = { width: 3, height: 18, radius: 2 } as const;
 
 /** A list's card on Listeler: its initial on a tone, Helix's tile at this side. */
 export const listCard = { tile: 46 } as const;
+
+/**
+ * An item's row: a smaller tile than a list's, since a list holds dozens, and
+ * the check circle drawn inside its 44-point target (`docs/UI.md` section 6).
+ */
+export const itemRow = { tile: 40, check: 26 } as const;
+
+/** The item panel's quantity, wide enough for "10,5 paket" so − and + never move as it changes. */
+export const itemPanel = { quantityWidth: 84 } as const;
+
+export const progressBar = { height: 6 } as const;
 
 export const emptyState = { disc: 56, icon: 26 } as const;
 

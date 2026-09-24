@@ -10,6 +10,7 @@
  */
 
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { UNITS } from "../domain/items";
 
 /**
  * Helix's sync columns without its `user_id`: a Gital row is scoped by its list
@@ -30,6 +31,25 @@ export const lists = sqliteTable("lists", {
   name: text("name").notNull(),
 });
 
+/**
+ * A thing to buy on one list. Its id comes from the list and the folded name
+ * (`src/db/ids.ts`), so the same product added twice is one row (SPEC 2.5).
+ */
+export const items = sqliteTable(
+  "items",
+  {
+    ...syncColumns,
+    listId: text("list_id").notNull(),
+    name: text("name").notNull(),
+    quantityMilli: integer("quantity_milli"),
+    unit: text("unit", { enum: UNITS }),
+    /** Helix's order column. A new item takes the lowest, so it lands on top. */
+    sortOrder: integer("sort_order").notNull().default(0),
+    checkedAt: text("checked_at"),
+  },
+  (t) => [index("idx_items_list_id").on(t.listId)],
+);
+
 /** Local only: every write waiting to be pushed. Never synced itself. */
 export const outbox = sqliteTable(
   "outbox",
@@ -48,6 +68,6 @@ export const outbox = sqliteTable(
   ],
 );
 
-export const SYNCED_TABLES = { lists } as const;
+export const SYNCED_TABLES = { lists, items } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;
