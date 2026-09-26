@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { addMonthsToKey, daysBetweenISO, isISODate, monthCells, monthKeyOf, todayISO } from "../../src/domain/dates";
+import { addDaysISO, addMonthsToKey, daysBetweenISO, isISODate, monthCells, monthKeyOf, todayISO } from "../../src/domain/dates";
 
 describe("dates", () => {
   it("reads a real day and refuses one that is not", () => {
@@ -36,5 +36,11 @@ describe("dates", () => {
     expect(daysBetweenISO("2026-09-26", "2026-10-01")).toBe(5);
     expect(daysBetweenISO("2026-03-28", "2026-03-30")).toBe(2);
     expect(daysBetweenISO("2026-09-26", "2026-09-25")).toBe(-1);
+  });
+
+  it("moves a day by days across a month, a year and a clock change", () => {
+    expect(addDaysISO("2026-09-30", 1)).toBe("2026-10-01");
+    expect(addDaysISO("2026-01-01", -1)).toBe("2025-12-31");
+    expect(addDaysISO("2026-03-28", 2)).toBe("2026-03-30");
   });
 });

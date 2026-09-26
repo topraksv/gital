@@ -739,6 +739,7 @@ export function radioChoice({ label, selected, disabled = false, onPress }: { la
  */
 export function ChoiceTile({
   label,
+  accessibilityLabel,
   description,
   selected,
   onPress,
@@ -750,6 +751,8 @@ export function ChoiceTile({
   surface,
 }: {
   label: string;
+  /** What a screen reader hears, where the label is short for the eye: "Pzt" is "Pazartesi". */
+  accessibilityLabel?: string;
   description?: string;
   selected: boolean;
   onPress: () => void;
@@ -768,7 +771,7 @@ export function ChoiceTile({
   const row = layout === "row";
   return (
     <Press
-      {...radioChoice({ label, selected, disabled, onPress })}
+      {...radioChoice({ label: accessibilityLabel ?? label, selected, disabled, onPress })}
       style={(state) => ({
         flexGrow: 1,
         flexBasis: basis ?? 0,

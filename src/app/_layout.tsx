@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Platform, View, useColorScheme } from "react-native";
+import { AppState, Platform, View, useColorScheme } from "react-native";
 import { Stack } from "expo-router";
 import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
@@ -9,6 +9,7 @@ import DatabaseZap from "lucide-react-native/icons/database-zap";
 import { migrateDb } from "../db/migrate";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
+import { remindersAvailable, replanReminders } from "../services/reminders";
 import { Button, EmptyState } from "../ui/components";
 import { DialogHost, PromptHost } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
@@ -152,7 +153,10 @@ export default function RootLayout() {
                 />
               </View>
             ) : (
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
+              <>
+                <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
+                <ReminderPlanner />
+              </>
             )}
             <StatusBar style={scheme === "dark" ? "light" : "dark"} />
             <CelebrationHost />
@@ -180,4 +184,21 @@ function WebTitle() {
       <title>{tr.meta.title}</title>
     </Head>
   );
+}
+
+/**
+ * Reminders are planned when the database opens and each time the app goes
+ * to the background (SPEC 12.1): leaving is when the lists are as they will
+ * be until the next visit, so the shopping day counts what is really on them.
+ * A plan that fails keeps the last one; the next trip out tries again.
+ */
+function ReminderPlanner() {
+  useEffect(() => {
+    if (!remindersAvailable) return;
+    const plan = () => void replanReminders().catch(() => {});
+    plan();
+    const subscription = AppState.addEventListener("change", (state) => state === "background" && plan());
+    return () => subscription.remove();
+  }, []);
+  return null;
 }

@@ -166,3 +166,6 @@ cannot be released.
 - An item or a wish takes a photo, from the camera or the gallery, shown
   large in its panel and in place of its picture on the row; it stays on
   the device for now.
+- Ayarlar turns on reminders on the phone: a weekly shopping day at a chosen
+  hour saying what each list holds, a pantry date the morning before, and a
+  product that has probably run out on its usual rhythm.

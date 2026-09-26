@@ -369,4 +369,22 @@ export const tr = {
     paletteForest: "Servi",
     paletteForestDesc: "Taş nötrleri, koyu servi ve yaban eriği.",
   },
+  reminders: {
+    title: "Hatırlatıcılar",
+    hint: "Alışveriş gününde, kilerdeki bir tarih yaklaşınca ve bir ürün bitmiş olabilecekken telefonuna bildirim gelir.",
+    phoneOnly: "Hatırlatıcılar telefonda çalışır; tarayıcı bildirim planlayamaz.",
+    denied: "Bildirim izni verilmedi. Telefonun ayarlarından Gital'e bildirim izni verebilirsin.",
+    day: "Alışveriş günü",
+    noDay: "Yok",
+    /** From Monday, as a Turkish week starts; each with `Date.getDay`'s number. */
+    weekdays: [[1, "Pzt", "Pazartesi"], [2, "Sal", "Salı"], [3, "Çar", "Çarşamba"], [4, "Per", "Perşembe"], [5, "Cum", "Cuma"], [6, "Cmt", "Cumartesi"], [0, "Paz", "Pazar"]] as const,
+    time: "Saat",
+    shoppingTitle: "Bugün alışveriş günü",
+    shoppingBody: (lists: readonly { name: string; open: number }[] | null) =>
+      lists == null ? "Listelerine bir göz at." : lists.length === 0 ? "Listelerin boş; eklenecek bir şey var mı?" : lists.map((list) => `${list.name}: ${list.open} ürün`).join(" · "),
+    expiryTitle: "Son kullanma tarihi",
+    expiryBody: (name: string, days: 0 | 1) => `${name} için ${days === 1 ? "yarın" : "bugün"} son gün.`,
+    restockTitle: (name: string) => `${name} bitmiş olabilir`,
+    restockBody: (list: string) => `${list} listesine eklemek ister misin?`,
+  },
 } as const;

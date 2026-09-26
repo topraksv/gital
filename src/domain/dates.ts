@@ -44,3 +44,10 @@ export function monthCells(key: MonthKey): (ISODate | null)[] {
 export function daysBetweenISO(a: ISODate, b: ISODate): number {
   return Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
 }
+
+/** The day `delta` days from `date`, at noon so a clock change moves nothing (Helix's). */
+export function addDaysISO(date: ISODate, delta: number): ISODate {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
