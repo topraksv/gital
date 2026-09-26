@@ -6,7 +6,7 @@
  */
 
 import { useState, type ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import Check from "lucide-react-native/icons/check";
 
 import { LIST_COLORS, LIST_ICONS, type ListColor, type ListIcon, type ListLook } from "../domain/lists";
@@ -16,6 +16,7 @@ import { useModalAccessibility } from "./accessibility";
 import { Body, Button, TextField, Tile, Toggle, radioChoice, rowsOf } from "./components";
 import { Actions, DialogShell } from "./dialog";
 import { borderWidth, circle, iconSize, iconStroke, listSheet, spacing, tileRadius, useTheme } from "./theme";
+import { Press } from "./press";
 
 // The ring and a gap as wide as it, inside the cell.
 const TILE = listSheet.cell - 4 * borderWidth.selected;
@@ -125,7 +126,7 @@ function Choice({
   const { palette } = useTheme();
   const side = listSheet.cell;
   return (
-    <Pressable
+    <Press
       {...radioChoice({ label, selected, onPress })}
       style={{
         width: side,
@@ -145,6 +146,6 @@ function Choice({
           <Check accessible={false} size={iconSize.control} color={palette.textStrong} strokeWidth={iconStroke.regular} />
         </View>
       ) : null}
-    </Pressable>
+    </Press>
   );
 }

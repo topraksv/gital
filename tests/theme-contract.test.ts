@@ -9,6 +9,7 @@ import {
   INTERACTION_ALPHA,
   LIST_HUES,
   PALETTES,
+  motion,
   navigationInset,
   radius,
   resolvePaletteId,
@@ -193,6 +194,13 @@ describe("scales", () => {
       expect(style.fontSize, role).toBeGreaterThanOrEqual(10);
       expect(style, role).not.toHaveProperty("lineHeight");
     }
+  });
+
+  // `docs/UI.md` section 5: a held control shrinks, and answers the finger
+  // faster than a thing arriving on screen settles.
+  it("shrinks a held control to 0.97 on a spring stiffer than an arrival", () => {
+    expect(motion.press.scale).toBe(0.97);
+    expect(motion.spring.press.stiffness).toBeGreaterThan(motion.spring.entrance.stiffness);
   });
 
   it("rounds nothing past the pill", () => {

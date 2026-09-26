@@ -19,6 +19,7 @@ import { DialogShell } from "./dialog";
 import { selectionTapIfChanged } from "./haptics";
 import { interactionSurface } from "./interaction";
 import { circle, controlSize, font, iconSize, iconStroke, offset, radius, spacing, type, useTheme } from "./theme";
+import { Press } from "./press";
 
 const WEEK = 7;
 
@@ -99,7 +100,7 @@ function CalendarSheet({ title, value, onSelect, onClose }: { title: string; val
             if (day == null) return <View key={cell} style={{ flex: 1, height: controlSize.minimumTarget }} />;
             const selected = day === value;
             return (
-              <Pressable
+              <Press
                 key={day}
                 accessibilityRole="button"
                 accessibilityLabel={tr.calendar.day(day)}
@@ -125,7 +126,7 @@ function CalendarSheet({ title, value, onSelect, onClose }: { title: string; val
                     </Text>
                   </View>
                 )}
-              </Pressable>
+              </Press>
             );
           })}
         </View>

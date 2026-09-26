@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import Delete from "lucide-react-native/icons/delete";
 
 import { CALC_START, feedbackOf, formatNumber, keyFrom, minorOf, press, previewOf, resultOf, shownOf, type Calc, type CalcKey } from "../domain/calculator";
@@ -19,6 +19,7 @@ import { DialogShell } from "./dialog";
 import { errorNotice, selectionTap, successNotice } from "./haptics";
 import { interactionSurface } from "./interaction";
 import { calculatorPad, iconSize, iconStroke, radius, spacing, themeShadow, type, useTheme } from "./theme";
+import { Press } from "./press";
 
 const OPS: readonly CalcKey[] = ["÷", "×", "-", "+", "="];
 const FEEDBACK = { none: () => {}, selection: selectionTap, success: successNotice, error: errorNotice } as const;
@@ -154,7 +155,7 @@ function Key({ name, width, height, onPress }: { name: CalcKey; width: number; h
   const base = operator ? palette.primarySoft : control || scheme === "dark" ? palette.surfaceAlt : palette.surface;
   const ink = operator ? palette.primaryText : control ? palette.textSecondary : palette.text;
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={tr.calc.key(name)}
       onPress={onPress}
@@ -173,6 +174,6 @@ function Key({ name, width, height, onPress }: { name: CalcKey; width: number; h
       ) : (
         <Text style={[type.keypad, { color: ink }]}>{name}</Text>
       )}
-    </Pressable>
+    </Press>
   );
 }

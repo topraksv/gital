@@ -143,3 +143,5 @@ cannot be released.
   price field is shown, and says so if it cannot load offline.
 - What was bought instead is suggested next time: Sütaş bought in place of
   Süt is offered when typing, and Süt is not counted for it.
+- Buttons, cards, chips, tiles, calculator keys, calendar days and tabs shrink
+  slightly while held and spring back on release, instead of sinking a point.

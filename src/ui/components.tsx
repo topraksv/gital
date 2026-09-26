@@ -10,7 +10,6 @@ import {
   Animated,
   Image,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -45,6 +44,7 @@ import { PRODUCT_IMAGES } from "./product-pictures";
 import { useReducedMotion, useSpringTo } from "./motion";
 import { navigateBack } from "./navigation";
 import { shouldUseWideGutter } from "./responsive";
+import { Press } from "./press";
 import {
   alpha,
   borderWidth,
@@ -63,7 +63,6 @@ import {
   maxFontScale,
   navigationInset,
   offset,
-  pressDepth,
   progressBar,
   proseLeading,
   radius,
@@ -432,7 +431,7 @@ export function Toggle({ value, onValueChange, label }: { value: boolean; onValu
     onValueChange(!value);
   };
   return (
-    <Pressable
+    <Press
       accessibilityRole="switch"
       accessibilityLabel={label}
       aria-checked={value}
@@ -487,7 +486,7 @@ export function Toggle({ value, onValueChange, label }: { value: boolean; onValu
           }}
         />
       </View>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -520,7 +519,7 @@ export function LinkCard({
 }) {
   const { palette } = useTheme();
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={tr.common.withDetail(title, tr.common.withDetail(detail, figure ?? ""))}
       accessibilityHint={hint}
@@ -531,7 +530,6 @@ export function LinkCard({
         alignItems: "center",
         gap: spacing.md,
         ...interactionSurface(palette, state, { base: palette.surface }),
-        transform: [{ translateY: state.pressed ? pressDepth : 0 }],
       })}
     >
       <Tile id={tileId} name={title} size={listCard.tile} color={look?.color} icon={look?.icon} />
@@ -544,7 +542,7 @@ export function LinkCard({
       </View>
       {accessory}
       <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
-    </Pressable>
+    </Press>
   );
 }
 
@@ -708,7 +706,7 @@ export function ChoiceTile({
   const p = surface ?? palette;
   const row = layout === "row";
   return (
-    <Pressable
+    <Press
       {...radioChoice({ label, selected, disabled, onPress })}
       style={(state) => ({
         flexGrow: 1,
@@ -728,7 +726,6 @@ export function ChoiceTile({
           base: disabled ? p.surfaceAlt : selected ? p.primary + alpha.selectedTint : p.surface,
           enabled: !disabled,
         }),
-        transform: [{ translateY: state.pressed && !disabled ? pressDepth : 0 }],
       })}
     >
       {children}
@@ -752,7 +749,7 @@ export function ChoiceTile({
           </Text>
         ) : null}
       </View>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -765,7 +762,7 @@ function BackButton({ fallback }: { fallback: Href }) {
   const router = useRouter();
   const { palette } = useTheme();
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={tr.common.back}
       onPress={() => navigateBack(router, fallback)}
@@ -780,7 +777,7 @@ function BackButton({ fallback }: { fallback: Href }) {
       })}
     >
       <ChevronLeft accessible={false} size={iconSize.headerBack} color={palette.accentText} strokeWidth={iconStroke.regular} />
-    </Pressable>
+    </Press>
   );
 }
 
@@ -811,7 +808,7 @@ export function Button({
       ? { background: palette.primary, foreground: palette.onPrimary }
       : { background: undefined, foreground: palette.accentText };
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
@@ -829,7 +826,6 @@ export function Button({
         gap: spacing.sm,
         alignItems: "center",
         justifyContent: "center",
-        transform: [{ translateY: state.pressed && !disabled ? pressDepth : 0 }],
       })}
     >
       {Icon ? (
@@ -838,7 +834,7 @@ export function Button({
       <Text style={[small ? type.buttonCompact : type.button, { color: colors.foreground, textAlign: "center", flexShrink: 1 }]}>
         {label}
       </Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -872,7 +868,7 @@ export function IconButton({
     ? palette.textMuted
     : tone === "danger" ? palette.destructive : tone === "primary" || on ? palette.accentText : palette.textSecondary;
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={label}
       aria-pressed={on}
@@ -896,7 +892,6 @@ export function IconButton({
             justifyContent: "center",
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: palette.border + alpha.controlEdge,
-            transform: [{ translateY: state.pressed && !disabled ? pressDepth : 0 }],
           }}
         >
           <Icon accessible={false} size={text ? iconSize.compact : iconSize.control} color={color} fill={on ? color : "none"} strokeWidth={iconStroke.regular} />
@@ -907,7 +902,7 @@ export function IconButton({
           ) : null}
         </View>
       )}
-    </Pressable>
+    </Press>
   );
 }
 

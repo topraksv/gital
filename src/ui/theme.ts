@@ -374,7 +374,11 @@ export const motion = {
   webEase: "cubic-bezier(0.22, 1, 0.36, 1)",
   spring: {
     entrance: { damping: 18, stiffness: 170, mass: 1 },
+    /** Stiffer than an arrival: a held control answers the finger at once. */
+    press: { damping: 20, stiffness: 420, mass: 1 },
   },
+  /** How small a held control gets, `docs/UI.md` section 5. */
+  press: { scale: 0.97 },
   /**
    * How far a thing travels as it arrives. A block rising into empty space
    * lifts a little; the undo bar comes up off the edge near where it lands; a
@@ -636,9 +640,6 @@ export const appearanceTile = {
     checkStroke: 3,
   },
 } as const;
-
-/** The pressed tile sinks by this much. */
-export const pressDepth = 1;
 
 export type ThemePreference = "system" | "light" | "dark";
 

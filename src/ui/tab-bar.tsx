@@ -12,13 +12,14 @@
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, PanResponder, Platform, Pressable, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
+import { Animated, PanResponder, Platform, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { springTo, useReducedMotion, useReduceTransparency, useSpringTo } from "./motion";
 import { shouldUseCompactNavigationMaterial, tabLabelsFit, tooWide } from "./responsive";
 import { placeTabs, onLanding } from "./tab-landing";
 import { alpha, font, maxFontScale, motion, NAV_GLASS, navigationMaterial, radius, stateOpacity, TAB_BAR, tabBarBottomOffset, tabBarHeight, themeShadow, type, useTheme } from "./theme";
+import { Press } from "./press";
 
 /** A tap slides a little; a scrub is a distance nobody crosses by accident. */
 const DRAG_CLAIM_DISTANCE = 24;
@@ -134,7 +135,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     const label = options.tabBarLabel ?? options.title ?? route.name;
 
     return (
-      <Pressable
+      <Press
         key={route.key}
         accessibilityRole="tab"
         // `aria-selected`: react-native-web does not translate
@@ -177,7 +178,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           slotWidth={slotWidth}
           onMeasure={reportLabel}
         />
-      </Pressable>
+      </Press>
     );
   });
 

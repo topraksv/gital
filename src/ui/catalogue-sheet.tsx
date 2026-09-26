@@ -30,6 +30,7 @@ import { showNotice, showUndo } from "./undo";
 import { interactionSurface } from "./interaction";
 import { webKeys } from "./keys";
 import { borderWidth, catalogueSheet, controlSize, font, offset, radius, spacing, themeShadow, type, useTheme } from "./theme";
+import { Press } from "./press";
 
 /** What a tile needs: a product outside the catalogue has no picture. */
 type Shown = Pick<CatalogueProduct, "key" | "name"> & { picture?: CatalogueProduct["picture"] };
@@ -188,7 +189,7 @@ function SetRow({ set, onAdd, onDelete }: { set: ProductSet; onAdd: () => void; 
 function ShelfChoice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const { palette } = useTheme();
   return (
-    <Pressable
+    <Press
       {...radioChoice({ label, selected, onPress })}
       style={(state) => ({
         flex: 1,
@@ -200,14 +201,14 @@ function ShelfChoice({ label, selected, onPress }: { label: string; selected: bo
       })}
     >
       <Text style={[type.small, { fontFamily: selected ? font.semibold : font.medium, color: selected ? palette.textStrong : palette.textSecondary }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
 export function AisleChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const { palette } = useTheme();
   return (
-    <Pressable
+    <Press
       {...radioChoice({ label, selected, onPress })}
       style={(state) => ({
         minHeight: controlSize.minimumTarget,
@@ -220,7 +221,7 @@ export function AisleChip({ label, selected, onPress }: { label: string; selecte
       })}
     >
       <Text style={[type.small, { fontFamily: font.semibold, color: selected ? palette.primaryText : palette.text }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -228,7 +229,7 @@ export function AisleChip({ label, selected, onPress }: { label: string; selecte
 function ProductTile({ product, added, onPress }: { product: Shown; added: boolean; onPress: () => void }) {
   const { palette } = useTheme();
   return (
-    <Pressable
+    <Press
       accessibilityRole="checkbox"
       aria-checked={added}
       accessibilityState={{ checked: added }}
@@ -256,6 +257,6 @@ function ProductTile({ product, added, onPress }: { product: Shown; added: boole
       <Text numberOfLines={2} style={[type.small, { minHeight: catalogueSheet.name, textAlign: "center", color: added ? palette.textStrong : palette.text, fontFamily: added ? font.semibold : font.regular }]}>
         {product.name}
       </Text>
-    </Pressable>
+    </Press>
   );
 }

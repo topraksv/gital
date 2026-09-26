@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, PanResponder, Platform, StyleSheet, Text, View } from "react-native";
 import Check from "lucide-react-native/icons/check";
 import RotateCcw from "lucide-react-native/icons/rotate-ccw";
 import TriangleAlert from "lucide-react-native/icons/triangle-alert";
@@ -18,6 +18,7 @@ import { appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { isReducedMotion, springTo } from "./motion";
 import { alpha, controlSize, font, iconStroke, motion, navigationInset, radius, spacing, stateOpacity, themeShadow, type, undoBar, useTheme } from "./theme";
+import { Press } from "./press";
 
 interface UndoOffer {
   message: string;
@@ -173,7 +174,7 @@ export function UndoSnackbar() {
             </SuccessPop>
           </View>
           <Text style={[type.body, { color: palette.background, flexShrink: 1, minWidth: 0 }]}>{message}</Text>
-          {onUndo ? <Pressable
+          {onUndo ? <Press
             accessibilityRole="button"
             accessibilityState={{ busy: undoing, disabled: undoing }}
             disabled={undoing}
@@ -195,7 +196,7 @@ export function UndoSnackbar() {
               <RotateCcw accessible={false} size={undoBar.actionIcon} color={palette.background} />
               <Text style={[type.body, { color: palette.background, fontFamily: font.semibold }]}>{tr.common.undo}</Text>
             </View>
-          </Pressable> : null}
+          </Press> : null}
         </Animated.View>
       </SlideUp>
     </View>
