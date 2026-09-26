@@ -53,6 +53,7 @@ updates:
       # ESLint 10 and TypeScript 7 are blocked by the lint plugins Expo's config
       # bundles: Helix measured `eslint-plugin-react` still calling an API
       # ESLint 10 removed, and `@typescript-eslint` refusing TypeScript past 6.0.
+      # The typecheck itself already runs on 7 through the `typescript-7` alias.
       - dependency-name: "eslint"
         update-types: ["version-update:semver-patch", "version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "typescript"

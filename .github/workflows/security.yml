@@ -17,6 +17,7 @@ on:
       - "scripts/**"
       - "supabase/**"
       - ".github/workflows/**"
+      - ".github/dependabot.yml"
   schedule:
     - cron: "0 5 * * 1"
   workflow_dispatch: {}
@@ -47,6 +48,21 @@ jobs:
       - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           category: "/language:javascript-typescript"
+
+  # Ported from Helix 2026-09-25. The workflows hold the deploy credentials and
+  # no source scan reads them; zizmor audits template injection, token scope
+  # and cache poisoning there. Pinned so a new audit arrives as a decision; the
+  # token enables the online audits (known-vulnerable and impostor actions).
+  workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: pipx run zizmor==1.30.1 --format=github .github/
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   signatures:
     runs-on: ubuntu-latest
