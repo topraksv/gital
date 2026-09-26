@@ -57,6 +57,13 @@
       "when": 1790407868963,
       "tag": "0007_shop_total",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790415926676,
+      "tag": "0008_wishes",
+      "breakpoints": true
     }
   ]
 }

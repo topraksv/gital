@@ -5,6 +5,7 @@ import { readBought, readItems, readKnownProducts, readShopItems } from "./items
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
 import { readPurchases, readShops } from "./shops";
+import { readCollections, readWishes } from "./wishes";
 
 // Items, because each card counts what is on its list.
 const listsStore = liveStore(readLists, ["lists", "items"]);
@@ -52,5 +53,17 @@ export function useBought(itemId: string) {
 // it, so a tick on the list never re-reads the history.
 export function usePurchases(listId: string) {
   const store = useMemo(() => liveStore(() => readPurchases(listId), ["shops"]), [listId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+// Every wish and link, because each card counts and prices its collection.
+const collectionsStore = liveStore(readCollections, ["lists", "wishes", "wish_links"]);
+
+export function useCollections() {
+  return useSyncExternalStore(collectionsStore.subscribe, collectionsStore.getSnapshot, collectionsStore.getSnapshot);
+}
+
+export function useWishes(listId: string) {
+  const store = useMemo(() => liveStore(() => readWishes(listId), ["wishes", "wish_links"]), [listId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }

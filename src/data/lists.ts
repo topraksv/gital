@@ -4,7 +4,7 @@ import { and, asc, count, eq, isNull } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
 import { editRow, readLiveRow, restoreRow, softDelete, writeRows, type RowSnapshot } from "../db/mutations";
-import { items, lists } from "../db/schema";
+import { items, lists, type ListKind } from "../db/schema";
 import { LIST_COLORS, LIST_ICONS, knownOf, lookOf, type ListLook } from "../domain/lists";
 import { nameFrom } from "../domain/names";
 
@@ -15,13 +15,13 @@ export interface ListSummary extends ListLook {
   inBasket: number;
 }
 
-/** Oldest first, so a new list joins the end and nothing already there moves. */
+/** Oldest first, so a new list joins the end and nothing already there moves. Wish collections are İstekler's. */
 export async function readLists(): Promise<ListSummary[]> {
   const rows = await getDb()
     .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, total: count(items.id), inBasket: count(items.checkedAt) })
     .from(lists)
     .leftJoin(items, and(eq(items.listId, lists.id), isNull(items.shopId), isNull(items.deletedAt)))
-    .where(isNull(lists.deletedAt))
+    .where(and(isNull(lists.deletedAt), eq(lists.kind, "shop")))
     .groupBy(lists.id)
     .orderBy(asc(lists.createdAt), asc(lists.id));
   return rows.map(lookOf);
@@ -34,10 +34,10 @@ function nameOrThrow(input: string): string {
   return name;
 }
 
-export async function createList(input: string): Promise<string> {
+export async function createList(input: string, kind: ListKind = "shop"): Promise<string> {
   const name = nameOrThrow(input);
   const id = uuidv7();
-  await writeRows([{ table: "lists", row: { id, name } }]);
+  await writeRows([{ table: "lists", row: { id, name, kind } }]);
   return id;
 }
 

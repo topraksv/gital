@@ -81,5 +81,9 @@ cannot be released.
   shopping cart, and opens without a connection once it has been opened once.
 - A list's items can be sorted: "Sırala" puts a grip on each row to drag it
   by, and the order stays; urgent items stay on top while sorting.
+- İstekler keeps wishes in collections of your own: a name, or a link pasted
+  from Trendyol, Hepsiburada or Amazon; each wish takes a priority, a
+  guessed price and several shops' links with their prices, leads with the
+  cheapest, and the collection says what the open wishes come to.
 - The first open plays a five-step tour of what Gital does; Ayarlar plays it
   again.

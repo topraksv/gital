@@ -12,6 +12,10 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { UNITS } from "../domain/items";
 
+/** A list to shop from, or a wish collection (SPEC 7.4), which the wish list keeps apart. */
+export const LIST_KINDS = ["shop", "wish"] as const;
+export type ListKind = (typeof LIST_KINDS)[number];
+
 /**
  * Helix's sync columns without its `user_id`: a Gital row is scoped by its list
  * or by its person, never both, so the scope column belongs to each table.
@@ -32,6 +36,7 @@ export const lists = sqliteTable("lists", {
   /** A name from `LIST_COLORS` and `LIST_ICONS`; none draws the default (SPEC 1.8). */
   color: text("color"),
   icon: text("icon"),
+  kind: text("kind", { enum: LIST_KINDS }).notNull().default("shop"),
 });
 
 /**
@@ -82,6 +87,35 @@ export const shops = sqliteTable(
   (t) => [index("idx_shops_list_id").on(t.listId)],
 );
 
+/** A wish in a collection (SPEC 7.1, 7.3); its id is a uuidv7, since two wishes may share a name. */
+export const wishes = sqliteTable(
+  "wishes",
+  {
+    ...syncColumns,
+    listId: text("list_id").notNull(),
+    name: text("name").notNull(),
+    note: text("note"),
+    /** 0 low, 1 normal, 2 high (`PRIORITIES`). */
+    priority: integer("priority").notNull().default(1),
+    estimateMinor: integer("estimate_minor"),
+    boughtAt: text("bought_at"),
+  },
+  (t) => [index("idx_wishes_list_id").on(t.listId)],
+);
+
+/** A shop's page for a wish, with its price there (SPEC 7.6); `list_id` too, so a policy never joins. */
+export const wishLinks = sqliteTable(
+  "wish_links",
+  {
+    ...syncColumns,
+    listId: text("list_id").notNull(),
+    wishId: text("wish_id").notNull(),
+    url: text("url").notNull(),
+    priceMinor: integer("price_minor"),
+  },
+  (t) => [index("idx_wish_links_wish_id").on(t.wishId)],
+);
+
 /** Local only: every write waiting to be pushed. Never synced itself. */
 export const outbox = sqliteTable(
   "outbox",
@@ -100,6 +134,6 @@ export const outbox = sqliteTable(
   ],
 );
 
-export const SYNCED_TABLES = { lists, items, shops } as const;
+export const SYNCED_TABLES = { lists, items, shops, wishes, wish_links: wishLinks } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;
