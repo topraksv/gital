@@ -139,3 +139,5 @@ cannot be released.
   and in Kiler.
 - Undoing a delete is refused when the item, list, wish or set changed after
   it was deleted, instead of bringing back the older copy over the newer one.
+- The web app's first download is 9 KB lighter: the calculator arrives when a
+  price field is shown, and says so if it cannot load offline.

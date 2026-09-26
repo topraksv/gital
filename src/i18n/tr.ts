@@ -58,6 +58,7 @@ export const tr = {
     deleteFailed: "Silinemedi. Lütfen tekrar dene.",
     undoFailed: "Geri alınamadı. Lütfen tekrar dene.",
     shareFailed: "Paylaşılamadı. Lütfen tekrar dene.",
+    openFailed: "Açılamadı. İnternete bağlanıp tekrar dene.",
   },
   tabs: {
     lists: "Listeler",
