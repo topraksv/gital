@@ -16,7 +16,7 @@ import { useItems, useKnownProducts, useLists, usePurchases } from "../../data/h
 import { addEntries, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
-import { catalogueNamed, nearMiss, withCatalogue, type CatalogueProduct } from "../../domain/catalogue";
+import { catalogueNamed, listSections, nearMiss, withCatalogue, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
@@ -76,6 +76,7 @@ export default function ListScreen() {
 
   const open = items.data.filter((item) => item.checkedAt == null);
   const basket = items.data.filter((item) => item.checkedAt != null);
+  const sections = listSections(open);
 
   // A list from a message (SPEC 6.2), taken back whole from the bar.
   const paste = async (current: ListSummary) => {
@@ -220,8 +221,17 @@ export default function ListScreen() {
                     two would unmount it from one and mount a copy in the other. */}
                 {[
                   ...(sorting
-                    ? [<SortOpen key="sort" listId={list.id} open={open} onOpen={setEditing} onDragging={setDragging} />]
-                    : open.map(row)),
+                    ? [<SortOpen key="sort" listId={list.id} sections={sections} onOpen={setEditing} onDragging={setDragging} />]
+                    : sections.flatMap((section, at) => [
+                        section.aisle ? (
+                          <RowMotion key={`aisle-${section.key}`}>
+                            <SlideUp distance={motion.travel.bar}>
+                              <AisleHeader aisle={section.aisle} first={at === 0} />
+                            </SlideUp>
+                          </RowMotion>
+                        ) : null,
+                        ...section.items.map(row),
+                      ])),
                   basket.length > 0 ? (
                     <RowMotion key="basket">
                       <SlideUp distance={motion.travel.bar}>
@@ -544,44 +554,48 @@ function SortToggle({ sorting, canSort, onChange }: { sorting: boolean; canSort:
  * top and those not found at the bottom, so each run of them sorts on its own:
  * a row dragged past the edge of its run would jump back on release.
  */
+/**
+ * Each section drags on its own, so a row stays with its aisle and its kind;
+ * the whole order is written, so the stored one is the order drawn.
+ */
 function SortOpen({
   listId,
-  open,
+  sections,
   onOpen,
   onDragging,
 }: {
   listId: string;
-  open: readonly Item[];
+  sections: readonly Section<Item>[];
   onOpen: (item: Item) => void;
   onDragging: (dragging: boolean) => void;
 }) {
-  const runs = runsOf(open);
   const reorder = (at: number, keys: string[]) =>
-    reorderItems(listId, runs.flatMap((run, index) => (index === at ? keys : run.map(keyOf)))).catch((error: unknown) => {
+    reorderItems(listId, sections.flatMap((section, index) => (index === at ? keys : section.items.map(keyOf)))).catch((error: unknown) => {
       void appError(tr.errors.saveFailed);
       throw error;
     });
   return (
     <View style={{ gap: density.list.rowGap }}>
-      {runs.map((run, at) => (
-        <DraggableList
-          // A run is its kind, so dragging a row to its top does not remount it.
-          key={`${run[0]!.urgent}-${run[0]!.notFound}`}
-          items={run}
-          keyOf={keyOf}
-          gap={density.list.rowGap}
-          onReorder={(keys) => reorder(at, keys)}
-          onDragging={onDragging}
-          renderRow={(item, handle, position) => (
-            <ItemRow
-              item={item}
-              onOpen={() => onOpen(item)}
-              onToggle={() => undefined}
-              lifted={handle.lifted}
-              grip={<ReorderGrip handle={handle} name={item.name} position={position + 1} count={run.length} />}
-            />
-          )}
-        />
+      {sections.map((section, at) => (
+        <View key={section.key} style={{ gap: density.list.rowGap }}>
+          {section.aisle ? <AisleHeader aisle={section.aisle} first={at === 0} /> : null}
+          <DraggableList
+            items={section.items}
+            keyOf={keyOf}
+            gap={density.list.rowGap}
+            onReorder={(keys) => reorder(at, keys)}
+            onDragging={onDragging}
+            renderRow={(item, handle, position) => (
+              <ItemRow
+                item={item}
+                onOpen={() => onOpen(item)}
+                onToggle={() => undefined}
+                lifted={handle.lifted}
+                grip={<ReorderGrip handle={handle} name={item.name} position={position + 1} count={section.items.length} />}
+              />
+            )}
+          />
+        </View>
       ))}
     </View>
   );
@@ -589,15 +603,8 @@ function SortOpen({
 
 const keyOf = (item: Item) => item.id;
 
-/** Consecutive items that are urgent, or not found, alike: `readItems` already groups them. */
-function runsOf(open: readonly Item[]): Item[][] {
-  const runs: Item[][] = [];
-  for (const item of open) {
-    const last = runs.at(-1)?.[0];
-    if (last && last.urgent === item.urgent && last.notFound === item.notFound) runs.at(-1)!.push(item);
-    else runs.push([item]);
-  }
-  return runs;
+function AisleHeader({ aisle, first }: { aisle: Aisle | "other"; first: boolean }) {
+  return <SectionHeader flush={first}>{tr.catalogue.aisles[aisle]}</SectionHeader>;
 }
 
 /** The pencil and the list panel it opens: a list's name, colour and picture (SPEC 1.8). */

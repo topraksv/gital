@@ -106,3 +106,6 @@ cannot be released.
 - An entry that nearly names a catalogue product ("domatesss") asks
   "Bunu mu demek istediniz: Domates?" under the field, and one typed without
   its marks ("sut") is written as the catalogue spells it.
+- A list's open items are grouped by aisle in the order a market is walked,
+  urgent ones above and what was not found below; sorting stays within an
+  aisle.

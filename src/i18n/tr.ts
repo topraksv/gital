@@ -210,6 +210,7 @@ export const tr = {
       pet: "Evcil hayvan",
       pharmacy: "Sağlık",
       home: "Ev gereçleri",
+      other: "Diğer",
     },
   },
   wishes: {

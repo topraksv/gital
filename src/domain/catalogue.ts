@@ -179,3 +179,30 @@ export function nearMiss(name: string, known: readonly KnownProduct[]): Catalogu
   const held = squeezed(key);
   return CATALOGUE.find((product) => squeezed(product.key) === held) ?? CATALOGUE.find((product) => nearly(key, product.key)) ?? null;
 }
+
+/** A run of a list's open items: one aisle's, or the urgent or not-found ones, which no aisle heads. */
+export interface Section<T> {
+  key: string;
+  items: T[];
+  aisle?: Aisle | "other";
+}
+
+/**
+ * A list's open items as they are drawn and dragged (SPEC 5.2): the urgent
+ * first, then the rest aisle by aisle in `AISLES`' order, what the catalogue
+ * does not know after them, and what was not found last, urgent first. Each
+ * run keeps the list's own order, which is how a drag within an aisle is kept.
+ * The aisles are headed only when there are two or more of them.
+ */
+export function listSections<T extends { name: string; urgent: boolean; notFound: boolean }>(open: readonly T[]): Section<T>[] {
+  const shelves = new Map<Aisle | "other", T[]>([...AISLES, "other" as const].map((aisle) => [aisle, []]));
+  for (const item of open) if (!item.urgent && !item.notFound) shelves.get(catalogueProduct(item.name)?.aisle ?? "other")!.push(item);
+  const filled = [...shelves].filter(([, items]) => items.length > 0);
+  const headed = filled.length > 1;
+  return [
+    { key: "urgent", items: open.filter((item) => item.urgent && !item.notFound) },
+    ...filled.map(([aisle, items]) => ({ key: aisle, items, ...(headed && { aisle }) })),
+    { key: "notFoundUrgent", items: open.filter((item) => item.urgent && item.notFound) },
+    { key: "notFound", items: open.filter((item) => !item.urgent && item.notFound) },
+  ].filter((section) => section.items.length > 0);
+}

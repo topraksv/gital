@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AISLES, CATALOGUE, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, nearMiss, withCatalogue } from "../../src/domain/catalogue";
+import { AISLES, CATALOGUE, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, listSections, nearMiss, withCatalogue } from "../../src/domain/catalogue";
 import { foldName, parseEntry, suggestProducts, typedProduct } from "../../src/domain/items";
 
 describe("the catalogue", () => {
@@ -62,5 +62,30 @@ describe("the catalogue", () => {
     expect(nearMiss("Domtes", [{ key: "domtes", name: "Domtes", times: 1 }])).toBeNull();
     expect(nearMiss("Stu", [])).toBeNull();
     expect(nearMiss("Ezine peyniri", [])).toBeNull();
+  });
+
+  describe("listSections", () => {
+    const item = (name: string, urgent = false, notFound = false) => ({ name, urgent, notFound });
+    const shape = (open: ReturnType<typeof item>[]) => listSections(open).map(({ key, aisle, items }) => [key, aisle ?? null, items.map((each) => each.name)]);
+
+    it("groups what is plainly left in the order the market is walked, each aisle in the list's own order", () => {
+      expect(shape([item("Süt"), item("Elma"), item("Ezine peyniri"), item("Domates"), item("Yoğurt"), item("Muz")])).toEqual([
+        ["produce", "produce", ["Domates"]],
+        ["fruit", "fruit", ["Elma", "Muz"]],
+        ["dairy", "dairy", ["Süt", "Yoğurt"]],
+        ["other", "other", ["Ezine peyniri"]],
+      ]);
+    });
+
+    it("keeps the urgent above the aisles and the not found below, as the list stores them, and heads nothing in one aisle", () => {
+      const open = [item("Ekmek", true), item("Süt"), item("Yoğurt"), item("Pil", true, true), item("Muz", false, true)];
+      expect(shape(open)).toEqual([
+        ["urgent", null, ["Ekmek"]],
+        ["dairy", null, ["Süt", "Yoğurt"]],
+        ["notFoundUrgent", null, ["Pil"]],
+        ["notFound", null, ["Muz"]],
+      ]);
+      expect(listSections([])).toEqual([]);
+    });
   });
 });
