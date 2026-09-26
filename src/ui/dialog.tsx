@@ -92,10 +92,13 @@ export function DialogShell({
   message,
   titleRef,
   onDismiss,
+  lead,
   children,
 }: {
   title: string;
   message?: string;
+  /** Drawn above the title: the tour's picture of the slide. */
+  lead?: ReactNode;
   titleRef: RefObject<View | null>;
   onDismiss: () => void;
   children: ReactNode;
@@ -134,6 +137,7 @@ export function DialogShell({
           }}
         />
       ) : null}
+      {lead}
       <View ref={titleRef} accessible accessibilityRole="header" aria-level={2} tabIndex={-1}>
         <Text style={[type.heading, { color: palette.text, marginBottom: spacing.sm }]}>{title}</Text>
       </View>

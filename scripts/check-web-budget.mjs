@@ -15,12 +15,12 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-26 on the installable web app: entry 1_636_410, all JS
-// 1_772_954, export 3_350_305, pictures 49_994. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-26 on the first-open tour: entry 1_659_982, all JS
+// 1_796_526, export 3_373_877, pictures 49_994. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 1_653_000,
-  totalJs: 1_791_000,
-  totalExport: 3_384_000,
+  entryJs: 1_677_000,
+  totalJs: 1_815_000,
+  totalExport: 3_408_000,
   pictures: 50_500,
 };
 

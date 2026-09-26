@@ -543,6 +543,10 @@ export const listSheet = { cell: controlSize.minimumTarget, columns: 7 } as cons
 export const calculatorPad = { keyHeight: 56, displayHeight: 128 } as const;
 
 /** The finished shop's celebration (`docs/UI.md` section 7): a few dozen pieces, and the card's tick. */
+/** The first-open tour's drawings: a skeleton of the screen each slide names, and its step dots. */
+/** `text` holds three lines of body, so the sheet does not jump as a slide's text changes length. */
+export const tour = { art: 122, text: 66, line: 5, block: 20, mark: 30, dot: { width: 6, active: 18 } } as const;
+
 export const celebration = { pieces: 36, piece: { width: 8, height: 12 }, tick: 56, cardWidth: 340 } as const;
 
 /** An illustration fills this share of its tile (`docs/UI.md` section 6). */

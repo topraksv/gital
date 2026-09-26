@@ -81,3 +81,5 @@ cannot be released.
   shopping cart, and opens without a connection once it has been opened once.
 - A list's items can be sorted: "Sırala" puts a grip on each row to drag it
   by, and the order stays; urgent items stay on top while sorting.
+- The first open plays a five-step tour of what Gital does; Ayarlar plays it
+  again.

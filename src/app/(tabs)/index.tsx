@@ -10,6 +10,7 @@ import { tr } from "../../i18n/tr";
 import { ArrivalScope, Button, EmptyState, IconButton, LinkCard, ReadFailed, Screen, SlideUp } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { selectionTap } from "../../ui/haptics";
+import { FirstRunTour } from "../../ui/tour";
 import { density, motion } from "../../ui/theme";
 
 export default function Lists() {
@@ -69,6 +70,7 @@ export default function Lists() {
           )}
         </ArrivalScope>
       ) : null}
+      <FirstRunTour />
     </Screen>
   );
 }

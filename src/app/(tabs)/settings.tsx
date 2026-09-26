@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { View, useWindowDimensions } from "react-native";
+import BookOpen from "lucide-react-native/icons/book-open";
 import Check from "lucide-react-native/icons/check";
 import Monitor from "lucide-react-native/icons/monitor";
 import Moon from "lucide-react-native/icons/moon";
 import Sun from "lucide-react-native/icons/sun";
 
 import { tr } from "../../i18n/tr";
-import { Body, Card, ChoiceTile, Screen, SectionHeader } from "../../ui/components";
+import { Body, Button, Card, ChoiceTile, Screen, SectionHeader } from "../../ui/components";
+import { TourModal } from "../../ui/tour";
 import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, borderWidth, circle, PALETTES, radius, spacing, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
 import { setAppearance } from "../_layout";
@@ -27,6 +30,7 @@ export default function SettingsScreen() {
   const { palette, scheme, paletteId, preference } = useTheme();
   const { width } = useWindowDimensions();
   const stacked = !shouldPairTiles(width);
+  const [touring, setTouring] = useState(false);
   return (
     <Screen title={tr.tabs.settings} width="workspace">
       <SectionHeader>{tr.settings.appSection}</SectionHeader>
@@ -60,6 +64,12 @@ export default function SettingsScreen() {
           ))}
         </View>
       </Card>
+      <SectionHeader>{tr.settings.helpSection}</SectionHeader>
+      <Card>
+        <Body muted style={{ marginBottom: spacing.md }}>{tr.tour.replayHint}</Body>
+        <Button label={tr.tour.replay} icon={BookOpen} variant="ghost" onPress={() => setTouring(true)} />
+      </Card>
+      {touring ? <TourModal onClose={() => setTouring(false)} /> : null}
     </Screen>
   );
 }
