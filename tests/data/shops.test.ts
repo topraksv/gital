@@ -234,6 +234,14 @@ describe("addEntries from history", () => {
     expect(back).not.toBe(item!.id);
   });
 
+  it("brings a product back without the note and urgency it was bought with", async () => {
+    await shopFor("süt", ["Süt"]);
+    const [item] = await readShopItems(await finish());
+    const noted = { ...item!, note: "Pınar olsun", urgent: true };
+    await addEntries(listId, [noted]);
+    expect(await readItems(listId)).toMatchObject([{ name: "Süt", note: null, urgent: false }]);
+  });
+
   it("merges into the product when it is already on the list, keeping that row's tick", async () => {
     await shopFor("2 lt süt", ["Süt"]);
     const shopId = await finish();

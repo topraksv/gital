@@ -29,6 +29,9 @@ export interface ItemChange extends Entry {
   boughtInstead: string | null;
 }
 
+/** An item as a list's text carries it (`docs/SPEC.md` 6.1, 6.2). */
+export type ListedEntry = Entry & Pick<ItemChange, "note" | "urgent">;
+
 /** What people type or say for each unit, lower-cased the Turkish way. */
 const UNIT_WORDS: Record<string, Unit> = {
   adet: "adet",
@@ -68,6 +71,9 @@ const QUANTITY_MAX_MILLI = 9_999_000;
 /** A long dictated shop fits; a pasted page does not become a hundred rows. */
 export const ENTRY_MAX = 500;
 
+/** A household's longest list, pasted (6.2); a pasted page is still cut. */
+export const LIST_TEXT_MAX = 4000;
+
 const DIGITS = String.raw`\d+(?:[.,]\d+)?`;
 // Longest first, so "gram" is not read as "g" followed by the rest of a word.
 const UNIT = Object.keys(UNIT_WORDS)
@@ -78,6 +84,9 @@ const NUMBER = `${DIGITS}|${Object.keys(NUMBER_WORDS).join("|")}`;
 // "2 limon" from being two litres of "imon" and "ikiz" from being two of "z".
 const LEADING = new RegExp(`^(${NUMBER})(?:\\s*(${UNIT}))?\\s+(.+)$`, "u");
 const TRAILING = new RegExp(`^(.+?)\\s+(${DIGITS})(?:\\s*(${UNIT}))?$`, "u");
+// A written list's quantity: digits, and first — what `formatList` writes —
+// so a bulleted "Yarım yağlı süt" or "Pil 4" stays the product it names.
+const WRITTEN = new RegExp(`^(${DIGITS})(?:\\s*(${UNIT}))?\\s+(.+)$`, "u");
 const QUANTITY_ONLY = new RegExp(`^(?:${NUMBER})(?:\\s*(?:${UNIT}))?$`, "u");
 
 // Dictation joins items with "ve" and "bir de"; a comma between digits is a
@@ -85,6 +94,12 @@ const QUANTITY_ONLY = new RegExp(`^(?:${NUMBER})(?:\\s*(?:${UNIT}))?$`, "u");
 const SEPARATOR = /(?<!\d),|,(?!\d)|[\n;]|\s+ve\s+|\s+bir\s+de\s+/i;
 // "Bir de" opening an item is "and also", not one of it.
 const ALSO = /^bir\s+de\s+/i;
+// A written list's bullet: `formatList`'s two, and the ones people type. One
+// alone on its line is an empty item, not a product called "•".
+const BULLET = /^(?:[•*\-–]|(❗)\uFE0F?)(?:\s+|$)/u;
+// A bracket closing a bulleted line is its note, from the first opening one,
+// so a note may hold brackets of its own: "Peynir (Ezine (tam yağlı))".
+const LINE_NOTE = /\s*\((.*)\)$/u;
 
 function quantityFrom(number: string, unit: string | undefined): Quantity | null {
   // A dot before three digits is Turkish for thousands; any other is a decimal point.
@@ -99,19 +114,19 @@ function quantityFrom(number: string, unit: string | undefined): Quantity | null
  * quantity it opens with, if it does, with the name after it cut from the text
  * as typed, which the Turkish lower-casing keeps aligned.
  */
-function readSegment(segment: string) {
+function readSegment(segment: string, opening = LEADING) {
   const lower = segment.toLocaleLowerCase("tr-TR");
   const typed = lower.length === segment.length ? segment : lower;
-  const match = LEADING.exec(lower);
+  const match = opening.exec(lower);
   const leading = match && { quantity: quantityFrom(match[1]!, match[2]), name: typed.slice(typed.length - match[3]!.length) };
   return { lower, typed, leading };
 }
 
-function entryFrom(segment: string): Entry | null {
-  const { lower, typed, leading } = readSegment(segment);
+function entryFrom(segment: string, opening = LEADING, closing: RegExp | null = TRAILING): Entry | null {
+  const { lower, typed, leading } = readSegment(segment, opening);
   let rawName = segment;
   let quantity: Quantity | null = null;
-  const trailing = leading ? null : TRAILING.exec(lower);
+  const trailing = leading ? null : closing?.exec(lower);
   if (leading) {
     quantity = leading.quantity;
     if (quantity) rawName = leading.name;
@@ -132,6 +147,16 @@ function entryFrom(segment: string): Entry | null {
 export function itemNameFrom(input: string): string | null {
   const name = nameFrom(input);
   return name == null ? null : initialOf(name) + Array.from(name).slice(1).join("");
+}
+
+/** A note as it is kept: one line of spaces, `NOTE_MAX` long, and none when blank. */
+export function noteFrom(input: string | null | undefined): string | null {
+  return input == null ? null : nameFrom(input, NOTE_MAX);
+}
+
+/** Only an entry's own fields, with no note and not urgent. */
+export function bareEntry({ name, quantityMilli, unit }: Entry): ListedEntry {
+  return { name, quantityMilli, unit, note: null, urgent: false };
 }
 
 /**
@@ -159,6 +184,29 @@ export function parseEntry(text: string): Entry[] {
 }
 
 /**
+ * A pasted list (`docs/SPEC.md` 6.2). With bullets — `formatList`'s, or a
+ * list someone typed — only a bulleted line is an item, so a heading and a
+ * sign-off are not, and each is one item: "Tuz ve karabiber" is one, a
+ * closing bracket is its note and ❗ makes it urgent. Without bullets it is
+ * an entry, read as the quick-add field reads one.
+ */
+export function parseList(text: string): ListedEntry[] {
+  // The field stops a paste at its limit, mid-line: that line is half a name.
+  const whole = text.length < LIST_TEXT_MAX ? text : text.slice(0, text.lastIndexOf("\n") + 1);
+  const bulleted = whole.split("\n").flatMap((raw) => {
+    const line = raw.trim();
+    const bullet = BULLET.exec(line);
+    return bullet ? [{ rest: line.slice(bullet[0].length), urgent: bullet[1] != null }] : [];
+  });
+  if (bulleted.length === 0) return parseEntry(whole).map(bareEntry);
+  return bulleted.flatMap(({ rest, urgent }) => {
+    const note = LINE_NOTE.exec(rest);
+    const entry = entryFrom(note ? rest.slice(0, note.index) : rest, WRITTEN, null);
+    return entry ? [{ ...entry, note: noteFrom(note?.[1]), urgent }] : [];
+  });
+}
+
+/**
  * The key two entries share when they are the same product (2.5): case, Turkish
  * marks and spacing folded away, so "Süt", "SÜT" and "sut" are one row.
  */
@@ -181,10 +229,9 @@ export function formatQuantity({ quantityMilli, unit }: Quantity): string {
 /**
  * A list as a message (`docs/SPEC.md` 6.1): its name, then a line per item in
  * the order given, quantity first, an urgent one marked as the app marks it in
- * red. Reading it back is 6.2's, which needs more than `parseEntry`: the name
- * line, the bracketed note and the mark are not products.
+ * red. `parseList` reads it back.
  */
-export function formatList(name: string, items: readonly (Entry & Pick<ItemChange, "note" | "urgent">)[]): string {
+export function formatList(name: string, items: readonly ListedEntry[]): string {
   const lines = items.map((item) => {
     const text = [formatQuantity(item), item.name].filter(Boolean).join(" ");
     return `${item.urgent ? "❗" : "•"} ${text}${item.note ? ` (${item.note})` : ""}`;

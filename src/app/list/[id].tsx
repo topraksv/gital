@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import CheckCheck from "lucide-react-native/icons/check-check";
+import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Pencil from "lucide-react-native/icons/pencil";
 import Plus from "lucide-react-native/icons/plus";
@@ -9,10 +10,10 @@ import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
 import { useItems, useKnownProducts, useLists } from "../../data/hooks";
-import { addEntries, deleteItem, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
+import { addEntries, deleteItem, importEntries, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, renameList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
-import { ENTRY_MAX, formatList, parseEntry, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
+import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import { shareText } from "../../services/share";
@@ -71,6 +72,25 @@ export default function ListScreen() {
 
   const open = items.data.filter((item) => item.checkedAt == null);
   const basket = items.data.filter((item) => item.checkedAt != null);
+
+  // A list from a message (SPEC 6.2), taken back whole from the bar.
+  const paste = async (current: ListSummary) => {
+    const text = await appPrompt(tr.items.pasteTitle, tr.items.pasteMessage, {
+      confirmLabel: tr.items.add,
+      placeholder: tr.items.pastePlaceholder,
+      maxLength: LIST_TEXT_MAX,
+      multiline: true,
+    });
+    if (text == null) return;
+    try {
+      const written = await importEntries(current.id, parseList(text));
+      if (!written) return showNotice(tr.items.pastedNothing);
+      selectionTap();
+      showUndo(tr.items.pasted(written.writes.length), () => undoSave(written, current.id));
+    } catch {
+      void appError(tr.errors.saveFailed);
+    }
+  };
 
   // What is still to buy: the basket is already bought, and would only be read out.
   const share = async (current: ListSummary) => {
@@ -164,6 +184,7 @@ export default function ListScreen() {
       actions={
         list && !leaving ? (
           <>
+            <IconButton icon={ClipboardPaste} label={tr.items.paste(list.name)} onPress={() => paste(list)} />
             <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={open.length === 0} onPress={() => share(list)} />
             <IconButton icon={Pencil} label={tr.lists.rename(list.name)} onPress={() => rename(list)} />
             <IconButton icon={Trash} label={tr.lists.delete(list.name)} tone="danger" onPress={() => remove(list)} />

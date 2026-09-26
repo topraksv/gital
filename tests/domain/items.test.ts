@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  LIST_TEXT_MAX,
   foldName,
   formatList,
   formatQuantity,
   parseEntry,
+  parseList,
   pickEntries,
   stepQuantity,
   suggestProducts,
@@ -168,6 +170,57 @@ describe("formatList", () => {
         item("Süt", { quantityMilli: 1500, unit: "lt", note: "Pınar olsun" }),
       ]),
     ).toBe("Market\n❗ Ekmek\n• 2 kg Domates\n• 1,5 lt Süt (Pınar olsun)");
+  });
+});
+
+describe("parseList", () => {
+  const item = (name: string, more: Partial<ItemChange> = {}) => ({
+    name,
+    quantityMilli: null,
+    unit: null,
+    note: null,
+    urgent: false,
+    ...more,
+  });
+
+  it("reads formatList's text back as the same items, notes and urgency", () => {
+    const items = [
+      item("Ekmek", { urgent: true }),
+      item("Domates", { quantityMilli: 2000, unit: "kg" }),
+      item("Süt", { quantityMilli: 1500, unit: "lt", note: "Pınar olsun, yoksa Sütaş" }),
+      item("Peynir", { note: "Ezine (tam yağlı)" }),
+      item("Tuz ve karabiber"),
+      item("Yarım yağlı süt", { note: "iki tane" }),
+      item("Pil 4", { urgent: true }),
+      item("Kalem 2", { quantityMilli: 3000, unit: "paket" }),
+    ];
+    expect(parseList(formatList("Market", items))).toEqual(items);
+  });
+
+  it("takes only the bulleted lines of a list with bullets, whatever the bullet", () => {
+    expect(parseList("Akşama şunları al:\n- 2 kilo domates\n* süt (tam yağlı)\n–  ekmek\n❗️ yumurta\n• \n\nteşekkürler")).toEqual([
+      item("Domates", { quantityMilli: 2000, unit: "kg" }),
+      item("Süt", { note: "tam yağlı" }),
+      item("Ekmek"),
+      item("Yumurta", { urgent: true }),
+    ]);
+  });
+
+  it("reads a list without bullets as the quick-add field reads an entry", () => {
+    expect(parseList("2 kg domates, süt\niki kilo un ve ekmek (taze)")).toEqual([
+      item("Domates", { quantityMilli: 2000, unit: "kg" }),
+      item("Süt"),
+      item("Un", { quantityMilli: 2000, unit: "kg" }),
+      item("Ekmek (taze)"),
+    ]);
+    expect(parseList("  \n ")).toEqual([]);
+    expect(parseList("Market\n•\n-")).toEqual([]);
+  });
+
+  it("drops the line a paste cut at its limit ends in, rather than keep half a name", () => {
+    const cut = `${"• süt\n".repeat(664)}• 2 kg domates salçası`.slice(0, LIST_TEXT_MAX);
+    expect(cut.endsWith("• 2 kg domates s")).toBe(true);
+    expect(parseList(cut).map((entry) => entry.name)).toEqual(Array(664).fill("Süt"));
   });
 });
 

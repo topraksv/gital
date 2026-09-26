@@ -19,8 +19,7 @@ import {
   type RowsWritten,
 } from "../db/mutations";
 import { items, lists } from "../db/schema";
-import { NOTE_MAX, foldName, itemNameFrom, type Entry, type ItemChange, type KnownProduct } from "../domain/items";
-import { nameFrom } from "../domain/names";
+import { bareEntry, foldName, itemNameFrom, noteFrom, type Entry, type ItemChange, type KnownProduct, type ListedEntry } from "../domain/items";
 
 export interface Item extends ItemChange {
   id: string;
@@ -103,38 +102,63 @@ export function openItemId(listId: string, name: string): Promise<string> {
  * bought, comes back on top.
  */
 export async function addEntries(listId: string, added: readonly Entry[]): Promise<string[]> {
-  const entries = new Map<string, Entry>();
+  // An item from history also carries its id and tick, and the note and
+  // urgency a product added again comes back without.
+  const entries = await byProduct(listId, added.map(bareEntry));
+  if (entries.size > 0) await writeRows(() => landEntries(listId, entries));
+  return [...entries.keys()];
+}
+
+/**
+ * Add a pasted list (SPEC 6.2) as `addEntries` adds an entry, each item with
+ * its note and urgency, in one write the undo bar takes back whole
+ * (`undoSave`). `null` when it changes nothing: it names no product, or only
+ * what the list already has as it is.
+ */
+export async function importEntries(listId: string, added: readonly ListedEntry[]): Promise<RowsWritten | null> {
+  const entries = await byProduct(listId, added);
+  if (entries.size === 0) return null;
+  const written = await writeUndoable(() => landEntries(listId, entries));
+  return written.writes.length === 0 ? null : written;
+}
+
+/** One per product: named twice, it keeps its first place and takes the last quantity and note given. */
+async function byProduct(listId: string, added: readonly ListedEntry[]): Promise<Map<string, ListedEntry>> {
   const ids = await Promise.all(added.map((entry) => openItemId(listId, entry.name)));
-  // Only an entry's own fields: an item from history also carries its id and tick.
-  added.forEach(({ name, quantityMilli, unit }, at) => {
+  const entries = new Map<string, ListedEntry>();
+  added.forEach((entry, at) => {
     const id = ids[at]!;
     const held = entries.get(id);
-    // Named twice, a product keeps its first place and the last quantity given.
-    if (!held) entries.set(id, { name, quantityMilli, unit });
-    else if (quantityMilli != null) entries.set(id, { ...held, quantityMilli, unit });
+    const quantity = entry.quantityMilli == null && held ? held : entry;
+    entries.set(id, {
+      ...(held ?? entry),
+      quantityMilli: quantity.quantityMilli,
+      unit: quantity.unit,
+      note: entry.note ?? held?.note ?? null,
+      urgent: entry.urgent || held?.urgent === true,
+    });
   });
-  if (entries.size === 0) return [];
+  return entries;
+}
 
+async function landEntries(listId: string, entries: ReadonlyMap<string, ListedEntry>): Promise<RowWrite[]> {
+  await readLiveRow("lists", listId);
+  const unique = [...entries.keys()];
   const sqlite = await getSqliteAsync();
-  await writeRows(async () => {
-    await readLiveRow("lists", listId);
-    const unique = [...entries.keys()];
-    const live = new Map(
-      (
-        await sqlite.getAllAsync<RowSnapshot>(
-          `SELECT * FROM items WHERE id IN (${unique.map(() => "?").join(", ")}) AND deleted_at IS NULL`,
-          unique,
-        )
-      ).map((row) => [row.id, row]),
-    );
-    let sortOrder = (await topPlace(listId)) - entries.size;
-    const writes: RowWrite[] = [];
-    for (const [id, entry] of entries) {
-      writes.push(...land(id, live.get(id) ?? null, { listId, ...entry, sortOrder: sortOrder++, checkedAt: null }));
-    }
-    return writes;
-  });
-  return [...entries.keys()];
+  const live = new Map(
+    (
+      await sqlite.getAllAsync<RowSnapshot>(
+        `SELECT * FROM items WHERE id IN (${unique.map(() => "?").join(", ")}) AND deleted_at IS NULL`,
+        unique,
+      )
+    ).map((row) => [row.id, row]),
+  );
+  let sortOrder = (await topPlace(listId)) - entries.size;
+  const writes: RowWrite[] = [];
+  for (const [id, entry] of entries) {
+    writes.push(...land(id, live.get(id) ?? null, { listId, ...entry, sortOrder: sortOrder++, checkedAt: null }));
+  }
+  return writes;
 }
 
 /** The place of what is on top of a list's open items; what lands goes above it. */
@@ -219,7 +243,7 @@ export async function updateItem(
 ): Promise<{ name: string; written: RowsWritten }> {
   const name = itemNameFrom(change.name);
   if (name == null) throw new Error("An item needs a name");
-  const note = change.note == null ? null : nameFrom(change.note, NOTE_MAX);
+  const note = noteFrom(change.note);
   const boughtInstead = change.boughtInstead == null ? null : itemNameFrom(change.boughtInstead);
   const saved = { name, quantityMilli: change.quantityMilli, unit: change.unit, note, urgent: change.urgent, notFound: change.notFound, boughtInstead };
   const written = await writeUndoable(async () => {
@@ -256,7 +280,7 @@ async function saveHere(stored: RowSnapshot, saved: Record<string, unknown>): Pr
   ];
 }
 
-/** Take back a save that sent an item elsewhere, unless the list it left is gone. */
+/** Take back a save that sent an item elsewhere, or a paste, unless the list is gone. */
 export function undoSave(written: RowsWritten, listId: string): Promise<void> {
   return revertRows(written, () => readLiveRow("lists", listId));
 }

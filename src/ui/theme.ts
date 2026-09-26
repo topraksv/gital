@@ -527,6 +527,8 @@ export const emptyState = { disc: 56, icon: 26 } as const;
  */
 export const dialog = {
   maxWidth: 400,
+  /** A multi-line prompt's field: six lines show, the rest scroll inside it. */
+  multilineHeight: 160,
   handle: { width: 36, height: 4 },
   keyboardGap: 140,
   keyboardGapShare: 0.22,

@@ -21,8 +21,8 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, deleteItem, readItems, readKnownProducts, readShopItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
-const { NOTE_MAX, parseEntry } = await import("../../src/domain/items");
+const { addEntries, deleteItem, importEntries, readItems, readKnownProducts, readShopItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
+const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
@@ -459,5 +459,42 @@ describe("readKnownProducts", () => {
       { key: "sut", name: "SÜT", times: 2 },
       { key: "ekmek", name: "Ekmek", times: 1 },
     ]);
+  });
+});
+
+describe("a pasted list, and its undo", () => {
+  it("lands each item with its note and urgency, merges a product named twice or already here, and undo takes the paste back", async () => {
+    const [sut] = await addItems(listId, "süt");
+    await toggleChecked(sut!);
+    const before = await readItems(listId);
+    later(1000);
+    const written = await importEntries(listId, parseList("Market\n❗ 2 kg Domates\n• Süt (Pınar olsun)\n• domates (salkım)\n• Ekmek"));
+    expect(await readItems(listId)).toMatchObject([
+      { name: "Domates", quantityMilli: 2000, unit: "kg", note: "salkım", urgent: true, checkedAt: null },
+      { name: "Ekmek", note: null, urgent: false },
+      // Already in the basket, the product stays there and takes the note.
+      { id: sut, note: "Pınar olsun", checkedAt: T0.toISOString() },
+    ]);
+    await undoSave(written!, listId);
+    expect(await readItems(listId)).toEqual(before);
+  });
+
+  it("keeps a note by the note's rules, and refuses the undo once an item has changed since", async () => {
+    const written = await importEntries(listId, parseList(`• Peynir (  beyaz   ${"x".repeat(NOTE_MAX)} )\n• Zeytin`));
+    const [peynir, zeytin] = await readItems(listId);
+    expect(peynir!.note).toBe(`beyaz ${"x".repeat(NOTE_MAX)}`.slice(0, NOTE_MAX));
+    await toggleChecked(zeytin!.id);
+    await expect(undoSave(written!, listId)).rejects.toThrow(/changed since/);
+    expect(await names(listId)).toEqual(["Peynir", "Zeytin"]);
+  });
+
+  it("writes nothing for a paste that names nothing or only what is here, and refuses a deleted list", async () => {
+    expect(await importEntries(listId, parseList("Market\n• \n\n"))).toBeNull();
+    expect(outboxCount()).toBe(0);
+    await addItems(listId, "2 kg domates");
+    expect(await importEntries(listId, parseList("• Domates\n• 2 kg domates"))).toBeNull();
+    expect(outboxCount()).toBe(1);
+    await deleteList(listId);
+    await expect(importEntries(listId, parseList("• süt"))).rejects.toThrow();
   });
 });

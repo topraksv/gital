@@ -52,6 +52,7 @@ interface PromptRequest {
   confirmLabel: string;
   initialValue: string;
   maxLength: number | undefined;
+  multiline: boolean | undefined;
   resolve: (value: string | null) => void;
 }
 
@@ -62,7 +63,7 @@ let promptId = 0;
 export function appPrompt(
   title: string,
   message: string,
-  opts: { confirmLabel: string; placeholder?: string; initialValue?: string; maxLength?: number },
+  opts: { confirmLabel: string; placeholder?: string; initialValue?: string; maxLength?: number; multiline?: boolean },
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const request: PromptRequest = {
@@ -73,6 +74,7 @@ export function appPrompt(
       confirmLabel: opts.confirmLabel,
       initialValue: opts.initialValue ?? "",
       maxLength: opts.maxLength,
+      multiline: opts.multiline,
       resolve,
     };
     usePromptStore.setState(enqueueRequest(usePromptStore.getState(), request));
@@ -197,9 +199,12 @@ function PromptBody({ request, onClose }: { request: PromptRequest; onClose: (va
         autoFocus
         // A rename opens on the whole name selected, so typing replaces it.
         selectTextOnFocus={request.initialValue !== ""}
-        returnKeyType="done"
+        multiline={request.multiline}
+        // Enter in a multi-line field is a new line and never submits, so
+        // only the button confirms it, and the key must not promise more.
+        returnKeyType={request.multiline ? "default" : "done"}
         onSubmitEditing={() => ready && onClose(value)}
-        style={{ marginTop: spacing.lg }}
+        style={[{ marginTop: spacing.lg }, request.multiline && { height: dialog.multilineHeight, textAlignVertical: "top" }]}
       />
       <Actions>
         <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={() => onClose(null)} />

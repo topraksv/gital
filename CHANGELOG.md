@@ -57,3 +57,7 @@ cannot be released.
   without a share sheet copies it.
 - A list's and a finished shop's title sit on their own line under the back
   button, so a long name no longer breaks mid-word beside the buttons.
+- A list's header takes a pasted list: Gital's own shared text comes back
+  with its notes and urgency, a list typed with bullets loses its heading,
+  and plain lines read as the quick-add field reads them; the bar takes the
+  paste back.
