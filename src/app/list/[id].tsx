@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, Text, View, type TextInput } from "react-native";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import CheckCheck from "lucide-react-native/icons/check-check";
 import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
@@ -46,6 +46,7 @@ import { DraggableList, ReorderGrip } from "../../ui/draggable-list";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
+import { useCountUp, useValueFlash } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
 import { controlSize, density, motion, spacing, themeShadow, type, useTheme } from "../../ui/theme";
 import { showNotice, showUndo } from "../../ui/undo";
@@ -221,7 +222,7 @@ export default function ListScreen() {
                   basket.length > 0 ? (
                     <RowMotion key="basket">
                       <SlideUp distance={motion.travel.bar}>
-                        <SectionHeader>{tr.items.basket(spentOn(basket))}</SectionHeader>
+                        <BasketHeader spentMinor={spentOn(basket)} />
                       </SlideUp>
                     </RowMotion>
                   ) : null,
@@ -406,6 +407,8 @@ function ItemRow({
 }) {
   const { palette } = useTheme();
   const checked = item.checkedAt != null;
+  // What an entry can merge into a row; a tick moves the row, which says enough.
+  const flash = useValueFlash(`${item.quantityMilli}|${item.unit}|${item.note}|${item.urgent}`);
   return (
     <View
       style={{
@@ -417,6 +420,7 @@ function ItemRow({
         overflow: lifted ? "visible" : "hidden",
       }}
     >
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: palette.primarySoft, opacity: flash }]} />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={tr.common.withDetail(item.name, itemDetail(item))}
@@ -455,6 +459,12 @@ function ItemRow({
       )}
     </View>
   );
+}
+
+/** The basket's header, its subtotal counting across each price typed. */
+function BasketHeader({ spentMinor }: { spentMinor: number | null }) {
+  const shown = useCountUp(spentMinor ?? 0);
+  return <SectionHeader>{tr.items.basket(spentMinor == null ? null : shown)}</SectionHeader>;
 }
 
 /** Sorting is a mode: the grips would crowd every row in the aisle. */

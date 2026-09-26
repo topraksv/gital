@@ -1,5 +1,5 @@
-import { useEffect, useSyncExternalStore } from "react";
-import { AccessibilityInfo, Animated, Platform, type EmitterSubscription } from "react-native";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AccessibilityInfo, Animated, Easing, Platform, type EmitterSubscription } from "react-native";
 import { motion } from "./theme";
 
 let reducedMotion = false;
@@ -93,4 +93,56 @@ function subscribeTransparency(listener: () => void) {
 /** iOS "Reduce Transparency". Android and web blur nothing unasked, so false is correct there. */
 export function useReduceTransparency(): boolean {
   return useSyncExternalStore(subscribeTransparency, () => reduceTransparency, () => false);
+}
+
+/**
+ * A figure that counts to its value from the one last shown, never from zero
+ * (`docs/UI.md` section 7): it arrives at its value, and a change counts
+ * across the change. `from` is where a figure that arrives as an event, the
+ * celebration's total, starts instead. Helix's `useCountUp`, without the
+ * screen-visit replay the owner's rule forbids.
+ */
+export function useCountUp(value: number, from?: number): number {
+  const reducedMotion = useReducedMotion();
+  const [shown, setShown] = useState(from ?? value);
+  const last = useRef(from ?? value);
+  useEffect(() => {
+    const start = last.current;
+    last.current = value;
+    if (reducedMotion || start === value) {
+      setShown(value);
+      return;
+    }
+    const driver = new Animated.Value(0);
+    driver.addListener(({ value: fraction }) => setShown(Math.round(start + (value - start) * fraction)));
+    const animation = Animated.timing(driver, { toValue: 1, duration: motion.figure, easing: Easing.out(Easing.cubic), useNativeDriver: false });
+    animation.start(({ finished }) => finished && setShown(value));
+    return () => {
+      animation.stop();
+      driver.removeAllListeners();
+      setShown(value);
+    };
+  }, [value, reducedMotion]);
+  return reducedMotion ? value : shown;
+}
+
+/**
+ * 1 the moment `key` changes, fading to 0: a row an entry merged into says
+ * which one it was. The first value is not a change. Helix's `useValueFlash`,
+ * keyed on anything comparable rather than a number.
+ */
+export function useValueFlash(key: string): Animated.Value {
+  const reducedMotion = useReducedMotion();
+  const [flash] = useState(() => new Animated.Value(0));
+  const previous = useRef(key);
+  useEffect(() => {
+    const changed = previous.current !== key;
+    previous.current = key;
+    if (!changed || reducedMotion) return;
+    flash.setValue(1);
+    const animation = Animated.timing(flash, { toValue: 0, duration: motion.settle, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== "web" });
+    animation.start();
+    return () => animation.stop();
+  }, [key, flash, reducedMotion]);
+  return flash;
 }

@@ -20,6 +20,7 @@ import { interactionSurface } from "../../ui/interaction";
 import { webKeys } from "../../ui/keys";
 import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion } from "../../ui/list-motion";
+import { useCountUp } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
 import { controlSize, density, font, itemRow, motion, offset, spacing, type, useTheme } from "../../ui/theme";
 import { showUndo } from "../../ui/undo";
@@ -29,7 +30,6 @@ import { WishSheet } from "../../ui/wish-sheet";
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { palette } = useTheme();
   const collections = useCollections();
   const wishes = useWishes(id);
   const [leaving, setLeaving] = useState<Collection | null>(null);
@@ -110,9 +110,7 @@ export default function CollectionScreen() {
       ) : collection && wishes.updatedAt != null ? (
         <ArrivalScope>
           <AddWish listId={collection.id} />
-          {collection.openTotalMinor == null ? null : (
-            <Text style={[type.small, { color: palette.textSecondary, marginBottom: spacing.md }]}>{tr.wishes.openTotal(collection.openTotalMinor)}</Text>
-          )}
+          {collection.openTotalMinor == null ? null : <OpenTotal totalMinor={collection.openTotalMinor} />}
           {wishes.data.length === 0 ? (
             <EmptyState icon={Gift} title={tr.wishes.itemsEmptyTitle} hint={tr.wishes.itemsEmptyHint} />
           ) : (
@@ -143,6 +141,13 @@ export default function CollectionScreen() {
       ) : null}
     </Screen>
   );
+}
+
+/** What the open wishes come to, counting across each change. */
+function OpenTotal({ totalMinor }: { totalMinor: number }) {
+  const { palette } = useTheme();
+  const shown = useCountUp(totalMinor);
+  return <Text style={[type.small, { color: palette.textSecondary, marginBottom: spacing.md }]}>{tr.wishes.openTotal(shown)}</Text>;
 }
 
 /** A name or a pasted link; a link becomes a wish named after its shop (SPEC 7.1). */

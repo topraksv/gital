@@ -24,7 +24,7 @@ import { formatMinor, spentByMonth } from "../domain/money";
 import { tr } from "../i18n/tr";
 import { MONTHS, MonthBars } from "./charts";
 import { SuccessPop, cardEdge } from "./components";
-import { useReducedMotion } from "./motion";
+import { useCountUp, useReducedMotion } from "./motion";
 import {
   celebration,
   circle,
@@ -76,7 +76,7 @@ function Celebration({ summary }: { summary: ShopSummary }) {
   // screen has no reason to watch every shop.
   const months = spentByMonth(useShops().data, new Date(), MONTHS);
   const month = months.at(-1)!.spentMinor;
-  const spent = useCountUp(summary.spentMinor ?? 0);
+  const spent = useCountUp(summary.spentMinor ?? 0, 0);
   return (
     <Pressable
       accessibilityRole="button"
@@ -164,35 +164,6 @@ function Celebration({ summary }: { summary: ShopSummary }) {
       </View>
     </Pressable>
   );
-}
-
-/**
- * A figure counting up from nothing to `value`, Helix's `useCountUp` without
- * its screen-visit bookkeeping: the celebration is its one caller, and it
- * always arrives. Reduced motion shows the value outright.
- */
-function useCountUp(value: number): number {
-  const reducedMotion = useReducedMotion();
-  const [shown, setShown] = useState(0);
-  useEffect(() => {
-    if (reducedMotion) return;
-    const driver = new Animated.Value(0);
-    const listener = driver.addListener(({ value: fraction }) =>
-      setShown(Math.round(value * fraction)),
-    );
-    const animation = Animated.timing(driver, {
-      toValue: 1,
-      duration: motion.figure,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    });
-    animation.start(({ finished }) => finished && setShown(value));
-    return () => {
-      animation.stop();
-      driver.removeListener(listener);
-    };
-  }, [value, reducedMotion]);
-  return reducedMotion ? value : shown;
 }
 
 // Two steps of the plastic number's low-discrepancy sequence: where a piece

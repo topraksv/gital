@@ -93,3 +93,5 @@ cannot be released.
 - Geçmiş opens on six months' totals as bars, the finish card's month rises
   as the same bars, an item's panel draws its last prices as a line, and a
   list's card fills a ring as its items go into the basket.
+- A product added again pulses its row once, and the basket's subtotal and a
+  collection's total count to their new figure instead of jumping.

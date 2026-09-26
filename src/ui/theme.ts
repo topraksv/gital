@@ -366,6 +366,8 @@ export const motion = {
   noticeHold: 3600,
   /** A figure counting to its value, Helix's `motion.figure`. */
   figure: 900,
+  /** A pulse fading off a row that changed, Helix's `motion.settle`. */
+  settle: 420,
   /** The finished shop's confetti falling, and how long its card stays unless tapped away. */
   celebration: { fall: 1800, hold: 4000 },
   /** The ease-out every web CSS transition uses. */
