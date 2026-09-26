@@ -1,6 +1,7 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 
+import { focusRingCss } from "../ui/focus-ring";
 import { APPEARANCE_KEYS, DEFAULT_PALETTE_ID, PALETTES } from "../ui/theme";
 
 const GROUNDS = Object.fromEntries(
@@ -52,6 +53,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="theme-color" media="(prefers-color-scheme: light)" content={light.background} />
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content={dark.background} />
         <ScrollViewStyleReset />
+        <style dangerouslySetInnerHTML={{ __html: focusRingCss(light.focus) }} />
         <script dangerouslySetInnerHTML={{ __html: PAINT_GROUND }} />
         <script dangerouslySetInnerHTML={{ __html: REGISTER_WORKER }} />
       </head>

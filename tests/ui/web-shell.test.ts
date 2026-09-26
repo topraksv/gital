@@ -43,3 +43,38 @@ describe("the installed web app", () => {
     expect(read("public/sw.js")).toContain(`const SHELL = "${base}index.html";`);
   });
 });
+
+describe("the keyboard focus ring", () => {
+  it("is drawn by the app in the live palette's focus colour, the default palette's before the app runs", async () => {
+    const { FOCUS_PROPERTY, focusRingCss } = await import("../../src/ui/focus-ring");
+    const { DEFAULT_PALETTE_ID, PALETTES } = await import("../../src/ui/theme");
+    const css = focusRingCss(PALETTES[DEFAULT_PALETTE_ID].light.focus);
+    expect(css).toContain(`outline:2px solid var(${FOCUS_PROPERTY},${PALETTES[DEFAULT_PALETTE_ID].light.focus})`);
+    expect(read("src/app/+html.tsx")).toContain("focusRingCss(");
+    expect(read("src/app/_layout.tsx")).toContain("FOCUS_PROPERTY");
+  });
+
+  it("shows for the keyboard only, inside its own box so a card's clipping cannot cut it", async () => {
+    const { focusRingCss } = await import("../../src/ui/focus-ring");
+    const css = focusRingCss("#000000");
+    expect(css).not.toMatch(/:focus[^-]/);
+    expect(css).toContain("outline-offset:-2px");
+  });
+
+  it("covers every element Gital lets focus reach, react-native-web's own outline reset included", async () => {
+    const { focusRingCss } = await import("../../src/ui/focus-ring");
+    const css = focusRingCss("#000000");
+    for (const target of ["[tabindex]", "[role=button]", "[role=checkbox]", "[role=switch]", "[role=radio]", "[role=tab]", "[role=slider]", "input", "textarea"]) {
+      expect(css, target).toContain(`#root ${target}:focus-visible`);
+    }
+  });
+
+  it("rings the drawn box of a control whose hit area is larger, not the invisible square around it", async () => {
+    const { FOCUS_BOX, focusRingCss } = await import("../../src/ui/focus-ring");
+    const css = focusRingCss("#000000");
+    expect(FOCUS_BOX).toEqual({ dataSet: { focusBox: "true" } });
+    const hidden = css.indexOf(":focus-visible:has(> [data-focus-box]){outline:none");
+    expect(hidden).toBeGreaterThan(css.indexOf("[role=button]:focus-visible"));
+    expect(css).toContain(":focus-visible > [data-focus-box]{outline:2px solid");
+  });
+});

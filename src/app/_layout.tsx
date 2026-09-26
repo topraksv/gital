@@ -10,6 +10,7 @@ import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
 import { Button, EmptyState } from "../ui/components";
 import { DialogHost, PromptHost } from "../ui/dialog";
+import { FOCUS_PROPERTY } from "../ui/focus-ring";
 import { KeyboardSafeRoot } from "../ui/keyboard-safe";
 import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
@@ -94,7 +95,8 @@ export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     document.documentElement.style.colorScheme = scheme;
-  }, [scheme]);
+    document.documentElement.style.setProperty(FOCUS_PROPERTY, theme.palette.focus);
+  }, [scheme, theme.palette.focus]);
 
   const ready = appearance != null && database !== "opening" && (fontsLoaded || fontsError != null || fontGrace);
   // On the web the document already wears the stored ground (`+html.tsx`), and

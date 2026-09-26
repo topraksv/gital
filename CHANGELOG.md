@@ -93,5 +93,8 @@ cannot be released.
 - Geçmiş opens on six months' totals as bars, the finish card's month rises
   as the same bars, an item's panel draws its last prices as a line, and a
   list's card fills a ring as its items go into the basket.
+- On the web, the keyboard's focus ring is the palette's own, follows each
+  control's rounded corners, and no longer shows as a square around a header
+  button or a thin browser line clipped by a list card.
 - A product added again pulses its row once, and the basket's subtotal and a
   collection's total count to their new figure instead of jumping.

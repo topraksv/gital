@@ -37,6 +37,7 @@ import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { selectionTap } from "./haptics";
 import { interactionSurface } from "./interaction";
+import { FOCUS_BOX } from "./focus-ring";
 import { webKeys } from "./keys";
 import { LIST_PICTURES } from "./list-look";
 import { useReducedMotion, useSpringTo } from "./motion";
@@ -873,6 +874,7 @@ export function IconButton({
     >
       {(state) => (
         <View
+          {...FOCUS_BOX}
           style={{
             width: text ? undefined : controlSize.compact,
             height: controlSize.compact,

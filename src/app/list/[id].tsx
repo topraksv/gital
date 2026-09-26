@@ -48,7 +48,7 @@ import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
-import { controlSize, density, motion, spacing, themeShadow, type, useTheme } from "../../ui/theme";
+import { controlSize, density, motion, radius, spacing, themeShadow, type, useTheme } from "../../ui/theme";
 import { showNotice, showUndo } from "../../ui/undo";
 
 export default function ListScreen() {
@@ -433,6 +433,9 @@ function ItemRow({
           alignItems: "center",
           gap: spacing.md,
           padding: density.list.cardPadding,
+          // The card's corners, so a press fill and the focus ring follow them rather than being cut.
+          borderTopLeftRadius: radius.lg,
+          borderBottomLeftRadius: radius.lg,
           ...interactionSurface(palette, state),
         })}
       >
@@ -451,6 +454,8 @@ function ItemRow({
           paddingHorizontal: spacing.md,
           alignItems: "center",
           justifyContent: "center",
+          borderTopRightRadius: radius.lg,
+          borderBottomRightRadius: radius.lg,
           ...interactionSurface(palette, state),
         })}
       >
