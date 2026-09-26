@@ -15,7 +15,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 
 import Trash from "lucide-react-native/icons/trash";
 
-import { useFavourites, useSets } from "../data/hooks";
+import { useProducts, useSets } from "../data/hooks";
 import { importEntries, undoSave } from "../data/items";
 import { createSet, deleteSet, restoreSet, type ProductSet } from "../data/sets";
 import { AISLES, CATALOGUE, catalogueProduct, type Aisle, type CatalogueProduct } from "../domain/catalogue";
@@ -56,7 +56,7 @@ export function CatalogueSheet<T extends { name: string }>({
   const titleRef = useModalAccessibility(true, "catalogue");
   const [shown, setShown] = useState<Shelf>("catalogue");
   const [aisle, setAisle] = useState<Aisle>(AISLES[0]);
-  const favourites = useFavourites().data;
+  const favourites = useProducts().data.filter((product) => product.starred);
   const listed = new Map(items.map((item) => [foldName(item.name), item]));
   const shelf: readonly Shown[] =
     shown === "catalogue"
@@ -204,7 +204,7 @@ function ShelfChoice({ label, selected, onPress }: { label: string; selected: bo
   );
 }
 
-function AisleChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+export function AisleChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const { palette } = useTheme();
   return (
     <Pressable

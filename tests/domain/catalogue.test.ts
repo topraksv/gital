@@ -68,6 +68,15 @@ describe("the catalogue", () => {
     const item = (name: string, urgent = false, notFound = false) => ({ name, urgent, notFound });
     const shape = (open: ReturnType<typeof item>[]) => listSections(open).map(({ key, aisle, items }) => [key, aisle ?? null, items.map((each) => each.name)]);
 
+    it("puts a product where its person moved it, over the catalogue and over Diğer (5.4)", () => {
+      const moved = new Map([["sut", "drinks" as const], ["ezine peyniri", "dairy" as const]]);
+      expect(listSections([item("Süt"), item("Ezine peyniri"), item("Domates")], moved).map(({ key, items }) => [key, items.map((each) => each.name)])).toEqual([
+        ["produce", ["Domates"]],
+        ["dairy", ["Ezine peyniri"]],
+        ["drinks", ["Süt"]],
+      ]);
+    });
+
     it("groups what is plainly left in the order the market is walked, each aisle in the list's own order", () => {
       expect(shape([item("Süt"), item("Elma"), item("Ezine peyniri"), item("Domates"), item("Yoğurt"), item("Muz")])).toEqual([
         ["produce", "produce", ["Domates"]],

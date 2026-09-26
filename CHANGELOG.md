@@ -135,3 +135,5 @@ cannot be released.
   shows everything starred, a tap away from the list.
 - Sets: what a list still has to buy is kept under a name, "Kahvaltı", and
   goes onto any list in one tap from the catalogue's Setler, with its undo.
+- A product moved to another aisle in its panel stays there, on every list
+  and in Kiler.

@@ -4,7 +4,7 @@ import ListPlus from "lucide-react-native/icons/list-plus";
 import Minus from "lucide-react-native/icons/minus";
 import Refrigerator from "lucide-react-native/icons/refrigerator";
 
-import { usePantry } from "../../data/hooks";
+import { useMovedAisles, usePantry } from "../../data/hooks";
 import { finishPantryItem, setExpiry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
 import { listSections } from "../../domain/catalogue";
 import { todayISO } from "../../domain/dates";
@@ -27,6 +27,7 @@ const LISTS_TAB = "index";
 /** What is at home (SPEC 12.2, 12.8), by aisle as a list is. */
 export default function Pantry() {
   const pantry = usePantry();
+  const moved = useMovedAisles();
 
   /** Whether the product finished, so a row that flew for it knows to come back. */
   const act = async (item: PantryItem, action: (id: string) => Promise<Finished | null>) => {
@@ -56,7 +57,7 @@ export default function Pantry() {
             <EmptyState icon={Refrigerator} title={tr.pantry.emptyTitle} hint={tr.pantry.emptyHint} />
           ) : (
             <View style={{ gap: density.list.rowGap }}>
-              {listSections(pantry.data).map((section, at) => (
+              {listSections(pantry.data, moved).map((section, at) => (
                 <View key={section.key} style={{ gap: density.list.rowGap }}>
                   {section.aisle ? <SectionHeader flush={at === 0}>{tr.catalogue.aisles[section.aisle]}</SectionHeader> : null}
                   {section.items.map((item) => (

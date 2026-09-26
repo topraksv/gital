@@ -7,20 +7,22 @@
  */
 
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
 import Star from "lucide-react-native/icons/star";
 import Trash from "lucide-react-native/icons/trash";
 
-import { useBought, useFavourites } from "../data/hooks";
-import { setStarred } from "../data/products";
+import { useBought, useMovedAisles, useProducts } from "../data/hooks";
+import { setAisle, setStarred } from "../data/products";
+import { AISLES, aisleOf, catalogueProduct, type Aisle } from "../domain/catalogue";
 import { NOTE_MAX, foldName, formatQuantity, quantityOrOne, stepQuantity, type ItemChange, type Quantity } from "../domain/items";
 import { formatMinorInput, pastOf, priceRise, readPrice, type Bought as BoughtBefore } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
 import { PriceField } from "./calculator";
+import { AisleChip } from "./catalogue-sheet";
 import { PriceLine } from "./charts";
 import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type ShownItem } from "./components";
 import { Actions, DialogShell, appError } from "./dialog";
@@ -50,7 +52,9 @@ export function ItemSheet({
   const { palette } = useTheme();
   const titleRef = useModalAccessibility(true, item.id);
   const before = useBought(item.id).data;
-  const starred = useFavourites().data.some((favourite) => foldName(favourite.name) === foldName(item.name));
+  const starred = useProducts().data.some((product) => product.starred && foldName(product.name) === foldName(item.name));
+  const placed = aisleOf(item.name, useMovedAisles());
+  const [aisle, setShelf] = useState(placed);
   // The star is the product's, not this item's, so it is written at once rather than on Kaydet.
   const star = () => {
     selectionTap();
@@ -78,12 +82,16 @@ export function ItemSheet({
   const offersBought = !moving && (item.checkedAt != null || notFound);
   const paid = readPrice(offersBought ? price : "");
   const ready = name.trim() !== "" && paid.ok;
-  const save = () =>
-    ready &&
+  const save = () => {
+    if (!ready) return;
+    // The aisle is the product's: kept by name for every list, and forgotten
+    // when it is put back where the catalogue has it.
+    if (aisle !== placed) moveProduct(name, aisle);
     onSave(
       { name, ...quantity, note, urgent, notFound, boughtInstead: offersBought ? instead : null, priceMinor: paid.minor },
       to ? { list: to, keep } : null,
     );
+  };
   const submits = { returnKeyType: "done", onSubmitEditing: save } as const;
   const step = (next: typeof less) => {
     if (!next) return;
@@ -137,6 +145,7 @@ export function ItemSheet({
         {/* A ticked item was found. */}
         {item.checkedAt == null && !moving ? <Toggle value={notFound} onValueChange={setNotFound} label={tr.items.notFound} /> : null}
       </View>
+      <AislePicker name={item.name} value={aisle} onChange={setShelf} />
       {offersBought ? (
         <Bought
           before={before}
@@ -190,6 +199,36 @@ export function ItemSheet({
  * When the product was last bought, on any list, and how its price has moved
  * (SPEC 3.9): a quiet line under its note, and its prices as a line.
  */
+/**
+ * The aisle is the product's (SPEC 5.4): kept by name for every list, and
+ * forgotten when it is put back where the catalogue has it.
+ */
+function moveProduct(name: string, aisle: Aisle | "other") {
+  const home = catalogueProduct(name)?.aisle;
+  setAisle(name, aisle === home || aisle === "other" ? null : aisle).catch(() => appError(tr.errors.saveFailed));
+}
+
+/** Diğer is where a product the catalogue does not know goes back to; one it knows goes back to its own aisle, so Diğer is not offered for it. */
+function AislePicker({ name, value, onChange }: { name: string; value: Aisle | "other"; onChange: (aisle: Aisle | "other") => void }) {
+  const shelves = catalogueProduct(name) ? AISLES : [...AISLES, "other" as const];
+  return (
+    <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+      <Body>{tr.items.aisle}</Body>
+      <ScrollView
+        horizontal
+        role="radiogroup"
+        accessibilityLabel={tr.items.aisle}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}
+      >
+        {shelves.map((each) => (
+          <AisleChip key={each} label={tr.catalogue.aisles[each]} selected={each === value} onPress={() => onChange(each)} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 function Past({ before, name }: { before: readonly BoughtBefore[]; name: string }) {
   const { palette } = useTheme();
   const past = pastOf(before, name);

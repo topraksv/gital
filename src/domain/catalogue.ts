@@ -180,6 +180,12 @@ export function nearMiss(name: string, known: readonly KnownProduct[]): Catalogu
   return CATALOGUE.find((product) => squeezed(product.key) === held) ?? CATALOGUE.find((product) => nearly(key, product.key)) ?? null;
 }
 
+/** Where a product is walked past (5.4): where its person moved it, else the catalogue's aisle, else Diğer. */
+export function aisleOf(name: string, moved: ReadonlyMap<string, Aisle>): Aisle | "other" {
+  const key = foldName(name);
+  return moved.get(key) ?? BY_KEY.get(key)?.aisle ?? "other";
+}
+
 /** A run of a list's open items: one aisle's, or the urgent or not-found ones, which no aisle heads. */
 export interface Section<T> {
   key: string;
@@ -192,11 +198,15 @@ export interface Section<T> {
  * first, then the rest aisle by aisle in `AISLES`' order, what the catalogue
  * does not know after them, and what was not found last, urgent first. Each
  * run keeps the list's own order, which is how a drag within an aisle is kept.
- * The aisles are headed only when there are two or more of them.
+ * The aisles are headed only when there are two or more of them. `moved` is
+ * where the person put a product, by folded name (5.4).
  */
-export function listSections<T extends { name: string; urgent?: boolean; notFound?: boolean }>(open: readonly T[]): Section<T>[] {
+export function listSections<T extends { name: string; urgent?: boolean; notFound?: boolean }>(
+  open: readonly T[],
+  moved: ReadonlyMap<string, Aisle> = new Map(),
+): Section<T>[] {
   const shelves = new Map<Aisle | "other", T[]>([...AISLES, "other" as const].map((aisle) => [aisle, []]));
-  for (const item of open) if (!item.urgent && !item.notFound) shelves.get(catalogueProduct(item.name)?.aisle ?? "other")!.push(item);
+  for (const item of open) if (!item.urgent && !item.notFound) shelves.get(aisleOf(item.name, moved))!.push(item);
   const filled = [...shelves].filter(([, items]) => items.length > 0);
   const headed = filled.length > 1;
   return [

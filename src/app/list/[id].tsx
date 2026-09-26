@@ -12,7 +12,7 @@ import Plus from "lucide-react-native/icons/plus";
 import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
-import { useItems, useKnownProducts, useLasted, useLists, usePurchases } from "../../data/hooks";
+import { useItems, useKnownProducts, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
 import { addEntries, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { readPantry } from "../../data/pantry";
@@ -63,6 +63,7 @@ export default function ListScreen() {
   const items = useItems(id);
   // Read with the items, so an offer is drawn with the screen and does not rise into it.
   const purchases = usePurchases(id);
+  const moved = useMovedAisles();
   const queries = [lists, items, purchases];
   // The list this screen is deleting, held so its title stays while the screen
   // animates away, and so nothing on it can be pressed a second time.
@@ -78,7 +79,7 @@ export default function ListScreen() {
 
   const open = items.data.filter((item) => item.checkedAt == null);
   const basket = items.data.filter((item) => item.checkedAt != null);
-  const sections = listSections(open);
+  const sections = listSections(open, moved);
 
   // A list from a message (SPEC 6.2), taken back whole from the bar.
   const paste = async (current: ListSummary) => {

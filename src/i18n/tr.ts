@@ -134,6 +134,7 @@ export const tr = {
     notePlaceholder: "Not ya da marka: Pınar olsun",
     urgent: "Acil",
     favourite: "Favori",
+    aisle: "Reyon",
     notFound: "Bulunamadı",
     insteadLabel: "Yerine alınan",
     insteadPlaceholder: "Yerine alınan: Sütaş",

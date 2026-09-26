@@ -1,11 +1,13 @@
 /** React's side of the live stores; what they decide lives in `live-query.ts`. */
 
 import { useMemo, useSyncExternalStore } from "react";
+import type { Aisle } from "../domain/catalogue";
+import { foldName } from "../domain/items";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
 import { readLasted, readPantry } from "./pantry";
-import { readFavourites } from "./products";
+import { readProducts } from "./products";
 import { readSets } from "./sets";
 import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readWishes } from "./wishes";
@@ -90,11 +92,18 @@ export function useLasted() {
   return useSyncExternalStore(lastedStore.subscribe, lastedStore.getSnapshot, lastedStore.getSnapshot);
 }
 
-// Shared by the item panel's star and the catalogue's Favoriler.
-const favouritesStore = liveStore(readFavourites, ["products"]);
+// Shared by the item panel's star and aisle, the catalogue's Favoriler, and
+// every screen that groups by aisle.
+const productsStore = liveStore(readProducts, ["products"]);
 
-export function useFavourites() {
-  return useSyncExternalStore(favouritesStore.subscribe, favouritesStore.getSnapshot, favouritesStore.getSnapshot);
+export function useProducts() {
+  return useSyncExternalStore(productsStore.subscribe, productsStore.getSnapshot, productsStore.getSnapshot);
+}
+
+/** Where the person moved each product, by folded name (SPEC 5.4). */
+export function useMovedAisles(): ReadonlyMap<string, Aisle> {
+  const { data } = useProducts();
+  return useMemo(() => new Map(data.flatMap(({ name, aisle }) => (aisle ? [[foldName(name), aisle] as const] : []))), [data]);
 }
 
 // Mounted with the catalogue panel's Setler.

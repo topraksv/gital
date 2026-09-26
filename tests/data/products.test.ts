@@ -1,6 +1,7 @@
 /**
- * Favourites (SPEC 5.1) over the real migrations and write layer: a product
- * is starred by name, whatever list it was on, and the star comes off again.
+ * A person's products over the real migrations and write layer: a product
+ * is starred by name, whatever list it was on, and the star comes off again
+ * (SPEC 5.1); an aisle it was moved to is kept beside the star (5.4).
  */
 
 import { createHash } from "node:crypto";
@@ -19,10 +20,10 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { readFavourites, setStarred } = await import("../../src/data/products");
+const { readProducts, setAisle, setStarred } = await import("../../src/data/products");
 const { migratedDatabase } = await import("../helpers");
 
-const names = async () => (await readFavourites()).map((favourite) => favourite.name);
+const names = async () => (await readProducts()).filter((product) => product.starred).map((product) => product.name);
 
 beforeEach(() => {
   harness.db = migratedDatabase();
@@ -56,5 +57,27 @@ describe("favourites", () => {
 
   it("refuses a name with nothing in it", async () => {
     await expect(setStarred("  ", true)).rejects.toThrow();
+  });
+});
+
+describe("moved aisles", () => {
+  it("keeps where a product was put, under the star and apart from it", async () => {
+    await setStarred("Süt", true);
+    await setAisle("sut", "drinks");
+    await setAisle("Kombucha", "drinks");
+    expect(await readProducts()).toEqual([
+      { name: "Kombucha", starred: false, aisle: "drinks" },
+      { name: "Süt", starred: true, aisle: "drinks" },
+    ]);
+  });
+
+  it("forgets the move when the product is put back where it was found", async () => {
+    await setAisle("Süt", "drinks");
+    await setAisle("Süt", null);
+    expect(await readProducts()).toEqual([{ name: "Süt", starred: false, aisle: null }]);
+  });
+
+  it("refuses an aisle this build does not draw", async () => {
+    await expect(setAisle("Süt", "garden" as never)).rejects.toThrow();
   });
 });

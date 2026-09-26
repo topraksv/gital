@@ -10,6 +10,7 @@
  */
 
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { AISLES } from "../domain/catalogue";
 import { UNITS } from "../domain/items";
 
 /** A list to shop from, or a wish collection (SPEC 7.4), which the wish list keeps apart. */
@@ -120,14 +121,16 @@ export const wishLinks = sqliteTable(
 
 /**
  * A product as its person keeps it, one row per product whatever list it is
- * on: its id comes from the folded name. It holds the star (SPEC 5.1) now,
- * and the aisle it was moved to (5.4) once that slice lands. Personal; the
+ * on: its id comes from the folded name. It holds the star (SPEC 5.1) and
+ * the aisle it was moved to (5.4). Personal; the
  * person joins its id with accounts, as a pantry row's.
  */
 export const products = sqliteTable("products", {
   ...syncColumns,
   name: text("name").notNull(),
   starred: integer("starred", { mode: "boolean" }).notNull().default(false),
+  /** Where the person put it, over the catalogue's aisle (SPEC 5.4); none keeps the catalogue's. */
+  aisle: text("aisle", { enum: AISLES }),
 });
 
 /** A ready-made set (SPEC 5.3), "Kahvaltı", that goes onto a list in one tap. Personal, as a product is. */
