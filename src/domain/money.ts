@@ -49,10 +49,14 @@ export function formatPriceInput(raw: string): string {
   const typed = raw.includes(",") ? raw : raw.replace(/\.$/, ",");
   const cleaned = typed.replace(/[^\d,]/g, "");
   const comma = cleaned.indexOf(",");
-  const whole = (comma === -1 ? cleaned : cleaned.slice(0, comma)).replace(/^0+(?=\d)/, "");
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const grouped = groupThousands((comma === -1 ? cleaned : cleaned.slice(0, comma)).replace(/^0+(?=\d)/, ""));
   if (comma === -1) return grouped;
   return `${grouped || "0"},${cleaned.slice(comma + 1).replace(/,/g, "").slice(0, 2)}`;
+}
+
+/** Whole digits grouped the Turkish way: `15000` → `15.000`. */
+export function groupThousands(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 /** A stored price back in its field, exactly; none is an empty field. */

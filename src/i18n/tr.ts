@@ -134,6 +134,26 @@ export const tr = {
     finish: "Alışverişi Bitir",
     finished: (count: number) => `Alışveriş bitti, ${count} ürün geçmişe taşındı`,
   },
+  /** Helix's calculator (SPEC 4.4). */
+  calc: {
+    title: "Hesap Makinesi",
+    open: (field: string) => `${field}: hesap makinesini aç`,
+    error: "Hata",
+    use: (amount: string) => `Sonucu Kullan · ${amount}`,
+    unusable: "Sonuç bir tutar olamaz",
+    display: (value: string, preview?: string) => `Hesap makinesi ekranı: ${value}${preview ? `. Önizleme: ${preview}` : ""}`,
+    key: (key: string) =>
+      ({
+        "⌫": "Son basamağı sil",
+        C: "Hesabı temizle",
+        "÷": "Böl",
+        "×": "Çarp",
+        "-": "Çıkar",
+        "+": "Topla",
+        "=": "Sonucu hesapla",
+        ",": "Ondalık ayırıcı",
+      })[key] ?? key,
+  },
   history: {
     emptyTitle: "Henüz biten alışveriş yok",
     emptyHint: "Sepete attıklarını “Alışverişi Bitir” ile buraya taşı. Her birini tek dokunuşla listesine geri ekleyebilirsin.",
@@ -142,6 +162,10 @@ export const tr = {
     /** What a shop's priced items cost (SPEC 3.8); nothing when none was priced, which is not ₺0. */
     spent: (spentMinor: number | null) => (spentMinor == null ? undefined : formatMinor(spentMinor)),
     openHint: "Alınanları gör",
+    total: "Alışverişin toplamı",
+    totalMessage: "Fişteki tutarı yaz. Boş bırakırsan girilen fiyatların toplamı kalır.",
+    totalPlaceholder: "Fişteki tutar: 612,75",
+    editTotal: "Toplamı fişe göre düzelt",
     addBack: (name: string) => `${name} ürününü listeye geri ekle`,
     addedBack: (name: string) => `${name} listeye eklendi`,
   },

@@ -66,3 +66,5 @@ cannot be released.
   and Geçmiş wear both.
 - A bought item takes what was paid for it; the basket adds up the prices so
   far, and each shop in Geçmiş shows what it cost.
+- A price or a shop's total can be worked out on Helix's calculator, opened
+  from the field, and a shop's total can be corrected to its receipt.

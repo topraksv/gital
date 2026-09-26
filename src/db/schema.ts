@@ -76,6 +76,8 @@ export const shops = sqliteTable(
     listId: text("list_id").notNull(),
     number: integer("number").notNull(),
     finishedAt: text("finished_at").notNull(),
+    /** The receipt's total in kuruş, typed over the sum of its prices; `null` is that sum (SPEC 3.8). */
+    totalMinor: integer("total_minor"),
   },
   (t) => [index("idx_shops_list_id").on(t.listId)],
 );

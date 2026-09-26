@@ -429,6 +429,9 @@ export const type = {
   buttonCompact: { fontSize: 13, fontFamily: font.medium },
   small: { fontSize: 12, fontFamily: font.regular },
   caption: { fontSize: 11, fontFamily: font.regular },
+  /** Helix's calculator: a key's glyph, sized to the pad rather than to prose, and the display's figure. */
+  keypad: { fontSize: 22, fontFamily: font.medium },
+  amount: { fontSize: 34, fontFamily: font.semibold, fontVariant: ["tabular-nums"] as "tabular-nums"[] },
 } as const;
 
 /** Prose leading, applied on web only: RN Web's `font` shorthand resets it to ~1.21. */
@@ -528,6 +531,9 @@ export const LIST_HUES: Record<Theme["scheme"], Record<ListColor, { fill: string
  * twenty pictures and the letter three. A cell's ring sits inside it.
  */
 export const listSheet = { cell: controlSize.minimumTarget, columns: 7 } as const;
+
+/** Helix's calculator pad (`docs/UI.md` section 5): a key's height and the display's, which three lines never resize. */
+export const calculatorPad = { keyHeight: 56, displayHeight: 128 } as const;
 
 /** An illustration fills this share of its tile (`docs/UI.md` section 6). */
 export const illustrationShare = 0.72;

@@ -1,0 +1,1 @@
+ALTER TABLE `shops` ADD `total_minor` integer;

@@ -10,6 +10,7 @@ import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
 import { items, lists, shops } from "../db/schema";
 import { foldName } from "../domain/items";
+import { isPrice } from "../domain/money";
 import { lookOf, type ListLook } from "../domain/lists";
 import { openItemId } from "./items";
 
@@ -20,7 +21,10 @@ export interface Shop extends Omit<ListLook, "name"> {
   listName: string;
   finishedAt: string;
   bought: number;
-  /** What its priced items cost, in kuruş; `null` when none was priced (SPEC 3.8). */
+  /**
+   * What it cost in kuruş (SPEC 3.8): the receipt's total when one was typed,
+   * else what its priced items add up to; `null` when neither, which is not ₺0.
+   */
   spentMinor: number | null;
 }
 
@@ -35,8 +39,9 @@ export async function readShops(): Promise<Shop[]> {
       icon: lists.icon,
       finishedAt: shops.finishedAt,
       bought: count(items.id),
+      totalMinor: shops.totalMinor,
       // SUM is NULL over no prices, as `spentOn` is; the mapping skips NULL.
-      spentMinor: sum(items.priceMinor).mapWith(Number),
+      summedMinor: sum(items.priceMinor).mapWith(Number),
     })
     .from(shops)
     .innerJoin(lists, and(eq(lists.id, shops.listId), isNull(lists.deletedAt)))
@@ -44,7 +49,17 @@ export async function readShops(): Promise<Shop[]> {
     .where(isNull(shops.deletedAt))
     .groupBy(shops.id)
     .orderBy(desc(shops.finishedAt), desc(shops.id));
-  return rows.map(lookOf);
+  return rows.map(({ totalMinor, summedMinor, ...row }) => ({ ...lookOf(row), spentMinor: totalMinor ?? summedMinor }));
+}
+
+/** Correct a shop's total to its receipt, or with `null` go back to the sum of its prices. */
+export async function setShopTotal(shopId: string, totalMinor: number | null): Promise<void> {
+  if (totalMinor != null && !isPrice(totalMinor)) throw new Error("A total is whole kuruş");
+  await writeRows(async () => {
+    const shop = await readLiveRow("shops", shopId);
+    await readLiveRow("lists", String(shop.list_id));
+    return editRow("shops", shop, { totalMinor });
+  });
 }
 
 /**
@@ -99,10 +114,10 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
         },
       ]),
     );
-    // An undone shop finished again is the same rows, brought back. The shop
-    // goes last: Geçmiş re-reads on a shop's change and not on an item's, so
+    // An undone shop finished again is the same rows, brought back, summed
+    // afresh rather than wearing the total typed before. The shop goes last: Geçmiş re-reads on a shop's change and not on an item's, so
     // its read must not start before the items are written.
-    return [...moves.flat(), { table: "shops", row: { id, listId, number, finishedAt: now, deletedAt: null } }];
+    return [...moves.flat(), { table: "shops", row: { id, listId, number, finishedAt: now, totalMinor: null, deletedAt: null } }];
   });
   return finished;
 }

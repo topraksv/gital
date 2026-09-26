@@ -25,7 +25,7 @@ const { addEntries, deleteItem, readItems, readShopItems, toggleChecked, updateI
 const { parseEntry } = await import("../../src/domain/items");
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
-const { finishShop, readShops, reopenShop } = await import("../../src/data/shops");
+const { finishShop, readShops, reopenShop, setShopTotal } = await import("../../src/data/shops");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { migratedDatabase } = await import("../helpers");
@@ -222,6 +222,48 @@ describe("readShops", () => {
     ]);
     await deleteList(other);
     expect((await readShops()).map((shop) => shop.id)).toEqual([first]);
+  });
+});
+
+describe("a shop's total corrected to the receipt", () => {
+  const spent = async () => (await readShops()).map(({ spentMinor }) => spentMinor);
+
+  it("replaces the sum of the prices, and cleared goes back to it", async () => {
+    const [sut] = await shopFor("süt, ekmek", ["Ekmek"]);
+    await updateItem(sut!, { name: "Süt", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: 4590 });
+    const shopId = await finish();
+    expect(await spent()).toEqual([4590]);
+    await setShopTotal(shopId, 61275);
+    expect(await spent()).toEqual([61275]);
+    await setShopTotal(shopId, null);
+    expect(await spent()).toEqual([4590]);
+  });
+
+  it("is a total of its own when nothing was priced, and queues the shop for sync", async () => {
+    await shopFor("süt", ["Süt"]);
+    const shopId = await finish();
+    later(1000);
+    await setShopTotal(shopId, 0);
+    expect(await spent()).toEqual([0]);
+    const last = harness.db!.prepare("SELECT payload FROM outbox WHERE table_name = 'shops' ORDER BY id DESC LIMIT 1").get() as { payload: string };
+    expect(JSON.parse(last.payload)).toMatchObject({ id: shopId, total_minor: 0 });
+  });
+
+  it("goes with an undo: the same shop finished again is summed afresh", async () => {
+    await shopFor("süt", ["Süt"]);
+    const shopId = await finish();
+    await setShopTotal(shopId, 10000);
+    await reopenShop(shopId);
+    expect(await finish()).toBe(shopId);
+    expect(await spent()).toEqual([null]);
+  });
+
+  it("refuses a total that is not whole, non-negative kuruş, and a shop undone or gone", async () => {
+    await shopFor("süt", ["Süt"]);
+    const shopId = await finish();
+    for (const total of [-1, 0.5, Number.NaN]) await expect(setShopTotal(shopId, total), String(total)).rejects.toThrow();
+    await reopenShop(shopId);
+    await expect(setShopTotal(shopId, 100)).rejects.toThrow();
   });
 });
 

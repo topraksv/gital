@@ -13,10 +13,11 @@ import Plus from "lucide-react-native/icons/plus";
 import Trash from "lucide-react-native/icons/trash";
 
 import { NOTE_MAX, formatQuantity, quantityOrOne, stepQuantity, type ItemChange } from "../domain/items";
-import { formatMinorInput, formatPriceInput, readPrice } from "../domain/money";
+import { formatMinorInput, readPrice } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
+import { PriceField } from "./calculator";
 import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type ShownItem } from "./components";
 import { Actions, DialogShell } from "./dialog";
 import { selectionTap } from "./haptics";
@@ -182,16 +183,7 @@ function Bought({
         {...submits}
         style={{ marginTop: spacing.sm }}
       />
-      <TextField
-        value={price}
-        onChangeText={(typed) => onPrice(formatPriceInput(typed))}
-        accessibilityLabel={tr.items.priceLabel}
-        placeholder={tr.items.pricePlaceholder}
-        keyboardType="decimal-pad"
-        inputMode="decimal"
-        {...submits}
-        style={{ marginTop: spacing.sm }}
-      />
+      <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} placeholder={tr.items.pricePlaceholder} {...submits} style={{ marginTop: spacing.sm }} />
     </>
   );
 }

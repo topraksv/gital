@@ -2,12 +2,17 @@ import { useState } from "react";
 import { AccessibilityInfo, Text, View } from "react-native";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import Plus from "lucide-react-native/icons/plus";
+import ReceiptTurkishLira from "lucide-react-native/icons/receipt-turkish-lira";
 
 import { useShopItems, useShops } from "../../data/hooks";
 import { addEntries, type Item } from "../../data/items";
+import { setShopTotal, type Shop } from "../../data/shops";
+import { formatMinorInput, readPrice } from "../../domain/money";
 import { tr } from "../../i18n/tr";
-import { ArrivalScope, CheckMark, IconButton, ItemLabel, ReadFailed, Screen, SlideUp, cardEdge } from "../../ui/components";
-import { appError } from "../../ui/dialog";
+import { ArrivalScope, Button, CheckMark, IconButton, ItemLabel, ReadFailed, Screen, SlideUp, cardEdge } from "../../ui/components";
+import { PriceField } from "../../ui/calculator";
+import { Actions, DialogShell, appError } from "../../ui/dialog";
+import { useModalAccessibility } from "../../ui/accessibility";
 import { selectionTap } from "../../ui/haptics";
 import { controlSize, density, motion, spacing, type, useTheme } from "../../ui/theme";
 
@@ -38,7 +43,7 @@ export default function ShopScreen() {
   };
 
   return (
-    <Screen back="/history" title={shop?.listName} width="workspace">
+    <Screen back="/history" title={shop?.listName} width="workspace" actions={shop ? <EditTotal shop={shop} /> : null}>
       {shops.status === "error" || items.status === "error" ? (
         <ReadFailed queries={[shops, items]} />
       ) : shop && items.updatedAt != null ? (
@@ -56,6 +61,52 @@ export default function ShopScreen() {
         </ArrivalScope>
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * The receipt's total over the sum of the prices (SPEC 3.8), opened on what
+ * the card shows; cleared, the sum comes back.
+ */
+function EditTotal({ shop }: { shop: Shop }) {
+  const [open, setOpen] = useState(false);
+  const titleRef = useModalAccessibility(open, shop.id);
+  const [total, setTotal] = useState("");
+  const typed = readPrice(total);
+  const start = () => {
+    setTotal(formatMinorInput(shop.spentMinor));
+    setOpen(true);
+  };
+  const save = async () => {
+    if (!typed.ok) return;
+    setOpen(false);
+    try {
+      await setShopTotal(shop.id, typed.minor);
+    } catch {
+      void appError(tr.errors.saveFailed);
+    }
+  };
+  return (
+    <>
+      <IconButton icon={ReceiptTurkishLira} label={tr.history.editTotal} onPress={start} />
+      {open ? (
+        <DialogShell title={tr.history.total} message={tr.history.totalMessage} titleRef={titleRef} onDismiss={() => setOpen(false)}>
+          <PriceField
+            value={total}
+            onChangeText={setTotal}
+            label={tr.history.total}
+            placeholder={tr.history.totalPlaceholder}
+            returnKeyType="done"
+            onSubmitEditing={save}
+            style={{ marginTop: spacing.lg }}
+          />
+          <Actions>
+            <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={() => setOpen(false)} />
+            <Button label={tr.common.save} size="sm" disabled={!typed.ok} onPress={save} />
+          </Actions>
+        </DialogShell>
+      ) : null}
+    </>
   );
 }
 
