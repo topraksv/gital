@@ -156,3 +156,5 @@ cannot be released.
   panel slides to its new height instead of jumping.
 - An item's quantity opens the calculator from its panel: 0,75 × 3 is
   "2,25 kg", in the item's own unit.
+- Gital is on the web at https://topraksv.github.io/gital/, republished by
+  every change that reaches it.

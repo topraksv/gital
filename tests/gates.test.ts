@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { CI_EXECUTED_SCRIPTS, classify } from "../scripts/classify-changes.mjs";
 import { evaluate } from "../scripts/check-lint-ratchet.mjs";
+import { appVersionOf, entryOf } from "../scripts/check-published.mjs";
 
 const root = join(import.meta.dirname, "..");
 
@@ -23,6 +24,20 @@ describe("classify-changes", () => {
     ["nothing moved", [], false],
   ])("full gate when %s", (_, files, full) => {
     expect(classify(files).full_gate).toBe(full);
+  });
+
+  it.each([
+    ["no diff could be taken", null, true],
+    ["a screen moved", ["src/app/index.tsx"], true],
+    ["a picture moved", ["public/products/tomato.webp"], true],
+    ["the dependency tree moved", ["package-lock.json"], true],
+    ["the deploy itself moved", [".github/workflows/ci.yml"], true],
+    ["only a test moved", ["tests/gates.test.ts"], false],
+    ["only the database moved", ["supabase/migrations/0002_lists.sql"], false],
+    ["another workflow moved", [".github/workflows/security.yml"], false],
+    ["only prose moved", ["docs/RELEASE.md"], false],
+  ])("publishes the web when %s", (_, files, publishes) => {
+    expect(classify(files).deploy_web).toBe(publishes);
   });
 
   it("escalates a mixed push by its riskiest path", () => {
@@ -65,5 +80,22 @@ describe("lint ratchet", () => {
     const { problems, improvements } = evaluate({ complexity: 1 }, { rules: { complexity: 2, eqeqeq: 4 } });
     expect(problems).toEqual([]);
     expect(improvements).toEqual(["complexity: 2 -> 1", "eqeqeq: 4 -> 0"]);
+  });
+});
+
+describe("check-published", () => {
+  it("reads the entry bundle a shell under the site's base references", () => {
+    const html = '<script src="/gital/_expo/static/js/web/entry-4daa5bb8e8ad49f6911813b0513df45f.js" defer></script>';
+    expect(entryOf(html)).toBe("/_expo/static/js/web/entry-4daa5bb8e8ad49f6911813b0513df45f.js");
+    expect(entryOf("<html></html>")).toBeNull();
+  });
+
+  // Expo embeds the app config as an escaped JSON string, beside libraries
+  // that declare versions of their own.
+  it("reads the version of the object that carries the app's slug", () => {
+    const bundle = String.raw`x={\"name\":\"lib\",\"version\":\"9.9.9\"};y="{\"name\":\"Gital\",\"slug\":\"gital\",\"version\":\"1.2.0\"}"`;
+    expect(appVersionOf(bundle, "gital")).toBe("1.2.0");
+    expect(appVersionOf("{}", "gital")).toBeNull();
+    expect(() => appVersionOf(bundle, "gi.tal")).toThrow();
   });
 });

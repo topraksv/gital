@@ -1,14 +1,10 @@
-# Risk-tiered verification on every push to main.
+# Risk-tiered verification on every push to main, then the web's publication.
 #
 # Every push proves types and the lint ratchet. Unit tests run in the light
 # job only when the full job will not, so no test executes twice for one
-# commit. A change the classifier cannot vouch for gets coverage floors, the
-# web export and its byte budget.
-#
-# There is no deploy job yet. When one lands, measure the diff from the last
-# GREEN run rather than `github.event.before`: Helix found a failed run's
-# changes handed to a follow-up that could not see them, and green `main`
-# sitting ahead of production for days.
+# commit. A change the classifier cannot vouch for gets coverage floors. A
+# change that can reach the web export builds it once, checks its byte budget,
+# and publishes exactly those bytes to Pages. Ported from Helix 2026-09-26.
 name: ci
 
 on:
@@ -29,21 +25,52 @@ jobs:
   classify:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # The `base` step reads this workflow's own run history.
+      actions: read
     outputs:
       full_gate: ${{ steps.route.outputs.full_gate }}
+      deploy_web: ${{ steps.route.outputs.deploy_web }}
       reason: ${{ steps.route.outputs.reason }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The base below can be many commits back and must exist locally.
           fetch-depth: 0
-      # A dispatch has no honest diff, so it passes no base and gets the
-      # classifier's fail-open full gate. So does the first push, whose
-      # `before` is all zeros.
+      # Only a green run published what its diff selected, so the newest green
+      # push run this commit descends from is where production stands; the
+      # push's own `before` would hand a failed run's changes to a follow-up
+      # that cannot see them (Helix). With none to find, `before` stands in,
+      # and an empty diff from it proves nothing, so it runs everything. A
+      # dispatch keeps no base: its fail-open full gate is the point.
+      - id: base
+        name: Measure from the last run that published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          base=""
+          if [ "$EVENT_NAME" = "push" ]; then
+            base="$BEFORE_SHA"
+            green=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha // ""') || green=""
+            if [ -n "$green" ] && git merge-base --is-ancestor "$green" "$HEAD_SHA"; then
+              base="$green"
+            elif git diff --quiet "$BEFORE_SHA" "$HEAD_SHA" 2>/dev/null; then
+              base=""
+            fi
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          echo "base: ${base:-none}"
       - id: route
         name: Classify changed paths
         env:
-          BASE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
+          BASE_SHA: ${{ steps.base.outputs.sha }}
           HEAD_SHA: ${{ github.sha }}
         run: node scripts/classify-changes.mjs "$BASE_SHA" "$HEAD_SHA"
 
@@ -80,5 +107,108 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:coverage
+
+  # The one export of a run: the full gate's budget check and the bytes Pages
+  # serves are the same build.
+  web-build:
+    needs: classify
+    if: needs.classify.outputs.full_gate == 'true' || needs.classify.outputs.deploy_web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      entry: ${{ steps.entry.outputs.path }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
       - run: npm run web:export
       - run: npm run bundle:check
+      # Pages answers an unknown path — a list's deep link — with 404.html, so
+      # it is the app's own shell. Helix measured that copying +not-found
+      # instead hydrates the wrong route first (React error #418).
+      - run: cp dist/index.html dist/404.html
+      - id: entry
+        run: node scripts/check-published.mjs entry dist >> "$GITHUB_OUTPUT"
+      - if: needs.classify.outputs.deploy_web == 'true'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: dist
+
+  # `if: always()`, so a job skipped by its tier cannot block the deploy; a
+  # failed or cancelled one does.
+  gate:
+    if: always()
+    needs: [classify, light, full, web-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail on any real job failure
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          set -euo pipefail
+          echo "job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "blocking deploy: a required job reported '$result'"; exit 1 ;;
+            esac
+          done
+
+  # `!cancelled()` replaces the implicit success() that `gate`'s `always()`
+  # would otherwise leave skipped, and the result checks put back its point.
+  deploy-web:
+    needs: [classify, gate, web-build]
+    if: >-
+      ${{ !cancelled()
+      && needs.gate.result == 'success'
+      && needs.web-build.result == 'success'
+      && needs.classify.outputs.deploy_web == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: gital
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # A re-run replays its own commit; publishing it after main moved would
+      # put older bytes over newer ones. It fails rather than skips, so the
+      # next push still measures from before this commit.
+      - name: Refuse to publish a commit main has moved past
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::error::main is at $head and this run is $GITHUB_SHA; nothing was published, and the run for $head publishes"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+        with:
+          # The most the action accepts; Helix measured a higher value clamped.
+          timeout: "600000"
+      # Not a 200: Pages serves the previous deploy while a new one propagates,
+      # and caches the shell for ten minutes, so the shell must name this
+      # run's entry bundle within that time.
+      - name: Verify production serves this build
+        env:
+          BASE: ${{ steps.deployment.outputs.page_url }}
+          ENTRY: ${{ needs.web-build.outputs.entry }}
+        run: node scripts/check-published.mjs web "$BASE" --entry "$ENTRY" --wait 600
