@@ -316,4 +316,13 @@ describe("suggestProducts", () => {
     expect(keys(suggestProducts(products, typedProduct("su")!, [listed("Sua")]))).toEqual(["sub", "suc", "sud", "sue", "suf"]);
     expect(keys(suggestProducts([known("sut", 1)], typedProduct("3 su")!, [listed("Süt")]))).toEqual(["sut"]);
   });
+
+  it("forgives one slipped, missing, extra or swapped letter once four are typed, after every true match", () => {
+    const products = [known("domates", 1), known("domuz", 9)];
+    for (const typo of ["domtes", "domaets", "dommates", "dimates"]) expect(keys(suggestProducts(products, typedProduct(typo)!, []))).toEqual(["domates"]);
+    expect(keys(suggestProducts([known("domates", 9), known("domtes sosu", 0)], typedProduct("domtes")!, []))).toEqual(["domtes sosu", "domates"]);
+    expect(keys(suggestProducts([known("beyaz peynir", 9), known("peynir", 1)], typedProduct("peynr")!, []))).toEqual(["peynir", "beyaz peynir"]);
+    expect(keys(suggestProducts([known("dut", 1), known("sut", 1)], typedProduct("sit")!, []))).toEqual([]);
+    expect(keys(suggestProducts([known("domates", 1)], typedProduct("dmtes")!, []))).toEqual([]);
+  });
 });

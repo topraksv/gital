@@ -98,3 +98,6 @@ cannot be released.
   button or a thin browser line clipped by a list card.
 - A product added again pulses its row once, and the basket's subtotal and a
   collection's total count to their new figure instead of jumping.
+- Gital knows about 350 everyday products: an item named after one wears
+  its picture, and typing offers them beside what the household had before,
+  finding süt from "sut" and domates from "domtes".

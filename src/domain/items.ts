@@ -316,19 +316,50 @@ export function pickEntries(typed: TypedProduct, name: string): Entry[] {
   return [...parseEntry(typed.before), { name, ...(named ? { quantityMilli: null, unit: null } : typed.quantity) }];
 }
 
+/** With fewer letters, one slip would match half the catalogue: "sit" is süt as much as dut. */
+const TYPO_FROM = 4;
+
+/** Whether two strings are one letter apart at most: one changed, missing, extra, or two swapped. */
+function nearly(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let at = 0;
+  while (at < a.length && a[at] === b[at]) at++;
+  if (a.length === b.length) return a.slice(at + 1) === b.slice(at + 1) || (a[at] === b[at + 1] && a[at + 1] === b[at] && a.slice(at + 2) === b.slice(at + 2));
+  const [long, short] = a.length > b.length ? [a, b] : [b, a];
+  return long.slice(at + 1) === short.slice(at);
+}
+
+/** Whether a word begins with what is typed but for one slip, however long that makes its start. */
+function nearlyBegins(word: string, typed: string): boolean {
+  return [-1, 0, 1].some((more) => nearly(word.slice(0, typed.length + more), typed));
+}
+
 /**
  * What to offer: products whose name begins with what is typed — with its
- * quantity's words first, then without — and then those with a later word
- * that does ("pe" finds Beyaz peynir), each by how often it was had; `known`
- * comes latest first, which settles a tie. What the list holds is left out
- * unless a quantity is typed, which the merge (2.5) gives it; without one, a
- * tap on it would do nothing.
+ * quantity's words first, then without — then those with a later word that
+ * does ("pe" finds Beyaz peynir), then, once `TYPO_FROM` letters are typed,
+ * those one slip away (2.13), whole name before a later word; each by how
+ * often it was had, and `known` comes latest first, which settles a tie. What
+ * the list holds is left out unless a quantity is typed, which the merge (2.5)
+ * gives it; without one, a tap on it would do nothing.
  */
 export function suggestProducts(known: readonly KnownProduct[], typed: TypedProduct, listed: readonly Entry[]): KnownProduct[] {
   const onList = new Set(typed.quantity.quantityMilli == null ? listed.map((entry) => foldName(entry.name)) : []);
-  const rank = ({ key }: KnownProduct) => (key.startsWith(typed.whole) ? 0 : key.startsWith(typed.key) ? 1 : 2);
+  const forgives = typed.key.length >= TYPO_FROM;
+  const rank = ({ key }: KnownProduct): number => {
+    if (key.startsWith(typed.whole)) return 0;
+    if (key.startsWith(typed.key)) return 1;
+    const words = key.split(" ");
+    if (words.some((word) => word.startsWith(typed.key))) return 2;
+    if (forgives && nearlyBegins(key, typed.key)) return 3;
+    if (forgives && words.some((word) => nearlyBegins(word, typed.key))) return 4;
+    return 5;
+  };
   return known
-    .filter(({ key }) => (key.startsWith(typed.whole) || ` ${key}`.includes(` ${typed.key}`)) && !onList.has(key))
-    .sort((a, b) => rank(a) - rank(b) || b.times - a.times)
-    .slice(0, SUGGESTIONS_MAX);
+    .filter(({ key }) => !onList.has(key))
+    .map((product) => ({ product, rank: rank(product) }))
+    .filter(({ rank }) => rank < 5)
+    .sort((a, b) => a.rank - b.rank || b.product.times - a.product.times)
+    .slice(0, SUGGESTIONS_MAX)
+    .map(({ product }) => product);
 }

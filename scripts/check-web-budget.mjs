@@ -15,13 +15,13 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-26 on the wish list: entry 1_689_718, all JS
-// 1_826_262, export 3_423_230, pictures 49_994. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-26 on the catalogue: entry 1_737_780, all JS
+// 1_874_324, export 3_479_617, pictures 324_522. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 1_707_000,
-  totalJs: 1_845_000,
-  totalExport: 3_458_000,
-  pictures: 50_500,
+  entryJs: 1_755_000,
+  totalJs: 1_893_000,
+  totalExport: 3_515_000,
+  pictures: 328_000,
 };
 
 // Pictures are WebP and nothing else is (SPEC 14.1), so they are weighed apart:

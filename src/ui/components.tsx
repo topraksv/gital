@@ -30,6 +30,7 @@ import DatabaseZap from "lucide-react-native/icons/database-zap";
 import Minus from "lucide-react-native/icons/minus";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { catalogueProduct, type ProductPicture } from "../domain/catalogue";
 import { foldName, formatQuantity, type ItemChange } from "../domain/items";
 import { formatMinor } from "../domain/money";
 import type { ListColor, ListIcon } from "../domain/lists";
@@ -40,6 +41,7 @@ import { interactionSurface } from "./interaction";
 import { FOCUS_BOX } from "./focus-ring";
 import { webKeys } from "./keys";
 import { LIST_PICTURES } from "./list-look";
+import { PRODUCT_IMAGES } from "./product-pictures";
 import { useReducedMotion, useSpringTo } from "./motion";
 import { navigateBack } from "./navigation";
 import { shouldUseWideGutter } from "./responsive";
@@ -277,14 +279,14 @@ export function Card({ children }: { children: ReactNode }) {
 }
 
 /** How a tile is dressed: a list's own colour and picture, when it has them (SPEC 1.8). */
-export type TileLook = { color?: ListColor | null; icon?: ListIcon | null };
+export type TileLook = { color?: ListColor | null; icon?: ListIcon | null; picture?: ProductPicture };
 
 /**
- * Helix's tile: a record's picture, or its first letter, on its colour — or
- * on one of the theme's three soft tones, picked by its id, until it has one
- * (`docs/UI.md` section 6).
+ * Helix's tile: a record's picture — a list's own, or a catalogue product's —
+ * or its first letter, on its colour, or on one of the theme's three soft
+ * tones, picked by its id, until it has one (`docs/UI.md` section 6).
  */
-export function Tile({ id, name, size, color, icon, round = false }: { id: string; name: string; size: number; round?: boolean } & TileLook) {
+export function Tile({ id, name, size, color, icon, picture, round = false }: { id: string; name: string; size: number; round?: boolean } & TileLook) {
   const { palette, scheme } = useTheme();
   const tones = [
     { fill: palette.primarySoft, ink: palette.accentText },
@@ -293,6 +295,7 @@ export function Tile({ id, name, size, color, icon, round = false }: { id: strin
   ];
   const tone = color ? LIST_HUES[scheme][color] : tones[tileTone(id, tones.length)]!;
   const drawn = size * illustrationShare;
+  const source = icon ? LIST_PICTURES[icon] : picture ? PRODUCT_IMAGES[picture] : null;
   return (
     <View
       accessible={false}
@@ -306,8 +309,8 @@ export function Tile({ id, name, size, color, icon, round = false }: { id: strin
         justifyContent: "center",
       }}
     >
-      {icon ? (
-        <Image source={LIST_PICTURES[icon]} accessible={false} style={{ width: drawn, height: drawn }} />
+      {source ? (
+        <Image source={source} accessible={false} style={{ width: drawn, height: drawn }} />
       ) : (
         <Text style={[type.heading, { color: tone.ink }]}>{initialOf(name)}</Text>
       )}
@@ -356,7 +359,7 @@ export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: 
   const parts = detailOf(item);
   return (
     <>
-      <Tile id={foldName(item.name)} name={item.name} size={itemRow.tile} />
+      <Tile id={foldName(item.name)} name={item.name} picture={catalogueProduct(item.name)?.picture} size={itemRow.tile} />
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
         <Text
           style={[

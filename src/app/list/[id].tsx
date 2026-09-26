@@ -15,6 +15,7 @@ import { useItems, useKnownProducts, useLists, usePurchases } from "../../data/h
 import { addEntries, deleteItem, importEntries, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
+import { withCatalogue } from "../../domain/catalogue";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
@@ -320,14 +321,15 @@ function QuickAdd({ listId, items, purchases }: { listId: string; items: readonl
 }
 
 /**
- * What the household had before that begins with what is typed (SPEC 2.4).
+ * What the household had before, then the catalogue, that begins with what is
+ * typed or nearly does (SPEC 2.4, 2.13).
  * It offers and never takes: the field keeps its text and its focus until a
  * chip is pressed (`docs/UI.md` section 5).
  */
 function Suggestions({ text, items, onPick }: { text: string; items: readonly Item[]; onPick: (entries: Entry[]) => void }) {
   const known = useKnownProducts();
   const typed = typedProduct(text);
-  const picks = typed ? suggestProducts(known.data, typed, items) : [];
+  const picks = typed ? suggestProducts(withCatalogue(known.data), typed, items) : [];
   if (!typed || picks.length === 0) return null;
   return (
     <SlideUp distance={motion.travel.rise}>
