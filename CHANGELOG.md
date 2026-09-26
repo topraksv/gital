@@ -75,3 +75,5 @@ cannot be released.
 - Finishing a shop is celebrated: confetti, and a card with what was bought,
   what it cost counting up, what stayed on the list and the month so far. A
   tap skips it, and taking the finish back closes it.
+- An item's panel says when the product was last bought on any list, what it
+  cost then, and its last three prices.

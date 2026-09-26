@@ -72,10 +72,26 @@ export function formatMinorInput(minor: number | null): string {
   return minor == null ? "" : formatPriceInput((minor / 100).toFixed(2).replace(".", ","));
 }
 
-/** A price paid before for a product, and the quantity it bought. */
+/** A product bought before, the quantity it came in and what was paid, if that was typed. */
 export interface PricePaid extends Quantity {
   name: string;
-  priceMinor: number;
+  priceMinor: number | null;
+}
+
+export interface Bought extends PricePaid {
+  boughtAt: string;
+}
+
+/**
+ * When a product was last bought and its last three prices, oldest first
+ * (SPEC 3.9), or `null` when it never was. `bought` comes latest first.
+ */
+export function pastOf(bought: readonly Bought[], name: string): { lastAt: string; lastPriceMinor: number | null; prices: number[] } | null {
+  const key = foldName(name);
+  const own = bought.filter((row) => foldName(row.name) === key);
+  if (own.length === 0) return null;
+  const prices = own.flatMap((row) => (row.priceMinor == null ? [] : [row.priceMinor])).slice(0, RECENT);
+  return { lastAt: own[0]!.boughtAt, lastPriceMinor: own[0]!.priceMinor, prices: prices.reverse() };
 }
 
 /** A tenth: a price within one is the same price at another shop, and saying so would be noise. */
@@ -112,8 +128,7 @@ export function priceRise(paid: readonly PricePaid[], bought: Quantity & { name:
   const key = foldName(bought.name);
   const now = perUnit(priceMinor, bought);
   const recent = paid
-    .filter((row) => foldName(row.name) === key)
-    .map((row) => perUnit(row.priceMinor, row))
+    .flatMap((row) => (row.priceMinor != null && foldName(row.name) === key ? [perUnit(row.priceMinor, row)] : []))
     .filter((row) => row.unit === now.unit)
     .slice(0, RECENT)
     .map((row) => row.price)

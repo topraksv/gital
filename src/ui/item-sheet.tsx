@@ -12,9 +12,9 @@ import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
 import Trash from "lucide-react-native/icons/trash";
 
-import { usePricesPaid } from "../data/hooks";
+import { useBought } from "../data/hooks";
 import { NOTE_MAX, formatQuantity, quantityOrOne, stepQuantity, type ItemChange, type Quantity } from "../domain/items";
-import { formatMinorInput, priceRise, readPrice } from "../domain/money";
+import { formatMinorInput, pastOf, priceRise, readPrice, type Bought as BoughtBefore } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
@@ -46,6 +46,7 @@ export function ItemSheet({
 }) {
   const { palette } = useTheme();
   const titleRef = useModalAccessibility(true, item.id);
+  const before = useBought(item.id).data;
   const [name, setName] = useState(item.name);
   const [note, setNote] = useState(item.note ?? "");
   const [quantity, setQuantity] = useState({ quantityMilli: item.quantityMilli, unit: item.unit });
@@ -100,6 +101,7 @@ export function ItemSheet({
         {...submits}
         style={{ marginTop: spacing.sm }}
       />
+      <Past before={before} name={item.name} />
       <View style={{ marginTop: spacing.lg }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
           <Text style={[type.body, { color: palette.text, flex: 1 }]}>{tr.items.quantity}</Text>
@@ -123,7 +125,7 @@ export function ItemSheet({
       </View>
       {offersBought ? (
         <Bought
-          itemId={item.id}
+          before={before}
           product={{ name, ...quantity }}
           paidMinor={paid.ok ? paid.minor : null}
           instead={instead}
@@ -171,12 +173,29 @@ export function ItemSheet({
 }
 
 /**
+ * When the product was last bought, on any list, and how its price has moved
+ * (SPEC 3.9): two quiet lines under its note, in words until the charts come.
+ */
+function Past({ before, name }: { before: readonly BoughtBefore[]; name: string }) {
+  const { palette } = useTheme();
+  const past = pastOf(before, name);
+  if (!past) return null;
+  const line = [type.small, { color: palette.textSecondary }];
+  return (
+    <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
+      <Text style={line}>{tr.items.lastBought(past.lastAt, past.lastPriceMinor)}</Text>
+      {past.prices.length > 1 ? <Text style={line}>{tr.items.lastPrices(past.prices)}</Text> : null}
+    </View>
+  );
+}
+
+/**
  * What was bought in the item's place, and what was paid — said to be dear
  * when it is (SPEC 3.12). The panel says it and the row does not: the aisle
  * needs the number, and the sentence would wrap every priced row at 360 dp.
  */
 function Bought({
-  itemId,
+  before,
   product,
   paidMinor,
   instead,
@@ -185,7 +204,7 @@ function Bought({
   onPrice,
   submits,
 }: {
-  itemId: string;
+  before: readonly BoughtBefore[];
   product: Quantity & { name: string };
   paidMinor: number | null;
   instead: string;
@@ -195,7 +214,6 @@ function Bought({
   submits: { returnKeyType: "done"; onSubmitEditing: () => void };
 }) {
   const { palette } = useTheme();
-  const before = usePricesPaid(itemId).data;
   const rise = paidMinor == null ? null : priceRise(before, product, paidMinor);
   return (
     <>

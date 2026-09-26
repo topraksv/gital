@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { MAX_PRICE_MINOR, formatMinor, formatMinorInput, formatPriceInput, isPrice, priceRise, readPrice, spentInMonth, spentOn, type PricePaid } from "../../src/domain/money";
+import { MAX_PRICE_MINOR, formatMinor, formatMinorInput, formatPriceInput, isPrice, pastOf, priceRise, readPrice, spentInMonth, spentOn, type PricePaid } from "../../src/domain/money";
 
 describe("readPrice", () => {
   it("reads kuruş from what is typed, grouped or not, with or without the lira sign", () => {
@@ -112,5 +112,24 @@ describe("spentInMonth", () => {
   it("is nothing when no shop this month was priced, which is not ₺0", () => {
     expect(spentInMonth([shop(new Date(2026, 8, 20), null), shop(new Date(2026, 7, 20), 500)], now)).toBeNull();
     expect(spentInMonth([], now)).toBeNull();
+  });
+});
+
+describe("pastOf", () => {
+  const bought = (name: string, day: number, priceMinor: number | null) => ({
+    name,
+    quantityMilli: null,
+    unit: null,
+    priceMinor,
+    boughtAt: new Date(Date.UTC(2026, 8, day)).toISOString(),
+  });
+
+  it("says when the product was last bought, what it cost then, and its last three prices oldest first", () => {
+    const latestFirst = [bought("Ekmek", 25, 1500), bought("süt", 20, null), bought("Süt", 12, 4590), bought("SÜT", 5, 4250), bought("Süt", 3, 4000), bought("Süt", 1, 3500)];
+    expect(pastOf(latestFirst, "Süt")).toEqual({ lastAt: bought("", 20, null).boughtAt, lastPriceMinor: null, prices: [4000, 4250, 4590] });
+  });
+
+  it("is nothing for a product never bought", () => {
+    expect(pastOf([bought("Ekmek", 25, 1500)], "Süt")).toBeNull();
   });
 });

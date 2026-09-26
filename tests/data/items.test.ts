@@ -21,7 +21,7 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, deleteItem, importEntries, readItems, readKnownProducts, readPricesPaid, readShopItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
+const { addEntries, deleteItem, importEntries, readItems, readBought, readKnownProducts, readShopItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
 const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
@@ -525,10 +525,12 @@ describe("readKnownProducts", () => {
   });
 });
 
-describe("readPricesPaid", () => {
-  it("reads every price paid on a live list, in history or in a basket, latest first, but the item's own", async () => {
+describe("readBought", () => {
+  it("reads everything bought on a live list, priced or not, in history or in a basket, latest first, but the item itself", async () => {
     const [sut, ekmek] = await addItems(listId, "süt, ekmek");
     await updateItem(sut!, { ...as("Süt"), priceMinor: 4000 });
+    later(500);
+    await toggleChecked(ekmek!);
     await finishShop(listId);
     later(1000);
     const pazar = await createList("Pazar");
@@ -541,11 +543,13 @@ describe("readPricesPaid", () => {
     await deleteList(gone);
     const [again] = await addItems(listId, "süt");
     await updateItem(again!, { ...as("Süt"), priceMinor: 5000 });
-    expect(await readPricesPaid(again!)).toEqual([
-      { name: "Süt", quantityMilli: 2000, unit: "lt", priceMinor: 9000 },
-      { name: "Süt", quantityMilli: null, unit: null, priceMinor: 4000 },
+    const at = (ms: number) => new Date(T0.getTime() + ms).toISOString();
+    expect(await readBought(again!)).toEqual([
+      { name: "Süt", quantityMilli: 2000, unit: "lt", priceMinor: 9000, boughtAt: at(1000) },
+      { name: "Ekmek", quantityMilli: null, unit: null, priceMinor: null, boughtAt: at(500) },
+      { name: "Süt", quantityMilli: null, unit: null, priceMinor: 4000, boughtAt: at(0) },
     ]);
-    expect(await readPricesPaid(ekmek!)).toHaveLength(3);
+    expect(await readBought(pazarSut!)).toHaveLength(3);
   });
 });
 

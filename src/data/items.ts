@@ -20,7 +20,7 @@ import {
 } from "../db/mutations";
 import { items, lists } from "../db/schema";
 import { bareEntry, foldName, itemNameFrom, noteFrom, type Entry, type ItemChange, type KnownProduct, type ListedEntry } from "../domain/items";
-import { isPrice, type PricePaid } from "../domain/money";
+import { isPrice, type Bought } from "../domain/money";
 
 export interface Item extends ItemChange {
   id: string;
@@ -89,18 +89,19 @@ export async function readKnownProducts(): Promise<KnownProduct[]> {
 }
 
 /**
- * Every price paid on a live list, in history or still in a basket, latest
- * first, for 3.12's comparison. The item being priced is left out, or its own
- * price, saved once, would be what it is measured against.
+ * Everything bought on a live list, in history or still in a basket, priced
+ * or not, latest first: when a product was last bought (3.9) and what it
+ * usually costs (3.12). The item in the panel is left out, or its own price,
+ * saved once, would be what it is measured against.
  */
-export async function readPricesPaid(exceptId: string): Promise<PricePaid[]> {
+export async function readBought(exceptId: string): Promise<Bought[]> {
   const rows = await getDb()
-    .select({ name: items.name, quantityMilli: items.quantityMilli, unit: items.unit, priceMinor: items.priceMinor })
+    .select({ name: items.name, quantityMilli: items.quantityMilli, unit: items.unit, priceMinor: items.priceMinor, boughtAt: items.checkedAt })
     .from(items)
     .innerJoin(lists, and(eq(lists.id, items.listId), isNull(lists.deletedAt)))
-    .where(and(isNull(items.deletedAt), isNotNull(items.priceMinor), ne(items.id, exceptId)))
+    .where(and(isNull(items.deletedAt), isNotNull(items.checkedAt), ne(items.id, exceptId)))
     .orderBy(desc(items.checkedAt), asc(items.id));
-  return rows.flatMap((row) => (row.priceMinor == null ? [] : [{ ...row, priceMinor: row.priceMinor }]));
+  return rows.flatMap((row) => (row.boughtAt == null ? [] : [{ ...row, boughtAt: row.boughtAt }]));
 }
 
 export function readShopItems(shopId: string): Promise<Item[]> {

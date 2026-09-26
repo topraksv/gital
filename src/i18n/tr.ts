@@ -11,6 +11,13 @@ function dateTimeLabel(iso: string): string {
   return Number.isNaN(value.getTime()) ? iso : DATE_TIME.format(value);
 }
 
+const DATE = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long" });
+
+function dateLabel(iso: string): string {
+  const value = new Date(iso);
+  return Number.isNaN(value.getTime()) ? iso : DATE.format(value);
+}
+
 /** How far a shop has got, on a list's card and above its items alike. */
 function basketProgress(done: number, total: number): string {
   return done === total ? "Hepsi sepette" : `${done}/${total} sepette`;
@@ -118,6 +125,10 @@ export const tr = {
     priceLabel: "Ödenen fiyat",
     pricePlaceholder: "Ödenen fiyat: 45,90",
     priceRise: (percent: number) => `Son alışlardan %${percent} pahalı`,
+    /** When a product was last bought on any list, and what it cost then (SPEC 3.9). */
+    lastBought: (at: string, priceMinor: number | null) =>
+      `Son alış: ${dateLabel(at)}${priceMinor == null ? "" : `${tr.common.separator}${formatMinor(priceMinor)}`}`,
+    lastPrices: (prices: readonly number[]) => `Son fiyatlar: ${prices.map(formatMinor).join(" → ")}`,
     list: "Liste",
     keepHere: "Bu listede de kalsın",
     moved: (name: string, list: string) => `${name}, ${list} listesine taşındı`,
