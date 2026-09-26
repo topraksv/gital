@@ -61,3 +61,6 @@ cannot be released.
   with its notes and urgency, a list typed with bullets loses its heading,
   and plain lines read as the quick-add field reads them; the bar takes the
   paste back.
+- A list takes a colour of its own and a picture from twenty drawings, chosen
+  in the panel its pencil now opens beside the name; its cards on Listeler
+  and Geçmiş wear both.

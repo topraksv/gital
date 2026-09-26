@@ -11,10 +11,10 @@ import Trash from "lucide-react-native/icons/trash";
 
 import { useItems, useKnownProducts, useLists } from "../../data/hooks";
 import { addEntries, deleteItem, importEntries, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
-import { deleteList, renameList, restoreList, type ListSummary } from "../../data/lists";
+import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
-import { NAME_MAX } from "../../domain/names";
+import type { ListLook } from "../../domain/lists";
 import { tr } from "../../i18n/tr";
 import { shareText } from "../../services/share";
 import {
@@ -37,6 +37,7 @@ import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
+import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { navigateBack } from "../../ui/navigation";
 import { controlSize, density, motion, spacing, type, useTheme } from "../../ui/theme";
@@ -56,19 +57,6 @@ export default function ListScreen() {
   // A link to a list that is not here — deleted elsewhere, or never existed.
   if (lists.updatedAt != null && !list) return <Redirect href="/" />;
 
-  const rename = async (current: ListSummary) => {
-    const name = await appPrompt(tr.lists.renameTitle, tr.lists.renameMessage, {
-      initialValue: current.name,
-      confirmLabel: tr.common.save,
-      maxLength: NAME_MAX,
-    });
-    if (name == null) return;
-    try {
-      await renameList(current.id, name);
-    } catch {
-      void appError(tr.errors.saveFailed);
-    }
-  };
 
   const open = items.data.filter((item) => item.checkedAt == null);
   const basket = items.data.filter((item) => item.checkedAt != null);
@@ -186,7 +174,7 @@ export default function ListScreen() {
           <>
             <IconButton icon={ClipboardPaste} label={tr.items.paste(list.name)} onPress={() => paste(list)} />
             <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={open.length === 0} onPress={() => share(list)} />
-            <IconButton icon={Pencil} label={tr.lists.rename(list.name)} onPress={() => rename(list)} />
+            <EditList list={list} />
             <IconButton icon={Trash} label={tr.lists.delete(list.name)} tone="danger" onPress={() => remove(list)} />
           </>
         ) : null
@@ -391,3 +379,21 @@ function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; o
   );
 }
 
+/** The pencil and the list panel it opens: a list's name, colour and picture (SPEC 1.8). */
+function EditList({ list }: { list: ListSummary }) {
+  const [open, setOpen] = useState(false);
+  const save = async (look: ListLook) => {
+    setOpen(false);
+    try {
+      await editList(list.id, look);
+    } catch {
+      void appError(tr.errors.saveFailed);
+    }
+  };
+  return (
+    <>
+      <IconButton icon={Pencil} label={tr.lists.edit(list.name)} onPress={() => setOpen(true)} />
+      {open ? <ListSheet list={list} onSave={save} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}

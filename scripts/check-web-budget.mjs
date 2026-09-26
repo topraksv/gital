@@ -15,13 +15,19 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-24 on the quick-add suggestions: entry 1_575_486, all JS
-// 1_708_156, export 3_242_820. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-26 on the list's colour and picture: entry 1_602_135, all
+// JS 1_734_805, export 3_269_469, pictures 49_994. `docs/HEALTH.md` traces the
+// growth.
 const CEILINGS = {
-  entryJs: 1_592_000,
-  totalJs: 1_726_000,
+  entryJs: 1_618_000,
+  totalJs: 1_752_000,
   totalExport: 3_276_000,
+  pictures: 50_500,
 };
+
+// Pictures are WebP and nothing else is (SPEC 14.1), so they are weighed apart:
+// the catalogue's hundreds would otherwise hide a code regression in the total.
+const isPicture = (path) => path.endsWith(".webp");
 
 const root = process.argv[2] ?? "dist";
 
@@ -42,7 +48,12 @@ if (entries.length !== 1) {
 }
 
 const sum = (list) => list.reduce((total, f) => total + f.bytes, 0);
-const measured = { entryJs: entries[0].bytes, totalJs: sum(js), totalExport: sum(files) };
+const measured = {
+  entryJs: entries[0].bytes,
+  totalJs: sum(js),
+  totalExport: sum(files.filter((f) => !isPicture(f.path))),
+  pictures: sum(files.filter((f) => isPicture(f.path))),
+};
 
 let failed = false;
 for (const [name, ceiling] of Object.entries(CEILINGS)) {

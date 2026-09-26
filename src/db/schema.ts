@@ -29,6 +29,9 @@ const syncColumns = {
 export const lists = sqliteTable("lists", {
   ...syncColumns,
   name: text("name").notNull(),
+  /** A name from `LIST_COLORS` and `LIST_ICONS`; none draws the default (SPEC 1.8). */
+  color: text("color"),
+  icon: text("icon"),
 });
 
 /**

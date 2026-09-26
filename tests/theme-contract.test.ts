@@ -7,6 +7,7 @@ import {
   composite,
   DEFAULT_PALETTE_ID,
   INTERACTION_ALPHA,
+  LIST_HUES,
   PALETTES,
   navigationInset,
   radius,
@@ -17,12 +18,17 @@ import {
   type Palette,
 } from "../src/ui/theme";
 
-/** WCAG 2.2 relative luminance of a `#RRGGBB` colour. */
-function luminance(hex: string): number {
-  const [r, g, b] = (hex.match(/[0-9a-f]{2}/gi) ?? []).map((pair) => {
+/** A `#RRGGBB` colour's channels as linear light, 0 to 1. */
+function linear(hex: string): [number, number, number] {
+  return (hex.match(/[0-9a-f]{2}/gi) ?? []).map((pair) => {
     const c = Number.parseInt(pair, 16) / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   }) as [number, number, number];
+}
+
+/** WCAG 2.2 relative luminance of a `#RRGGBB` colour. */
+function luminance(hex: string): number {
+  const [r, g, b] = linear(hex);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
@@ -148,6 +154,27 @@ describe.each(schemes)("%s", (_, p) => {
       expect(hovered).toBeGreaterThan(1.05);
       expect(hovered).toBeLessThan(1.25);
       expect(held).toBeGreaterThan(hovered);
+    }
+  });
+});
+
+describe("a list's own colours", () => {
+  // CIE76 in Lab, D65: past 10 two tiles read as two colours at a glance.
+  function lab(hex: string): [number, number, number] {
+    const [r, g, b] = linear(hex);
+    const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+    const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+    const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+  }
+  const distance = (a: string, b: string) => Math.hypot(...lab(a).map((v, at) => v - lab(b)[at]!));
+
+  it.each(Object.entries(LIST_HUES))("%s: every initial reaches 4.5:1 on its fill, and no two fills are within 10 ΔE", (_, hues) => {
+    const all = Object.values(hues);
+    for (const { fill, ink } of all) expect(contrast(ink, fill)).toBeGreaterThanOrEqual(TEXT);
+    for (let a = 0; a < all.length; a++) {
+      for (let b = a + 1; b < all.length; b++) expect(distance(all[a]!.fill, all[b]!.fill)).toBeGreaterThan(10);
     }
   });
 });

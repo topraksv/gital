@@ -10,6 +10,8 @@
 
 import { createContext, useContext } from "react";
 
+import type { ListColor } from "../domain/lists";
+
 export interface Palette {
   background: string;
   surface: string;
@@ -494,6 +496,41 @@ export const sectionMark = { width: 3, height: 18, radius: 2 } as const;
 
 /** A list's card on Listeler: its initial on a tone, Helix's tile at this side. */
 export const listCard = { tile: 46 } as const;
+
+/**
+ * A list's own colour (SPEC 1.8): its tile's fill and the initial drawn on
+ * it. Fixed hues rather than the palette's roles, which are one family by
+ * design — measured 2026-09-26, two roles came within 0.7 ΔE of each other —
+ * so the same list keeps its colour whichever family is worn.
+ */
+export const LIST_HUES: Record<Theme["scheme"], Record<ListColor, { fill: string; ink: string }>> = {
+  light: {
+    terracotta: { fill: "#F3D6CB", ink: "#8A3B22" },
+    mustard: { fill: "#F0E2B0", ink: "#6B5010" },
+    green: { fill: "#D5E8CB", ink: "#355C22" },
+    teal: { fill: "#C9E4EA", ink: "#1D5864" },
+    lavender: { fill: "#DFD7F2", ink: "#4F3D7A" },
+    rose: { fill: "#F3D2DE", ink: "#7C2B49" },
+  },
+  dark: {
+    terracotta: { fill: "#4E2A1F", ink: "#F2B9A4" },
+    mustard: { fill: "#4A3C16", ink: "#EBD084" },
+    green: { fill: "#26402A", ink: "#AED89A" },
+    teal: { fill: "#1B3D45", ink: "#9AD2DE" },
+    lavender: { fill: "#352B4E", ink: "#C8B7EC" },
+    rose: { fill: "#4C2533", ink: "#F0B0C6" },
+  },
+};
+
+/**
+ * The list panel: seven 44-point cells to a row, which fit a 360-point phone
+ * edge to edge, so the six colours and the default fill one row and the
+ * twenty pictures and the letter three. A cell's ring sits inside it.
+ */
+export const listSheet = { cell: controlSize.minimumTarget, columns: 7 } as const;
+
+/** An illustration fills this share of its tile (`docs/UI.md` section 6). */
+export const illustrationShare = 0.72;
 
 /** Helix's switch, drawn the same on every platform, so its geometry is one contract. */
 export const toggleSize = { width: 46, height: 28, padding: 3, glyph: 11, glyphInset: 7 } as const;

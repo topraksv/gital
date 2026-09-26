@@ -8,6 +8,7 @@
 import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import {
   Animated,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -30,10 +31,12 @@ import Minus from "lucide-react-native/icons/minus";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { foldName, formatQuantity, type ItemChange } from "../domain/items";
+import type { ListColor, ListIcon } from "../domain/lists";
 import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { selectionTap } from "./haptics";
 import { interactionSurface } from "./interaction";
+import { LIST_PICTURES } from "./list-look";
 import { useReducedMotion, useSpringTo } from "./motion";
 import { navigateBack } from "./navigation";
 import { shouldUseWideGutter } from "./responsive";
@@ -48,7 +51,9 @@ import {
   font,
   iconSize,
   iconStroke,
+  illustrationShare,
   itemRow,
+  LIST_HUES,
   listCard,
   maxFontScale,
   navigationInset,
@@ -258,32 +263,41 @@ export function Card({ children }: { children: ReactNode }) {
   );
 }
 
+/** How a tile is dressed: a list's own colour and picture, when it has them (SPEC 1.8). */
+export type TileLook = { color?: ListColor | null; icon?: ListIcon | null };
+
 /**
- * Helix's tile with a record's first letter on one of three soft tones, until
- * the record has a picture of its own (`docs/UI.md` section 6).
+ * Helix's tile: a record's picture, or its first letter, on its colour — or
+ * on one of the theme's three soft tones, picked by its id, until it has one
+ * (`docs/UI.md` section 6).
  */
-function LetterTile({ id, name, size }: { id: string; name: string; size: number }) {
-  const { palette } = useTheme();
+export function Tile({ id, name, size, color, icon, round = false }: { id: string; name: string; size: number; round?: boolean } & TileLook) {
+  const { palette, scheme } = useTheme();
   const tones = [
     { fill: palette.primarySoft, ink: palette.accentText },
     { fill: palette.secondarySoft, ink: palette.secondaryText },
     { fill: palette.tertiarySoft, ink: palette.tertiaryText },
   ];
-  const tone = tones[tileTone(id, tones.length)]!;
+  const tone = color ? LIST_HUES[scheme][color] : tones[tileTone(id, tones.length)]!;
+  const drawn = size * illustrationShare;
   return (
     <View
       accessible={false}
       style={{
         width: size,
         height: size,
-        borderRadius: tileRadius(size),
+        borderRadius: round ? circle(size) : tileRadius(size),
         borderCurve: "continuous",
         backgroundColor: tone.fill,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <Text style={[type.heading, { color: tone.ink }]}>{initialOf(name)}</Text>
+      {icon ? (
+        <Image source={LIST_PICTURES[icon]} accessible={false} style={{ width: drawn, height: drawn }} />
+      ) : (
+        <Text style={[type.heading, { color: tone.ink }]}>{initialOf(name)}</Text>
+      )}
     </View>
   );
 }
@@ -327,7 +341,7 @@ export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: 
   const parts = detailOf(item);
   return (
     <>
-      <LetterTile id={foldName(item.name)} name={item.name} size={itemRow.tile} />
+      <Tile id={foldName(item.name)} name={item.name} size={itemRow.tile} />
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
         <Text
           style={[
@@ -461,11 +475,13 @@ export function Toggle({ value, onValueChange, label }: { value: boolean; onValu
  */
 export function LinkCard({
   tileId,
+  look,
   title,
   detail,
   hint,
   onOpen,
 }: {
+  look?: TileLook;
   /** What the tile's tone is taken from, so a shop wears its list's tone. */
   tileId: string;
   title: string;
@@ -489,7 +505,7 @@ export function LinkCard({
         transform: [{ translateY: state.pressed ? pressDepth : 0 }],
       })}
     >
-      <LetterTile id={tileId} name={title} size={listCard.tile} />
+      <Tile id={tileId} name={title} size={listCard.tile} color={look?.color} icon={look?.icon} />
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
         <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold }]}>{title}</Text>
         <Text style={[type.small, { color: palette.textSecondary }]}>{detail}</Text>
@@ -598,6 +614,30 @@ export function Body({ children, muted, style }: { children: ReactNode; muted?: 
   );
 }
 
+/** `items` in rows of `columns`, the last one short when they do not divide. */
+export function rowsOf<T>(items: readonly T[], columns: number): T[][] {
+  return Array.from({ length: Math.ceil(items.length / columns) }, (_, row) => items.slice(row * columns, (row + 1) * columns));
+}
+
+/**
+ * What makes a pressable one answer of a radio group: its role and state, and
+ * a press that touches and answers only when it is not the answer already.
+ */
+export function radioChoice({ label, selected, disabled = false, onPress }: { label: string; selected: boolean; disabled?: boolean; onPress: () => void }) {
+  return {
+    accessibilityRole: "radio",
+    accessibilityLabel: label,
+    "aria-checked": selected,
+    accessibilityState: { checked: selected, disabled },
+    disabled,
+    onPress: () => {
+      if (selected) return;
+      selectionTap();
+      onPress();
+    },
+  } as const;
+}
+
 /**
  * One tile, one answer. The shell will not let a caller change the box when
  * it is chosen — a thickening ring or a bolder label re-wraps the row — so
@@ -635,16 +675,7 @@ export function ChoiceTile({
   const row = layout === "row";
   return (
     <Pressable
-      accessibilityRole="radio"
-      accessibilityLabel={label}
-      aria-checked={selected}
-      accessibilityState={{ checked: selected, disabled }}
-      disabled={disabled}
-      onPress={() => {
-        if (selected) return;
-        selectionTap();
-        onPress();
-      }}
+      {...radioChoice({ label, selected, disabled, onPress })}
       style={(state) => ({
         flexGrow: 1,
         flexBasis: basis ?? 0,

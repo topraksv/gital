@@ -25,6 +25,7 @@ export default function History() {
                 <SlideUp key={shop.id} distance={motion.travel.bar}>
                   <LinkCard
                     tileId={shop.listId}
+                    look={shop}
                     title={shop.listName}
                     detail={tr.history.summary(shop.finishedAt, shop.bought)}
                     hint={tr.history.openHint}

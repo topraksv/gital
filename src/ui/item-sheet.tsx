@@ -16,7 +16,7 @@ import { NOTE_MAX, formatQuantity, quantityOrOne, stepQuantity, type ItemChange 
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
-import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, type ShownItem } from "./components";
+import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type ShownItem } from "./components";
 import { Actions, DialogShell } from "./dialog";
 import { selectionTap } from "./haptics";
 import { controlSize, font, itemPanel, spacing, type, useTheme } from "./theme";
@@ -56,7 +56,7 @@ export function ItemSheet({
   // Moving, the tick and what was found stay with this list's shop, so they are not asked.
   const moving = to != null && !keep;
   const columns = Math.min(lists.length, itemPanel.listColumns);
-  const rows = Array.from({ length: Math.ceil(lists.length / columns) }, (_, row) => lists.slice(row * columns, (row + 1) * columns));
+  const rows = rowsOf(lists, columns);
   const less = stepQuantity(quantity, -1);
   const more = stepQuantity(quantity, 1);
   // Offered on an item still to find, a substitute typed while planning

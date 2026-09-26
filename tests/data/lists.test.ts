@@ -15,7 +15,9 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-const { createList, deleteList, readLists, renameList, restoreList } = await import("../../src/data/lists");
+const { createList, deleteList, editList, readLists, restoreList } = await import("../../src/data/lists");
+/** The list panel saved with only its name changed. */
+const rename = (id: string, name: string) => editList(id, { name, color: null, icon: null });
 const { migratedDatabase } = await import("../helpers");
 const { withTransaction } = await import("../../src/db/client");
 
@@ -86,8 +88,8 @@ describe("readLists", () => {
     const eczane = await createList("Eczane");
     await deleteList(pazar);
     expect(await readLists()).toEqual([
-      { id: market, name: "Market", total: 0, inBasket: 0 },
-      { id: eczane, name: "Eczane", total: 0, inBasket: 0 },
+      { id: market, name: "Market", color: null, icon: null, total: 0, inBasket: 0 },
+      { id: eczane, name: "Eczane", color: null, icon: null, total: 0, inBasket: 0 },
     ]);
   });
 
@@ -98,12 +100,32 @@ describe("readLists", () => {
   });
 });
 
-describe("renameList", () => {
+describe("editList", () => {
+  it("gives a list a colour and a picture of its own, and takes them back off", async () => {
+    const id = await createList("Market");
+    await editList(id, { name: "Market", color: "teal", icon: "cart" });
+    expect(await readLists()).toMatchObject([{ id, color: "teal", icon: "cart" }]);
+    await editList(id, { name: "Market", color: null, icon: null });
+    expect(await readLists()).toMatchObject([{ id, color: null, icon: null }]);
+  });
+
+  it("stores only a colour and a picture this build knows, and reads an unknown one as none", async () => {
+    const id = await createList("Market");
+    await expect(editList(id, { name: "Market", color: "gold" as never, icon: null })).rejects.toThrow();
+    await expect(editList(id, { name: "Market", color: null, icon: "rocket" as never })).rejects.toThrow();
+    expect(stored(id)).toMatchObject({ color: null, icon: null });
+    // A newer device's colour or picture, arrived by sync, draws as the default.
+    harness.db!.prepare("UPDATE lists SET color = 'gold', icon = 'rocket' WHERE id = ?").run(id);
+    expect(await readLists()).toMatchObject([{ id, color: null, icon: null }]);
+  });
+});
+
+describe("editList, renaming", () => {
   it("renames, stamps the edit and queues the whole row", async () => {
     const id = await createList("Market");
     const edited = new Date(T0.getTime() + 5000);
     vi.setSystemTime(edited);
-    await renameList(id, " Süpermarket ");
+    await rename(id, " Süpermarket ");
     expect(stored(id)).toMatchObject({ name: "Süpermarket", created_at: T0.toISOString(), updated_at: edited.toISOString() });
     const last = outbox().at(-1)!;
     // The whole row, never the changed column alone: the server may meet this
@@ -114,21 +136,21 @@ describe("renameList", () => {
   it("will not bring a deleted list back by renaming a stale copy", async () => {
     const id = await createList("Market");
     await deleteList(id);
-    await expect(renameList(id, "Pazar")).rejects.toThrow();
+    await expect(rename(id, "Pazar")).rejects.toThrow();
     expect(stored(id)).toMatchObject({ name: "Market", tombstone_version: 1 });
     expect(stored(id).deleted_at).not.toBeNull();
   });
 
   it("refuses an empty name and leaves the list as it was", async () => {
     const id = await createList("Market");
-    await expect(renameList(id, " ")).rejects.toThrow();
+    await expect(rename(id, " ")).rejects.toThrow();
     expect(stored(id)).toMatchObject({ name: "Market" });
   });
 
   it("writes nothing when the name has not changed", async () => {
     const id = await createList("Market");
     vi.setSystemTime(new Date(T0.getTime() + 5000));
-    await renameList(id, "  Market ");
+    await rename(id, "  Market ");
     expect(stored(id)).toMatchObject({ updated_at: T0.toISOString() });
     // An empty edit stamped as new would beat a real rename under last-writer-wins.
     expect(outbox()).toHaveLength(1);
@@ -136,7 +158,7 @@ describe("renameList", () => {
 
   it("replaces a queued event written in the same millisecond rather than dropping the newer one", async () => {
     const id = await createList("Market");
-    await renameList(id, "Pazar");
+    await rename(id, "Pazar");
     const events = outbox();
     expect(events).toHaveLength(1);
     expect(JSON.parse(events[0]!.payload)).toMatchObject({ name: "Pazar" });
@@ -178,12 +200,12 @@ describe("deleteList and restoreList", () => {
     // The queue is held, so the rename and the delete wait in line together.
     let release!: () => void;
     const held = withTransaction(() => new Promise<void>((done) => (release = done)));
-    const rename = renameList(id, "Pazar");
+    const renaming = rename(id, "Pazar");
     await nextTask();
     const removal = deleteList(id);
     await nextTask();
     release();
-    await Promise.all([held, rename]);
+    await Promise.all([held, renaming]);
     const snapshot = await removal;
     expect(snapshot).toMatchObject({ name: "Pazar" });
     await restoreList(snapshot!);

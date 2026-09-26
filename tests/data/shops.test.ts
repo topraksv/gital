@@ -86,7 +86,7 @@ describe("finishShop", () => {
       { name: "Süt", quantityMilli: 2000, checkedAt: T0.toISOString() },
     ]);
     expect(await readShops()).toEqual([
-      { id: shop!.id, listId, listName: "Market", finishedAt: new Date(T0.getTime() + 60_000).toISOString(), bought: 2 },
+      { id: shop!.id, listId, listName: "Market", color: null, icon: null, finishedAt: new Date(T0.getTime() + 60_000).toISOString(), bought: 2 },
     ]);
   });
 

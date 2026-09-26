@@ -57,6 +57,7 @@ export default function Lists() {
                 <SlideUp key={list.id} distance={motion.travel.bar}>
                   <LinkCard
                     tileId={list.id}
+                    look={list}
                     title={list.name}
                     detail={tr.lists.summary(list.total, list.inBasket)}
                     hint={tr.lists.openHint}

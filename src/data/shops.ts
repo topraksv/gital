@@ -10,9 +10,11 @@ import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
 import { items, lists, shops } from "../db/schema";
 import { foldName } from "../domain/items";
+import { lookOf, type ListLook } from "../domain/lists";
 import { openItemId } from "./items";
 
-export interface Shop {
+/** A shop wears its list's colour and picture (SPEC 1.8). */
+export interface Shop extends Omit<ListLook, "name"> {
   id: string;
   listId: string;
   listName: string;
@@ -21,15 +23,24 @@ export interface Shop {
 }
 
 /** Every list's shops, the latest first. A deleted list's history goes with it. */
-export function readShops(): Promise<Shop[]> {
-  return getDb()
-    .select({ id: shops.id, listId: shops.listId, listName: lists.name, finishedAt: shops.finishedAt, bought: count(items.id) })
+export async function readShops(): Promise<Shop[]> {
+  const rows = await getDb()
+    .select({
+      id: shops.id,
+      listId: shops.listId,
+      listName: lists.name,
+      color: lists.color,
+      icon: lists.icon,
+      finishedAt: shops.finishedAt,
+      bought: count(items.id),
+    })
     .from(shops)
     .innerJoin(lists, and(eq(lists.id, shops.listId), isNull(lists.deletedAt)))
     .leftJoin(items, and(eq(items.shopId, shops.id), isNull(items.deletedAt)))
     .where(isNull(shops.deletedAt))
     .groupBy(shops.id)
     .orderBy(desc(shops.finishedAt), desc(shops.id));
+  return rows.map(lookOf);
 }
 
 /**
