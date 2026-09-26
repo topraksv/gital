@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import Gift from "lucide-react-native/icons/gift";
 import Pencil from "lucide-react-native/icons/pencil";
@@ -13,16 +13,14 @@ import type { ListLook } from "../../domain/lists";
 import { LINK_MAX, leadOf, shopOf, type Wish } from "../../domain/wishes";
 import { formatMinor } from "../../domain/money";
 import { tr } from "../../i18n/tr";
-import { ArrivalScope, CheckMark, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, TextField, Tile, cardEdge } from "../../ui/components";
+import { ArrivalScope, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, TextField, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
-import { interactionSurface } from "../../ui/interaction";
-import { webKeys } from "../../ui/keys";
 import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion } from "../../ui/list-motion";
 import { useCountUp } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
-import { controlSize, density, font, itemRow, motion, offset, radius, spacing, type, useTheme } from "../../ui/theme";
+import { density, font, itemRow, motion, offset, spacing, type, useTheme } from "../../ui/theme";
 import { showUndo } from "../../ui/undo";
 import { WishSheet } from "../../ui/wish-sheet";
 
@@ -201,24 +199,7 @@ function WishRow({ wish, onOpen, onToggle }: { wish: Wish; onOpen: () => void; o
   const parts = detailOf(wish);
   return (
     <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))}
-        accessibilityHint={tr.wishes.openWishHint}
-        onPress={onOpen}
-        style={(state) => ({
-          flex: 1,
-          minWidth: 0,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: spacing.md,
-          padding: density.list.cardPadding,
-          // The card's corners, so a press fill and the focus ring follow them rather than being cut.
-          borderTopLeftRadius: radius.lg,
-          borderBottomLeftRadius: radius.lg,
-          ...interactionSurface(palette, state),
-        })}
-      >
+      <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={tr.wishes.openWishHint} onPress={onOpen}>
         <Tile id={wish.id} name={wish.name} size={itemRow.tile} />
         <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
           <Text
@@ -240,26 +221,8 @@ function WishRow({ wish, onOpen, onToggle }: { wish: Wish; onOpen: () => void; o
             </Text>
           ) : null}
         </View>
-      </Pressable>
-      <Pressable
-        accessibilityRole="checkbox"
-        aria-checked={done}
-        accessibilityState={{ checked: done }}
-        accessibilityLabel={tr.common.withDetail(wish.name, tr.wishes.bought)}
-        onPress={onToggle}
-        {...webKeys({ " ": onToggle }, { repeats: false })}
-        style={(state) => ({
-          minWidth: controlSize.minimumTarget,
-          paddingHorizontal: spacing.md,
-          alignItems: "center",
-          justifyContent: "center",
-          borderTopRightRadius: radius.lg,
-          borderBottomRightRadius: radius.lg,
-          ...interactionSurface(palette, state),
-        })}
-      >
-        <CheckMark checked={done} />
-      </Pressable>
+      </RowOpen>
+      <RowTick checked={done} label={tr.common.withDetail(wish.name, tr.wishes.bought)} onToggle={onToggle} />
     </View>
   );
 }

@@ -11,7 +11,7 @@ export type Priority = (typeof PRIORITIES)[number];
 /** Longer than any shop's product address with its tracking; a pasted page is not a link. */
 export const LINK_MAX = 2048;
 
-export interface WishLink {
+interface WishLink {
   id: string;
   url: string;
   priceMinor: number | null;

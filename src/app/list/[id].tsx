@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, type TextInput } from "react-native";
+import { Animated, ScrollView, StyleSheet, Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import CheckCheck from "lucide-react-native/icons/check-check";
 import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
@@ -25,26 +25,9 @@ import { atHome } from "../../domain/pantry";
 import { restockDue, type Purchase } from "../../domain/restock";
 import { tr } from "../../i18n/tr";
 import { shareText } from "../../services/share";
-import {
-  ArrivalScope,
-  Button,
-  CheckMark,
-  EmptyState,
-  IconButton,
-  ItemLabel,
-  itemDetail,
-  ProgressBar,
-  ReadFailed,
-  Screen,
-  SectionHeader,
-  SlideUp,
-  TextField,
-  cardEdge,
-} from "../../ui/components";
+import { ArrivalScope, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
-import { interactionSurface } from "../../ui/interaction";
-import { webKeys } from "../../ui/keys";
 import { celebrate, hideCelebration } from "../../ui/celebration";
 import { DraggableList, ReorderGrip } from "../../ui/draggable-list";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
@@ -53,7 +36,7 @@ import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
-import { controlSize, density, motion, radius, spacing, themeShadow, type, useTheme } from "../../ui/theme";
+import { density, motion, spacing, themeShadow, type, useTheme } from "../../ui/theme";
 import { showNotice, showUndo } from "../../ui/undo";
 
 export default function ListScreen() {
@@ -500,47 +483,10 @@ function ItemRow({
       }}
     >
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: palette.primarySoft, opacity: flash }]} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr.common.withDetail(item.name, itemDetail(item))}
-        accessibilityHint={tr.items.openHint}
-        onPress={onOpen}
-        style={(state) => ({
-          flex: 1,
-          minWidth: 0,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: spacing.md,
-          padding: density.list.cardPadding,
-          // The card's corners, so a press fill and the focus ring follow them rather than being cut.
-          borderTopLeftRadius: radius.lg,
-          borderBottomLeftRadius: radius.lg,
-          ...interactionSurface(palette, state),
-        })}
-      >
+      <RowOpen label={tr.common.withDetail(item.name, itemDetail(item))} hint={tr.items.openHint} onPress={onOpen}>
         <ItemLabel item={item} struck={checked} />
-      </Pressable>
-      {grip ?? (
-      <Pressable
-        accessibilityRole="checkbox"
-        aria-checked={checked}
-        accessibilityState={{ checked }}
-        accessibilityLabel={item.name}
-        onPress={onToggle}
-        {...webKeys({ " ": onToggle }, { repeats: false })}
-        style={(state) => ({
-          minWidth: controlSize.minimumTarget,
-          paddingHorizontal: spacing.md,
-          alignItems: "center",
-          justifyContent: "center",
-          borderTopRightRadius: radius.lg,
-          borderBottomRightRadius: radius.lg,
-          ...interactionSurface(palette, state),
-        })}
-      >
-        <CheckMark checked={checked} />
-      </Pressable>
-      )}
+      </RowOpen>
+      {grip ?? <RowTick checked={checked} label={item.name} onToggle={onToggle} />}
     </View>
   );
 }

@@ -10,6 +10,7 @@ import {
   Animated,
   Image,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -408,6 +409,63 @@ export function CheckMark({ checked }: { checked: boolean }) {
     </SuccessPop>
   ) : (
     <View style={[checkCircle, { borderWidth: borderWidth.selected, borderColor: palette.controlBorder }]} />
+  );
+}
+
+/**
+ * A row card's leading half: its tile and text, opening the thing's panel. A
+ * plain Pressable, since shrinking half a card opens a gap at its edge
+ * (`src/ui/press.tsx`); it takes the card's left corners, so a press fill and
+ * the focus ring follow them rather than being cut.
+ */
+export function RowOpen({ label, hint, onPress, children }: { label: string; hint: string; onPress: () => void; children: ReactNode }) {
+  const { palette } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      onPress={onPress}
+      style={(state) => ({
+        flex: 1,
+        minWidth: 0,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        padding: density.list.cardPadding,
+        borderTopLeftRadius: radius.lg,
+        borderBottomLeftRadius: radius.lg,
+        ...interactionSurface(palette, state),
+      })}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+/** A row card's tick at its trailing edge, a checkbox that Space presses on the web. */
+export function RowTick({ checked, label, onToggle }: { checked: boolean; label: string; onToggle: () => void }) {
+  const { palette } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      aria-checked={checked}
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+      onPress={onToggle}
+      {...webKeys({ " ": onToggle }, { repeats: false })}
+      style={(state) => ({
+        minWidth: controlSize.minimumTarget,
+        paddingHorizontal: spacing.md,
+        alignItems: "center",
+        justifyContent: "center",
+        borderTopRightRadius: radius.lg,
+        borderBottomRightRadius: radius.lg,
+        ...interactionSurface(palette, state),
+      })}
+    >
+      <CheckMark checked={checked} />
+    </Pressable>
   );
 }
 

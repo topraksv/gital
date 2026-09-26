@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Animated, Easing, Platform, Pressable, View } from "react-native";
+import { Animated, Easing, Platform, View } from "react-native";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Minus from "lucide-react-native/icons/minus";
 import Refrigerator from "lucide-react-native/icons/refrigerator";
@@ -12,14 +12,13 @@ import { expiryOf } from "../../domain/pantry";
 import { tr } from "../../i18n/tr";
 import { useModalAccessibility } from "../../ui/accessibility";
 import { DateField } from "../../ui/calendar";
-import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SectionHeader, SlideUp, cardEdge, itemDetail } from "../../ui/components";
+import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SectionHeader, SlideUp, cardEdge, itemDetail, RowOpen } from "../../ui/components";
 import { Actions, DialogShell, appError } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { isReducedMotion } from "../../ui/motion";
 import { flightTo, landTab, tabCentre } from "../../ui/tab-landing";
 import { showUndo } from "../../ui/undo";
-import { interactionSurface } from "../../ui/interaction";
-import { density, motion, radius, spacing, useTheme } from "../../ui/theme";
+import { density, motion, spacing, useTheme } from "../../ui/theme";
 
 /** The Listeler tab's route, where a finished product goes back onto its list. */
 const LISTS_TAB = "index";
@@ -145,25 +144,9 @@ function PantryRow({ item, onLess, onFinish }: { item: PantryItem; onLess: () =>
         ],
       }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr.common.withDetail(item.name, itemDetail(shown))}
-        accessibilityHint={tr.pantry.openHint}
-        onPress={() => setOpen(true)}
-        style={(state) => ({
-          flex: 1,
-          minWidth: 0,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: spacing.md,
-          padding: density.list.cardPadding,
-          borderTopLeftRadius: radius.lg,
-          borderBottomLeftRadius: radius.lg,
-          ...interactionSurface(palette, state),
-        })}
-      >
+      <RowOpen label={tr.common.withDetail(item.name, itemDetail(shown))} hint={tr.pantry.openHint} onPress={() => setOpen(true)}>
         <ItemLabel item={shown} />
-      </Pressable>
+      </RowOpen>
       <View style={{ flexDirection: "row", paddingRight: spacing.sm }}>
         <IconButton icon={Minus} label={tr.pantry.less(item.name)} onPress={onLess} />
         <IconButton icon={ListPlus} label={tr.pantry.finish(item.name)} tone="primary" onPress={finish} />

@@ -10,7 +10,7 @@
 
 import { MAX_PRICE_MINOR, groupThousands, isPrice } from "./money";
 
-export type CalcOp = "+" | "-" | "×" | "÷";
+type CalcOp = "+" | "-" | "×" | "÷";
 export type CalcKey = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "," | CalcOp | "=" | "C" | "⌫";
 
 export interface Calc {
@@ -25,14 +25,6 @@ export interface Calc {
 }
 
 export const CALC_START: Calc = { current: "0", accumulator: null, op: null, done: false, error: false };
-
-export const CALC_KEYS: readonly (readonly CalcKey[])[] = [
-  ["C", "⌫", "÷", "×"],
-  ["7", "8", "9", "-"],
-  ["4", "5", "6", "+"],
-  ["1", "2", "3", "="],
-  ["0", ","],
-];
 
 const WHOLE_DIGITS = 12;
 const DECIMALS = 6;
