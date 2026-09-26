@@ -126,6 +126,10 @@ export const tr = {
     more: (name: string) => `${name} miktarını artır`,
     delete: (name: string) => `${name} ürününü sil`,
     suggestion: (name: string) => `${name} ürününü ekle`,
+    restockTitle: "Bitmiş olabilir",
+    restockChip: (name: string, everyDays: number) => `${name} · ${everyDays === 1 ? "her gün" : `${everyDays} günde bir`}`,
+    restock: (name: string, everyDays: number) =>
+      `${name} ürününü ekle, genelde ${everyDays === 1 ? "her gün" : `${everyDays} günde bir`} alınıyor`,
     paste: (list: string) => `${list} listesine metinden ekle`,
     pasteTitle: "Metinden ekle",
     pasteMessage: "Bir listeyi yapıştır: her satır ya da virgül bir ürün. Gital’den paylaşılan bir listenin notları ve acilleri de gelir.",

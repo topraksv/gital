@@ -9,13 +9,14 @@ import Plus from "lucide-react-native/icons/plus";
 import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
-import { useItems, useKnownProducts, useLists } from "../../data/hooks";
+import { useItems, useKnownProducts, useLists, usePurchases } from "../../data/hooks";
 import { addEntries, deleteItem, importEntries, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
+import { restockDue, type Purchase } from "../../domain/restock";
 import { tr } from "../../i18n/tr";
 import { shareText } from "../../services/share";
 import {
@@ -49,6 +50,9 @@ export default function ListScreen() {
   const router = useRouter();
   const lists = useLists();
   const items = useItems(id);
+  // Read with the items, so an offer is drawn with the screen and does not rise into it.
+  const purchases = usePurchases(id);
+  const queries = [lists, items, purchases];
   // The list this screen is deleting, held so its title stays while the screen
   // animates away, and so nothing on it can be pressed a second time.
   const [leaving, setLeaving] = useState<ListSummary | null>(null);
@@ -181,11 +185,11 @@ export default function ListScreen() {
         ) : null
       }
     >
-      {lists.status === "error" || items.status === "error" ? (
-        <ReadFailed queries={[lists, items]} />
-      ) : list && items.updatedAt != null ? (
+      {queries.some((query) => query.status === "error") ? (
+        <ReadFailed queries={queries} />
+      ) : list && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
-          <QuickAdd listId={list.id} items={items.data} />
+          <QuickAdd listId={list.id} items={items.data} purchases={purchases.data} />
           {items.data.length === 0 ? (
             <EmptyState icon={ListPlus} title={tr.items.emptyTitle} hint={tr.items.emptyHint} />
           ) : (
@@ -239,7 +243,7 @@ export default function ListScreen() {
  * keeps the keyboard up for the next item; the field empties at once, so the
  * next can be typed while the last is still being written.
  */
-function QuickAdd({ listId, items }: { listId: string; items: readonly Item[] }) {
+function QuickAdd({ listId, items, purchases }: { listId: string; items: readonly Item[]; purchases: readonly Purchase[] }) {
   const [text, setText] = useState("");
   const field = useRef<TextInput>(null);
 
@@ -289,7 +293,9 @@ function QuickAdd({ listId, items }: { listId: string; items: readonly Item[] })
             field.current?.focus();
           }}
         />
-      ) : null}
+      ) : (
+        <Restock purchases={purchases} items={items} onPick={(entry) => add([entry])} />
+      )}
     </View>
   );
 }
@@ -319,6 +325,33 @@ function Suggestions({ text, items, onPick }: { text: string; items: readonly It
         ))}
       </ScrollView>
     </SlideUp>
+  );
+}
+
+/**
+ * What the list's rhythm says has run out (SPEC 2.7), while nothing is typed:
+ * it offers and never asks, and leaves once the product is on the list.
+ */
+function Restock({ purchases, items, onPick }: { purchases: readonly Purchase[]; items: readonly Item[]; onPick: (entry: Entry) => void }) {
+  const { palette } = useTheme();
+  const due = restockDue(purchases, items, new Date());
+  if (due.length === 0) return null;
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <Text style={[type.small, { color: palette.textSecondary }]}>{tr.items.restockTitle}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+        {due.map(({ key, name, quantityMilli, unit, everyDays }) => (
+          <IconButton
+            key={key}
+            icon={Plus}
+            text={tr.items.restockChip(name, everyDays)}
+            label={tr.items.restock(name, everyDays)}
+            tone="primary"
+            onPress={() => onPick({ name, quantityMilli, unit })}
+          />
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 

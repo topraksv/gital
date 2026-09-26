@@ -70,3 +70,5 @@ cannot be released.
   from the field, and a shop's total can be corrected to its receipt.
 - A price typed a tenth or more above what the product recently cost is
   labelled so under its field ("Son alışlardan %22 pahalı").
+- A list offers what its own history says has run out ("Süt · 5 günde
+  bir") under the empty add field; a tap puts it back with its last quantity.

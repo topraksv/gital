@@ -4,7 +4,7 @@
  * bought item to a row of its own under it, and history reads those rows.
  */
 
-import { and, count, desc, eq, isNull, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, sum } from "drizzle-orm";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
@@ -12,6 +12,7 @@ import { items, lists, shops } from "../db/schema";
 import { foldName } from "../domain/items";
 import { isPrice } from "../domain/money";
 import { lookOf, type ListLook } from "../domain/lists";
+import type { Purchase } from "../domain/restock";
 import { openItemId } from "./items";
 
 /** A shop wears its list's colour and picture (SPEC 1.8). */
@@ -26,6 +27,16 @@ export interface Shop extends Omit<ListLook, "name"> {
    * else what its priced items add up to; `null` when neither, which is not ₺0.
    */
   spentMinor: number | null;
+}
+
+/** What this list's shops bought, the latest first: the rhythm 2.7's suggestion reads. */
+export function readPurchases(listId: string): Promise<Purchase[]> {
+  return getDb()
+    .select({ name: items.name, quantityMilli: items.quantityMilli, unit: items.unit, boughtAt: shops.finishedAt })
+    .from(items)
+    .innerJoin(shops, and(eq(shops.id, items.shopId), isNull(shops.deletedAt)))
+    .where(and(eq(shops.listId, listId), isNull(items.deletedAt)))
+    .orderBy(desc(shops.finishedAt), asc(items.id));
 }
 
 /** Every list's shops, the latest first. A deleted list's history goes with it. */

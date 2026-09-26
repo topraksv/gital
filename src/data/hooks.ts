@@ -4,7 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { readItems, readKnownProducts, readPricesPaid, readShopItems } from "./items";
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
-import { readShops } from "./shops";
+import { readPurchases, readShops } from "./shops";
 
 // Items, because each card counts what is on its list.
 const listsStore = liveStore(readLists, ["lists", "items"]);
@@ -45,5 +45,12 @@ export function useKnownProducts() {
 // Mounted with the item panel's price field, and gone with it.
 export function usePricesPaid(itemId: string) {
   const store = useMemo(() => liveStore(() => readPricesPaid(itemId), ["items", "lists"]), [itemId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+// Shops only: a finish writes its shop after its items, and an undo tombstones
+// it, so a tick on the list never re-reads the history.
+export function usePurchases(listId: string) {
+  const store = useMemo(() => liveStore(() => readPurchases(listId), ["shops"]), [listId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }

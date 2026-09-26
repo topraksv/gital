@@ -25,7 +25,7 @@ const { addEntries, deleteItem, readItems, readShopItems, toggleChecked, updateI
 const { parseEntry } = await import("../../src/domain/items");
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
-const { finishShop, readShops, reopenShop, setShopTotal } = await import("../../src/data/shops");
+const { finishShop, readPurchases, readShops, reopenShop, setShopTotal } = await import("../../src/data/shops");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { migratedDatabase } = await import("../helpers");
@@ -306,5 +306,26 @@ describe("a shop's summary", () => {
     expect(tr.history.spent(null)).toBeUndefined();
     expect(tr.items.basket(5840)).toBe("Sepette · ₺58,40");
     expect(tr.items.basket(null)).toBe("Sepette");
+  });
+});
+
+describe("readPurchases", () => {
+  it("reads what this list's shops bought, latest first, without an undone shop or another list's", async () => {
+    await shopFor("2 lt süt, ekmek", ["Süt"]);
+    await finish();
+    later(1000);
+    await shopFor("ekmek", ["Ekmek"]);
+    await finish();
+    later(2000);
+    await shopFor("süt", ["Süt"]);
+    await reopenShop(await finish());
+    const other = await createList("Pazar");
+    await addItems(other, "domates");
+    await toggleChecked((await readItems(other))[0]!.id);
+    await finishShop(other);
+    expect(await readPurchases(listId)).toEqual([
+      { name: "Ekmek", quantityMilli: null, unit: null, boughtAt: new Date(T0.getTime() + 1000).toISOString() },
+      { name: "Süt", quantityMilli: 2000, unit: "lt", boughtAt: T0.toISOString() },
+    ]);
   });
 });
