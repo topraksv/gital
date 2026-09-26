@@ -142,6 +142,16 @@ export function takeSome(id: string): Promise<Finished | null> {
   return finishWith(id, lessOf);
 }
 
+/**
+ * What the calculator counted at home, in the unit it is held in: the move
+ * is the difference, so the stay and its rhythm (12.7) go on. Nothing
+ * finishes it, as − reaching nothing does (12.8).
+ */
+export async function setStock(id: string, quantityMilli: number): Promise<Finished | null> {
+  if (!Number.isSafeInteger(quantityMilli) || quantityMilli < 0) throw new Error("A stock is whole thousandths");
+  return finishWith(id, (stock) => ({ quantityMilli: quantityMilli - stock.quantityMilli, unit: stock.unit }));
+}
+
 export async function finishPantryItem(id: string): Promise<Finished> {
   return (await finishWith(id, () => null))!;
 }

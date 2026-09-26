@@ -7,7 +7,7 @@
  */
 
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
 import Star from "lucide-react-native/icons/star";
@@ -18,23 +18,21 @@ import { setAisle, setStarred } from "../data/products";
 import { AISLES, aisleOf, catalogueProduct, type Aisle } from "../domain/catalogue";
 import type { ItemSave } from "../data/items";
 import type { PhotoChange } from "../data/photos";
-import { NOTE_MAX, foldName, formatQuantity, quantityOrOne, stepQuantity, type Quantity } from "../domain/items";
+import { NOTE_MAX, foldName, quantityOrOne, stepQuantity, type Quantity } from "../domain/items";
 import { formatMinorInput, pastOf, priceRise, readPrice, type Bought as BoughtBefore } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
-import { PriceField, useCalculator } from "./calculator";
+import { PriceField, QuantityFace, useCalculator } from "./calculator";
 import { AisleChip } from "./catalogue-sheet";
 import { PriceLine } from "./charts";
 import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type ShownItem } from "./components";
 import { Actions, DialogShell, appError } from "./dialog";
 import { selectionTap } from "./haptics";
-import { interactionSurface } from "./interaction";
-import { controlSize, font, itemPanel, radius, spacing, type, useTheme } from "./theme";
+import { controlSize, itemPanel, spacing, type, useTheme } from "./theme";
 import { radioGroupKeys } from "./keys";
 import { PanelPart } from "./list-motion";
 import { PhotoField } from "./photo-field";
-import { Press } from "./press";
 
 type ListChoice = { id: string; name: string };
 
@@ -142,35 +140,7 @@ export function ItemSheet({
           {/* An item without a quantity reads as one piece, so it is shown as
               one, quieter, until − or + or the calculator gives it a
               quantity of its own. */}
-          <Press
-            accessibilityRole="button"
-            accessibilityLabel={tr.calc.open(`${tr.items.quantity} ${formatQuantity(shownQuantity)}`)}
-            onPress={calculate}
-            style={{ minWidth: itemPanel.quantityWidth, minHeight: controlSize.minimumTarget, justifyContent: "center" }}
-          >
-            {/* A field's own face, so the number reads as something to edit,
-                as tall as the − and + faces beside it inside the same target. */}
-            {(state) => (
-              <View
-                style={{
-                  height: controlSize.compact,
-                  paddingHorizontal: spacing.sm,
-                  justifyContent: "center",
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: palette.border,
-                  borderRadius: radius.sm,
-                  ...interactionSurface(palette, state, { base: palette.surfaceAlt }),
-                }}
-              >
-                <Text
-                  accessibilityLiveRegion="polite"
-                  style={[type.body, { fontFamily: font.medium, textAlign: "center", color: quantity.quantityMilli == null ? palette.textSecondary : palette.text }]}
-                >
-                  {formatQuantity(shownQuantity)}
-                </Text>
-              </View>
-            )}
-          </Press>
+          <QuantityFace quantity={shownQuantity} quiet={quantity.quantityMilli == null} onPress={calculate} />
           <IconButton icon={Plus} label={tr.items.more(item.name)} disabled={!more} onPress={() => step(more)} />
         </View>
         <Toggle value={urgent} onValueChange={setUrgent} label={tr.items.urgent} />

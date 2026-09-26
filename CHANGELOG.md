@@ -174,3 +174,5 @@ cannot be released.
 - A list's add field has a barcode button on the phone: the product's name,
   brand and picture come from Open Food Facts, and a code it does not know
   is typed in.
+- Kiler's panel counts what is at home on the calculator; counted to nothing,
+  the product is finished and goes back on its list.

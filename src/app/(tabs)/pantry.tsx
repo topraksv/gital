@@ -1,16 +1,17 @@
 import { useRef, useState } from "react";
-import { Animated, Easing, Platform, View } from "react-native";
+import { Animated, Easing, Platform, Text, View } from "react-native";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Minus from "lucide-react-native/icons/minus";
 import Refrigerator from "lucide-react-native/icons/refrigerator";
 
 import { useMovedAisles, usePantry } from "../../data/hooks";
-import { finishPantryItem, setExpiry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
+import { finishPantryItem, setExpiry, setStock, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
 import { listSections } from "../../domain/catalogue";
 import { todayISO } from "../../domain/dates";
 import { expiryOf } from "../../domain/pantry";
 import { tr } from "../../i18n/tr";
 import { useModalAccessibility } from "../../ui/accessibility";
+import { QuantityFace, useCalculator } from "../../ui/calculator";
 import { DateField } from "../../ui/calendar";
 import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SectionHeader, SlideUp, cardEdge, itemDetail, RowOpen } from "../../ui/components";
 import { Actions, DialogShell, appError } from "../../ui/dialog";
@@ -18,7 +19,7 @@ import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { isReducedMotion } from "../../ui/motion";
 import { flightTo, landTab, tabCentre } from "../../ui/tab-landing";
 import { showUndo } from "../../ui/undo";
-import { density, motion, spacing, useTheme } from "../../ui/theme";
+import { density, motion, spacing, type, useTheme } from "../../ui/theme";
 
 /** The Listeler tab's route, where a finished product goes back onto its list. */
 const LISTS_TAB = "index";
@@ -61,7 +62,12 @@ export default function Pantry() {
                   {section.aisle ? <SectionHeader flush={at === 0}>{tr.catalogue.aisles[section.aisle]}</SectionHeader> : null}
                   {section.items.map((item) => (
                     <SlideUp key={item.id} distance={motion.travel.bar}>
-                      <PantryRow item={item} onLess={() => void act(item, takeSome)} onFinish={() => act(item, finishPantryItem)} />
+                      <PantryRow
+                        item={item}
+                        onLess={() => void act(item, takeSome)}
+                        onCount={(quantityMilli) => void act(item, (id) => setStock(id, quantityMilli))}
+                        onFinish={() => act(item, finishPantryItem)}
+                      />
                     </SlideUp>
                   ))}
                 </View>
@@ -89,7 +95,17 @@ function expiryPart(expiresOn: string | null, today: string) {
  * bounces as it lands (section 7); − reaching nothing only bounces the tab,
  * since the row cannot know beforehand that it will finish.
  */
-function PantryRow({ item, onLess, onFinish }: { item: PantryItem; onLess: () => void; onFinish: () => Promise<boolean> }) {
+function PantryRow({
+  item,
+  onLess,
+  onCount,
+  onFinish,
+}: {
+  item: PantryItem;
+  onLess: () => void;
+  onCount: (quantityMilli: number) => void;
+  onFinish: () => Promise<boolean>;
+}) {
   const { palette } = useTheme();
   const [open, setOpen] = useState(false);
   const rowRef = useRef<View>(null);
@@ -151,17 +167,26 @@ function PantryRow({ item, onLess, onFinish }: { item: PantryItem; onLess: () =>
         <IconButton icon={Minus} label={tr.pantry.less(item.name)} onPress={onLess} />
         <IconButton icon={ListPlus} label={tr.pantry.finish(item.name)} tone="primary" onPress={finish} />
       </View>
-      {open ? <PantrySheet item={item} onClose={() => setOpen(false)} /> : null}
+      {open ? <PantrySheet item={item} onCount={onCount} onClose={() => setOpen(false)} /> : null}
     </Animated.View>
   );
 }
 
-/** A product's panel: the date printed on it, picked on the calendar or taken off. */
-function PantrySheet({ item, onClose }: { item: PantryItem; onClose: () => void }) {
+/**
+ * A product's panel: how much is at home, counted on the calculator (12.8),
+ * and the date printed on it, picked on the calendar or taken off (12.3).
+ */
+function PantrySheet({ item, onCount, onClose }: { item: PantryItem; onCount: (quantityMilli: number) => void; onClose: () => void }) {
+  const { palette } = useTheme();
   const titleRef = useModalAccessibility(true, item.id);
   const [expiresOn, setExpiresOn] = useState(item.expiresOn);
+  const [quantityMilli, setQuantityMilli] = useState(item.quantityMilli);
+  const [calculate, calculator] = useCalculator(item.unit, setQuantityMilli);
   const save = async () => {
     onClose();
+    // Counted to nothing, it is finished, and a date on it would be the stay's.
+    if (quantityMilli !== item.quantityMilli) onCount(quantityMilli);
+    if (expiresOn === item.expiresOn || quantityMilli === 0) return;
     try {
       await setExpiry(item.id, expiresOn);
     } catch {
@@ -170,6 +195,11 @@ function PantrySheet({ item, onClose }: { item: PantryItem; onClose: () => void 
   };
   return (
     <DialogShell title={item.name} titleRef={titleRef} onDismiss={onClose}>
+      <View style={{ marginTop: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <Text style={[type.body, { color: palette.text, flex: 1 }]}>{tr.items.quantity}</Text>
+        <QuantityFace quantity={{ quantityMilli, unit: item.unit }} onPress={calculate} />
+      </View>
+      {calculator}
       <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
         <Body>{tr.pantry.expiry}</Body>
         <DateField label={tr.pantry.expiry} value={expiresOn} onChange={setExpiresOn} />

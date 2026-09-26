@@ -7,16 +7,17 @@
  */
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Keyboard, Pressable, View, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
+import { Keyboard, Pressable, StyleSheet, Text, View, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
 import CalculatorIcon from "lucide-react-native/icons/calculator";
 
-import type { Unit } from "../domain/items";
+import { formatQuantity, type Quantity, type Unit } from "../domain/items";
 import { formatMinorInput, formatPriceInput } from "../domain/money";
 import { tr } from "../i18n/tr";
 import { TextField } from "./components";
 import { appError } from "./dialog";
 import { interactionSurface } from "./interaction";
-import { controlSize, iconSize, iconStroke, radius, useTheme } from "./theme";
+import { Press } from "./press";
+import { controlSize, font, iconSize, iconStroke, itemPanel, radius, spacing, type, useTheme } from "./theme";
 
 type Sheet = typeof import("./calculator-sheet").default;
 const loadSheet = () => import("./calculator-sheet").then((module) => module.default);
@@ -74,6 +75,44 @@ export function PriceField({
       </Pressable>
       {sheet}
     </View>
+  );
+}
+
+/**
+ * A quantity that opens the calculator, drawn as a field's own face so the
+ * number reads as something to edit, as tall as the − and + faces beside it
+ * inside the same target.
+ */
+export function QuantityFace({ quantity, quiet = false, onPress }: { quantity: Quantity; quiet?: boolean; onPress: () => void }) {
+  const { palette } = useTheme();
+  return (
+    <Press
+      accessibilityRole="button"
+      accessibilityLabel={tr.calc.open(`${tr.items.quantity} ${formatQuantity(quantity)}`)}
+      onPress={onPress}
+      style={{ minWidth: itemPanel.quantityWidth, minHeight: controlSize.minimumTarget, justifyContent: "center" }}
+    >
+      {(state) => (
+        <View
+          style={{
+            height: controlSize.compact,
+            paddingHorizontal: spacing.sm,
+            justifyContent: "center",
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: palette.border,
+            borderRadius: radius.sm,
+            ...interactionSurface(palette, state, { base: palette.surfaceAlt }),
+          }}
+        >
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[type.body, { fontFamily: font.medium, textAlign: "center", color: quiet ? palette.textSecondary : palette.text }]}
+          >
+            {formatQuantity(quantity)}
+          </Text>
+        </View>
+      )}
+    </Press>
   );
 }
 

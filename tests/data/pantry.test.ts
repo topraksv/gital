@@ -23,7 +23,7 @@ vi.mock("expo-crypto", () => ({
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { finishShop, reopenShop } = await import("../../src/data/shops");
 const { createList, deleteList, editList } = await import("../../src/data/lists");
-const { finishPantryItem, readLasted, readPantry, setExpiry, takeSome, undoFinish } = await import("../../src/data/pantry");
+const { finishPantryItem, readLasted, readPantry, setExpiry, setStock, takeSome, undoFinish } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { migratedDatabase } = await import("../helpers");
 
@@ -118,6 +118,25 @@ describe("takeSome", () => {
     expect(finished?.listName).toBe("Market");
     expect(await stock()).toEqual([]);
     expect(await readItems(market)).toMatchObject([{ name: "Süt", checkedAt: null }]);
+  });
+});
+
+describe("setStock", () => {
+  it("counts what is at home anew, in the unit it is held in", async () => {
+    await shop(market, "2 kg domates");
+    expect(await setStock(await idOf("Domates"), 750)).toBeNull();
+    expect(await stock()).toEqual([{ name: "Domates", quantityMilli: 750, unit: "kg" }]);
+    tick();
+    await setStock(await idOf("Domates"), 3000);
+    expect(await stock()).toEqual([{ name: "Domates", quantityMilli: 3000, unit: "kg" }]);
+  });
+
+  it("finishes the product at nothing, and refuses what is not an amount", async () => {
+    await shop(market, "süt");
+    const id = await idOf("Süt");
+    for (const bad of [-1000, 1.5, Number.NaN]) await expect(setStock(id, bad)).rejects.toThrow();
+    expect((await setStock(id, 0))?.listName).toBe("Market");
+    expect(await stock()).toEqual([]);
   });
 });
 
