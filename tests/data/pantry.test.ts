@@ -89,7 +89,9 @@ describe("a finished shop", () => {
   it("fills nothing from a list whose pantry switch is off (SPEC 12.5)", async () => {
     const nalbur = await createList("Nalbur");
     await editList(nalbur, { name: "Nalbur", color: null, icon: null, pantry: false });
-    await shop(nalbur, "vida");
+    await addEntries(nalbur, parseEntry("vida"));
+    await toggleChecked((await readItems(nalbur))[0]!.id);
+    expect(await finishShop(nalbur)).toMatchObject({ bought: 1, stocked: 0 });
     expect(await stock()).toEqual([]);
   });
 

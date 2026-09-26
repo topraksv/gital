@@ -121,3 +121,4 @@ cannot be released.
   came from, and the bar that says so can take it back.
 - A list's panel has "Alınanlar kilere gitsin", on by default: turned off, a
   hardware list's shops stay out of Kiler.
+- The celebration of a finished shop says how many products went to Kiler.

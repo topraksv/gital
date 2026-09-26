@@ -164,6 +164,7 @@ export const tr = {
     title: "Alışveriş bitti",
     bought: (count: number) => `${count}\u00a0ürün alındı`,
     stayed: (count: number) => `${count}\u00a0ürün listede kaldı`,
+    stocked: (count: number) => `${count}\u00a0ürün kilere gitti`,
     month: (spent: string) => `Bu ay: ${spent}`,
     skip: "Kutlamayı kapat",
   },

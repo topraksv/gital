@@ -79,7 +79,7 @@ describe("finishShop", () => {
     await toggleChecked(peynir!);
     later(60_000);
     const shop = await finishShop(listId);
-    expect(shop).toEqual({ id: expect.any(String), bought: 2 });
+    expect(shop).toEqual({ id: expect.any(String), bought: 2, stocked: 2 });
     expect(await readItems(listId)).toMatchObject([{ id: ekmek, name: "Ekmek", checkedAt: null }]);
     expect(await history(shop!.id)).toEqual([
       { name: "Peynir", quantityMilli: null, checkedAt: new Date(T0.getTime() + 1000).toISOString() },

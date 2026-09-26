@@ -161,7 +161,7 @@ export default function ListScreen() {
       const shop = await finishShop(id);
       if (!shop) return;
       successNotice();
-      celebrate({ bought: shop.bought, spentMinor, stayed });
+      celebrate({ bought: shop.bought, spentMinor, stayed, stocked: shop.stocked });
       showUndo(tr.items.finished(shop.bought), () => {
         hideCelebration();
         return reopenShop(shop.id);

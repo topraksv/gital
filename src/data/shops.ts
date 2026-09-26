@@ -108,10 +108,11 @@ async function lastShopNumber(listId: string): Promise<number> {
  * edit from a screen, or later a device, that has not seen the finish meets
  * a tombstone, which every edit refuses and sync's delete generation settles,
  * instead of taking the item back out of history with a whole-row write.
+ * `stocked` is how many went to the pantry (SPEC 12.5), for the celebration.
  */
-export async function finishShop(listId: string): Promise<{ id: string; bought: number } | null> {
+export async function finishShop(listId: string): Promise<{ id: string; bought: number; stocked: number } | null> {
   const sqlite = await getSqliteAsync();
-  let finished: { id: string; bought: number } | null = null;
+  let finished: { id: string; bought: number; stocked: number } | null = null;
   await writeRows(async () => {
     const list = fromDbShape("lists", await readLiveRow("lists", listId));
     const bought = await sqlite.getAllAsync<RowSnapshot>(
@@ -122,7 +123,8 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
     const number = (await lastShopNumber(listId)) + 1;
     const id = await deterministicId(naturalKeys.shop(listId, number));
     const now = nowIso();
-    finished = { id, bought: bought.length };
+    const stocked = list.pantry === true;
+    finished = { id, bought: bought.length, stocked: stocked ? bought.length : 0 };
     const copies = await Promise.all(
       bought.map(async (row) => ({
         ...fromDbShape("items", row),
@@ -133,7 +135,7 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
     );
     const moves = bought.map((row, at): RowWrite[] => [...editRow("items", row, { deletedAt: now }), { table: "items", row: copies[at]! }]);
     // What was bought comes home in the same write, unless the list's switch says not (SPEC 12.5).
-    const arrivals = list.pantry !== true ? [] : await arrivalRows(
+    const arrivals = !stocked ? [] : await arrivalRows(
       listId,
       bought.map((row, at) => ({ id: copies[at]!.id, name: String(row.name), quantityMilli: row.quantity_milli as number | null, unit: row.unit as Unit | null })),
     );

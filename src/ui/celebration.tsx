@@ -44,6 +44,8 @@ export interface ShopSummary {
   spentMinor: number | null;
   /** What was not bought and stays on the list. */
   stayed: number;
+  /** What went to the pantry (SPEC 12.5); none when the list's switch is off. */
+  stocked: number;
 }
 
 const useCelebration = create<{ summary: ShopSummary | null }>(() => ({
@@ -146,6 +148,16 @@ function Celebration({ summary }: { summary: ShopSummary }) {
                 ]}
               >
                 {tr.celebration.stayed(summary.stayed)}
+              </Text>
+            ) : null}
+            {summary.stocked > 0 ? (
+              <Text
+                style={[
+                  type.body,
+                  { color: palette.textSecondary, textAlign: "center" },
+                ]}
+              >
+                {tr.celebration.stocked(summary.stocked)}
               </Text>
             ) : null}
             {month == null ? null : (
