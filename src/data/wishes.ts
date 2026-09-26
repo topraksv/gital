@@ -1,10 +1,11 @@
 /** The wish collections, their wishes, and what İstekler can do to one (SPEC 7). */
 
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deleteRow, editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { lists, photos, wishLinks, wishes } from "../db/schema";
+import { isISODate, type ISODate } from "../domain/dates";
 import { itemNameFrom, noteFrom } from "../domain/items";
 import { lookOf, type ListLook } from "../domain/lists";
 import { isPrice } from "../domain/money";
@@ -24,6 +25,7 @@ export interface WishChange {
   note: string;
   priority: Priority;
   estimateMinor: number | null;
+  dueOn: ISODate | null;
   links: readonly { id?: string; url: string; priceMinor: number | null }[];
   photo?: PhotoChange;
 }
@@ -58,6 +60,7 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
       createdAt: row.createdAt,
       photoId: row.photoId,
       photo,
+      dueOn: row.dueOn != null && isISODate(row.dueOn) ? row.dueOn : null,
       links: (links.get(row.id) ?? []).map(({ id, url, priceMinor }) => ({ id, url, priceMinor })),
     });
   }
@@ -76,6 +79,16 @@ export async function readCollections(): Promise<Collection[]> {
     const held = all.get(row.id) ?? [];
     return { ...lookOf(row), id: row.id, open: held.filter((wish) => wish.boughtAt == null).length, openTotalMinor: openTotal(held) };
   });
+}
+
+/** Every live wish's date, for the reminders (SPEC 12.1). */
+export async function readDueWishes(): Promise<{ name: string; dueOn: ISODate; boughtAt: string | null }[]> {
+  const rows = await getDb()
+    .select({ name: wishes.name, dueOn: wishes.dueOn, boughtAt: wishes.boughtAt })
+    .from(wishes)
+    .innerJoin(lists, and(eq(lists.id, wishes.listId), isNull(lists.deletedAt)))
+    .where(and(isNull(wishes.deletedAt), isNotNull(wishes.dueOn)));
+  return rows.flatMap(({ name, dueOn, boughtAt }) => (dueOn != null && isISODate(dueOn) ? [{ name, dueOn, boughtAt }] : []));
 }
 
 export async function readWishes(listId: string): Promise<Wish[]> {
@@ -117,6 +130,7 @@ export async function saveWish(id: string, change: WishChange): Promise<void> {
   if (name == null) throw new Error("A wish needs a name");
   if (!PRIORITIES.includes(change.priority)) throw new Error("An unknown priority");
   const estimateMinor = priceOrThrow(change.estimateMinor);
+  if (change.dueOn != null && !isISODate(change.dueOn)) throw new Error("A wish's date is a calendar day");
   const links = change.links.map((link) => {
     const url = linkFrom(link.url);
     if (url == null) throw new Error("Not a web link");
@@ -130,7 +144,7 @@ export async function saveWish(id: string, change: WishChange): Promise<void> {
     const held = new Map(
       (await sqlite.getAllAsync<RowSnapshot>("SELECT * FROM wish_links WHERE wish_id = ? AND deleted_at IS NULL", [id])).map((row) => [row.id as string, row]),
     );
-    const writes: RowWrite[] = editRow("wishes", stored, { name, note: noteFrom(change.note), priority: change.priority, estimateMinor, ...(await photoColumn(change.photo)) });
+    const writes: RowWrite[] = editRow("wishes", stored, { name, note: noteFrom(change.note), priority: change.priority, estimateMinor, dueOn: change.dueOn, ...(await photoColumn(change.photo)) });
     for (const link of links) {
       if (link.id == null) {
         writes.push({ table: "wish_links", row: { id: uuidv7(), listId, wishId: id, url: link.url, priceMinor: link.priceMinor } });

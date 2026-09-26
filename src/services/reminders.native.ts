@@ -13,6 +13,7 @@ import * as Notifications from "expo-notifications";
 import { readItems } from "../data/items";
 import { readLists } from "../data/lists";
 import { readLasted, readPantry } from "../data/pantry";
+import { readDueWishes } from "../data/wishes";
 import { readPurchases } from "../data/shops";
 import { planReminders, type Reminder } from "../domain/reminders";
 import { tr } from "../i18n/tr";
@@ -68,6 +69,8 @@ function wordsOf(reminder: Reminder): { title: string; body: string } {
       return { title: tr.reminders.shoppingTitle, body: tr.reminders.shoppingBody(reminder.lists) };
     case "expiry":
       return { title: tr.reminders.expiryTitle, body: tr.reminders.expiryBody(reminder.name, reminder.days) };
+    case "wish":
+      return { title: tr.reminders.wishTitle, body: tr.reminders.expiryBody(reminder.name, reminder.days) };
     case "restock":
       return { title: tr.reminders.restockTitle(reminder.name), body: tr.reminders.restockBody(reminder.listName) };
   }
@@ -75,7 +78,7 @@ function wordsOf(reminder: Reminder): { title: string; body: string } {
 
 async function planned(): Promise<Reminder[]> {
   const { day } = await readReminderPreferences();
-  const [lists, pantry, lasted] = await Promise.all([readLists(), readPantry(), readLasted()]);
+  const [lists, pantry, lasted, wishes] = await Promise.all([readLists(), readPantry(), readLasted(), readDueWishes()]);
   const restock = await Promise.all(
     lists.map(async (list) => ({ listName: list.name, purchases: await readPurchases(list.id), onList: await readItems(list.id), lasted: new Map(lasted) })),
   );
@@ -84,6 +87,7 @@ async function planned(): Promise<Reminder[]> {
     shoppingDay: day,
     lists: lists.map((list) => ({ name: list.name, open: list.total - list.inBasket })),
     pantry,
+    wishes,
     restock,
   });
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `wishes` ADD `due_on` text;

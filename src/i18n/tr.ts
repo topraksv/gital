@@ -279,6 +279,9 @@ export const tr = {
     nameLabel: "İsteğin adı",
     noteLabel: "Not",
     notePlaceholder: "Renk, beden, model…",
+    due: "Şu tarihe kadar",
+    clearDue: "Tarihi kaldır",
+    dueOn: (day: string) => `Son gün ${DAY_SHORT.format(localDay(day))}`,
     estimateLabel: "Tahmini fiyat",
     estimatePlaceholder: "Tahmini fiyat",
     links: "Bağlantılar",
@@ -403,6 +406,7 @@ export const tr = {
     shoppingBody: (lists: readonly { name: string; open: number }[] | null) =>
       lists == null ? "Listelerine bir göz at." : lists.length === 0 ? "Listelerin boş; eklenecek bir şey var mı?" : lists.map((list) => `${list.name}: ${list.open} ürün`).join(" · "),
     expiryTitle: "Son kullanma tarihi",
+    wishTitle: "İstek tarihi",
     expiryBody: (name: string, days: 0 | 1) => `${name} için ${days === 1 ? "yarın" : "bugün"} son gün.`,
     restockTitle: (name: string) => `${name} bitmiş olabilir`,
     restockBody: (list: string) => `${list} listesine eklemek ister misin?`,

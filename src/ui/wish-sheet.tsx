@@ -20,6 +20,7 @@ import { NAME_MAX } from "../domain/names";
 import { LINK_MAX, PRIORITIES, leadOf, linkFrom, shopOf, type Priority, type Wish } from "../domain/wishes";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
+import { DateField } from "./calendar";
 import { PriceField } from "./calculator";
 import { Body, Button, ChoiceTile, IconButton, TextField, cardEdge } from "./components";
 import { Actions, DialogShell } from "./dialog";
@@ -57,6 +58,7 @@ export function WishSheet({
   const [links, setLinks] = useState<LinkDraft[]>(() => wish.links.map((link) => ({ key: link.id, id: link.id, url: link.url, price: formatMinorInput(link.priceMinor) })));
   const [typedLink, setTypedLink] = useState("");
   const [photo, setPhoto] = useState<PhotoChange>(undefined);
+  const [dueOn, setDueOn] = useState(wish.dueOn);
   const [refused, setRefused] = useState(false);
 
   const estimated = readPrice(estimate);
@@ -70,6 +72,7 @@ export function WishSheet({
       note,
       priority,
       estimateMinor: estimated.ok ? estimated.minor : null,
+      dueOn,
       links: links.map((link, at) => ({ id: link.id, url: link.url, priceMinor: prices[at]!.ok ? prices[at]!.minor : null })),
       photo,
     });
@@ -109,6 +112,15 @@ export function WishSheet({
               onPress={() => setPriority(level)}
             />
           ))}
+        </View>
+      </View>
+      <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+        <Body>{tr.wishes.due}</Body>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <DateField label={tr.wishes.due} value={dueOn} onChange={setDueOn} />
+          </View>
+          {dueOn ? <IconButton icon={X} label={tr.wishes.clearDue} onPress={() => setDueOn(null)} /> : null}
         </View>
       </View>
       <PriceField

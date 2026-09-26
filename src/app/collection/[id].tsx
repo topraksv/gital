@@ -190,6 +190,7 @@ function detailOf(wish: Wish): { text: string; wanted?: boolean }[] {
   if (lead) parts.push({ text: shopOf(lead.url) });
   if (lead?.priceMinor != null) parts.push({ text: formatMinor(lead.priceMinor) });
   else if (wish.estimateMinor != null) parts.push({ text: tr.wishes.estimated(wish.estimateMinor) });
+  if (wish.dueOn && wish.boughtAt == null) parts.push({ text: tr.wishes.dueOn(wish.dueOn) });
   return parts;
 }
 

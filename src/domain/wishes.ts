@@ -4,6 +4,8 @@
  * as everywhere (`money.ts`).
  */
 
+import type { ISODate } from "./dates";
+
 /** Low, normal, high: what the wish list sorts by first. */
 export const PRIORITIES = [0, 1, 2] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -28,6 +30,8 @@ export interface Wish {
   photoId: string | null;
   /** The photo's thumbnail, or `null` with none on this device (SPEC 8.2). */
   photo: string | null;
+  /** The day it is wanted by (SPEC 7.1). */
+  dueOn: ISODate | null;
   links: WishLink[];
 }
 

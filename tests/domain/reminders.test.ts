@@ -11,7 +11,7 @@ import { REMINDER_HOUR, REMINDERS_MAX, planReminders, type ReminderInput } from 
 // Wednesday 2026-09-23, 20:00 local.
 const now = new Date(2026, 8, 23, 20, 0);
 const at = (day: number, hour = REMINDER_HOUR, minute = 0) => new Date(2026, 8, day, hour, minute);
-const base: ReminderInput = { now, shoppingDay: null, lists: [], pantry: [], restock: [] };
+const base: ReminderInput = { now, shoppingDay: null, lists: [], pantry: [], wishes: [], restock: [] };
 
 describe("the shopping day", () => {
   it("comes each week within the horizon, the first saying what each list holds", () => {
@@ -34,6 +34,24 @@ describe("a pantry date", () => {
     expect(planned).toEqual([
       { kind: "expiry", at: at(24), name: "Süt", days: 0 },
       { kind: "expiry", at: at(25), name: "Yoğurt", days: 1 },
+    ]);
+  });
+});
+
+describe("a wish's date", () => {
+  it("is said as a pantry date is, and not for a wish already bought", () => {
+    const planned = planReminders({
+      ...base,
+      wishes: [
+        { name: "Kahve makinesi", dueOn: "2026-09-26", boughtAt: null },
+        { name: "Mont", dueOn: "2026-09-24", boughtAt: null },
+        { name: "Ayakkabı", dueOn: "2026-09-26", boughtAt: "2026-09-22T10:00:00.000Z" },
+        { name: "Kitap", dueOn: null, boughtAt: null },
+      ],
+    });
+    expect(planned).toEqual([
+      { kind: "wish", at: at(24), name: "Mont", days: 0 },
+      { kind: "wish", at: at(25), name: "Kahve makinesi", days: 1 },
     ]);
   });
 });

@@ -27,13 +27,15 @@ export interface ReminderInput {
   shoppingDay: ShoppingDay | null;
   lists: readonly { name: string; open: number }[];
   pantry: readonly { name: string; expiresOn: ISODate | null }[];
+  /** A wish's "şu tarihe kadar" (SPEC 7.1); one bought is past wanting. */
+  wishes: readonly { name: string; dueOn: ISODate | null; boughtAt: string | null }[];
   restock: readonly { listName: string; purchases: readonly Purchase[]; onList: readonly { name: string }[]; lasted: ReadonlyMap<string, readonly number[]> }[];
 }
 
 export type Reminder =
   /** `lists` is what each list holds when planned: only the first can know, so later weeks carry none. */
   | { kind: "shopping"; at: Date; lists: { name: string; open: number }[] | null }
-  | { kind: "expiry"; at: Date; name: string; days: 0 | 1 }
+  | { kind: "expiry" | "wish"; at: Date; name: string; days: 0 | 1 }
   | { kind: "restock"; at: Date; name: string; listName: string };
 
 function morningOf(day: ISODate): Date {
@@ -53,13 +55,14 @@ function shoppingDays({ now, shoppingDay, lists }: ReminderInput, until: Date): 
   return planned;
 }
 
-function expiries({ now, pantry }: ReminderInput): Reminder[] {
-  return pantry.flatMap(({ name, expiresOn }): Reminder[] => {
-    if (!expiresOn) return [];
-    const before = morningOf(addDaysISO(expiresOn, -1));
-    if (before > now) return [{ kind: "expiry", at: before, name, days: 1 }];
-    const on = morningOf(expiresOn);
-    return on > now ? [{ kind: "expiry", at: on, name, days: 0 }] : [];
+/** A date is said the morning before, or that morning once the one before has passed. */
+function dated(kind: "expiry" | "wish", now: Date, dates: readonly { name: string; on: ISODate | null }[]): Reminder[] {
+  return dates.flatMap(({ name, on }): Reminder[] => {
+    if (!on) return [];
+    const before = morningOf(addDaysISO(on, -1));
+    if (before > now) return [{ kind, at: before, name, days: 1 }];
+    const that = morningOf(on);
+    return that > now ? [{ kind, at: that, name, days: 0 }] : [];
   });
 }
 
@@ -84,7 +87,9 @@ function restocks({ now, restock }: ReminderInput): Reminder[] {
 export function planReminders(input: ReminderInput): Reminder[] {
   const until = new Date(input.now);
   until.setDate(until.getDate() + HORIZON_DAYS);
-  return [...shoppingDays(input, until), ...expiries(input), ...restocks(input)]
+  const expiries = dated("expiry", input.now, input.pantry.map(({ name, expiresOn }) => ({ name, on: expiresOn })));
+  const wishes = dated("wish", input.now, input.wishes.map(({ name, dueOn, boughtAt }) => ({ name, on: boughtAt == null ? dueOn : null })));
+  return [...shoppingDays(input, until), ...expiries, ...wishes, ...restocks(input)]
     .filter((reminder) => reminder.at > input.now && reminder.at <= until)
     .sort((a, b) => a.at.getTime() - b.at.getTime())
     .slice(0, REMINDERS_MAX);

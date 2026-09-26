@@ -176,3 +176,5 @@ cannot be released.
   is typed in.
 - Kiler's panel counts what is at home on the calculator; counted to nothing,
   the product is finished and goes back on its list.
+- A wish can carry a day it is wanted by; its row shows it and the phone
+  reminds of it the morning before.

@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const calls = vi.hoisted(() => [] as string[]);
-const phone = vi.hoisted(() => ({ granted: true, stored: new Map<string, string>(), readFails: false }));
+const phone = vi.hoisted(() => ({ granted: true, stored: new Map<string, string>(), readFails: false, wishes: [] as { name: string; dueOn: string; boughtAt: null }[] }));
 
 vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
 vi.mock("expo-notifications", () => ({
@@ -38,14 +38,17 @@ vi.mock("../../src/data/lists", () => ({
 vi.mock("../../src/data/pantry", () => ({ readPantry: async () => [], readLasted: async () => [] }));
 vi.mock("../../src/data/shops", () => ({ readPurchases: async () => [] }));
 vi.mock("../../src/data/items", () => ({ readItems: async () => [] }));
+vi.mock("../../src/data/wishes", () => ({ readDueWishes: async () => phone.wishes }));
 
 const { disableReminders, enableReminders, replanReminders } = await import("../../src/services/reminders.native");
 const { saveShoppingDay } = await import("../../src/services/reminder-preferences");
+const { addDaysISO, todayISO } = await import("../../src/domain/dates");
 
 beforeEach(() => {
   calls.length = 0;
   phone.granted = true;
   phone.readFails = false;
+  phone.wishes = [];
   phone.stored.clear();
 });
 
@@ -67,6 +70,12 @@ describe("reminders on the phone", () => {
     expect(calls[0]).toBe("cancel");
     expect(calls[1]).toBe("date: Bugün alışveriş günü — Market: 2 ürün");
     expect(calls.slice(2).every((call) => call === "date: Bugün alışveriş günü — Listelerine bir göz at.")).toBe(true);
+  });
+
+  it("say a wish's date as a pantry date is said", async () => {
+    phone.wishes = [{ name: "Kahve makinesi", dueOn: addDaysISO(todayISO(), 3), boughtAt: null }];
+    await enableReminders();
+    expect(calls).toContain("date: İstek tarihi — Kahve makinesi için yarın son gün.");
   });
 
   it("keep yesterday's reminders when the plan cannot be read", async () => {

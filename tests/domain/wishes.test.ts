@@ -55,6 +55,7 @@ const wish = (over: Partial<Wish>): Wish => ({
   createdAt: "2026-09-26T10:00:00.000Z",
   photoId: null,
   photo: null,
+  dueOn: null,
   links: [],
   ...over,
 });

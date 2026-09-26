@@ -15,7 +15,7 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-const { addWish, deleteWish, readCollections, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
+const { addWish, deleteWish, readCollections, readDueWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { readPhoto } = await import("../../src/data/photos");
 const { migratedDatabase } = await import("../helpers");
@@ -27,6 +27,7 @@ const change = (over: Partial<Parameters<typeof saveWish>[1]> = {}) => ({
   note: "",
   priority: 1 as const,
   estimateMinor: null,
+  dueOn: null,
   links: [],
   ...over,
 });
@@ -140,6 +141,21 @@ describe("toggleWishBought and readWishes", () => {
     expect(await readWishes(collection)).toMatchObject([{ id: kettle, boughtAt: null }, { id: lamp, boughtAt: new Date(T0.getTime() + 1000).toISOString() }]);
     await toggleWishBought(lamp);
     expect((await readWishes(collection))[0]!.id).toBe(lamp);
+  });
+});
+
+describe("a wish's date", () => {
+  it("is kept and taken off, refused when it is not a day, and read for the reminders only while its collection lives", async () => {
+    const kettle = await addWish(collection, "Kettle");
+    await saveWish(kettle, change({ name: "Kettle", dueOn: "2026-10-15" }));
+    expect(await readWishes(collection)).toMatchObject([{ dueOn: "2026-10-15" }]);
+    expect(await readDueWishes()).toEqual([{ name: "Kettle", dueOn: "2026-10-15", boughtAt: null }]);
+    await expect(saveWish(kettle, change({ dueOn: "15.10.2026" as never }))).rejects.toThrow();
+    await saveWish(kettle, change({ name: "Kettle" }));
+    expect(await readDueWishes()).toEqual([]);
+    await saveWish(kettle, change({ name: "Kettle", dueOn: "2026-10-15" }));
+    await deleteList(collection);
+    expect(await readDueWishes()).toEqual([]);
   });
 });
 

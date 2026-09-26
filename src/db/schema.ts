@@ -106,6 +106,8 @@ export const wishes = sqliteTable(
     boughtAt: text("bought_at"),
     /** A photo of it seen in a shop (SPEC 7.1, 8.2), in `photos`. */
     photoId: text("photo_id"),
+    /** "Şu tarihe kadar" (SPEC 7.1): a calendar day it is wanted by, which a reminder says (12.1). */
+    dueOn: text("due_on"),
   },
   (t) => [index("idx_wishes_list_id").on(t.listId)],
 );
