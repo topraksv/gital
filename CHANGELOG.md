@@ -113,3 +113,5 @@ cannot be released.
   prices typed on bought items.
 - On the web, the browser's bar wears the theme and palette chosen in Ayarlar
   rather than the default one's.
+- The phone app's icon is Gital's cart, as the web's is, in place of the
+  template's.
