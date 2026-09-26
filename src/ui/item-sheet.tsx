@@ -29,6 +29,7 @@ import { Actions, DialogShell, appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { controlSize, font, itemPanel, spacing, type, useTheme } from "./theme";
 import { radioGroupKeys } from "./keys";
+import { PanelPart } from "./list-motion";
 
 type ListChoice = { id: string; name: string };
 
@@ -144,54 +145,70 @@ export function ItemSheet({
         </View>
         <Toggle value={urgent} onValueChange={setUrgent} label={tr.items.urgent} />
         {/* A ticked item was found. */}
-        {item.checkedAt == null && !moving ? <Toggle value={notFound} onValueChange={setNotFound} label={tr.items.notFound} /> : null}
+        {item.checkedAt == null && !moving ? (
+          <PanelPart appears>
+            <Toggle value={notFound} onValueChange={setNotFound} label={tr.items.notFound} />
+          </PanelPart>
+        ) : null}
       </View>
-      <AislePicker name={item.name} value={aisle} onChange={setShelf} />
+      <PanelPart>
+        <AislePicker name={item.name} value={aisle} onChange={setShelf} />
+      </PanelPart>
       {offersBought ? (
-        <Bought
-          before={before}
-          product={{ name, ...quantity }}
-          paidMinor={paid.ok ? paid.minor : null}
-          instead={instead}
-          price={price}
-          onInstead={setInstead}
-          onPrice={setPrice}
-          submits={submits}
-        />
+        <PanelPart appears>
+          <Bought
+            before={before}
+            product={{ name, ...quantity }}
+            paidMinor={paid.ok ? paid.minor : null}
+            instead={instead}
+            price={price}
+            onInstead={setInstead}
+            onPrice={setPrice}
+            submits={submits}
+          />
+        </PanelPart>
       ) : null}
       {lists.length > 1 ? (
-        <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
-          <Body>{tr.items.list}</Body>
-          <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.items.list} style={{ gap: spacing.sm }}>
-            {rows.map((row, at) => (
-              <View key={at} style={{ flexDirection: "row", gap: spacing.sm }}>
-                {row.map((list) => (
-                  <ChoiceTile
-                    key={list.id}
-                    label={list.name}
-                    selected={list.id === (to?.id ?? listId)}
-                    minHeight={controlSize.minimumTarget}
-                    basis={itemPanel.listCellBasis}
-                    onPress={() => setDestination(list.id)}
-                  />
-                ))}
-                {/* Empty cells keep a short last row's tiles as wide as the rest. */}
-                {Array.from({ length: columns - row.length }, (_, cell) => (
-                  <View key={cell} style={{ flexGrow: 1, flexBasis: itemPanel.listCellBasis }} />
-                ))}
-              </View>
-            ))}
+        <PanelPart>
+          <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+            <Body>{tr.items.list}</Body>
+            <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.items.list} style={{ gap: spacing.sm }}>
+              {rows.map((row, at) => (
+                <View key={at} style={{ flexDirection: "row", gap: spacing.sm }}>
+                  {row.map((list) => (
+                    <ChoiceTile
+                      key={list.id}
+                      label={list.name}
+                      selected={list.id === (to?.id ?? listId)}
+                      minHeight={controlSize.minimumTarget}
+                      basis={itemPanel.listCellBasis}
+                      onPress={() => setDestination(list.id)}
+                    />
+                  ))}
+                  {/* Empty cells keep a short last row's tiles as wide as the rest. */}
+                  {Array.from({ length: columns - row.length }, (_, cell) => (
+                    <View key={cell} style={{ flexGrow: 1, flexBasis: itemPanel.listCellBasis }} />
+                  ))}
+                </View>
+              ))}
+            </View>
+            {to ? (
+              <PanelPart appears>
+                <Toggle value={keep} onValueChange={setKeep} label={tr.items.keepHere} />
+              </PanelPart>
+            ) : null}
           </View>
-          {to ? <Toggle value={keep} onValueChange={setKeep} label={tr.items.keepHere} /> : null}
-        </View>
+        </PanelPart>
       ) : null}
-      <Actions>
-        <View style={{ flex: 1, alignItems: "flex-start" }}>
-          <IconButton icon={Trash} label={tr.items.delete(item.name)} tone="danger" onPress={onDelete} />
-        </View>
-        <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={onClose} />
-        <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
-      </Actions>
+      <PanelPart>
+        <Actions>
+          <View style={{ flex: 1, alignItems: "flex-start" }}>
+            <IconButton icon={Trash} label={tr.items.delete(item.name)} tone="danger" onPress={onDelete} />
+          </View>
+          <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={onClose} />
+          <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
+        </Actions>
+      </PanelPart>
     </DialogShell>
   );
 }

@@ -20,6 +20,7 @@ import { useModalAccessibility } from "./accessibility";
 import { Body, Button, SlideUp, TextField } from "./components";
 import { errorNotice } from "./haptics";
 import { KeyboardSafeScrollView } from "./keyboard-safe";
+import { PanelMotion } from "./list-motion";
 import { useDragAway, useReducedMotion } from "./motion";
 import { closeRequest, emptyRequestQueue, enqueueRequest, type RequestQueue } from "./request-queue";
 import { shouldPresentAsSheet } from "./responsive";
@@ -185,9 +186,11 @@ export function DialogShell({
             style={{ alignSelf: "center", width: "100%", maxWidth: asSheet ? undefined : dialog.maxWidth }}
           >
             <Animated.View style={{ transform: [{ translateY: dragY }] }}>
-              <SlideUp distance={asSheet ? motion.travel.sheet : motion.travel.rise} style={surface}>
-                {content}
-              </SlideUp>
+              <PanelMotion>
+                <SlideUp distance={asSheet ? motion.travel.sheet : motion.travel.rise} style={surface}>
+                  {content}
+                </SlideUp>
+              </PanelMotion>
             </Animated.View>
           </Pressable>
         </KeyboardSafeScrollView>

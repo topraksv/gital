@@ -152,3 +152,5 @@ cannot be released.
 - On the web, the arrow keys move the choice in every set of options — the
   aisle, the list, the priority, the theme and colours — and scroll a
   sideways row to it.
+- On the phone, a row that appears or leaves in the item panel fades, and the
+  panel slides to its new height instead of jumping.

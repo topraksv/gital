@@ -13,7 +13,9 @@ import { useState, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {
+  FadeIn,
   FadeOut,
+  LayoutAnimationConfig,
   LinearTransition,
   ReduceMotion,
   useAnimatedReaction,
@@ -37,6 +39,32 @@ export function RowMotion({ children }: { children: ReactNode }) {
     <Animated.View
       layout={LinearTransition.duration(motion.standard).reduceMotion(ReduceMotion.System)}
       exiting={FadeOut.duration(motion.feedback).reduceMotion(ReduceMotion.System)}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * A panel that changes size as a row inside it comes or goes: it slides to
+ * its new height rather than jumping, and nothing inside fades in on the
+ * first draw, only when it arrives later.
+ */
+export function PanelMotion({ children }: { children: ReactNode }) {
+  return (
+    <LayoutAnimationConfig skipEntering>
+      <Animated.View layout={LinearTransition.duration(motion.standard).reduceMotion(ReduceMotion.System)}>{children}</Animated.View>
+    </LayoutAnimationConfig>
+  );
+}
+
+/** A part of a panel: one that `appears` fades in and out, and every part slides to make room. */
+export function PanelPart({ children, appears = false }: { children: ReactNode; appears?: boolean }) {
+  return (
+    <Animated.View
+      layout={LinearTransition.duration(motion.standard).reduceMotion(ReduceMotion.System)}
+      entering={appears ? FadeIn.duration(motion.standard).reduceMotion(ReduceMotion.System) : undefined}
+      exiting={appears ? FadeOut.duration(motion.feedback).reduceMotion(ReduceMotion.System) : undefined}
     >
       {children}
     </Animated.View>
