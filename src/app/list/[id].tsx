@@ -12,7 +12,7 @@ import Plus from "lucide-react-native/icons/plus";
 import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
-import { useItems, useKnownProducts, useLists, usePurchases } from "../../data/hooks";
+import { useItems, useKnownProducts, useLasted, useLists, usePurchases } from "../../data/hooks";
 import { addEntries, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { readPantry } from "../../data/pantry";
@@ -427,7 +427,9 @@ function Suggestions({ text, items, onPick }: { text: string; items: readonly It
  */
 function Restock({ purchases, items, onPick }: { purchases: readonly Purchase[]; items: readonly Item[]; onPick: (entry: Entry) => void }) {
   const { palette } = useTheme();
-  const due = restockDue(purchases, items, new Date());
+  // How long things last at home is the better rhythm, once measured (SPEC 12.7).
+  const lasted = useLasted();
+  const due = restockDue(purchases, items, new Date(), new Map(lasted.data));
   if (due.length === 0) return null;
   return (
     <View style={{ gap: spacing.xs }}>

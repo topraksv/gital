@@ -25,16 +25,34 @@ const MEASURE: Record<Unit, { kind: string; scale: number }> = {
  * nothing at home.
  */
 export function stockOf(moves: readonly Stock[]): Stock | null {
+  return moves.reduce<Stock | null>(counted, null);
+}
+
+function counted(stock: Stock | null, move: Stock): Stock | null {
+  const from = MEASURE[move.unit];
+  const to = stock == null ? null : MEASURE[stock.unit];
+  const next: Stock = stock != null && to?.kind === from.kind
+    ? { quantityMilli: stock.quantityMilli + Math.round((move.quantityMilli * from.scale) / to.scale), unit: stock.unit }
+    : move;
+  return next.quantityMilli > 0 ? next : null;
+}
+
+/**
+ * How long each stay at home lasted, in milliseconds, oldest first (SPEC
+ * 12.7): from the move that filled an empty pantry to the one that emptied
+ * it. A top-up is the same stay, and one still going is not measured.
+ */
+export function lastedOf(moves: readonly (Stock & { at: string })[]): number[] {
+  const lasted: number[] = [];
   let stock: Stock | null = null;
+  let since = 0;
   for (const move of moves) {
-    const from = MEASURE[move.unit];
-    const to = stock == null ? null : MEASURE[stock.unit];
-    const counted: Stock = stock != null && to?.kind === from.kind
-      ? { quantityMilli: stock.quantityMilli + Math.round((move.quantityMilli * from.scale) / to.scale), unit: stock.unit }
-      : move;
-    stock = counted.quantityMilli > 0 ? counted : null;
+    const next = counted(stock, move);
+    if (!stock && next) since = Date.parse(move.at);
+    if (stock && !next) lasted.push(Date.parse(move.at) - since);
+    stock = next;
   }
-  return stock;
+  return lasted;
 }
 
 /** What an entry adds that is already at home (SPEC 12.6), matched as 2.5 merges: by the folded name. */

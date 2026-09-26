@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { atHome, lessOf, stockOf, type Stock } from "../../src/domain/pantry";
+import { atHome, lastedOf, lessOf, stockOf, type Stock } from "../../src/domain/pantry";
 
 const of = (quantity: number, unit: Stock["unit"]): Stock => ({ quantityMilli: quantity * 1000, unit });
 
@@ -51,5 +51,19 @@ describe("atHome", () => {
     const pantry = [{ name: "Süt", ...of(1, "lt") }, { name: "Ekmek", ...of(1, "adet") }];
     expect(atHome(pantry, [{ name: "sut" }, { name: "Domates" }])).toEqual([pantry[0]]);
     expect(atHome(pantry, [{ name: "Domates" }])).toEqual([]);
+  });
+});
+
+describe("lastedOf", () => {
+  const at = (day: number, quantity: number, unit: Stock["unit"] = "adet") => ({ ...of(quantity, unit), at: new Date(Date.UTC(2026, 8, 1 + day)).toISOString() });
+  const DAY = 86_400_000;
+
+  it("measures each stay from the arrival into an empty pantry to the move that emptied it (SPEC 12.7)", () => {
+    expect(lastedOf([at(0, 2), at(1, -1), at(3, -1), at(5, 1), at(9, -1)])).toEqual([3 * DAY, 4 * DAY]);
+  });
+
+  it("keeps counting a stay through a top-up, and measures none still going", () => {
+    expect(lastedOf([at(0, 1), at(2, 1), at(6, -2), at(7, 1)])).toEqual([6 * DAY]);
+    expect(lastedOf([at(0, 1)])).toEqual([]);
   });
 });

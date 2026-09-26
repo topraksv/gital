@@ -23,7 +23,7 @@ vi.mock("expo-crypto", () => ({
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { finishShop, reopenShop } = await import("../../src/data/shops");
 const { createList, deleteList, editList } = await import("../../src/data/lists");
-const { finishPantryItem, readPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
+const { finishPantryItem, readLasted, readPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { migratedDatabase } = await import("../helpers");
 
@@ -158,5 +158,24 @@ describe("finishPantryItem", () => {
     await finishPantryItem(id);
     await expect(finishPantryItem(id)).rejects.toThrow();
     await expect(takeSome(id)).rejects.toThrow();
+  });
+});
+
+describe("readLasted", () => {
+  it("measures how long each product stayed at home, from its arrival to its finish (SPEC 12.7)", async () => {
+    const DAY = 86_400_000;
+    const at = (day: number) => vi.setSystemTime(new Date(T0.getTime() + day * DAY));
+    await shop(market, "süt, ekmek");
+    at(3);
+    await finishPantryItem(await idOf("Süt"));
+    await addEntries(market, parseEntry("süt"));
+    for (const item of await readItems(market)) await toggleChecked(item.id);
+    at(4);
+    await finishShop(market);
+    at(8);
+    await finishPantryItem(await idOf("Süt"));
+    const lasted = new Map(await readLasted());
+    expect(lasted.get("sut")?.map((ms) => Math.round(ms / DAY))).toEqual([3, 4]);
+    expect(lasted.get("ekmek")).toEqual([]);
   });
 });

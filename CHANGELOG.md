@@ -124,3 +124,6 @@ cannot be released.
 - The celebration of a finished shop says how many products went to Kiler.
 - Adding a product that is already in Kiler says how much is at home
   ("Evde var: Süt 2 lt") without stopping the add.
+- "Bitmiş olabilir" learns from Kiler: once a product has run out at home
+  twice, how long it usually lasts is its rhythm, in place of the gaps
+  between one list's shops.

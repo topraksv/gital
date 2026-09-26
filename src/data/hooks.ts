@@ -4,7 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
-import { readPantry } from "./pantry";
+import { readLasted, readPantry } from "./pantry";
 import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readWishes } from "./wishes";
 
@@ -79,4 +79,11 @@ const pantryStore = liveStore(readPantry, ["pantry_items", "pantry_moves"]);
 
 export function usePantry() {
   return useSyncExternalStore(pantryStore.subscribe, pantryStore.getSnapshot, pantryStore.getSnapshot);
+}
+
+// Mounted with the restock chips, which show while the add field is empty.
+const lastedStore = liveStore(readLasted, ["pantry_items", "pantry_moves"]);
+
+export function useLasted() {
+  return useSyncExternalStore(lastedStore.subscribe, lastedStore.getSnapshot, lastedStore.getSnapshot);
 }

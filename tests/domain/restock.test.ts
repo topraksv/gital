@@ -49,4 +49,13 @@ describe("restockDue", () => {
     const history = ["Süt", "Ekmek", "Yumurta", "Peynir"].flatMap((name, at) => [bought(name, 20 - at), bought(name, 10 - at), bought(name, -at)]);
     expect(restockDue(history, [], on(30)).map((product) => product.name)).toEqual(["Peynir", "Yumurta", "Ekmek"]);
   });
+
+  it("takes how long the product lasted at home over the shop gaps, once it lasted twice (SPEC 12.7)", () => {
+    const lasted = new Map([["sut", [3 * DAY, 4 * DAY, 3 * DAY]]]);
+    expect(restockDue(every5, [], on(13), lasted)).toMatchObject([{ name: "Süt", everyDays: 3 }]);
+    expect(restockDue(every5, [], on(12.9), lasted)).toEqual([]);
+    // One purchase on this list is enough then: the pantry measured the rhythm.
+    expect(restockDue([bought("Süt", 10)], [], on(13), lasted)).toMatchObject([{ everyDays: 3 }]);
+    expect(restockDue(every5, [], on(15), new Map([["sut", [3 * DAY]]]))).toMatchObject([{ everyDays: 5 }]);
+  });
 });

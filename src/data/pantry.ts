@@ -1,13 +1,13 @@
 /** The pantry (SPEC 12.2, 12.8): what is at home, filled by finished shops and emptied by hand. */
 
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, findLiveRow, findRow, readLiveRow, revertRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { pantryItems, pantryMoves } from "../db/schema";
 import { foldName, quantityOrOne, type Entry } from "../domain/items";
-import { lessOf, stockOf, type Stock } from "../domain/pantry";
+import { lastedOf, lessOf, stockOf, type Stock } from "../domain/pantry";
 import { entryRows } from "./items";
 
 export interface PantryItem extends Stock {
@@ -21,25 +21,38 @@ export interface Finished {
   listName: string | null;
 }
 
-async function readStocks(where = isNull(pantryItems.deletedAt)): Promise<Map<string, PantryItem>> {
+/** Each pantry row's moves, oldest first. */
+async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<string, { name: string; moves: (Stock & { at: string })[] }>> {
   const rows = await getDb()
-    .select({ id: pantryItems.id, name: pantryItems.name, quantityMilli: pantryMoves.quantityMilli, unit: pantryMoves.unit })
+    .select({ id: pantryItems.id, name: pantryItems.name, quantityMilli: pantryMoves.quantityMilli, unit: pantryMoves.unit, at: pantryMoves.createdAt })
     .from(pantryItems)
     .innerJoin(pantryMoves, and(eq(pantryMoves.pantryItemId, pantryItems.id), isNull(pantryMoves.deletedAt)))
     .where(where)
     .orderBy(asc(pantryMoves.createdAt), asc(pantryMoves.id));
-  const moves = new Map<string, { name: string; moves: Stock[] }>();
+  const moves = new Map<string, { name: string; moves: (Stock & { at: string })[] }>();
   for (const { id, name, ...move } of rows) {
     const held = moves.get(id) ?? { name, moves: [] };
     held.moves.push(move);
     moves.set(id, held);
   }
+  return moves;
+}
+
+async function readStocks(where?: SQL): Promise<Map<string, PantryItem>> {
   const stocks = new Map<string, PantryItem>();
-  for (const [id, { name, moves: all }] of moves) {
+  for (const [id, { name, moves: all }] of await readMoves(where)) {
     const stock = stockOf(all);
-    if (stock) stocks.set(id, { id, name, ...stock });
+    if (stock) stocks.set(id, { id, name, quantityMilli: stock.quantityMilli, unit: stock.unit });
   }
   return stocks;
+}
+
+/**
+ * How long each product stayed at home, by folded name, for the restock
+ * rhythm (SPEC 12.7). Pairs rather than a map, because a live store holds a list.
+ */
+export async function readLasted(): Promise<[string, number[]][]> {
+  return [...(await readMoves()).values()].map(({ name, moves }) => [foldName(name), lastedOf(moves)]);
 }
 
 /** What is at home, by name; a product used up is not. */
