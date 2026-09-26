@@ -272,7 +272,7 @@ describe("addEntries from history", () => {
     await shopFor("2 lt süt", ["Süt"]);
     const [item] = await readShopItems(await finish());
     const [back] = await addEntries(listId, [item!]);
-    expect(await readItems(listId)).toEqual([{ id: back, name: "Süt", quantityMilli: 2000, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null }]);
+    expect(await readItems(listId)).toEqual([{ id: back, name: "Süt", quantityMilli: 2000, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null }]);
     expect(back).not.toBe(item!.id);
   });
 

@@ -179,6 +179,17 @@ export const tr = {
     month: (spent: string) => `Bu ay: ${spent}`,
     skip: "Kutlamayı kapat",
   },
+  photos: {
+    title: "Fotoğraf",
+    add: "Fotoğraf ekle",
+    change: "Fotoğrafı değiştir",
+    camera: "Fotoğraf çek",
+    library: "Galeriden seç",
+    remove: "Fotoğrafı kaldır",
+    of: (name: string) => `${name} fotoğrafı`,
+    denied: "Kamera izni verilmedi. Telefonun ayarlarından Gital'e kamera izni verebilirsin.",
+    failed: "Fotoğraf alınamadı. Lütfen tekrar dene.",
+  },
   calc: {
     title: "Hesap Makinesi",
     open: (field: string) => `${field}: hesap makinesini aç`,

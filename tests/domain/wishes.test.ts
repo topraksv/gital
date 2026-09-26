@@ -53,6 +53,8 @@ const wish = (over: Partial<Wish>): Wish => ({
   estimateMinor: null,
   boughtAt: null,
   createdAt: "2026-09-26T10:00:00.000Z",
+  photoId: null,
+  photo: null,
   links: [],
   ...over,
 });

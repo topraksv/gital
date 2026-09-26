@@ -17,14 +17,21 @@ import {
   type RowWrite,
   type RowsWritten,
 } from "../db/mutations";
-import { items, lists } from "../db/schema";
+import { items, lists, photos } from "../db/schema";
 import { bareEntry, foldName, itemNameFrom, noteFrom, type Entry, type ItemChange, type KnownProduct, type ListedEntry } from "../domain/items";
 import { isPrice, type Bought } from "../domain/money";
+import { photoColumn, type PhotoChange } from "./photos";
 
 export interface Item extends ItemChange {
   id: string;
   checkedAt: string | null;
+  photoId: string | null;
+  /** The photo's thumbnail, or `null` with none on this device. */
+  photo: string | null;
 }
+
+/** The item panel's save: what an item holds, and what happens to its photo. */
+export type ItemSave = ItemChange & { photo?: PhotoChange };
 
 /**
  * What is still to find, urgent first, then what was not found; the basket
@@ -43,8 +50,11 @@ function readItemsWhere(where: SQL | undefined): Promise<Item[]> {
       boughtInstead: items.boughtInstead,
       priceMinor: items.priceMinor,
       checkedAt: items.checkedAt,
+      photoId: items.photoId,
+      photo: photos.thumb,
     })
     .from(items)
+    .leftJoin(photos, eq(photos.id, items.photoId))
     .where(and(where, isNull(items.deletedAt)))
     .orderBy(
       sql`${items.checkedAt} IS NOT NULL`,
@@ -233,6 +243,7 @@ function land(id: string, there: RowSnapshot | null, arriving: Record<string, un
     ...(arriving.notFound === true && { notFound: true }),
     ...(arriving.boughtInstead != null && { boughtInstead: arriving.boughtInstead }),
     ...(arriving.priceMinor != null && { priceMinor: arriving.priceMinor }),
+    ...(arriving.photoId != null && { photoId: arriving.photoId }),
   });
 }
 
@@ -290,7 +301,7 @@ export function reorderItems(listId: string, orderedIds: readonly string[]): Pro
  */
 export async function updateItem(
   id: string,
-  change: ItemChange,
+  change: ItemSave,
   to?: { listId: string; keep: boolean },
 ): Promise<{ name: string; written: RowsWritten }> {
   const name = itemNameFrom(change.name);
@@ -302,7 +313,8 @@ export async function updateItem(
   const saved = { name, quantityMilli: change.quantityMilli, unit: change.unit, note, urgent: change.urgent, notFound: change.notFound, boughtInstead, priceMinor };
   const written = await writeUndoable(async () => {
     const stored = await readLiveItem(id);
-    const here = !to || to.keep ? await saveHere(stored, saved) : editRow("items", stored, { deletedAt: nowIso() });
+    const { photoId = stored.photo_id as string | null } = await photoColumn(change.photo);
+    const here = !to || to.keep ? await saveHere(stored, { ...saved, photoId }) : editRow("items", stored, { deletedAt: nowIso() });
     if (!to) return here;
     if (to.listId === stored.list_id) throw new Error("An item is sent to another list");
     await readLiveRow("lists", to.listId);
@@ -317,6 +329,7 @@ export async function updateItem(
         unit,
         note,
         urgent,
+        photoId,
         sortOrder: (await topPlace(to.listId)) - 1,
         checkedAt: null,
       }),

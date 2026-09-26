@@ -16,7 +16,9 @@ import Trash from "lucide-react-native/icons/trash";
 import { useBought, useMovedAisles, useProducts } from "../data/hooks";
 import { setAisle, setStarred } from "../data/products";
 import { AISLES, aisleOf, catalogueProduct, type Aisle } from "../domain/catalogue";
-import { NOTE_MAX, foldName, formatQuantity, quantityOrOne, stepQuantity, type ItemChange, type Quantity } from "../domain/items";
+import type { ItemSave } from "../data/items";
+import type { PhotoChange } from "../data/photos";
+import { NOTE_MAX, foldName, formatQuantity, quantityOrOne, stepQuantity, type Quantity } from "../domain/items";
 import { formatMinorInput, pastOf, priceRise, readPrice, type Bought as BoughtBefore } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
@@ -31,6 +33,7 @@ import { interactionSurface } from "./interaction";
 import { controlSize, font, itemPanel, radius, spacing, type, useTheme } from "./theme";
 import { radioGroupKeys } from "./keys";
 import { PanelPart } from "./list-motion";
+import { PhotoField } from "./photo-field";
 import { Press } from "./press";
 
 type ListChoice = { id: string; name: string };
@@ -49,7 +52,7 @@ export function ItemSheet({
   item: ShownItem & { id: string };
   listId: string;
   lists: readonly ListChoice[];
-  onSave: (change: ItemChange, to: ItemDestination | null) => void;
+  onSave: (change: ItemSave, to: ItemDestination | null) => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
@@ -71,6 +74,7 @@ export function ItemSheet({
   const [notFound, setNotFound] = useState(item.notFound);
   const [instead, setInstead] = useState(item.boughtInstead ?? "");
   const [price, setPrice] = useState(formatMinorInput(item.priceMinor));
+  const [photo, setPhoto] = useState<PhotoChange>(undefined);
   const [destination, setDestination] = useState(listId);
   const [keep, setKeep] = useState(false);
   // A list deleted while the panel is open is no longer a destination.
@@ -94,7 +98,7 @@ export function ItemSheet({
     // when it is put back where the catalogue has it.
     if (aisle !== placed) moveProduct(name, aisle);
     onSave(
-      { name, ...quantity, note, urgent, notFound, boughtInstead: offersBought ? instead : null, priceMinor: paid.minor },
+      { name, ...quantity, note, urgent, notFound, boughtInstead: offersBought ? instead : null, priceMinor: paid.minor, photo },
       to ? { list: to, keep } : null,
     );
   };
@@ -130,6 +134,7 @@ export function ItemSheet({
         style={{ marginTop: spacing.sm }}
       />
       <Past before={before} name={item.name} />
+      <PhotoField name={item.name} photoId={item.photoId} thumb={item.photo} value={photo} onChange={setPhoto} />
       <View style={{ marginTop: spacing.lg }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
           <Text style={[type.body, { color: palette.text, flex: 1 }]}>{tr.items.quantity}</Text>

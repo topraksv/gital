@@ -13,12 +13,12 @@ import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
 import { useItems, useKnownProducts, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
-import { addEntries, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
+import { addEntries, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { readPantry } from "../../data/pantry";
 import { finishShop, reopenShop } from "../../data/shops";
 import { catalogueNamed, listSections, nearMiss, withCatalogue, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
-import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
+import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
 import { atHome } from "../../domain/pantry";
@@ -119,7 +119,7 @@ export default function ListScreen() {
   };
 
   // Sent elsewhere, the row leaves or is copied, so the save says where and can be taken back.
-  const save = async (item: Item, change: ItemChange, to: ItemDestination | null) => {
+  const save = async (item: Item, change: ItemSave, to: ItemDestination | null) => {
     setEditing(null);
     try {
       const saved = await updateItem(item.id, change, to ? { listId: to.list.id, keep: to.keep } : undefined);

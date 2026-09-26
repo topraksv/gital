@@ -25,6 +25,9 @@ export interface Wish {
   estimateMinor: number | null;
   boughtAt: string | null;
   createdAt: string;
+  photoId: string | null;
+  /** The photo's thumbnail, or `null` with none on this device (SPEC 8.2). */
+  photo: string | null;
   links: WishLink[];
 }
 

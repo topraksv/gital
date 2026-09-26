@@ -163,3 +163,6 @@ cannot be released.
   the page, with none round a panel's title.
 - A list with something still to buy keeps the screen on, on the phone and
   in a browser that allows it, and takes it back after a look at another app.
+- An item or a wish takes a photo, from the camera or the gallery, shown
+  large in its panel and in place of its picture on the row; it stays on
+  the device for now.

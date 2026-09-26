@@ -279,14 +279,14 @@ export function Card({ children }: { children: ReactNode }) {
 }
 
 /** How a tile is dressed: a list's own colour and picture, when it has them (SPEC 1.8). */
-export type TileLook = { color?: ListColor | null; icon?: ListIcon | null; picture?: ProductPicture };
+export type TileLook = { color?: ListColor | null; icon?: ListIcon | null; picture?: ProductPicture; photo?: string | null };
 
 /**
  * Helix's tile: a record's picture — a list's own, or a catalogue product's —
  * or its first letter, on its colour, or on one of the theme's three soft
  * tones, picked by its id, until it has one (`docs/UI.md` section 6).
  */
-export function Tile({ id, name, size, color, icon, picture, round = false }: { id: string; name: string; size: number; round?: boolean } & TileLook) {
+export function Tile({ id, name, size, color, icon, picture, photo, round = false }: { id: string; name: string; size: number; round?: boolean } & TileLook) {
   const { palette, scheme } = useTheme();
   const tones = [
     { fill: palette.primarySoft, ink: palette.accentText },
@@ -296,13 +296,16 @@ export function Tile({ id, name, size, color, icon, picture, round = false }: { 
   const tone = color ? LIST_HUES[scheme][color] : tones[tileTone(id, tones.length)]!;
   const drawn = size * illustrationShare;
   const source = icon ? LIST_PICTURES[icon] : picture ? PRODUCT_IMAGES[picture] : null;
+  const edge = round ? circle(size) : tileRadius(size);
+  // A photo taken of the thing itself (SPEC 8.2) fills its tile, over any picture.
+  if (photo) return <Image source={{ uri: photo }} accessible={false} style={{ width: size, height: size, borderRadius: edge, backgroundColor: tone.fill }} />;
   return (
     <View
       accessible={false}
       style={{
         width: size,
         height: size,
-        borderRadius: round ? circle(size) : tileRadius(size),
+        borderRadius: edge,
         borderCurve: "continuous",
         backgroundColor: tone.fill,
         alignItems: "center",
@@ -321,7 +324,7 @@ export function Tile({ id, name, size, color, icon, picture, round = false }: { 
 type DetailPart = { text: string; tone?: "errorText" | "warningText" };
 
 /** `extra` is a part only one screen draws, after the quantity: a pantry row's expiry (SPEC 12.3). */
-export type ShownItem = ItemChange & { checkedAt: string | null; extra?: DetailPart };
+export type ShownItem = ItemChange & { checkedAt: string | null; extra?: DetailPart; photoId?: string | null; photo?: string | null };
 
 /**
  * An item's second line: whether it is urgent while it is still to buy, and
@@ -361,7 +364,7 @@ export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: 
   const parts = detailOf(item);
   return (
     <>
-      <Tile id={foldName(item.name)} name={item.name} picture={catalogueProduct(item.name)?.picture} size={itemRow.tile} />
+      <Tile id={foldName(item.name)} name={item.name} picture={catalogueProduct(item.name)?.picture} photo={item.photo} size={itemRow.tile} />
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
         <Text
           style={[

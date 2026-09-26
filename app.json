@@ -29,7 +29,15 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Gital, listene ya da isteklerine eklediğin şeylerin fotoğrafını çekmek için kameranı kullanır.",
+          "photosPermission": "Gital, listene ya da isteklerine eklemek için seçtiğin fotoğrafı kullanır.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

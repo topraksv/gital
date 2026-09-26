@@ -12,6 +12,7 @@ import Plus from "lucide-react-native/icons/plus";
 import Trash from "lucide-react-native/icons/trash";
 import X from "lucide-react-native/icons/x";
 
+import type { PhotoChange } from "../data/photos";
 import type { WishChange } from "../data/wishes";
 import { NOTE_MAX } from "../domain/items";
 import { formatMinorInput, readPrice } from "../domain/money";
@@ -23,6 +24,7 @@ import { PriceField } from "./calculator";
 import { Body, Button, ChoiceTile, IconButton, TextField, cardEdge } from "./components";
 import { Actions, DialogShell } from "./dialog";
 import { selectionTap } from "./haptics";
+import { PhotoField } from "./photo-field";
 import { controlSize, font, spacing, type, useTheme } from "./theme";
 import { radioGroupKeys } from "./keys";
 
@@ -54,6 +56,7 @@ export function WishSheet({
   const [estimate, setEstimate] = useState(formatMinorInput(wish.estimateMinor));
   const [links, setLinks] = useState<LinkDraft[]>(() => wish.links.map((link) => ({ key: link.id, id: link.id, url: link.url, price: formatMinorInput(link.priceMinor) })));
   const [typedLink, setTypedLink] = useState("");
+  const [photo, setPhoto] = useState<PhotoChange>(undefined);
   const [refused, setRefused] = useState(false);
 
   const estimated = readPrice(estimate);
@@ -68,6 +71,7 @@ export function WishSheet({
       priority,
       estimateMinor: estimated.ok ? estimated.minor : null,
       links: links.map((link, at) => ({ id: link.id, url: link.url, priceMinor: prices[at]!.ok ? prices[at]!.minor : null })),
+      photo,
     });
   const submits = { returnKeyType: "done", onSubmitEditing: save } as const;
 
@@ -92,6 +96,7 @@ export function WishSheet({
         {...submits}
         style={{ marginTop: spacing.sm }}
       />
+      <PhotoField name={wish.name} photoId={wish.photoId} thumb={wish.photo} value={photo} onChange={setPhoto} />
       <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
         <Body>{tr.wishes.priority}</Body>
         <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.wishes.priority} style={{ flexDirection: "row", gap: spacing.sm }}>

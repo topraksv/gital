@@ -589,6 +589,9 @@ export const itemRow = { tile: 40, check: 26, swipe: 88, slop: 10 } as const;
  */
 export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25%" } as const;
 
+/** A photo in a panel (SPEC 8.2): about a third of a phone's height, whatever its proportions. */
+export const photoPreview = { height: 220 } as const;
+
 export const progressBar = { height: 6 } as const;
 
 /**

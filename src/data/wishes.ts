@@ -4,10 +4,11 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deleteRow, editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
-import { lists, wishLinks, wishes } from "../db/schema";
+import { lists, photos, wishLinks, wishes } from "../db/schema";
 import { itemNameFrom, noteFrom } from "../domain/items";
 import { lookOf, type ListLook } from "../domain/lists";
 import { isPrice } from "../domain/money";
+import { photoColumn, type PhotoChange } from "./photos";
 import { PRIORITIES, isLinkLike, linkFrom, openTotal, shopOf, sortWishes, type Priority, type Wish } from "../domain/wishes";
 
 export interface Collection extends ListLook {
@@ -24,6 +25,7 @@ export interface WishChange {
   priority: Priority;
   estimateMinor: number | null;
   links: readonly { id?: string; url: string; priceMinor: number | null }[];
+  photo?: PhotoChange;
 }
 
 async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>> {
@@ -31,7 +33,11 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
   if (listIds.length === 0) return byList;
   const db = getDb();
   const [wishRows, linkRows] = await Promise.all([
-    db.select().from(wishes).where(and(inArray(wishes.listId, [...listIds]), isNull(wishes.deletedAt))),
+    db
+      .select({ wish: wishes, photo: photos.thumb })
+      .from(wishes)
+      .leftJoin(photos, eq(photos.id, wishes.photoId))
+      .where(and(inArray(wishes.listId, [...listIds]), isNull(wishes.deletedAt))),
     db
       .select({ id: wishLinks.id, wishId: wishLinks.wishId, url: wishLinks.url, priceMinor: wishLinks.priceMinor })
       .from(wishLinks)
@@ -41,7 +47,7 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
   // Not `Map.groupBy`, which Hermes may not have.
   const links = new Map<string, typeof linkRows>();
   for (const link of linkRows) links.set(link.wishId, [...(links.get(link.wishId) ?? []), link]);
-  for (const row of wishRows) {
+  for (const { wish: row, photo } of wishRows) {
     byList.get(row.listId)?.push({
       id: row.id,
       name: row.name,
@@ -50,6 +56,8 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
       estimateMinor: row.estimateMinor,
       boughtAt: row.boughtAt,
       createdAt: row.createdAt,
+      photoId: row.photoId,
+      photo,
       links: (links.get(row.id) ?? []).map(({ id, url, priceMinor }) => ({ id, url, priceMinor })),
     });
   }
@@ -122,7 +130,7 @@ export async function saveWish(id: string, change: WishChange): Promise<void> {
     const held = new Map(
       (await sqlite.getAllAsync<RowSnapshot>("SELECT * FROM wish_links WHERE wish_id = ? AND deleted_at IS NULL", [id])).map((row) => [row.id as string, row]),
     );
-    const writes: RowWrite[] = editRow("wishes", stored, { name, note: noteFrom(change.note), priority: change.priority, estimateMinor });
+    const writes: RowWrite[] = editRow("wishes", stored, { name, note: noteFrom(change.note), priority: change.priority, estimateMinor, ...(await photoColumn(change.photo)) });
     for (const link of links) {
       if (link.id == null) {
         writes.push({ table: "wish_links", row: { id: uuidv7(), listId, wishId: id, url: link.url, priceMinor: link.priceMinor } });

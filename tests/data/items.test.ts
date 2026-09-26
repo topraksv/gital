@@ -29,6 +29,7 @@ const addItems = (list: string, text: string) => addEntries(list, parseEntry(tex
 const { finishShop, readShops } = await import("../../src/data/shops");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
+const { readPhoto } = await import("../../src/data/photos");
 const { migratedDatabase } = await import("../helpers");
 
 function outboxCount(): number {
@@ -63,9 +64,9 @@ describe("addItems", () => {
     const ids = await addItems(listId, "2 kg domates, 1,5 lt süt ve ekmek");
     expect(ids).toHaveLength(3);
     expect(await readItems(listId)).toEqual([
-      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
-      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
-      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
+      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
+      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
+      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
     ]);
     expect(outboxCount()).toBe(3);
   });
@@ -252,8 +253,8 @@ describe("updateItem", () => {
     await toggleChecked(ayran!);
     await updateItem(sut!, as("ayran"));
     expect(await readItems(listId)).toEqual([
-      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
-      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
+      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
+      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
     ]);
     expect(stored(sut!).deleted_at).not.toBeNull();
   });
@@ -509,6 +510,56 @@ describe("a save that sends an item to another list, and its undo", () => {
     const again = await send(sut!, as("Süt"), eczane);
     await deleteList(listId);
     await expect(undoSave(again.written, listId)).rejects.toThrow();
+  });
+});
+
+describe("a photo", () => {
+  const shot = (tag: string) => ({ data: `data:image/jpeg;base64,${tag}-full`, thumb: `data:image/jpeg;base64,${tag}-thumb` });
+
+  it("is kept on the device beside the row, which names it, and never rides the outbox", async () => {
+    const [sut] = await addItems(listId, "süt");
+    await updateItem(sut!, { ...as("Süt"), photo: shot("a") });
+    const [item] = await readItems(listId);
+    expect(item).toMatchObject({ photo: shot("a").thumb, photoId: expect.any(String) });
+    expect(await readPhoto(item!.photoId!)).toBe(shot("a").data);
+    const payloads = harness.db!.prepare("SELECT table_name, payload FROM outbox").all() as { table_name: string; payload: string }[];
+    expect(payloads.map((row) => row.table_name)).not.toContain("photos");
+    expect(payloads.some((row) => row.payload.includes("base64"))).toBe(false);
+  });
+
+  it("stays through a save that does not touch it, goes with null, and comes back with the undo", async () => {
+    const [sut] = await addItems(listId, "süt");
+    await updateItem(sut!, { ...as("Süt"), photo: shot("a") });
+    await updateItem(sut!, { ...as("Süt"), note: "Pınar" });
+    expect(await readItems(listId)).toMatchObject([{ photo: shot("a").thumb }]);
+    later(1000);
+    const removed = await updateItem(sut!, { ...as("Süt"), photo: null });
+    expect(await readItems(listId)).toMatchObject([{ photoId: null, photo: null }]);
+    await undoSave(removed.written, listId);
+    expect(await readItems(listId)).toMatchObject([{ photo: shot("a").thumb }]);
+  });
+
+  it("goes with the item when it is renamed or sent to another list", async () => {
+    const eczane = await createList("Eczane");
+    const [sut] = await addItems(listId, "süt");
+    await updateItem(sut!, { ...as("Süt"), photo: shot("a") });
+    await updateItem(sut!, as("Ayran"));
+    const [ayran] = await readItems(listId);
+    expect(ayran).toMatchObject({ name: "Ayran", photo: shot("a").thumb });
+    await updateItem(ayran!.id, as("Ayran"), { listId: eczane, keep: false });
+    expect(await readItems(eczane)).toMatchObject([{ name: "Ayran", photo: shot("a").thumb }]);
+  });
+
+  it("refuses what is not a JPEG taken by the app", async () => {
+    const [sut] = await addItems(listId, "süt");
+    for (const photo of [{ data: "https://example.com/a.jpg", thumb: shot("a").thumb }, { data: shot("a").data, thumb: "javascript:alert(1)" }]) {
+      await expect(updateItem(sut!, { ...as("Süt"), photo })).rejects.toThrow();
+    }
+    expect(harness.db!.prepare("SELECT COUNT(*) AS n FROM photos").get()).toEqual({ n: 0 });
+  });
+
+  it("reads as nothing where the photo has not reached this device", async () => {
+    expect(await readPhoto("missing")).toBeNull();
   });
 });
 

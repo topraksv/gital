@@ -17,6 +17,7 @@ vi.mock("../../src/db/client", async () => {
 
 const { addWish, deleteWish, readCollections, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
+const { readPhoto } = await import("../../src/data/photos");
 const { migratedDatabase } = await import("../helpers");
 
 const T0 = new Date("2026-09-26T10:00:00.000Z");
@@ -149,5 +150,21 @@ describe("deleteWish", () => {
     expect(await readWishes(collection)).toEqual([]);
     await restoreWish(snapshot!);
     expect(await readWishes(collection)).toMatchObject([{ id, links: [{ url: "https://a.com/x" }] }]);
+  });
+});
+
+describe("a wish's photo", () => {
+  const shot = { data: "data:image/jpeg;base64,full", thumb: "data:image/jpeg;base64,thumb" };
+
+  it("is saved with the panel, kept by a save that leaves it, and removed by null", async () => {
+    const lamp = await addWish(collection, "Lamba");
+    await saveWish(lamp, change({ name: "Lamba", photo: shot }));
+    const [wish] = await readWishes(collection);
+    expect(wish).toMatchObject({ photo: shot.thumb });
+    expect(await readPhoto(wish!.photoId!)).toBe(shot.data);
+    await saveWish(lamp, change({ name: "Lamba", note: "salon" }));
+    expect(await readWishes(collection)).toMatchObject([{ photo: shot.thumb }]);
+    await saveWish(lamp, change({ name: "Lamba", photo: null }));
+    expect(await readWishes(collection)).toMatchObject([{ photoId: null, photo: null }]);
   });
 });

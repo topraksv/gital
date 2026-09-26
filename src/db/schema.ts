@@ -67,6 +67,8 @@ export const items = sqliteTable(
     priceMinor: integer("price_minor"),
     /** Set on the copy a finished shop keeps of what it bought; `null` on the list. */
     shopId: text("shop_id"),
+    /** A photo taken of it (SPEC 8.2), in `photos`. */
+    photoId: text("photo_id"),
   },
   // The list's open items are `shop_id IS NULL`, and history grows under them.
   (t) => [index("idx_items_list_id_shop_id").on(t.listId, t.shopId), index("idx_items_shop_id").on(t.shopId)],
@@ -102,6 +104,8 @@ export const wishes = sqliteTable(
     priority: integer("priority").notNull().default(1),
     estimateMinor: integer("estimate_minor"),
     boughtAt: text("bought_at"),
+    /** A photo of it seen in a shop (SPEC 7.1, 8.2), in `photos`. */
+    photoId: text("photo_id"),
   },
   (t) => [index("idx_wishes_list_id").on(t.listId)],
 );
@@ -184,6 +188,21 @@ export const pantryMoves = sqliteTable(
   },
   (t) => [index("idx_pantry_moves_pantry_item_id").on(t.pantryItemId)],
 );
+
+/**
+ * Local only: a photo's bytes, as JPEG data URIs. A row names it by id; the
+ * bytes never ride the outbox, because the decision of 2026-09-23 puts them
+ * in Storage, beside the row rather than in it. A photo is never edited — a
+ * new one is a new id — so an undo that puts the old id back finds it here.
+ */
+export const photos = sqliteTable("photos", {
+  id: text("id").primaryKey(),
+  /** The longest edge at most `PHOTO_EDGE`, for the panel. */
+  data: text("data").notNull(),
+  /** At most `THUMB_EDGE`, for a row's tile, so a list never decodes the full photo. */
+  thumb: text("thumb").notNull(),
+  createdAt: text("created_at").notNull(),
+});
 
 /** Local only: every write waiting to be pushed. Never synced itself. */
 export const outbox = sqliteTable(

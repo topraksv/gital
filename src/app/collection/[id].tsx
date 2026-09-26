@@ -200,7 +200,7 @@ function WishRow({ wish, onOpen, onToggle }: { wish: Wish; onOpen: () => void; o
   return (
     <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
       <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={tr.wishes.openWishHint} onPress={onOpen}>
-        <Tile id={wish.id} name={wish.name} size={itemRow.tile} />
+        <Tile id={wish.id} name={wish.name} photo={wish.photo} size={itemRow.tile} />
         <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
           <Text
             style={[

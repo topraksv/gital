@@ -15,6 +15,8 @@
     "expo-crypto": "~57.0.3",
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
+    "expo-image-manipulator": "~57.0.19",
+    "expo-image-picker": "~57.0.19",
     "expo-keep-awake": "~57.0.2",
     "expo-linking": "~57.0.10",
     "expo-router": "~57.0.22",
