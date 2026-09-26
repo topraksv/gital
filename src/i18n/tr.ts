@@ -189,6 +189,8 @@ export const tr = {
     open: "Katalogdan seç",
     title: "Katalog",
     aisle: "Reyon",
+    didYouMean: (name: string) => `Bunu mu demek istediniz: ${name}?`,
+    keep: (typed: string) => `${typed} olarak ekle`,
     aisles: {
       produce: "Sebze",
       fruit: "Meyve",

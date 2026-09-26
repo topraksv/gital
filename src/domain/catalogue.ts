@@ -5,7 +5,7 @@
  * whole folded name and never guessed at: "Domates salatası" is not Domates.
  */
 
-import { foldName, type KnownProduct } from "./items";
+import { TYPO_FROM, foldName, nearly, type KnownProduct } from "./items";
 
 /** In the order a Turkish market is walked: fresh food at the door, the household at the back. */
 export const AISLES = ["produce", "fruit", "bakery", "dairy", "meat", "fish", "staples", "frozen", "snacks", "drinks", "cleaning", "laundry", "paper", "care", "baby", "pet", "pharmacy", "home"] as const;
@@ -156,4 +156,26 @@ export function catalogueProduct(name: string): CatalogueProduct | undefined {
 export function withCatalogue(known: readonly KnownProduct[]): KnownProduct[] {
   const had = new Set(known.map((product) => product.key));
   return [...known, ...CATALOGUE.filter((product) => !had.has(product.key)).map(({ key, name }) => ({ key, name, times: 0 }))];
+}
+
+/** An entry under the catalogue's spelling of its product, when it names one: "sut" is kept as Süt. */
+export function catalogueNamed<T extends { name: string }>(entry: T): T {
+  const product = catalogueProduct(entry.name);
+  return product && product.name !== entry.name ? { ...entry, name: product.name } : entry;
+}
+
+// A letter held down: "domatesss" is domates however many times the s repeats.
+const squeezed = (key: string) => key.replace(/(.)\1+/gu, "$1");
+
+/**
+ * The catalogue product a name nearly is (2.14), to ask about before it is
+ * added as typed: letters held down, or one slipped, once `TYPO_FROM` are
+ * typed. `null` for a name the catalogue or the household already knows,
+ * which is no miss.
+ */
+export function nearMiss(name: string, known: readonly KnownProduct[]): CatalogueProduct | null {
+  const key = foldName(name);
+  if (key.length < TYPO_FROM || BY_KEY.has(key) || known.some((product) => product.key === key)) return null;
+  const held = squeezed(key);
+  return CATALOGUE.find((product) => squeezed(product.key) === held) ?? CATALOGUE.find((product) => nearly(key, product.key)) ?? null;
 }

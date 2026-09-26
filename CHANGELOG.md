@@ -103,3 +103,6 @@ cannot be released.
   finding süt from "sut" and domates from "domtes".
 - The grid button beside the add field opens the catalogue an aisle at a
   time: a tap puts a product on the list, a second tap takes it off.
+- An entry that nearly names a catalogue product ("domatesss") asks
+  "Bunu mu demek istediniz: Domates?" under the field, and one typed without
+  its marks ("sut") is written as the catalogue spells it.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AISLES, CATALOGUE, PRODUCT_PICTURES, catalogueProduct, withCatalogue } from "../../src/domain/catalogue";
+import { AISLES, CATALOGUE, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, nearMiss, withCatalogue } from "../../src/domain/catalogue";
 import { foldName, parseEntry, suggestProducts, typedProduct } from "../../src/domain/items";
 
 describe("the catalogue", () => {
@@ -42,5 +42,25 @@ describe("the catalogue", () => {
     expect(names("sut")[0]).toBe("Süt");
     expect(names("domtes")).toContain("Domates");
     expect(names("peynr")).toContain("Beyaz peynir");
+  });
+
+  it("names an entry as the catalogue writes it when only case or marks differ", () => {
+    const entry = { name: "Sut", quantityMilli: 1000, unit: "lt" as const };
+    expect(catalogueNamed(entry)).toEqual({ ...entry, name: "Süt" });
+    const own = { name: "Ezine peyniri", quantityMilli: null, unit: null };
+    expect(catalogueNamed(own)).toBe(own);
+  });
+
+  it("asks about a near miss: letters held down, or one slipped, once four are typed", () => {
+    expect(nearMiss("Domatesss", [])?.name).toBe("Domates");
+    expect(nearMiss("Domtes", [])?.name).toBe("Domates");
+    expect(nearMiss("Mandalinaa", [])?.name).toBe("Mandalina");
+  });
+
+  it("never asks about a product it knows, one the household made, or too few letters", () => {
+    expect(nearMiss("domates", [])).toBeNull();
+    expect(nearMiss("Domtes", [{ key: "domtes", name: "Domtes", times: 1 }])).toBeNull();
+    expect(nearMiss("Stu", [])).toBeNull();
+    expect(nearMiss("Ezine peyniri", [])).toBeNull();
   });
 });

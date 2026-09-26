@@ -13,10 +13,10 @@ import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
 import { useItems, useKnownProducts, useLists, usePurchases } from "../../data/hooks";
-import { addEntries, deleteItem, importEntries, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
+import { addEntries, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
-import { withCatalogue } from "../../domain/catalogue";
+import { catalogueNamed, nearMiss, withCatalogue, type CatalogueProduct } from "../../domain/catalogue";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
@@ -276,16 +276,22 @@ function QuickAdd({
   purchases: readonly Purchase[];
   onRemove: (item: Item) => void;
 }) {
+  const { palette } = useTheme();
   const [text, setText] = useState("");
   const [browsing, setBrowsing] = useState(false);
+  // An entry held while one of its items is asked about (SPEC 2.14).
+  const [asking, setAsking] = useState<{ entries: Entry[]; at: number; product: CatalogueProduct; typed: string } | null>(null);
   const field = useRef<TextInput>(null);
 
-  const add = async (entries: Entry[]) => {
-    // An entry that names nothing — blank, or "3 adet" alone — stays in the
-    // field to be finished rather than vanishing without an item.
-    if (entries.length === 0) return;
-    const typed = text;
-    setText("");
+  // The household's products are read only for a name the catalogue nearly
+  // is: they are watched only while suggestions are shown.
+  const settle = async (entries: Entry[], from: number, typed: string) => {
+    for (let at = from; at < entries.length; at++) {
+      if (!nearMiss(entries[at]!.name, [])) continue;
+      const product = nearMiss(entries[at]!.name, await readKnownProducts());
+      if (product) return setAsking({ entries, at, product, typed });
+    }
+    setAsking(null);
     try {
       await addEntries(listId, entries);
       selectionTap();
@@ -293,6 +299,23 @@ function QuickAdd({
       setText((current) => (current === "" ? typed : current));
       void appError(tr.errors.saveFailed);
     }
+  };
+
+  const add = (entries: Entry[]) => {
+    // An entry that names nothing — blank, or "3 adet" alone — stays in the
+    // field to be finished rather than vanishing without an item.
+    if (entries.length === 0) return;
+    const typed = text;
+    setText("");
+    const named = entries.map(catalogueNamed);
+    // Added while a question is open, it joins the held entry, which is asked again.
+    void (asking ? settle([...asking.entries, ...named], asking.at, typed) : settle(named, 0, typed));
+  };
+
+  const answer = (take: boolean) => {
+    if (!asking) return;
+    const { entries, at, product, typed } = asking;
+    void settle(take ? entries.map((entry, index) => (index === at ? { ...entry, name: product.name } : entry)) : entries, at + 1, typed);
   };
 
   return (
@@ -315,6 +338,17 @@ function QuickAdd({
         <IconButton icon={LayoutGrid} label={tr.catalogue.open} onPress={() => setBrowsing(true)} />
         <IconButton icon={Plus} label={tr.items.add} tone="primary" onPress={() => add(parseEntry(text))} />
       </View>
+      {asking ? (
+        <SlideUp distance={motion.travel.rise}>
+          <View accessibilityLiveRegion="polite" style={{ gap: spacing.sm }}>
+            <Text style={[type.small, { color: palette.textSecondary }]}>{tr.catalogue.didYouMean(asking.product.name)}</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+              <Button label={asking.product.name} size="sm" onPress={() => answer(true)} />
+              <Button label={tr.catalogue.keep(asking.entries[asking.at]!.name)} variant="ghost" size="sm" onPress={() => answer(false)} />
+            </View>
+          </View>
+        </SlideUp>
+      ) : null}
       {browsing ? (
         <CatalogueSheet
           items={items}

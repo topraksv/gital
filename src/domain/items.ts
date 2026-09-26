@@ -317,10 +317,10 @@ export function pickEntries(typed: TypedProduct, name: string): Entry[] {
 }
 
 /** With fewer letters, one slip would match half the catalogue: "sit" is süt as much as dut. */
-const TYPO_FROM = 4;
+export const TYPO_FROM = 4;
 
 /** Whether two strings are one letter apart at most: one changed, missing, extra, or two swapped. */
-function nearly(a: string, b: string): boolean {
+export function nearly(a: string, b: string): boolean {
   if (Math.abs(a.length - b.length) > 1) return false;
   let at = 0;
   while (at < a.length && a[at] === b[at]) at++;
