@@ -93,7 +93,7 @@ describe("check-published", () => {
   // The browser shows the first <title>; Expo Router's head writes an empty
   // one before the shell's unless a screen gives it one (2026-09-26).
   it("reads the title a browser shows, the first in the document", () => {
-    expect(titleOf('<title data-rh="true">Gital · Ortak alışveriş listesi</title><title>Gital</title>')).toBe("Gital · Ortak alışveriş listesi");
+    expect(titleOf('<title data-rh="true">Gital · Ne eksik?</title><title>Gital</title>')).toBe("Gital · Ne eksik?");
     expect(titleOf('<title data-rh="true"></title><title>Gital</title>')).toBe("");
     expect(titleOf("<html></html>")).toBeNull();
   });

@@ -158,7 +158,7 @@ cannot be released.
   "2,25 kg", in the item's own unit.
 - Gital is on the web at https://topraksv.github.io/gital/, republished by
   every change that reaches it.
-- The browser tab reads "Gital · Ortak alışveriş listesi" instead of nothing,
+- The browser tab reads "Gital · Ne eksik?" instead of nothing,
   and on the web the keyboard's focus ring shows inside a panel as it does on
   the page, with none round a panel's title.
 - A list with something still to buy keeps the screen on, on the phone and
