@@ -1,7 +1,7 @@
 /** React's side of the live stores; what they decide lives in `live-query.ts`. */
 
 import { useMemo, useSyncExternalStore } from "react";
-import { readItems, readKnownProducts, readShopItems } from "./items";
+import { readItems, readKnownProducts, readPricesPaid, readShopItems } from "./items";
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
 import { readShops } from "./shops";
@@ -40,4 +40,10 @@ const knownStore = liveStore(readKnownProducts, ["items", "lists"]);
 
 export function useKnownProducts() {
   return useSyncExternalStore(knownStore.subscribe, knownStore.getSnapshot, knownStore.getSnapshot);
+}
+
+// Mounted with the item panel's price field, and gone with it.
+export function usePricesPaid(itemId: string) {
+  const store = useMemo(() => liveStore(() => readPricesPaid(itemId), ["items", "lists"]), [itemId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }

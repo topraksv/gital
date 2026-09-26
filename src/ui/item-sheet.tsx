@@ -12,8 +12,9 @@ import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
 import Trash from "lucide-react-native/icons/trash";
 
-import { NOTE_MAX, formatQuantity, quantityOrOne, stepQuantity, type ItemChange } from "../domain/items";
-import { formatMinorInput, readPrice } from "../domain/money";
+import { usePricesPaid } from "../data/hooks";
+import { NOTE_MAX, formatQuantity, quantityOrOne, stepQuantity, type ItemChange, type Quantity } from "../domain/items";
+import { formatMinorInput, priceRise, readPrice } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
@@ -120,7 +121,18 @@ export function ItemSheet({
         {/* A ticked item was found. */}
         {item.checkedAt == null && !moving ? <Toggle value={notFound} onValueChange={setNotFound} label={tr.items.notFound} /> : null}
       </View>
-      {offersBought ? <Bought instead={instead} price={price} onInstead={setInstead} onPrice={setPrice} submits={submits} /> : null}
+      {offersBought ? (
+        <Bought
+          itemId={item.id}
+          product={{ name, ...quantity }}
+          paidMinor={paid.ok ? paid.minor : null}
+          instead={instead}
+          price={price}
+          onInstead={setInstead}
+          onPrice={setPrice}
+          submits={submits}
+        />
+      ) : null}
       {lists.length > 1 ? (
         <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
           <Body>{tr.items.list}</Body>
@@ -158,20 +170,33 @@ export function ItemSheet({
   );
 }
 
-/** What was bought in the item's place, and what was paid. */
+/**
+ * What was bought in the item's place, and what was paid — said to be dear
+ * when it is (SPEC 3.12). The panel says it and the row does not: the aisle
+ * needs the number, and the sentence would wrap every priced row at 360 dp.
+ */
 function Bought({
+  itemId,
+  product,
+  paidMinor,
   instead,
   price,
   onInstead,
   onPrice,
   submits,
 }: {
+  itemId: string;
+  product: Quantity & { name: string };
+  paidMinor: number | null;
   instead: string;
   price: string;
   onInstead: (typed: string) => void;
   onPrice: (typed: string) => void;
   submits: { returnKeyType: "done"; onSubmitEditing: () => void };
 }) {
+  const { palette } = useTheme();
+  const before = usePricesPaid(itemId).data;
+  const rise = paidMinor == null ? null : priceRise(before, product, paidMinor);
   return (
     <>
       <TextField
@@ -183,7 +208,10 @@ function Bought({
         {...submits}
         style={{ marginTop: spacing.sm }}
       />
-      <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} placeholder={tr.items.pricePlaceholder} {...submits} style={{ marginTop: spacing.sm }} />
+      <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
+        <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} placeholder={tr.items.pricePlaceholder} {...submits} />
+        {rise == null ? null : <Text style={[type.small, { color: palette.warningText }]}>{tr.items.priceRise(rise)}</Text>}
+      </View>
     </>
   );
 }

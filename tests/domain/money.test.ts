@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { MAX_PRICE_MINOR, formatMinor, formatMinorInput, formatPriceInput, isPrice, readPrice, spentOn } from "../../src/domain/money";
+import { MAX_PRICE_MINOR, formatMinor, formatMinorInput, formatPriceInput, isPrice, priceRise, readPrice, spentOn, type PricePaid } from "../../src/domain/money";
 
 describe("readPrice", () => {
   it("reads kuruş from what is typed, grouped or not, with or without the lira sign", () => {
@@ -65,5 +65,37 @@ describe("formatting", () => {
     expect(formatPriceInput("45,.")).toBe("45,");
     expect(formatPriceInput("1.23")).toBe("123");
     expect(formatPriceInput("")).toBe("");
+  });
+});
+
+describe("priceRise", () => {
+  const paid = (name: string, priceMinor: number, quantityMilli: number | null = null, unit: PricePaid["unit"] = null): PricePaid => ({ name, priceMinor, quantityMilli, unit });
+  const sut = { name: "Süt", quantityMilli: null, unit: null };
+
+  it("labels a price at least a tenth above what the product last cost, as a whole percent", () => {
+    expect(priceRise([paid("Süt", 4000)], sut, 4880)).toBe(22);
+    expect(priceRise([paid("Süt", 4000)], sut, 4400)).toBe(10);
+    expect(priceRise([paid("Süt", 4000)], sut, 4399)).toBeNull();
+    expect(priceRise([paid("Süt", 4000)], sut, 3000)).toBeNull();
+  });
+
+  it("says nothing of a product never priced before, or of one whose price was nothing", () => {
+    expect(priceRise([], sut, 4880)).toBeNull();
+    expect(priceRise([paid("Ekmek", 1000)], sut, 4880)).toBeNull();
+    expect(priceRise([paid("Süt", 0)], sut, 4880)).toBeNull();
+  });
+
+  it("measures against the middle of the last three prices, so one odd price does not decide", () => {
+    const latestFirst = [paid("süt", 9000), paid("SÜT", 4000), paid("Sut", 4100), paid("Süt", 1000)];
+    expect(priceRise(latestFirst, sut, 4920)).toBe(20);
+    expect(priceRise([paid("Süt", 4000), paid("Süt", 5000)], sut, 5400)).toBe(20);
+  });
+
+  it("compares by the unit's price, grams with kilos and millilitres with litres", () => {
+    const domates = { name: "Domates", quantityMilli: 500_000, unit: "g" } as const;
+    expect(priceRise([paid("Domates", 8000, 2000, "kg")], domates, 2500)).toBe(25);
+    expect(priceRise([paid("Süt", 4000, 1000, "adet")], sut, 4880)).toBe(22);
+    expect(priceRise([paid("Süt", 4000, 1000, "lt")], sut, 9000)).toBeNull();
+    expect(priceRise([paid("Süt", 2000, 500_000, "ml"), paid("Süt", 4000, 1000, "adet")], { name: "Süt", quantityMilli: 1000, unit: "lt" }, 4800)).toBe(20);
   });
 });

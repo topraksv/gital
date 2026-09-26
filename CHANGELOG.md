@@ -68,3 +68,5 @@ cannot be released.
   far, and each shop in Geçmiş shows what it cost.
 - A price or a shop's total can be worked out on Helix's calculator, opened
   from the field, and a shop's total can be corrected to its receipt.
+- A price typed a tenth or more above what the product recently cost is
+  labelled so under its field ("Son alışlardan %22 pahalı").

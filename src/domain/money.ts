@@ -4,6 +4,8 @@
  * without the minus sign, which a price never has.
  */
 
+import { foldName, quantityOrOne, type Quantity, type Unit } from "./items";
+
 /** Helix's largest amount, 999.999.999.999,99: exact in integer kuruş. */
 export const MAX_PRICE_MINOR = 99_999_999_999_999;
 
@@ -62,4 +64,59 @@ export function groupThousands(digits: string): string {
 /** A stored price back in its field, exactly; none is an empty field. */
 export function formatMinorInput(minor: number | null): string {
   return minor == null ? "" : formatPriceInput((minor / 100).toFixed(2).replace(".", ","));
+}
+
+/** A price paid before for a product, and the quantity it bought. */
+export interface PricePaid extends Quantity {
+  name: string;
+  priceMinor: number;
+}
+
+/** A tenth: a price within one is the same price at another shop, and saying so would be noise. */
+const RISE_FROM = 10;
+
+/** Recent enough to be what the product costs now, and three so one odd price does not decide. */
+const RECENT = 3;
+
+/** Grams are thousandths of a kilo and millilitres of a litre; a piece and a pack stand alone. */
+const BASE: Record<Unit, { unit: Unit; per: number }> = {
+  adet: { unit: "adet", per: 1 },
+  paket: { unit: "paket", per: 1 },
+  kg: { unit: "kg", per: 1 },
+  g: { unit: "kg", per: 1000 },
+  lt: { unit: "lt", per: 1 },
+  ml: { unit: "lt", per: 1000 },
+};
+
+function perUnit(priceMinor: number, quantity: Quantity): { unit: Unit; price: number } {
+  const { quantityMilli, unit } = quantityOrOne(quantity);
+  const base = BASE[unit];
+  return { unit: base.unit, price: (priceMinor * 1000 * base.per) / quantityMilli };
+}
+
+/**
+ * How many percent `priceMinor` is above what the product recently cost
+ * (SPEC 3.12), or `null` when it is not a tenth above or nothing compares.
+ * `paid` comes latest first. The same product is the same folded name, and a
+ * price is compared by its unit's price, so 500 g is weighed against 2 kg; a
+ * piece is never weighed against a kilo. The middle of the last three stands
+ * for "recently": one sale or one mistyped price moves it no more than a step.
+ */
+export function priceRise(paid: readonly PricePaid[], bought: Quantity & { name: string }, priceMinor: number): number | null {
+  const key = foldName(bought.name);
+  const now = perUnit(priceMinor, bought);
+  const recent = paid
+    .filter((row) => foldName(row.name) === key)
+    .map((row) => perUnit(row.priceMinor, row))
+    .filter((row) => row.unit === now.unit)
+    .slice(0, RECENT)
+    .map((row) => row.price)
+    .sort((a, b) => a - b);
+  if (recent.length === 0) return null;
+  const middle = recent.length / 2;
+  const usual = recent.length % 2 === 1 ? recent[Math.floor(middle)]! : (recent[middle - 1]! + recent[middle]!) / 2;
+  // Decided before rounding, and multiplied rather than divided, so 4.399 on
+  // 4.000 is not a tenth and 4.400 is.
+  if (usual === 0 || now.price * 100 < usual * (100 + RISE_FROM)) return null;
+  return Math.round((now.price / usual - 1) * 100);
 }

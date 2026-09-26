@@ -117,6 +117,7 @@ export const tr = {
     instead: (name: string) => `Yerine: ${name}`,
     priceLabel: "Ödenen fiyat",
     pricePlaceholder: "Ödenen fiyat: 45,90",
+    priceRise: (percent: number) => `Son alışlardan %${percent} pahalı`,
     list: "Liste",
     keepHere: "Bu listede de kalsın",
     moved: (name: string, list: string) => `${name}, ${list} listesine taşındı`,

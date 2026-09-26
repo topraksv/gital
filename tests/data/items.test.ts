@@ -21,7 +21,7 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, deleteItem, importEntries, readItems, readKnownProducts, readShopItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
+const { addEntries, deleteItem, importEntries, readItems, readKnownProducts, readPricesPaid, readShopItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
 const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
@@ -522,6 +522,30 @@ describe("readKnownProducts", () => {
       { key: "sut", name: "SÜT", times: 2 },
       { key: "ekmek", name: "Ekmek", times: 1 },
     ]);
+  });
+});
+
+describe("readPricesPaid", () => {
+  it("reads every price paid on a live list, in history or in a basket, latest first, but the item's own", async () => {
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek");
+    await updateItem(sut!, { ...as("Süt"), priceMinor: 4000 });
+    await finishShop(listId);
+    later(1000);
+    const pazar = await createList("Pazar");
+    const [pazarSut] = await addItems(pazar, "2 lt süt");
+    await updateItem(pazarSut!, { ...as("Süt"), quantityMilli: 2000, unit: "lt", priceMinor: 9000 });
+    later(2000);
+    const gone = await createList("Eski");
+    const [eskiSut] = await addItems(gone, "süt");
+    await updateItem(eskiSut!, { ...as("Süt"), priceMinor: 100 });
+    await deleteList(gone);
+    const [again] = await addItems(listId, "süt");
+    await updateItem(again!, { ...as("Süt"), priceMinor: 5000 });
+    expect(await readPricesPaid(again!)).toEqual([
+      { name: "Süt", quantityMilli: 2000, unit: "lt", priceMinor: 9000 },
+      { name: "Süt", quantityMilli: null, unit: null, priceMinor: 4000 },
+    ]);
+    expect(await readPricesPaid(ekmek!)).toHaveLength(3);
   });
 });
 
