@@ -101,3 +101,5 @@ cannot be released.
 - Gital knows about 350 everyday products: an item named after one wears
   its picture, and typing offers them beside what the household had before,
   finding süt from "sut" and domates from "domtes".
+- The grid button beside the add field opens the catalogue an aisle at a
+  time: a tap puts a product on the list, a second tap takes it off.

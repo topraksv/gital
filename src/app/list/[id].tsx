@@ -7,6 +7,7 @@ import Check from "lucide-react-native/icons/check";
 import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Pencil from "lucide-react-native/icons/pencil";
+import LayoutGrid from "lucide-react-native/icons/layout-grid";
 import Plus from "lucide-react-native/icons/plus";
 import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
@@ -45,6 +46,7 @@ import { webKeys } from "../../ui/keys";
 import { celebrate, hideCelebration } from "../../ui/celebration";
 import { DraggableList, ReorderGrip } from "../../ui/draggable-list";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
+import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
@@ -207,7 +209,7 @@ export default function ListScreen() {
         <ReadFailed queries={queries} />
       ) : list && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
-          <QuickAdd listId={list.id} items={items.data} purchases={purchases.data} />
+          <QuickAdd listId={list.id} items={items.data} purchases={purchases.data} onRemove={removeItem} />
           {items.data.length === 0 ? (
             <EmptyState icon={ListPlus} title={tr.items.emptyTitle} hint={tr.items.emptyHint} />
           ) : (
@@ -263,8 +265,19 @@ export default function ListScreen() {
  * keeps the keyboard up for the next item; the field empties at once, so the
  * next can be typed while the last is still being written.
  */
-function QuickAdd({ listId, items, purchases }: { listId: string; items: readonly Item[]; purchases: readonly Purchase[] }) {
+function QuickAdd({
+  listId,
+  items,
+  purchases,
+  onRemove,
+}: {
+  listId: string;
+  items: readonly Item[];
+  purchases: readonly Purchase[];
+  onRemove: (item: Item) => void;
+}) {
   const [text, setText] = useState("");
+  const [browsing, setBrowsing] = useState(false);
   const field = useRef<TextInput>(null);
 
   const add = async (entries: Entry[]) => {
@@ -299,8 +312,17 @@ function QuickAdd({ listId, items, purchases }: { listId: string; items: readonl
           maxLength={ENTRY_MAX}
           style={{ flex: 1 }}
         />
+        <IconButton icon={LayoutGrid} label={tr.catalogue.open} onPress={() => setBrowsing(true)} />
         <IconButton icon={Plus} label={tr.items.add} tone="primary" onPress={() => add(parseEntry(text))} />
       </View>
+      {browsing ? (
+        <CatalogueSheet
+          items={items}
+          onAdd={(product) => add([{ name: product.name, quantityMilli: null, unit: null }])}
+          onRemove={onRemove}
+          onClose={() => setBrowsing(false)}
+        />
+      ) : null}
       {/* Mounted while anything is typed rather than while a product is, so
           the products are read once an entry, not again after every comma. */}
       {text ? (

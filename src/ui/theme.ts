@@ -541,6 +541,14 @@ export const LIST_HUES: Record<Theme["scheme"], Record<ListColor, { fill: string
  */
 export const listSheet = { cell: controlSize.minimumTarget, columns: 7 } as const;
 
+/**
+ * The catalogue panel (SPEC 2.12): four products to a row, which leaves each
+ * name about 80 points on a 360-point phone, and a tile larger than a row's,
+ * since here the picture is what is read first. Every name keeps room for two
+ * lines, or a row with a long name stands further from the next than the rest.
+ */
+export const catalogueSheet = { columns: 4, tile: 56, name: 32 } as const;
+
 /** Helix's calculator pad (`docs/UI.md` section 5): a key's height and the display's, which three lines never resize. */
 export const calculatorPad = { keyHeight: 56, displayHeight: 128 } as const;
 
