@@ -8,6 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 const root = join(import.meta.dirname, "..", "..");
@@ -41,6 +42,28 @@ describe("the installed web app", () => {
     expect(shell).toContain(`register("${base}sw.js",{scope:"${base}"})`);
     expect(shell).toContain(`href="${base}manifest.webmanifest"`);
     expect(read("public/sw.js")).toContain(`const SHELL = "${base}index.html";`);
+  });
+});
+
+/** The worker's own `prunable`, run outside a browser: nothing else in it runs on load. */
+function workerPrunable(): (paths: string[]) => string[] {
+  const context: Record<string, unknown> = { self: { addEventListener: () => {} } };
+  runInNewContext(read("public/sw.js"), context);
+  return context.prunable as (paths: string[]) => string[];
+}
+
+describe("the offline worker's prune", () => {
+  const code = (n: number) => Array.from({ length: n }, (_, i) => `${base}_expo/static/js/web/entry-${i}.js`);
+  const pictures = (n: number) => Array.from({ length: n }, (_, i) => `${base}assets/assets/noto/p${i}.webp`);
+
+  it("keeps the catalogue's pictures however much code piles up", () => {
+    const prunable = workerPrunable();
+    const stale = prunable([`${base}index.html`, ...code(121), ...pictures(133)]);
+    expect(stale).toEqual(code(121));
+  });
+
+  it("keeps everything while each kind is under its own cap", () => {
+    expect(workerPrunable()([`${base}index.html`, ...code(120), ...pictures(133)])).toEqual([]);
   });
 });
 

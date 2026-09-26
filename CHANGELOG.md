@@ -147,3 +147,5 @@ cannot be released.
   slightly while held and spring back on release, instead of sinking a point.
 - A panel closes when pulled down by its handle or title, and springs back
   when the pull is short.
+- Product pictures stay available offline: the web app no longer empties its
+  offline copy on every start once the catalogue's pictures have been seen.

@@ -18,6 +18,22 @@ const CACHE = "gital-v1";
 // (a relative "./index.html" resolved against the request, not the shell).
 const SHELL = "/gital/index.html";
 
+// Code takes new names every deploy, so it piles up and is capped. Pictures
+// and fonts keep their content hash across deploys, and the catalogue alone
+// holds 133 pictures: counted with the code, they emptied the cache on every
+// online start, and a picture not drawn again was missing from its tile offline.
+const CODE_CAP = 120;
+const MEDIA_CAP = 400;
+const MEDIA = /\.(webp|png|jpe?g|svg|ttf|otf|woff2?)$/i;
+
+/** The cached paths to drop: each kind whole, once it passes its own cap. */
+function prunable(paths) {
+  const kept = paths.filter((path) => path !== SHELL);
+  const media = kept.filter((path) => MEDIA.test(path));
+  const code = kept.filter((path) => !MEDIA.test(path));
+  return [...(code.length > CODE_CAP ? code : []), ...(media.length > MEDIA_CAP ? media : [])];
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.add(SHELL)).catch(() => {}));
   self.skipWaiting();
@@ -48,19 +64,13 @@ self.addEventListener("fetch", (event) => {
               .open(CACHE)
               .then(async (cache) => {
                 await cache.put(SHELL, res.clone());
-                // Prune: content-hashed asset names change every deploy and the
-                // old ones are never requested again, so without a cap the cache
-                // grows by one build per deploy, forever. We are online right
-                // now (this navigation fetch succeeded), so dropping stale
-                // assets is safe — live ones re-cache on their next request.
+                // Prune (`prunable`): old builds' code is never requested again,
+                // so without a cap the cache grows by one build per deploy. We
+                // are online right now (this navigation fetch succeeded), so
+                // dropping it is safe — live files re-cache on their next request.
                 const keys = await cache.keys();
-                if (keys.length > 120) {
-                  await Promise.all(
-                    keys
-                      .filter((cached) => new URL(cached.url).pathname !== SHELL)
-                      .map((cached) => cache.delete(cached)),
-                  );
-                }
+                const stale = new Set(prunable(keys.map((cached) => new URL(cached.url).pathname)));
+                await Promise.all(keys.filter((cached) => stale.has(new URL(cached.url).pathname)).map((cached) => cache.delete(cached)));
               })
               .catch(() => {});
           }
