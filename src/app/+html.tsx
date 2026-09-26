@@ -45,7 +45,7 @@ export default function Root({ children }: PropsWithChildren) {
         <title>Gital</title>
         {/* Installing to the home screen (SPEC 11.4). The browser's chrome
             takes the default palette's ground per scheme on the first paint;
-            a palette chosen in Ayarlar is not followed there yet. */}
+            the root layout then writes the chosen palette's over both. */}
         <link rel="manifest" href="/gital/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/gital/icons/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

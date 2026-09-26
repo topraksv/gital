@@ -111,3 +111,5 @@ cannot be released.
   aisle.
 - Geçmiş shows what each aisle cost this month, the dearest first, from the
   prices typed on bought items.
+- On the web, the browser's bar wears the theme and palette chosen in Ayarlar
+  rather than the default one's.

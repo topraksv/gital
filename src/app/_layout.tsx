@@ -96,7 +96,14 @@ export default function RootLayout() {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     document.documentElement.style.colorScheme = scheme;
     document.documentElement.style.setProperty(FOCUS_PROPERTY, theme.palette.focus);
-  }, [scheme, theme.palette.focus]);
+    // Helix's `syncThemeColorMeta`: a browser takes the first `theme-color`
+    // whose media matches, so the shell's two are written over, not added to,
+    // and lose their media so the system's scheme cannot pick the other.
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+      meta.setAttribute("content", theme.palette.background);
+      meta.removeAttribute("media");
+    });
+  }, [scheme, theme.palette.focus, theme.palette.background]);
 
   const ready = appearance != null && database !== "opening" && (fontsLoaded || fontsError != null || fontGrace);
   // On the web the document already wears the stored ground (`+html.tsx`), and
