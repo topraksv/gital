@@ -4,7 +4,7 @@
  * bought item to a row of its own under it, and history reads those rows.
  */
 
-import { and, asc, count, desc, eq, isNull, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNotNull, isNull, sum } from "drizzle-orm";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
@@ -61,6 +61,17 @@ export async function readShops(): Promise<Shop[]> {
     .groupBy(shops.id)
     .orderBy(desc(shops.finishedAt), desc(shops.id));
   return rows.map(({ totalMinor, summedMinor, ...row }) => ({ ...lookOf(row), spentMinor: totalMinor ?? summedMinor }));
+}
+
+/** What shops finished since `since` bought with a price, for the month's aisle shares (SPEC 3.9). */
+export async function readPricedSince(since: string): Promise<{ name: string; priceMinor: number }[]> {
+  const rows = await getDb()
+    .select({ name: items.name, priceMinor: items.priceMinor })
+    .from(items)
+    .innerJoin(shops, and(eq(shops.id, items.shopId), isNull(shops.deletedAt), gte(shops.finishedAt, since)))
+    .innerJoin(lists, and(eq(lists.id, shops.listId), isNull(lists.deletedAt)))
+    .where(and(isNull(items.deletedAt), isNotNull(items.priceMinor)));
+  return rows.map(({ name, priceMinor }) => ({ name, priceMinor: priceMinor! }));
 }
 
 /** Correct a shop's total to its receipt, or with `null` go back to the sum of its prices. */

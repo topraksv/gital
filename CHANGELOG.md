@@ -109,3 +109,5 @@ cannot be released.
 - A list's open items are grouped by aisle in the order a market is walked,
   urgent ones above and what was not found below; sorting stays within an
   aisle.
+- Geçmiş shows what each aisle cost this month, the dearest first, from the
+  prices typed on bought items.

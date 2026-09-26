@@ -1,6 +1,7 @@
 /**
  * Gital's charts (`docs/SPEC.md` 11.8, `docs/UI.md` section 12): six months'
- * totals, a product's price over time and a shop's progress as a ring. Helix's
+ * totals, the month's aisles, a product's price over time and a shop's
+ * progress as a ring. Helix's
  * grammar — its bar shape, line weight and markers — without its chart module,
  * whose axes, focus and scrubbing serve a finance app's long series: these are
  * six bars, six points and one share, each with its figures written as text.
@@ -76,6 +77,44 @@ function MonthBar({ month, share, current }: { month: Month; share: number; curr
       <Text numberOfLines={1} style={figure}>
         {month.spentMinor == null ? "—" : formatMinorShort(month.spentMinor)}
       </Text>
+    </View>
+  );
+}
+
+/** What each aisle cost this month, the dearest first, each as a bar against the dearest with its figure. */
+export function AisleShares({ rows }: { rows: readonly { name: string; spentMinor: number }[] }) {
+  const top = Math.max(...rows.map((row) => row.spentMinor));
+  return (
+    <View accessible accessibilityRole="image" accessibilityLabel={tr.history.aislesLabel(rows)} style={{ gap: spacing.md }}>
+      {rows.map((row) => (
+        <AisleShare key={row.name} row={row} share={top === 0 ? 0 : Math.max(chart.barFloor, row.spentMinor / top)} />
+      ))}
+    </View>
+  );
+}
+
+function AisleShare({ row, share }: { row: { name: string; spentMinor: number }; share: number }) {
+  const { palette } = useTheme();
+  // A width in percent, which only the JS driver animates; a handful of bars.
+  const grown = useShare(share, false);
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.sm }}>
+        <Text numberOfLines={1} style={[type.small, { flex: 1, minWidth: 0, color: palette.text }]}>
+          {row.name}
+        </Text>
+        <Text style={[type.small, { color: palette.textStrong, fontFamily: font.semibold }]}>{formatMinorShort(row.spentMinor)}</Text>
+      </View>
+      <View style={{ height: chart.track, borderRadius: circle(chart.track), backgroundColor: palette.surfaceAlt, overflow: "hidden" }}>
+        <Animated.View
+          style={{
+            height: chart.track,
+            borderRadius: circle(chart.track),
+            backgroundColor: palette.primary,
+            width: grown.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+          }}
+        />
+      </View>
     </View>
   );
 }

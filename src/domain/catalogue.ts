@@ -206,3 +206,20 @@ export function listSections<T extends { name: string; urgent: boolean; notFound
     { key: "notFound", items: open.filter((item) => !item.urgent && item.notFound) },
   ].filter((section) => section.items.length > 0);
 }
+
+/**
+ * What each aisle cost (SPEC 3.9), the dearest first and a tie in `AISLES`'
+ * order, from the priced items bought: a receipt's total names no product, so
+ * it cannot be split between aisles.
+ */
+export function aisleShares(bought: readonly { name: string; priceMinor: number }[]): { aisle: Aisle | "other"; spentMinor: number }[] {
+  const order = [...AISLES, "other" as const];
+  const spent = new Map<Aisle | "other", number>();
+  for (const { name, priceMinor } of bought) {
+    const aisle = catalogueProduct(name)?.aisle ?? "other";
+    spent.set(aisle, (spent.get(aisle) ?? 0) + priceMinor);
+  }
+  return [...spent]
+    .map(([aisle, spentMinor]) => ({ aisle, spentMinor }))
+    .sort((a, b) => b.spentMinor - a.spentMinor || order.indexOf(a.aisle) - order.indexOf(b.aisle));
+}

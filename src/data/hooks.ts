@@ -4,7 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
-import { readPurchases, readShops } from "./shops";
+import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readWishes } from "./wishes";
 
 // Items, because each card counts what is on its list.
@@ -28,6 +28,12 @@ const shopsStore = liveStore(readShops, ["shops", "lists"]);
 
 export function useShops() {
   return useSyncExternalStore(shopsStore.subscribe, shopsStore.getSnapshot, shopsStore.getSnapshot);
+}
+
+// Keyed by the month's start, so a new month reads afresh.
+export function usePricedSince(since: string) {
+  const store = useMemo(() => liveStore(() => readPricedSince(since), ["shops", "lists", "items"]), [since]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
 export function useShopItems(shopId: string) {

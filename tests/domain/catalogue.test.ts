@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AISLES, CATALOGUE, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, listSections, nearMiss, withCatalogue } from "../../src/domain/catalogue";
+import { AISLES, CATALOGUE, aisleShares, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, listSections, nearMiss, withCatalogue } from "../../src/domain/catalogue";
 import { foldName, parseEntry, suggestProducts, typedProduct } from "../../src/domain/items";
 
 describe("the catalogue", () => {
@@ -87,5 +87,25 @@ describe("the catalogue", () => {
       ]);
       expect(listSections([])).toEqual([]);
     });
+  });
+
+  it("adds what each aisle cost, the dearest first, what the catalogue does not know as one", () => {
+    const bought = [
+      { name: "Süt", priceMinor: 4590 },
+      { name: "Domates", priceMinor: 3000 },
+      { name: "Yoğurt", priceMinor: 6000 },
+      { name: "Ezine peyniri", priceMinor: 25000 },
+      { name: "Salatalık", priceMinor: 1500 },
+    ];
+    expect(aisleShares(bought)).toEqual([
+      { aisle: "other", spentMinor: 25000 },
+      { aisle: "dairy", spentMinor: 10590 },
+      { aisle: "produce", spentMinor: 4500 },
+    ]);
+    expect(aisleShares([{ name: "Muz", priceMinor: 100 }, { name: "Elma", priceMinor: 0 }, { name: "Domates", priceMinor: 100 }])).toEqual([
+      { aisle: "produce", spentMinor: 100 },
+      { aisle: "fruit", spentMinor: 100 },
+    ]);
+    expect(aisleShares([])).toEqual([]);
   });
 });

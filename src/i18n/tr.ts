@@ -272,6 +272,8 @@ export const tr = {
     /** Every bar read aloud as the eye reads it: the month, and what it cost or that nothing was priced. */
     monthsLabel: (months: readonly { start: string; spentMinor: number | null }[]) =>
       `Son 6 ay: ${months.map((month) => `${MONTH_LONG.format(new Date(month.start))} ${month.spentMinor == null ? "fiyat yok" : formatMinor(month.spentMinor)}`).join(", ")}`,
+    aisles: "Bu ay reyonlar",
+    aislesLabel: (rows: readonly { name: string; spentMinor: number }[]) => `Bu ay reyonlar: ${rows.map((row) => `${row.name} ${formatMinor(row.spentMinor)}`).join(", ")}`,
   },
   tour: {
     step: (step: number, total: number, title: string) => `${total} adımdan ${step}. ${title}`,

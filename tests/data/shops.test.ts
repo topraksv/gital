@@ -25,7 +25,7 @@ const { addEntries, deleteItem, readItems, readShopItems, toggleChecked, updateI
 const { parseEntry } = await import("../../src/domain/items");
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
-const { finishShop, readPurchases, readShops, reopenShop, setShopTotal } = await import("../../src/data/shops");
+const { finishShop, readPricedSince, readPurchases, readShops, reopenShop, setShopTotal } = await import("../../src/data/shops");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { migratedDatabase } = await import("../helpers");
@@ -327,5 +327,34 @@ describe("readPurchases", () => {
       { name: "Ekmek", quantityMilli: null, unit: null, boughtAt: new Date(T0.getTime() + 1000).toISOString() },
       { name: "Süt", quantityMilli: 2000, unit: "lt", boughtAt: T0.toISOString() },
     ]);
+  });
+});
+
+describe("readPricedSince", () => {
+  const priced = (name: string, priceMinor: number | null) => ({ name, quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor });
+
+  it("reads what shops finished since then bought with a price, from lists still kept", async () => {
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek, peynir");
+    await updateItem(sut!, priced("Süt", 4590));
+    await updateItem(ekmek!, priced("Ekmek", 1250));
+    await toggleChecked((await readItems(listId)).find((item) => item.name === "Peynir")!.id);
+    await finish();
+    later(60_000);
+    const [ayran] = await addItems(listId, "ayran");
+    await updateItem(ayran!, priced("Ayran", 900));
+    await finish();
+    const other = await createList("Eczane");
+    const [pil] = await addEntries(other, parseEntry("pil"));
+    await updateItem(pil!, priced("Pil", 5000));
+    await finishShop(other);
+    await deleteList(other);
+
+    const byName = (rows: { name: string; priceMinor: number }[]) => [...rows].sort((a, b) => a.name.localeCompare(b.name));
+    expect(byName(await readPricedSince(T0.toISOString()))).toEqual([
+      { name: "Ayran", priceMinor: 900 },
+      { name: "Ekmek", priceMinor: 1250 },
+      { name: "Süt", priceMinor: 4590 },
+    ]);
+    expect(await readPricedSince(new Date(T0.getTime() + 1).toISOString())).toEqual([{ name: "Ayran", priceMinor: 900 }]);
   });
 });
