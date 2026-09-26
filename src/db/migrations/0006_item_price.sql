@@ -1,0 +1,1 @@
+ALTER TABLE `items` ADD `price_minor` integer;

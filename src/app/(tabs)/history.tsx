@@ -28,6 +28,7 @@ export default function History() {
                     look={shop}
                     title={shop.listName}
                     detail={tr.history.summary(shop.finishedAt, shop.bought)}
+                    figure={tr.history.spent(shop.spentMinor)}
                     hint={tr.history.openHint}
                     onOpen={() => router.push({ pathname: "/shop/[id]", params: { id: shop.id } })}
                   />

@@ -26,7 +26,7 @@ const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
-const { finishShop } = await import("../../src/data/shops");
+const { finishShop, readShops } = await import("../../src/data/shops");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { migratedDatabase } = await import("../helpers");
@@ -63,9 +63,9 @@ describe("addItems", () => {
     const ids = await addItems(listId, "2 kg domates, 1,5 lt süt ve ekmek");
     expect(ids).toHaveLength(3);
     expect(await readItems(listId)).toEqual([
-      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null },
-      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null },
-      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null },
+      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
+      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
+      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
     ]);
     expect(outboxCount()).toBe(3);
   });
@@ -189,7 +189,7 @@ describe("toggleChecked", () => {
   });
 });
 
-const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => ({ name, quantityMilli, unit, note: null, urgent: false, notFound: false, boughtInstead: null });
+const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => ({ name, quantityMilli, unit, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null });
 
 describe("updateItem", () => {
 
@@ -221,8 +221,8 @@ describe("updateItem", () => {
     await toggleChecked(ayran!);
     await updateItem(sut!, as("ayran"));
     expect(await readItems(listId)).toEqual([
-      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null },
-      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false, notFound: false, boughtInstead: null },
+      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
+      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null },
     ]);
     expect(stored(sut!).deleted_at).not.toBeNull();
   });
@@ -341,6 +341,69 @@ describe("not found, and bought instead", () => {
     const [ayran] = await addItems(listId, "ayran");
     await updateItem(sut!, { ...as("ayran"), boughtInstead: "Kefir" });
     expect(await readItems(listId)).toMatchObject([{ id: ayran, name: "Ayran", boughtInstead: "Kefir", checkedAt: expect.any(String) }]);
+  });
+});
+
+describe("a price", () => {
+  it("is what was paid: saving one puts the item in the basket, and taking the tick back forgets it", async () => {
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek");
+    await toggleChecked(ekmek!);
+    await updateItem(ekmek!, { ...as("Ekmek"), priceMinor: 1250 });
+    await updateItem(sut!, { ...as("Süt"), priceMinor: 4590 });
+    expect(await readItems(listId)).toMatchObject([
+      { id: sut, priceMinor: 4590, checkedAt: T0.toISOString() },
+      { id: ekmek, priceMinor: 1250, checkedAt: T0.toISOString() },
+    ]);
+    await toggleChecked(sut!);
+    expect(stored(sut!)).toMatchObject({ price_minor: null, checked_at: null });
+  });
+
+  it("stays with the product added again while it is in the basket, and not after it was bought", async () => {
+    const [sut] = await addItems(listId, "süt");
+    await updateItem(sut!, { ...as("Süt"), priceMinor: 4590 });
+    await addItems(listId, "2 lt süt");
+    expect(await readItems(listId)).toMatchObject([{ id: sut, quantityMilli: 2000, priceMinor: 4590 }]);
+    await finishShop(listId);
+    await addItems(listId, "süt");
+    expect(await readItems(listId)).toMatchObject([{ id: sut, priceMinor: null, checkedAt: null }]);
+  });
+
+  it("goes into history with the item, and a shop's total is the sum of what was priced", async () => {
+    const [sut, ekmek, peynir] = await addItems(listId, "süt, ekmek, peynir");
+    await updateItem(sut!, { ...as("Süt"), priceMinor: 4590 });
+    await updateItem(ekmek!, { ...as("Ekmek"), priceMinor: 1250 });
+    await toggleChecked(peynir!);
+    const priced = await finishShop(listId);
+    expect(await readShopItems(priced!.id)).toMatchObject([
+      { name: "Süt", priceMinor: 4590 },
+      { name: "Ekmek", priceMinor: 1250 },
+      { name: "Peynir", priceMinor: null },
+    ]);
+    later(1000);
+    await addItems(listId, "ayran");
+    await toggleChecked((await readItems(listId))[0]!.id);
+    await finishShop(listId);
+    expect((await readShops()).map(({ bought, spentMinor }) => [bought, spentMinor])).toEqual([[1, null], [3, 5840]]);
+  });
+
+  it("stays with this list's shop when the item goes to another list, and with the copy left here", async () => {
+    const other = await createList("Pazar");
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek");
+    await updateItem(sut!, { ...as("Süt"), priceMinor: 4590 }, { listId: other, keep: true });
+    await updateItem(ekmek!, { ...as("Ekmek"), priceMinor: 1250 }, { listId: other, keep: false });
+    expect(await readItems(listId)).toMatchObject([{ id: sut, priceMinor: 4590 }]);
+    expect(await readItems(other)).toMatchObject([
+      { name: "Ekmek", priceMinor: null, checkedAt: null },
+      { name: "Süt", priceMinor: null, checkedAt: null },
+    ]);
+  });
+
+  it("refuses a price that is not whole, non-negative kuruş", async () => {
+    const [sut] = await addItems(listId, "süt");
+    for (const priceMinor of [-1, 12.5, Number.NaN, 100_000_000_000_000]) {
+      await expect(updateItem(sut!, { ...as("Süt"), priceMinor }), String(priceMinor)).rejects.toThrow();
+    }
+    expect(stored(sut!)).toMatchObject({ price_minor: null, checked_at: null });
   });
 });
 

@@ -13,6 +13,7 @@ import Plus from "lucide-react-native/icons/plus";
 import Trash from "lucide-react-native/icons/trash";
 
 import { NOTE_MAX, formatQuantity, quantityOrOne, stepQuantity, type ItemChange } from "../domain/items";
+import { formatMinorInput, formatPriceInput, readPrice } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
@@ -49,6 +50,7 @@ export function ItemSheet({
   const [urgent, setUrgent] = useState(item.urgent);
   const [notFound, setNotFound] = useState(item.notFound);
   const [instead, setInstead] = useState(item.boughtInstead ?? "");
+  const [price, setPrice] = useState(formatMinorInput(item.priceMinor));
   const [destination, setDestination] = useState(listId);
   const [keep, setKeep] = useState(false);
   // A list deleted while the panel is open is no longer a destination.
@@ -59,12 +61,17 @@ export function ItemSheet({
   const rows = rowsOf(lists, columns);
   const less = stepQuantity(quantity, -1);
   const more = stepQuantity(quantity, 1);
-  // Offered on an item still to find, a substitute typed while planning
-  // ("Sütaş if there is no Pınar") would tick it as bought.
-  const offersInstead = !moving && (item.checkedAt != null || notFound);
-  const ready = name.trim() !== "";
+  // Offered on an item still to find, a substitute or a price typed while
+  // planning ("Sütaş if there is no Pınar") would tick it as bought.
+  const offersBought = !moving && (item.checkedAt != null || notFound);
+  const paid = readPrice(offersBought ? price : "");
+  const ready = name.trim() !== "" && paid.ok;
   const save = () =>
-    ready && onSave({ name, ...quantity, note, urgent, notFound, boughtInstead: offersInstead ? instead : null }, to ? { list: to, keep } : null);
+    ready &&
+    onSave(
+      { name, ...quantity, note, urgent, notFound, boughtInstead: offersBought ? instead : null, priceMinor: paid.minor },
+      to ? { list: to, keep } : null,
+    );
   const submits = { returnKeyType: "done", onSubmitEditing: save } as const;
   const step = (next: typeof less) => {
     if (!next) return;
@@ -112,17 +119,7 @@ export function ItemSheet({
         {/* A ticked item was found. */}
         {item.checkedAt == null && !moving ? <Toggle value={notFound} onValueChange={setNotFound} label={tr.items.notFound} /> : null}
       </View>
-      {offersInstead ? (
-        <TextField
-          value={instead}
-          maxLength={NAME_MAX}
-          onChangeText={setInstead}
-          accessibilityLabel={tr.items.insteadLabel}
-          placeholder={tr.items.insteadPlaceholder}
-          {...submits}
-          style={{ marginTop: spacing.sm }}
-        />
-      ) : null}
+      {offersBought ? <Bought instead={instead} price={price} onInstead={setInstead} onPrice={setPrice} submits={submits} /> : null}
       {lists.length > 1 ? (
         <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
           <Body>{tr.items.list}</Body>
@@ -160,3 +157,41 @@ export function ItemSheet({
   );
 }
 
+/** What was bought in the item's place, and what was paid. */
+function Bought({
+  instead,
+  price,
+  onInstead,
+  onPrice,
+  submits,
+}: {
+  instead: string;
+  price: string;
+  onInstead: (typed: string) => void;
+  onPrice: (typed: string) => void;
+  submits: { returnKeyType: "done"; onSubmitEditing: () => void };
+}) {
+  return (
+    <>
+      <TextField
+        value={instead}
+        maxLength={NAME_MAX}
+        onChangeText={onInstead}
+        accessibilityLabel={tr.items.insteadLabel}
+        placeholder={tr.items.insteadPlaceholder}
+        {...submits}
+        style={{ marginTop: spacing.sm }}
+      />
+      <TextField
+        value={price}
+        onChangeText={(typed) => onPrice(formatPriceInput(typed))}
+        accessibilityLabel={tr.items.priceLabel}
+        placeholder={tr.items.pricePlaceholder}
+        keyboardType="decimal-pad"
+        inputMode="decimal"
+        {...submits}
+        style={{ marginTop: spacing.sm }}
+      />
+    </>
+  );
+}

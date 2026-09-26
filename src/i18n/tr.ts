@@ -1,5 +1,7 @@
 /** Every string a user reads. Turkish in the interface, English in code. */
 
+import { formatMinor } from "../domain/money";
+
 /** Helix's `dateTimeLabel`, its formatter made once: "24 Eylül 2026 14:05", on the device's clock. */
 const DATE_TIME = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long", timeStyle: "short" });
 
@@ -23,6 +25,8 @@ export const tr = {
     deleted: (name: string) => `${name} silindi`,
     /** What a screen reader hears for a card or a row: its name, then its line when it has one. */
     withDetail: (title: string, detail: string) => (detail ? `${title}, ${detail}` : title),
+    /** The parts that are there, on one line. */
+    joined: (...parts: (string | undefined)[]) => parts.filter(Boolean).join(tr.common.separator),
     done: "Tamam",
     retry: "Tekrar Dene",
     save: "Kaydet",
@@ -98,7 +102,8 @@ export const tr = {
     addPlaceholder: "2 kg domates, süt ve ekmek",
     emptyTitle: "Bu liste boş",
     emptyHint: "Yukarıya yaz. Virgülle ya da “ve” ile ayırırsan birkaç ürün birden eklenir.",
-    basket: "Sepette",
+    /** With what its priced items cost so far (SPEC 3.8). */
+    basket: (spentMinor: number | null) => tr.common.joined("Sepette", tr.history.spent(spentMinor)),
     progress: basketProgress,
     openHint: "Düzenlemek için aç",
     nameLabel: "Ürünün adı",
@@ -110,6 +115,8 @@ export const tr = {
     insteadLabel: "Yerine alınan",
     insteadPlaceholder: "Yerine alınan: Sütaş",
     instead: (name: string) => `Yerine: ${name}`,
+    priceLabel: "Ödenen fiyat",
+    pricePlaceholder: "Ödenen fiyat: 45,90",
     list: "Liste",
     keepHere: "Bu listede de kalsın",
     moved: (name: string, list: string) => `${name}, ${list} listesine taşındı`,
@@ -130,8 +137,10 @@ export const tr = {
   history: {
     emptyTitle: "Henüz biten alışveriş yok",
     emptyHint: "Sepete attıklarını “Alışverişi Bitir” ile buraya taşı. Her birini tek dokunuşla listesine geri ekleyebilirsin.",
-    /** A shop's card and the line above what it bought. */
-    summary: (finishedAt: string, bought: number) => `${dateTimeLabel(finishedAt)}${tr.common.separator}${bought} ürün`,
+    /** A shop's card and the line above what it bought; the count never parts from its noun. */
+    summary: (finishedAt: string, bought: number) => `${dateTimeLabel(finishedAt)}${tr.common.separator}${bought}\u00a0ürün`,
+    /** What a shop's priced items cost (SPEC 3.8); nothing when none was priced, which is not ₺0. */
+    spent: (spentMinor: number | null) => (spentMinor == null ? undefined : formatMinor(spentMinor)),
     openHint: "Alınanları gör",
     addBack: (name: string) => `${name} ürününü listeye geri ekle`,
     addedBack: (name: string) => `${name} listeye eklendi`,

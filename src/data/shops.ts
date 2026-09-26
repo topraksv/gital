@@ -4,7 +4,7 @@
  * bought item to a row of its own under it, and history reads those rows.
  */
 
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull, sum } from "drizzle-orm";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
@@ -20,6 +20,8 @@ export interface Shop extends Omit<ListLook, "name"> {
   listName: string;
   finishedAt: string;
   bought: number;
+  /** What its priced items cost, in kuruş; `null` when none was priced (SPEC 3.8). */
+  spentMinor: number | null;
 }
 
 /** Every list's shops, the latest first. A deleted list's history goes with it. */
@@ -33,6 +35,8 @@ export async function readShops(): Promise<Shop[]> {
       icon: lists.icon,
       finishedAt: shops.finishedAt,
       bought: count(items.id),
+      // SUM is NULL over no prices, as `spentOn` is; the mapping skips NULL.
+      spentMinor: sum(items.priceMinor).mapWith(Number),
     })
     .from(shops)
     .innerJoin(lists, and(eq(lists.id, shops.listId), isNull(lists.deletedAt)))

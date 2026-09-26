@@ -86,7 +86,7 @@ describe("finishShop", () => {
       { name: "Süt", quantityMilli: 2000, checkedAt: T0.toISOString() },
     ]);
     expect(await readShops()).toEqual([
-      { id: shop!.id, listId, listName: "Market", color: null, icon: null, finishedAt: new Date(T0.getTime() + 60_000).toISOString(), bought: 2 },
+      { id: shop!.id, listId, listName: "Market", color: null, icon: null, finishedAt: new Date(T0.getTime() + 60_000).toISOString(), bought: 2, spentMinor: null },
     ]);
   });
 
@@ -150,7 +150,7 @@ describe("the list after a shop", () => {
     const [sut] = await shopFor("süt", ["Süt"]);
     const shopId = await finish();
     await expect(toggleChecked(sut!)).rejects.toThrow();
-    await expect(updateItem(sut!, { name: "Ayran", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null })).rejects.toThrow();
+    await expect(updateItem(sut!, { name: "Ayran", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null })).rejects.toThrow();
     expect(await deleteItem(sut!)).toBeNull();
     expect(await history(shopId)).toMatchObject([{ name: "Süt" }]);
   });
@@ -230,7 +230,7 @@ describe("addEntries from history", () => {
     await shopFor("2 lt süt", ["Süt"]);
     const [item] = await readShopItems(await finish());
     const [back] = await addEntries(listId, [item!]);
-    expect(await readItems(listId)).toEqual([{ id: back, name: "Süt", quantityMilli: 2000, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null }]);
+    expect(await readItems(listId)).toEqual([{ id: back, name: "Süt", quantityMilli: 2000, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null }]);
     expect(back).not.toBe(item!.id);
   });
 
@@ -254,7 +254,15 @@ describe("addEntries from history", () => {
 
 describe("a shop's summary", () => {
   it("shows a stamp it cannot read as it is instead of throwing", () => {
-    expect(tr.history.summary("2026-09-24 10:00:00+00 bozuk", 2)).toBe("2026-09-24 10:00:00+00 bozuk · 2 ürün");
-    expect(tr.history.summary(T0.toISOString(), 1)).toMatch(/2026.* · 1 ürün$/);
+    expect(tr.history.summary("2026-09-24 10:00:00+00 bozuk", 2)).toBe("2026-09-24 10:00:00+00 bozuk · 2\u00a0ürün");
+    expect(tr.history.summary(T0.toISOString(), 1)).toMatch(/2026.* · 1\u00a0ürün$/);
+  });
+
+  it("says what the shop cost when anything was priced, and nothing when not, which is not ₺0", () => {
+    expect(tr.history.spent(5840)).toBe("₺58,40");
+    expect(tr.history.spent(0)).toBe("₺0,00");
+    expect(tr.history.spent(null)).toBeUndefined();
+    expect(tr.items.basket(5840)).toBe("Sepette · ₺58,40");
+    expect(tr.items.basket(null)).toBe("Sepette");
   });
 });

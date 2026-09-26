@@ -44,7 +44,7 @@ export default function ShopScreen() {
       ) : shop && items.updatedAt != null ? (
         <ArrivalScope>
           <Text style={[type.small, { color: palette.textSecondary, marginBottom: spacing.md }]}>
-            {tr.history.summary(shop.finishedAt, shop.bought)}
+            {tr.common.joined(tr.history.summary(shop.finishedAt, shop.bought), tr.history.spent(shop.spentMinor))}
           </Text>
           <View style={{ gap: density.list.rowGap }}>
             {items.data.map((item) => (

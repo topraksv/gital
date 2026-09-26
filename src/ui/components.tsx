@@ -31,6 +31,7 @@ import Minus from "lucide-react-native/icons/minus";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { foldName, formatQuantity, type ItemChange } from "../domain/items";
+import { formatMinor } from "../domain/money";
 import type { ListColor, ListIcon } from "../domain/lists";
 import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
@@ -309,13 +310,15 @@ type DetailPart = { text: string; tone?: "errorText" | "warningText" };
 /**
  * An item's second line: whether it is urgent while it is still to buy, and
  * whether it was not found, which a ticked item never is, each in its own
- * colour; then what was bought in its place, its quantity and its note.
+ * colour; then what was bought in its place, what was paid, its quantity and
+ * its note.
  */
 function detailOf(item: ShownItem): DetailPart[] {
   const parts: DetailPart[] = [
     { text: item.urgent && item.checkedAt == null ? tr.items.urgent : "", tone: "errorText" },
     { text: item.notFound ? tr.items.notFound : "", tone: "warningText" },
     { text: item.boughtInstead ? tr.items.instead(item.boughtInstead) : "" },
+    { text: item.priceMinor == null ? "" : formatMinor(item.priceMinor) },
     { text: formatQuantity(item) },
     { text: item.note ?? "" },
   ];
@@ -471,16 +474,20 @@ export function Toggle({ value, onValueChange, label }: { value: boolean; onValu
 
 /**
  * A card that opens a screen: its tile, its name, one line under it and a
- * chevron. A list on Listeler, a finished shop on Geçmiş.
+ * chevron. A list on Listeler, a finished shop on Geçmiş. A `figure`, what a
+ * shop cost, ends the name's line as a receipt's total does: at the end of
+ * the line under it, or beside both lines, that line wrapped at 360 dp.
  */
 export function LinkCard({
   tileId,
   look,
   title,
   detail,
+  figure,
   hint,
   onOpen,
 }: {
+  figure?: string;
   look?: TileLook;
   /** What the tile's tone is taken from, so a shop wears its list's tone. */
   tileId: string;
@@ -493,7 +500,7 @@ export function LinkCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={tr.common.withDetail(title, detail)}
+      accessibilityLabel={tr.common.withDetail(title, tr.common.withDetail(detail, figure ?? ""))}
       accessibilityHint={hint}
       onPress={onOpen}
       style={(state) => ({
@@ -507,7 +514,10 @@ export function LinkCard({
     >
       <Tile id={tileId} name={title} size={listCard.tile} color={look?.color} icon={look?.icon} />
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
-        <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold }]}>{title}</Text>
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold, flex: 1 }]}>{title}</Text>
+          {figure ? <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold }]}>{figure}</Text> : null}
+        </View>
         <Text style={[type.small, { color: palette.textSecondary }]}>{detail}</Text>
       </View>
       <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />

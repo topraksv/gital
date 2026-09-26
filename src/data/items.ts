@@ -20,6 +20,7 @@ import {
 } from "../db/mutations";
 import { items, lists } from "../db/schema";
 import { bareEntry, foldName, itemNameFrom, noteFrom, type Entry, type ItemChange, type KnownProduct, type ListedEntry } from "../domain/items";
+import { isPrice } from "../domain/money";
 
 export interface Item extends ItemChange {
   id: string;
@@ -41,6 +42,7 @@ function readItemsWhere(where: SQL | undefined): Promise<Item[]> {
       urgent: items.urgent,
       notFound: items.notFound,
       boughtInstead: items.boughtInstead,
+      priceMinor: items.priceMinor,
       checkedAt: items.checkedAt,
     })
     .from(items)
@@ -179,11 +181,13 @@ async function readLiveItem(id: string): Promise<RowSnapshot> {
 }
 
 /**
- * An item as it is written, whatever the path: what was bought instead was
- * bought, so it is in the basket, and what is in the basket was found (SPEC 3.7).
+ * An item as it is written, whatever the path: what was bought instead, or
+ * paid for, was bought, so it is in the basket, and what is in the basket was
+ * found (SPEC 3.7, 3.8).
  */
 function settled(row: Record<string, unknown>): Record<string, unknown> {
-  const checkedAt = row.boughtInstead == null ? row.checkedAt : (row.checkedAt ?? nowIso());
+  const bought = row.boughtInstead != null || row.priceMinor != null;
+  const checkedAt = bought ? (row.checkedAt ?? nowIso()) : row.checkedAt;
   return { ...row, checkedAt, notFound: checkedAt == null && row.notFound === true };
 }
 
@@ -206,6 +210,7 @@ function land(id: string, there: RowSnapshot | null, arriving: Record<string, un
     ...(arriving.urgent === true && { urgent: true }),
     ...(arriving.notFound === true && { notFound: true }),
     ...(arriving.boughtInstead != null && { boughtInstead: arriving.boughtInstead }),
+    ...(arriving.priceMinor != null && { priceMinor: arriving.priceMinor }),
   });
 }
 
@@ -213,19 +218,20 @@ function land(id: string, there: RowSnapshot | null, arriving: Record<string, un
  * Tick an item into the basket or take it back out (SPEC 3.1). The tick is
  * read inside the write, so a second tap before the screen has refreshed takes
  * it back rather than repeating it. Taken back out, what was bought in its
- * place was not bought after all.
+ * place, and what was paid, was not after all.
  */
 export function toggleChecked(id: string): Promise<void> {
   return writeRows(async () => {
     const stored = await readLiveItem(id);
-    return editItem(stored, stored.checked_at == null ? { checkedAt: nowIso() } : { checkedAt: null, boughtInstead: null });
+    return editItem(stored, stored.checked_at == null ? { checkedAt: nowIso() } : { checkedAt: null, boughtInstead: null, priceMinor: null });
   });
 }
 
 /**
- * Save the item panel: its name, quantity, note, urgency, and whether it was
- * not found or something else was bought instead, in one write. What was
- * bought instead was bought, so it goes into the basket (SPEC 3.7). The id is the
+ * Save the item panel: its name, quantity, note, urgency, whether it was not
+ * found or something else was bought instead, and what was paid, in one
+ * write. What was bought instead or paid for was bought, so it goes into the
+ * basket (SPEC 3.7, 3.8). The id is the
  * product's, so a new product means a new row: the old one is tombstoned and
  * the new one carries everything else, or merges into the product's row when
  * it is already there. Renamed in place, "süt" → "ayran" would leave the row
@@ -233,8 +239,8 @@ export function toggleChecked(id: string): Promise<void> {
  *
  * With `to`, the same write sends the item to another list, or with `keep` a
  * copy of it (SPEC 4.3). It lands as adding it there would, with its name,
- * quantity, note and urgency: a new row goes on top, to buy. Its tick, and
- * what was or was not found, belong to this list's shop and do not go.
+ * quantity, note and urgency: a new row goes on top, to buy. Its tick, what
+ * was or was not found and its price belong to this list's shop and do not go.
  */
 export async function updateItem(
   id: string,
@@ -245,7 +251,9 @@ export async function updateItem(
   if (name == null) throw new Error("An item needs a name");
   const note = noteFrom(change.note);
   const boughtInstead = change.boughtInstead == null ? null : itemNameFrom(change.boughtInstead);
-  const saved = { name, quantityMilli: change.quantityMilli, unit: change.unit, note, urgent: change.urgent, notFound: change.notFound, boughtInstead };
+  const { priceMinor } = change;
+  if (priceMinor != null && !isPrice(priceMinor)) throw new Error("A price is whole kuruş");
+  const saved = { name, quantityMilli: change.quantityMilli, unit: change.unit, note, urgent: change.urgent, notFound: change.notFound, boughtInstead, priceMinor };
   const written = await writeUndoable(async () => {
     const stored = await readLiveItem(id);
     const here = !to || to.keep ? await saveHere(stored, saved) : editRow("items", stored, { deletedAt: nowIso() });

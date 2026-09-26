@@ -55,6 +55,8 @@ export const items = sqliteTable(
     notFound: integer("not_found", { mode: "boolean" }).notNull().default(false),
     /** What was bought in its place; taking the tick back clears it. */
     boughtInstead: text("bought_instead"),
+    /** What was paid for it, in kuruş (SPEC 3.8); a price is a tick, and taking the tick back clears it. */
+    priceMinor: integer("price_minor"),
     /** Set on the copy a finished shop keeps of what it bought; `null` on the list. */
     shopId: text("shop_id"),
   },

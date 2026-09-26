@@ -64,3 +64,5 @@ cannot be released.
 - A list takes a colour of its own and a picture from twenty drawings, chosen
   in the panel its pencil now opens beside the name; its cards on Listeler
   and Geçmiş wear both.
+- A bought item takes what was paid for it; the basket adds up the prices so
+  far, and each shop in Geçmiş shows what it cost.

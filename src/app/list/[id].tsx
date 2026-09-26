@@ -15,6 +15,7 @@ import { deleteList, editList, restoreList, type ListSummary } from "../../data/
 import { finishShop, reopenShop } from "../../data/shops";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
+import { spentOn } from "../../domain/money";
 import { tr } from "../../i18n/tr";
 import { shareText } from "../../services/share";
 import {
@@ -198,7 +199,7 @@ export default function ListScreen() {
                   basket.length > 0 ? (
                     <RowMotion key="basket">
                       <SlideUp distance={motion.travel.bar}>
-                        <SectionHeader>{tr.items.basket}</SectionHeader>
+                        <SectionHeader>{tr.items.basket(spentOn(basket))}</SectionHeader>
                       </SlideUp>
                     </RowMotion>
                   ) : null,
