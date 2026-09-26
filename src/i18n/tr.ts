@@ -33,6 +33,8 @@ function basketProgress(done: number, total: number): string {
 }
 
 export const tr = {
+  /** The browser tab, the search result and a shared link's headline: what Gital is for, not its name alone (Helix's reasoning). */
+  meta: { title: "Gital · Ortak alışveriş listesi" },
   common: {
     /** Between the parts of a line as drawn; read aloud, an item's parts are joined by commas. */
     separator: " · ",

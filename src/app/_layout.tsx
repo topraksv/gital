@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Platform, View, useColorScheme } from "react-native";
 import { Stack } from "expo-router";
+import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import DatabaseZap from "lucide-react-native/icons/database-zap";
@@ -109,10 +110,18 @@ export default function RootLayout() {
   // On the web the document already wears the stored ground (`+html.tsx`), and
   // a colour here would differ between the static render and the first client
   // render, which hydration never repairs.
-  if (!ready) return <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? undefined : theme.palette.background }} />;
+  if (!ready) {
+    return (
+      <>
+        <WebTitle />
+        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? undefined : theme.palette.background }} />
+      </>
+    );
+  }
 
   return (
     <ThemeContext.Provider value={theme}>
+      <WebTitle />
       <GestureRoot>
         <KeyboardSafeRoot>
           <View style={{ flex: 1, backgroundColor: theme.palette.background }}>
@@ -155,5 +164,20 @@ export default function RootLayout() {
         </KeyboardSafeRoot>
       </GestureRoot>
     </ThemeContext.Provider>
+  );
+}
+
+/**
+ * Expo Router's head writes a <title> ahead of the shell's, and the browser
+ * shows the first: left empty, every tab read "" (2026-09-26). Rendered in
+ * both of the layout's branches, since the static export renders the one that
+ * is not ready.
+ */
+function WebTitle() {
+  if (Platform.OS !== "web") return null;
+  return (
+    <Head>
+      <title>{tr.meta.title}</title>
+    </Head>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * The web app installs and opens offline under its base (SPEC 11.4, 10.1).
  * The manifest, the worker and the shell each name the base as a literal,
- * since none of them runs through the bundler; a move to Gital's own origin
+ * since none of them runs through the bundler; a move to another origin
  * (`docs/BACKLOG.md`) that changed `baseUrl` alone would break installing
  * and the offline start without a single failing screen.
  */
@@ -84,12 +84,23 @@ describe("the keyboard focus ring", () => {
     expect(css).toContain("outline-offset:-2px");
   });
 
-  it("covers every element Gital lets focus reach, react-native-web's own outline reset included", async () => {
+  // A sheet is react-native-web's Modal, which renders beside `#root` rather
+  // than in it: scoped to `#root`, not one control in a sheet had the ring.
+  it("covers every element Gital lets focus reach, in a sheet too, react-native-web's own outline reset included", async () => {
     const { focusRingCss } = await import("../../src/ui/focus-ring");
     const css = focusRingCss("#000000");
+    expect(css).not.toContain("#root");
     for (const target of ["[tabindex]", "[role=button]", "[role=checkbox]", "[role=switch]", "[role=radio]", "[role=tab]", "[role=slider]", "input", "textarea"]) {
-      expect(css, target).toContain(`#root ${target}:focus-visible`);
+      expect(css, target).toContain(`body ${target}:focus-visible`);
     }
+  });
+
+  // A sheet moves focus to its title for a screen reader; the title is not a
+  // control, and a ring round it on every opening reads as a stray selection.
+  it("draws no ring round a heading that took focus", async () => {
+    const { focusRingCss } = await import("../../src/ui/focus-ring");
+    const css = focusRingCss("#000000");
+    expect(css.indexOf("body [role=heading]:focus-visible{outline:none")).toBeGreaterThan(css.indexOf("[tabindex]:focus-visible"));
   });
 
   it("rings the drawn box of a control whose hit area is larger, not the invisible square around it", async () => {

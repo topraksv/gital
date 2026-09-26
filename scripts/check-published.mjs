@@ -7,7 +7,8 @@
  *   node scripts/check-published.mjs entry <export-dir>
  *   node scripts/check-published.mjs web <base-url> --entry <path> [--wait <seconds>]
  *
- * `entry` prints the export's entry bundle as `path=…`, for $GITHUB_OUTPUT.
+ * `entry` prints the export's entry bundle as `path=…`, for $GITHUB_OUTPUT,
+ * and refuses an export whose page has no title to show.
  * That name is a content hash, so no other build carries it, and `web` asks
  * the live site for exactly that name with the same code. A 200 would not do:
  * Pages answers 200 with the previous deploy while a new one propagates, and a
@@ -20,6 +21,11 @@ import { fileURLToPath } from "node:url";
 /** The entry bundle a page references, as a path below the site's base. */
 export function entryOf(html) {
   return /\/_expo\/static\/js\/web\/entry-[\w-]+\.js/.exec(html)?.[0] ?? null;
+}
+
+/** The title a browser shows: the first `<title>` in the document, empty or not. */
+export function titleOf(html) {
+  return /<title[^>]*>([^<]*)<\/title>/.exec(html)?.[1] ?? null;
 }
 
 /**
@@ -91,8 +97,10 @@ async function main() {
   const option = (name) => (args.includes(name) ? (args[args.indexOf(name) + 1] ?? "") : undefined);
 
   if (command === "entry" && target) {
-    const entry = entryOf(readFileSync(join(target, "index.html"), "utf8"));
+    const html = readFileSync(join(target, "index.html"), "utf8");
+    const entry = entryOf(html);
     if (!entry) throw new Error(`${target}/index.html references no entry bundle`);
+    if (!titleOf(html)) throw new Error(`${target}/index.html shows no title: its first <title> is empty or missing`);
     process.stdout.write(`path=${entry}\n`);
   } else if (command === "web" && target && option("--entry")) {
     const { version, slug } = JSON.parse(readFileSync("app.json", "utf8")).expo;

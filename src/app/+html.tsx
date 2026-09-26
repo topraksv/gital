@@ -1,6 +1,7 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 
+import { tr } from "../i18n/tr";
 import { focusRingCss } from "../ui/focus-ring";
 import { APPEARANCE_KEYS, DEFAULT_PALETTE_ID, PALETTES } from "../ui/theme";
 
@@ -42,7 +43,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
-        <title>Gital</title>
+        <title>{tr.meta.title}</title>
         {/* Installing to the home screen (SPEC 11.4). The browser's chrome
             takes the default palette's ground per scheme on the first paint;
             the root layout then writes the chosen palette's over both. */}

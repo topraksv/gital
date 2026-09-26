@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { CI_EXECUTED_SCRIPTS, classify } from "../scripts/classify-changes.mjs";
 import { evaluate } from "../scripts/check-lint-ratchet.mjs";
-import { appVersionOf, entryOf } from "../scripts/check-published.mjs";
+import { appVersionOf, entryOf, titleOf } from "../scripts/check-published.mjs";
 
 const root = join(import.meta.dirname, "..");
 
@@ -88,6 +88,14 @@ describe("check-published", () => {
     const html = '<script src="/gital/_expo/static/js/web/entry-4daa5bb8e8ad49f6911813b0513df45f.js" defer></script>';
     expect(entryOf(html)).toBe("/_expo/static/js/web/entry-4daa5bb8e8ad49f6911813b0513df45f.js");
     expect(entryOf("<html></html>")).toBeNull();
+  });
+
+  // The browser shows the first <title>; Expo Router's head writes an empty
+  // one before the shell's unless a screen gives it one (2026-09-26).
+  it("reads the title a browser shows, the first in the document", () => {
+    expect(titleOf('<title data-rh="true">Gital · Ortak alışveriş listesi</title><title>Gital</title>')).toBe("Gital · Ortak alışveriş listesi");
+    expect(titleOf('<title data-rh="true"></title><title>Gital</title>')).toBe("");
+    expect(titleOf("<html></html>")).toBeNull();
   });
 
   // Expo embeds the app config as an escaped JSON string, beside libraries

@@ -14,7 +14,9 @@
 export const FOCUS_PROPERTY = "--gital-focus";
 
 // react-native-web resets `outline` on its own pressables, so each element
-// focus can reach is named, which outranks that reset.
+// focus can reach is named, which outranks that reset. Scoped to `body`, not
+// `#root`: a sheet is a Modal, rendered beside `#root`, and until 2026-09-26
+// no control in one had the ring.
 const TARGETS = ["[tabindex]", "[role=button]", "[role=checkbox]", "[role=switch]", "[role=radio]", "[role=tab]", "[role=slider]", "a", "input", "textarea"];
 
 /**
@@ -27,11 +29,13 @@ export const FOCUS_BOX = { dataSet: { focusBox: "true" } } as object;
 
 export function focusRingCss(fallback: string): string {
   const ring = `outline:2px solid var(${FOCUS_PROPERTY},${fallback})`;
-  const selector = TARGETS.map((target) => `#root ${target}:focus-visible`).join(",");
-  // After the rule above and as specific, so it wins for a hit area with a box.
+  const selector = TARGETS.map((target) => `body ${target}:focus-visible`).join(",");
+  // After the rule above and as specific, so they win: a hit area with a box
+  // rings the box, and a sheet's title, focused for a screen reader, is no control.
   return (
     `${selector}{${ring};outline-offset:-2px;}` +
-    `#root :focus-visible:has(> [data-focus-box]){outline:none;}` +
-    `#root :focus-visible > [data-focus-box]{${ring};outline-offset:2px;}`
+    `body :focus-visible:has(> [data-focus-box]){outline:none;}` +
+    `body :focus-visible > [data-focus-box]{${ring};outline-offset:2px;}` +
+    `body [role=heading]:focus-visible{outline:none;}`
   );
 }
