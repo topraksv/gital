@@ -116,11 +116,11 @@ describe("finishShop", () => {
     const before = queued();
     later(1000);
     const shopId = await finish();
-    // Each bought item: its list row tombstoned, and its copy.
-    expect(queued()).toEqual({ ...before, items: before.items! + 4, shops: 1 });
+    // Each bought item: its list row tombstoned, its copy, and what it brought home.
+    expect(queued()).toEqual({ ...before, items: before.items! + 4, shops: 1, pantry_items: 2, pantry_moves: 2 });
     later(2000);
     await reopenShop(shopId);
-    expect(queued()).toEqual({ ...before, items: before.items! + 8, shops: 2 });
+    expect(queued()).toEqual({ ...before, items: before.items! + 8, shops: 2, pantry_items: 2, pantry_moves: 4 });
   });
 });
 

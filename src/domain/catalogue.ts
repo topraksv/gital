@@ -194,7 +194,7 @@ export interface Section<T> {
  * run keeps the list's own order, which is how a drag within an aisle is kept.
  * The aisles are headed only when there are two or more of them.
  */
-export function listSections<T extends { name: string; urgent: boolean; notFound: boolean }>(open: readonly T[]): Section<T>[] {
+export function listSections<T extends { name: string; urgent?: boolean; notFound?: boolean }>(open: readonly T[]): Section<T>[] {
   const shelves = new Map<Aisle | "other", T[]>([...AISLES, "other" as const].map((aisle) => [aisle, []]));
   for (const item of open) if (!item.urgent && !item.notFound) shelves.get(catalogueProduct(item.name)?.aisle ?? "other")!.push(item);
   const filled = [...shelves].filter(([, items]) => items.length > 0);

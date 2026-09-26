@@ -9,11 +9,12 @@ import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
 import { items, lists, shops } from "../db/schema";
-import { foldName } from "../domain/items";
+import { foldName, type Unit } from "../domain/items";
 import { isPrice } from "../domain/money";
 import { lookOf, type ListLook } from "../domain/lists";
 import type { Purchase } from "../domain/restock";
 import { openItemId } from "./items";
+import { arrivalRows, arrivalsOf } from "./pantry";
 
 /** A shop wears its list's colour and picture (SPEC 1.8). */
 export interface Shop extends Omit<ListLook, "name"> {
@@ -122,24 +123,24 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
     const id = await deterministicId(naturalKeys.shop(listId, number));
     const now = nowIso();
     finished = { id, bought: bought.length };
-    const moves = await Promise.all(
-      bought.map(async (row): Promise<RowWrite[]> => [
-        ...editRow("items", row, { deletedAt: now }),
-        {
-          table: "items",
-          row: {
-            ...fromDbShape("items", row),
-            id: await deterministicId(naturalKeys.boughtItem(id, foldName(String(row.name)))),
-            shopId: id,
-            tombstoneVersion: 0,
-          },
-        },
-      ]),
+    const copies = await Promise.all(
+      bought.map(async (row) => ({
+        ...fromDbShape("items", row),
+        id: await deterministicId(naturalKeys.boughtItem(id, foldName(String(row.name)))),
+        shopId: id,
+        tombstoneVersion: 0,
+      })),
+    );
+    const moves = bought.map((row, at): RowWrite[] => [...editRow("items", row, { deletedAt: now }), { table: "items", row: copies[at]! }]);
+    // What was bought comes home in the same write (SPEC 12.5).
+    const arrivals = await arrivalRows(
+      listId,
+      bought.map((row, at) => ({ id: copies[at]!.id, name: String(row.name), quantityMilli: row.quantity_milli as number | null, unit: row.unit as Unit | null })),
     );
     // An undone shop finished again is the same rows, brought back, summed
     // afresh rather than wearing the total typed before. The shop goes last: Geçmiş re-reads on a shop's change and not on an item's, so
     // its read must not start before the items are written.
-    return [...moves.flat(), { table: "shops", row: { id, listId, number, finishedAt: now, totalMinor: null, deletedAt: null } }];
+    return [...moves.flat(), ...arrivals, { table: "shops", row: { id, listId, number, finishedAt: now, totalMinor: null, deletedAt: null } }];
   });
   return finished;
 }
@@ -165,6 +166,7 @@ export async function reopenShop(shopId: string): Promise<void> {
     return [
       ...moved.flatMap((row) => editRow("items", row, { deletedAt: now })),
       ...gone.flatMap((row) => editRow("items", row, { deletedAt: null })),
+      ...(await arrivalsOf(moved.map((row) => String(row.id)), now)),
       // Last, as in `finishShop`.
       ...editRow("shops", shop, { deletedAt: now }),
     ];

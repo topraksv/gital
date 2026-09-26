@@ -18,8 +18,8 @@ import { join, relative } from "node:path";
 // Measured 2026-09-26 on the catalogue: entry 1_737_780, all JS
 // 1_874_324, export 3_479_617, pictures 324_522. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 1_755_000,
-  totalJs: 1_893_000,
+  entryJs: 1_777_200,
+  totalJs: 1_915_100,
   totalExport: 3_515_000,
   pictures: 328_000,
 };

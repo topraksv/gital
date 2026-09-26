@@ -116,6 +116,35 @@ export const wishLinks = sqliteTable(
   (t) => [index("idx_wish_links_wish_id").on(t.wishId)],
 );
 
+/**
+ * A product at home (SPEC 12.2), one row per product: its id comes from the
+ * folded name, so every shop that brings it meets the same row. What it holds
+ * is not a column but the sum of its moves (`docs/ARCHITECTURE.md`, "The pantry
+ * counts arrivals"). Personal, not a list's; the person joins its id with accounts.
+ */
+export const pantryItems = sqliteTable("pantry_items", {
+  ...syncColumns,
+  name: text("name").notNull(),
+  /** The list its latest arrival was bought on, where finishing it puts it back. */
+  listId: text("list_id"),
+});
+
+/**
+ * What arrived at home (positive) or was used (negative), in thousandths of
+ * `unit` (SPEC 12.8). An arrival's id comes from the bought item it records,
+ * so a shop seen twice adds once (12.9).
+ */
+export const pantryMoves = sqliteTable(
+  "pantry_moves",
+  {
+    ...syncColumns,
+    pantryItemId: text("pantry_item_id").notNull(),
+    quantityMilli: integer("quantity_milli").notNull(),
+    unit: text("unit", { enum: UNITS }).notNull(),
+  },
+  (t) => [index("idx_pantry_moves_pantry_item_id").on(t.pantryItemId)],
+);
+
 /** Local only: every write waiting to be pushed. Never synced itself. */
 export const outbox = sqliteTable(
   "outbox",
@@ -134,6 +163,6 @@ export const outbox = sqliteTable(
   ],
 );
 
-export const SYNCED_TABLES = { lists, items, shops, wishes, wish_links: wishLinks } as const;
+export const SYNCED_TABLES = { lists, items, shops, wishes, wish_links: wishLinks, pantry_items: pantryItems, pantry_moves: pantryMoves } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;

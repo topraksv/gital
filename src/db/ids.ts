@@ -28,4 +28,8 @@ export const naturalKeys = {
   shop: (listId: string, number: number) => `shop:${listId}:${number}`,
   /** What a shop bought of a product: history's own row, apart from the list's. */
   boughtItem: (shopId: string, foldedName: string) => `bought:${shopId}:${foldedName}`,
+  /** A product at home. The person joins the key with accounts, since a pantry is theirs alone. */
+  pantryItem: (foldedName: string) => `pantry:${foldedName}`,
+  /** What a bought item brought home, so a shop seen twice adds it once (SPEC 12.9). */
+  arrival: (boughtItemId: string) => `arrival:${boughtItemId}`,
 };

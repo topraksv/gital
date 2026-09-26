@@ -64,6 +64,13 @@
       "when": 1790415926676,
       "tag": "0008_wishes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790429105734,
+      "tag": "0009_pantry",
+      "breakpoints": true
     }
   ]
 }

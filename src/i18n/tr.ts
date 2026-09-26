@@ -275,6 +275,14 @@ export const tr = {
     aisles: "Bu ay reyonlar",
     aislesLabel: (rows: readonly { name: string; spentMinor: number }[]) => `Bu ay reyonlar: ${rows.map((row) => `${row.name} ${formatMinor(row.spentMinor)}`).join(", ")}`,
   },
+  pantry: {
+    emptyTitle: "Kiler boş",
+    emptyHint: "Alışverişi bitirince sepettekiler buraya gelir. Azaldıkça eksilt; biten, geldiği listeye döner.",
+    less: (name: string) => `${name}: bir azalt`,
+    finish: (name: string) => `${name} bitti, listeye ekle`,
+    /** The undo bar's line; a list deleted since takes nothing back. */
+    finished: (name: string, list: string | null) => (list == null ? `${name} bitti` : `${name} bitti, ${list} listesine eklendi`),
+  },
   tour: {
     step: (step: number, total: number, title: string) => `${total} adımdan ${step}. ${title}`,
     next: "İleri",

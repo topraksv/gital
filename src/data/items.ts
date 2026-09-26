@@ -140,6 +140,11 @@ export async function importEntries(listId: string, added: readonly ListedEntry[
   return written.writes.length === 0 ? null : written;
 }
 
+/** What adding `added` writes, for a write that adds to a list among other things; run inside it. */
+export async function entryRows(listId: string, added: readonly ListedEntry[]): Promise<RowWrite[]> {
+  return landEntries(listId, await byProduct(listId, added));
+}
+
 /** One per product: named twice, it keeps its first place and takes the last quantity and note given. */
 async function byProduct(listId: string, added: readonly ListedEntry[]): Promise<Map<string, ListedEntry>> {
   const ids = await Promise.all(added.map((entry) => openItemId(listId, entry.name)));

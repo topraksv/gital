@@ -4,6 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
+import { readPantry } from "./pantry";
 import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readWishes } from "./wishes";
 
@@ -72,4 +73,10 @@ export function useCollections() {
 export function useWishes(listId: string) {
   const store = useMemo(() => liveStore(() => readWishes(listId), ["wishes", "wish_links"]), [listId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+const pantryStore = liveStore(readPantry, ["pantry_items", "pantry_moves"]);
+
+export function usePantry() {
+  return useSyncExternalStore(pantryStore.subscribe, pantryStore.getSnapshot, pantryStore.getSnapshot);
 }

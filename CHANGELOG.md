@@ -115,3 +115,7 @@ cannot be released.
   rather than the default one's.
 - The phone app's icon is Gital's cart, as the web's is, in place of the
   template's.
+- Kiler shows what is at home, by aisle: a finished shop brings what it
+  bought, with its quantity, and taking the shop back takes it out again. −
+  uses some; a product used up, or marked finished, goes back on the list it
+  came from, and the bar that says so can take it back.
