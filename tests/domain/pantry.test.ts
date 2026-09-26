@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { lessOf, stockOf, type Stock } from "../../src/domain/pantry";
+import { atHome, lessOf, stockOf, type Stock } from "../../src/domain/pantry";
 
 const of = (quantity: number, unit: Stock["unit"]): Stock => ({ quantityMilli: quantity * 1000, unit });
 
@@ -43,5 +43,13 @@ describe("lessOf", () => {
   it("takes all of it when a step would leave nothing", () => {
     expect(lessOf(of(1, "adet"))).toEqual(of(-1, "adet"));
     expect(lessOf(of(0.3, "kg"))).toEqual(of(-0.3, "kg"));
+  });
+});
+
+describe("atHome", () => {
+  it("finds what an entry adds that the pantry holds, however it was spelled", () => {
+    const pantry = [{ name: "Süt", ...of(1, "lt") }, { name: "Ekmek", ...of(1, "adet") }];
+    expect(atHome(pantry, [{ name: "sut" }, { name: "Domates" }])).toEqual([pantry[0]]);
+    expect(atHome(pantry, [{ name: "Domates" }])).toEqual([]);
   });
 });

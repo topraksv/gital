@@ -1,5 +1,6 @@
 /** Every string a user reads. Turkish in the interface, English in code. */
 
+import { formatQuantity, type Unit } from "../domain/items";
 import { formatMinor } from "../domain/money";
 
 /** Helix's `dateTimeLabel`, its formatter made once: "24 Eylül 2026 14:05", on the device's clock. */
@@ -283,6 +284,9 @@ export const tr = {
     less: (name: string) => `${name}: bir azalt`,
     finish: (name: string) => `${name} bitti, listeye ekle`,
     /** The undo bar's line; a list deleted since takes nothing back. */
+    /** Said as a product is added (SPEC 12.6), without stopping the add. */
+    atHome: (held: readonly { name: string; quantityMilli: number; unit: Unit }[]) =>
+      `Evde var: ${held.map((item) => `${item.name} ${formatQuantity(item)}`).join(", ")}`,
     finished: (name: string, list: string | null) => (list == null ? `${name} bitti` : `${name} bitti, ${list} listesine eklendi`),
   },
   tour: {

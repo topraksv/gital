@@ -1,6 +1,6 @@
 /** What the pantry holds of a product (SPEC 12.8): the sum of what arrived and what was used. */
 
-import { stepQuantity, type Unit } from "./items";
+import { foldName, stepQuantity, type Unit } from "./items";
 
 export interface Stock {
   quantityMilli: number;
@@ -35,6 +35,12 @@ export function stockOf(moves: readonly Stock[]): Stock | null {
     stock = counted.quantityMilli > 0 ? counted : null;
   }
   return stock;
+}
+
+/** What an entry adds that is already at home (SPEC 12.6), matched as 2.5 merges: by the folded name. */
+export function atHome<T extends { name: string }>(pantry: readonly T[], added: readonly { name: string }[]): T[] {
+  const keys = new Set(added.map((entry) => foldName(entry.name)));
+  return pantry.filter((item) => keys.has(foldName(item.name)));
 }
 
 /** The move one press of − makes: down to the unit's step below, or all of it when that is nothing (12.8). */

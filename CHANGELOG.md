@@ -122,3 +122,5 @@ cannot be released.
 - A list's panel has "Alınanlar kilere gitsin", on by default: turned off, a
   hardware list's shops stay out of Kiler.
 - The celebration of a finished shop says how many products went to Kiler.
+- Adding a product that is already in Kiler says how much is at home
+  ("Evde var: Süt 2 lt") without stopping the add.

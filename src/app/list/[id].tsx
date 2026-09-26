@@ -15,11 +15,13 @@ import Trash from "lucide-react-native/icons/trash";
 import { useItems, useKnownProducts, useLists, usePurchases } from "../../data/hooks";
 import { addEntries, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
+import { readPantry } from "../../data/pantry";
 import { finishShop, reopenShop } from "../../data/shops";
 import { catalogueNamed, listSections, nearMiss, withCatalogue, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
+import { atHome } from "../../domain/pantry";
 import { restockDue, type Purchase } from "../../domain/restock";
 import { tr } from "../../i18n/tr";
 import { shareText } from "../../services/share";
@@ -305,6 +307,10 @@ function QuickAdd({
     try {
       await addEntries(listId, entries);
       selectionTap();
+      // Read once the add is written, so a slow read never holds it up, and
+      // a failed one costs only the sentence.
+      const held = atHome(await readPantry().catch(() => []), entries);
+      if (held.length > 0) showNotice(tr.pantry.atHome(held));
     } catch {
       setText((current) => (current === "" ? typed : current));
       void appError(tr.errors.saveFailed);
