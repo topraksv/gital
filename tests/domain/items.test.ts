@@ -8,6 +8,7 @@ import {
   parseEntry,
   parseList,
   pickEntries,
+  quantityMilliOf,
   stepQuantity,
   suggestProducts,
   typedProduct,
@@ -249,6 +250,21 @@ describe("stepQuantity", () => {
     expect(stepQuantity({ quantityMilli: 500, unit: "kg" }, -1)).toBeNull();
     expect(stepQuantity({ quantityMilli: 50_000, unit: "g" }, -1)).toBeNull();
     expect(stepQuantity({ quantityMilli: 9_999_000, unit: "adet" }, 1)).toBeNull();
+  });
+});
+
+describe("quantityMilliOf", () => {
+  it.each([
+    [2.5, 2500],
+    [0.3 * 3, 900],
+    [1.0004, 1000],
+    [9999, 9_999_000],
+  ])("reads the calculator's %j as %j thousandths", (value, milli) => {
+    expect(quantityMilliOf(value)).toBe(milli);
+  });
+
+  it("refuses what cannot be a quantity: nothing, less than one thousandth, too much, not a number", () => {
+    for (const value of [0, -2, 0.0004, 10_000, Number.NaN, Number.POSITIVE_INFINITY]) expect(quantityMilliOf(value)).toBeNull();
   });
 });
 

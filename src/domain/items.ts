@@ -106,9 +106,14 @@ const LINE_NOTE = /\s*\((.*)\)$/u;
 function quantityFrom(number: string, unit: string | undefined): Quantity | null {
   // A dot before three digits is Turkish for thousands; any other is a decimal point.
   const value = NUMBER_WORDS[number] ?? Number(/^\d{1,3}\.\d{3}$/.test(number) ? number.replace(".", "") : number.replace(",", "."));
+  const quantityMilli = quantityMilliOf(value);
+  return quantityMilli == null ? null : { quantityMilli, unit: unit ? UNIT_WORDS[unit]! : "adet" };
+}
+
+/** A number, typed or worked out on the calculator, as thousandths of a unit; none when it cannot be a quantity. */
+export function quantityMilliOf(value: number): number | null {
   const quantityMilli = Math.round(value * 1000);
-  if (!(quantityMilli >= 1 && quantityMilli <= QUANTITY_MAX_MILLI)) return null;
-  return { quantityMilli, unit: unit ? UNIT_WORDS[unit]! : "adet" };
+  return quantityMilli >= 1 && quantityMilli <= QUANTITY_MAX_MILLI ? quantityMilli : null;
 }
 
 /**

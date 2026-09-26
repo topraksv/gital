@@ -154,3 +154,5 @@ cannot be released.
   sideways row to it.
 - On the phone, a row that appears or leaves in the item panel fades, and the
   panel slides to its new height instead of jumping.
+- An item's quantity opens the calculator from its panel: 0,75 × 3 is
+  "2,25 kg", in the item's own unit.

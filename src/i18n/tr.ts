@@ -183,6 +183,7 @@ export const tr = {
     error: "Hata",
     use: (amount: string) => `Sonucu Kullan · ${amount}`,
     unusable: "Sonuç bir tutar olamaz",
+    notQuantity: "Sonuç bir miktar olamaz",
     display: (value: string, preview?: string) => `Hesap makinesi ekranı: ${value}${preview ? `. Önizleme: ${preview}` : ""}`,
     key: (key: string) =>
       ({

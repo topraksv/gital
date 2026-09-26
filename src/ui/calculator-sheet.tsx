@@ -11,6 +11,7 @@ import { Platform, Text, View } from "react-native";
 import Delete from "lucide-react-native/icons/delete";
 
 import { CALC_START, feedbackOf, formatNumber, keyFrom, minorOf, press, previewOf, resultOf, shownOf, type Calc, type CalcKey } from "../domain/calculator";
+import { formatQuantity, quantityMilliOf, type Unit } from "../domain/items";
 import { formatMinor } from "../domain/money";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
@@ -24,22 +25,31 @@ import { Press } from "./press";
 const OPS: readonly CalcKey[] = ["÷", "×", "-", "+", "="];
 const FEEDBACK = { none: () => {}, selection: selectionTap, success: successNotice, error: errorNotice } as const;
 
-export default function CalculatorSheet({ onResult, onClose }: { onResult: (minor: number) => void; onClose: () => void }) {
+/**
+ * A price's result is kuruş; given a `unit`, it is a quantity in thousandths of
+ * it. The reading stays here, out of the web entry, with the arithmetic.
+ */
+export default function CalculatorSheet({ unit, onResult, onClose }: { unit?: Unit; onResult: (value: number) => void; onClose: () => void }) {
   const titleRef = useModalAccessibility(true);
   const [state, setState] = useState<Calc>(CALC_START);
-  const minor = minorOf(resultOf(state));
+  const result = unit ? quantityMilliOf(resultOf(state)) : minorOf(resultOf(state));
+  const shown = (value: number) => (unit ? formatQuantity({ quantityMilli: value, unit }) : formatMinor(value));
   const tap = (key: CalcKey) => {
     FEEDBACK[feedbackOf(state, key)]();
     setState((current) => press(current, key));
   };
-  useWebKeys(state, tap, minor == null ? null : () => onResult(minor));
+  useWebKeys(state, tap, result == null ? null : () => onResult(result));
 
   return (
     <DialogShell title={tr.calc.title} titleRef={titleRef} onDismiss={onClose}>
       <Display state={state} />
       <Pad onKey={tap} />
       <View style={{ marginTop: spacing.lg }}>
-        <Button label={minor == null ? tr.calc.unusable : tr.calc.use(formatMinor(minor))} disabled={minor == null} onPress={() => minor != null && onResult(minor)} />
+        <Button
+          label={result == null ? (unit ? tr.calc.notQuantity : tr.calc.unusable) : tr.calc.use(shown(result))}
+          disabled={result == null}
+          onPress={() => result != null && onResult(result)}
+        />
       </View>
     </DialogShell>
   );

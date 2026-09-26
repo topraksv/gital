@@ -7,7 +7,7 @@
  */
 
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
 import Star from "lucide-react-native/icons/star";
@@ -21,15 +21,17 @@ import { formatMinorInput, pastOf, priceRise, readPrice, type Bought as BoughtBe
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
-import { PriceField } from "./calculator";
+import { PriceField, useCalculator } from "./calculator";
 import { AisleChip } from "./catalogue-sheet";
 import { PriceLine } from "./charts";
 import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type ShownItem } from "./components";
 import { Actions, DialogShell, appError } from "./dialog";
 import { selectionTap } from "./haptics";
-import { controlSize, font, itemPanel, spacing, type, useTheme } from "./theme";
+import { interactionSurface } from "./interaction";
+import { controlSize, font, itemPanel, radius, spacing, type, useTheme } from "./theme";
 import { radioGroupKeys } from "./keys";
 import { PanelPart } from "./list-motion";
+import { Press } from "./press";
 
 type ListChoice = { id: string; name: string };
 
@@ -77,6 +79,8 @@ export function ItemSheet({
   const moving = to != null && !keep;
   const columns = Math.min(lists.length, itemPanel.listColumns);
   const rows = rowsOf(lists, columns);
+  const shownQuantity = quantityOrOne(quantity);
+  const [calculate, calculator] = useCalculator(shownQuantity.unit, (quantityMilli) => setQuantity({ quantityMilli, unit: shownQuantity.unit }));
   const less = stepQuantity(quantity, -1);
   const more = stepQuantity(quantity, 1);
   // Offered on an item still to find, a substitute or a price typed while
@@ -131,16 +135,37 @@ export function ItemSheet({
           <Text style={[type.body, { color: palette.text, flex: 1 }]}>{tr.items.quantity}</Text>
           <IconButton icon={Minus} label={tr.items.less(item.name)} disabled={!less} onPress={() => step(less)} />
           {/* An item without a quantity reads as one piece, so it is shown as
-              one, quieter, until − or + gives it a quantity of its own. */}
-          <Text
-            accessibilityLiveRegion="polite"
-            style={[
-              type.body,
-              { fontFamily: font.medium, textAlign: "center", minWidth: itemPanel.quantityWidth, color: quantity.quantityMilli == null ? palette.textSecondary : palette.text },
-            ]}
+              one, quieter, until − or + or the calculator gives it a
+              quantity of its own. */}
+          <Press
+            accessibilityRole="button"
+            accessibilityLabel={tr.calc.open(`${tr.items.quantity} ${formatQuantity(shownQuantity)}`)}
+            onPress={calculate}
+            style={{ minWidth: itemPanel.quantityWidth, minHeight: controlSize.minimumTarget, justifyContent: "center" }}
           >
-            {formatQuantity(quantityOrOne(quantity))}
-          </Text>
+            {/* A field's own face, so the number reads as something to edit,
+                as tall as the − and + faces beside it inside the same target. */}
+            {(state) => (
+              <View
+                style={{
+                  height: controlSize.compact,
+                  paddingHorizontal: spacing.sm,
+                  justifyContent: "center",
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: palette.border,
+                  borderRadius: radius.sm,
+                  ...interactionSurface(palette, state, { base: palette.surfaceAlt }),
+                }}
+              >
+                <Text
+                  accessibilityLiveRegion="polite"
+                  style={[type.body, { fontFamily: font.medium, textAlign: "center", color: quantity.quantityMilli == null ? palette.textSecondary : palette.text }]}
+                >
+                  {formatQuantity(shownQuantity)}
+                </Text>
+              </View>
+            )}
+          </Press>
           <IconButton icon={Plus} label={tr.items.more(item.name)} disabled={!more} onPress={() => step(more)} />
         </View>
         <Toggle value={urgent} onValueChange={setUrgent} label={tr.items.urgent} />
@@ -209,6 +234,7 @@ export function ItemSheet({
           <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
         </Actions>
       </PanelPart>
+      {calculator}
     </DialogShell>
   );
 }
