@@ -368,6 +368,8 @@ function QuickAdd({
       {browsing ? (
         <CatalogueSheet
           items={items}
+          listId={listId}
+          open={items.filter((item) => item.checkedAt == null)}
           onAdd={(product) => add([{ name: product.name, quantityMilli: null, unit: null }])}
           onRemove={onRemove}
           onClose={() => setBrowsing(false)}

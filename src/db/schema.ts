@@ -130,6 +130,27 @@ export const products = sqliteTable("products", {
   starred: integer("starred", { mode: "boolean" }).notNull().default(false),
 });
 
+/** A ready-made set (SPEC 5.3), "Kahvaltı", that goes onto a list in one tap. Personal, as a product is. */
+export const sets = sqliteTable("sets", {
+  ...syncColumns,
+  name: text("name").notNull(),
+});
+
+/** What a set holds, in the order it was made in; one row per product. */
+export const setItems = sqliteTable(
+  "set_items",
+  {
+    ...syncColumns,
+    setId: text("set_id").notNull(),
+    name: text("name").notNull(),
+    quantityMilli: integer("quantity_milli"),
+    unit: text("unit", { enum: UNITS }),
+    note: text("note"),
+    position: integer("position").notNull(),
+  },
+  (t) => [index("idx_set_items_set_id").on(t.setId)],
+);
+
 /**
  * A product at home (SPEC 12.2), one row per product: its id comes from the
  * folded name, so every shop that brings it meets the same row. What it holds
@@ -179,6 +200,6 @@ export const outbox = sqliteTable(
   ],
 );
 
-export const SYNCED_TABLES = { lists, items, shops, wishes, wish_links: wishLinks, pantry_items: pantryItems, pantry_moves: pantryMoves, products } as const;
+export const SYNCED_TABLES = { lists, items, shops, wishes, wish_links: wishLinks, pantry_items: pantryItems, pantry_moves: pantryMoves, products, sets, set_items: setItems } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;

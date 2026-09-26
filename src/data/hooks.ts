@@ -6,6 +6,7 @@ import { readLists } from "./lists";
 import { liveStore } from "./live-query";
 import { readLasted, readPantry } from "./pantry";
 import { readFavourites } from "./products";
+import { readSets } from "./sets";
 import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readWishes } from "./wishes";
 
@@ -94,4 +95,11 @@ const favouritesStore = liveStore(readFavourites, ["products"]);
 
 export function useFavourites() {
   return useSyncExternalStore(favouritesStore.subscribe, favouritesStore.getSnapshot, favouritesStore.getSnapshot);
+}
+
+// Mounted with the catalogue panel's Setler.
+const setsStore = liveStore(readSets, ["sets", "set_items"]);
+
+export function useSets() {
+  return useSyncExternalStore(setsStore.subscribe, setsStore.getSnapshot, setsStore.getSnapshot);
 }

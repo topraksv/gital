@@ -200,6 +200,7 @@ export const tr = {
     aisle: "Reyon",
     favourites: "Favoriler",
     noFavourites: "Bir ürünün panelindeki yıldız onu buraya ekler.",
+    sets: "Setler",
     didYouMean: (name: string) => `Bunu mu demek istediniz: ${name}?`,
     keep: (typed: string) => `${typed} olarak ekle`,
     aisles: {
@@ -223,6 +224,16 @@ export const tr = {
       home: "Ev gereçleri",
       other: "Diğer",
     },
+  },
+  sets: {
+    make: "Bu listeden set yap",
+    makeTitle: "Yeni set",
+    makeMessage: (count: number) => `Listede alınacak ${count} ürün sete girer.`,
+    namePlaceholder: "Ör. Kahvaltı",
+    empty: "Listedeki alınacakları set olarak sakla; tek dokunuşla her listeye eklenir.",
+    add: (name: string) => `${name} setini listeye ekle`,
+    added: (name: string, count: number) => `${name}: ${count} ürün listeye eklendi`,
+    delete: (name: string) => `${name} setini sil`,
   },
   wishes: {
     create: "Yeni Koleksiyon",

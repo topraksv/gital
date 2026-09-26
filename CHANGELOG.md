@@ -133,3 +133,5 @@ cannot be released.
   bounces as it lands.
 - A product can be starred from its panel, and the catalogue's Favoriler
   shows everything starred, a tap away from the list.
+- Sets: what a list still has to buy is kept under a name, "Kahvaltı", and
+  goes onto any list in one tap from the catalogue's Setler, with its undo.
