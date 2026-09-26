@@ -38,6 +38,7 @@ import {
 import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
+import { celebrate, hideCelebration } from "../../ui/celebration";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
@@ -143,10 +144,17 @@ export default function ListScreen() {
   // What is in the basket is filed and leaves; the rest stays on the list (SPEC 3.4).
   const finish = async () => {
     try {
+      // Read before the finish: the basket leaves the list with it.
+      const spentMinor = spentOn(basket);
+      const stayed = open.length;
       const shop = await finishShop(id);
       if (!shop) return;
       successNotice();
-      showUndo(tr.items.finished(shop.bought), () => reopenShop(shop.id));
+      celebrate({ bought: shop.bought, spentMinor, stayed });
+      showUndo(tr.items.finished(shop.bought), () => {
+        hideCelebration();
+        return reopenShop(shop.id);
+      });
     } catch {
       void appError(tr.errors.saveFailed);
     }

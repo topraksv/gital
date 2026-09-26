@@ -14,6 +14,7 @@ import { KeyboardSafeRoot } from "../ui/keyboard-safe";
 import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
+import { CelebrationHost } from "../ui/celebration";
 import { UndoSnackbar } from "../ui/undo";
 
 // Helix's subset faces, byte for byte (`docs/ARCHITECTURE.md`, "The fonts are Helix's").
@@ -136,6 +137,7 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
             )}
             <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+            <CelebrationHost />
             <UndoSnackbar />
             <PromptHost />
             <DialogHost />

@@ -72,3 +72,6 @@ cannot be released.
   labelled so under its field ("Son alışlardan %22 pahalı").
 - A list offers what its own history says has run out ("Süt · 5 günde
   bir") under the empty add field; a tap puts it back with its last quantity.
+- Finishing a shop is celebrated: confetti, and a card with what was bought,
+  what it cost counting up, what stayed on the list and the month so far. A
+  tap skips it, and taking the finish back closes it.

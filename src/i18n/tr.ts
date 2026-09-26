@@ -140,6 +140,13 @@ export const tr = {
     finished: (count: number) => `Alışveriş bitti, ${count} ürün geçmişe taşındı`,
   },
   /** Helix's calculator (SPEC 4.4). */
+  celebration: {
+    title: "Alışveriş bitti",
+    bought: (count: number) => `${count}\u00a0ürün alındı`,
+    stayed: (count: number) => `${count}\u00a0ürün listede kaldı`,
+    month: (spent: string) => `Bu ay: ${spent}`,
+    skip: "Kutlamayı kapat",
+  },
   calc: {
     title: "Hesap Makinesi",
     open: (field: string) => `${field}: hesap makinesini aç`,

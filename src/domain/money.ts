@@ -21,6 +21,12 @@ export function spentOn(items: readonly { priceMinor: number | null }[]): number
   return priced.length === 0 ? null : priced.reduce((sum, price) => sum + price, 0);
 }
 
+/** What this calendar month's shops cost, on the device's clock; `null` when none was priced (SPEC 3.11). */
+export function spentInMonth(shops: readonly { finishedAt: string; spentMinor: number | null }[], now: Date): number | null {
+  const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  return spentOn(shops.filter((shop) => Date.parse(shop.finishedAt) >= start).map((shop) => ({ priceMinor: shop.spentMinor })));
+}
+
 /** ₺1.234,56 */
 export function formatMinor(minor: number): string {
   return LIRA.format(minor / 100);

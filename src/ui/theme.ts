@@ -364,6 +364,10 @@ export const motion = {
   undoHold: 6000,
   /** The same bar with nothing to take back. */
   noticeHold: 3600,
+  /** A figure counting to its value, Helix's `motion.figure`. */
+  figure: 900,
+  /** The finished shop's confetti falling, and how long its card stays unless tapped away. */
+  celebration: { fall: 1800, hold: 4000 },
   /** The ease-out every web CSS transition uses. */
   webEase: "cubic-bezier(0.22, 1, 0.36, 1)",
   spring: {
@@ -534,6 +538,9 @@ export const listSheet = { cell: controlSize.minimumTarget, columns: 7 } as cons
 
 /** Helix's calculator pad (`docs/UI.md` section 5): a key's height and the display's, which three lines never resize. */
 export const calculatorPad = { keyHeight: 56, displayHeight: 128 } as const;
+
+/** The finished shop's celebration (`docs/UI.md` section 7): a few dozen pieces, and the card's tick. */
+export const celebration = { pieces: 36, piece: { width: 8, height: 12 }, tick: 56, cardWidth: 340 } as const;
 
 /** An illustration fills this share of its tile (`docs/UI.md` section 6). */
 export const illustrationShare = 0.72;

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { MAX_PRICE_MINOR, formatMinor, formatMinorInput, formatPriceInput, isPrice, priceRise, readPrice, spentOn, type PricePaid } from "../../src/domain/money";
+import { MAX_PRICE_MINOR, formatMinor, formatMinorInput, formatPriceInput, isPrice, priceRise, readPrice, spentInMonth, spentOn, type PricePaid } from "../../src/domain/money";
 
 describe("readPrice", () => {
   it("reads kuruş from what is typed, grouped or not, with or without the lira sign", () => {
@@ -97,5 +97,20 @@ describe("priceRise", () => {
     expect(priceRise([paid("Süt", 4000, 1000, "adet")], sut, 4880)).toBe(22);
     expect(priceRise([paid("Süt", 4000, 1000, "lt")], sut, 9000)).toBeNull();
     expect(priceRise([paid("Süt", 2000, 500_000, "ml"), paid("Süt", 4000, 1000, "adet")], { name: "Süt", quantityMilli: 1000, unit: "lt" }, 4800)).toBe(20);
+  });
+});
+
+describe("spentInMonth", () => {
+  const now = new Date(2026, 8, 26, 12);
+  const shop = (finishedAt: Date, spentMinor: number | null) => ({ finishedAt: finishedAt.toISOString(), spentMinor });
+
+  it("adds what this calendar month's shops cost, by the device's own clock", () => {
+    const shops = [shop(new Date(2026, 8, 26, 9), 5840), shop(new Date(2026, 8, 1, 0, 0), 1000), shop(new Date(2026, 7, 31, 23, 59), 9999)];
+    expect(spentInMonth(shops, now)).toBe(6840);
+  });
+
+  it("is nothing when no shop this month was priced, which is not ₺0", () => {
+    expect(spentInMonth([shop(new Date(2026, 8, 20), null), shop(new Date(2026, 7, 20), 500)], now)).toBeNull();
+    expect(spentInMonth([], now)).toBeNull();
   });
 });
