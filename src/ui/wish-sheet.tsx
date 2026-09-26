@@ -24,6 +24,7 @@ import { Body, Button, ChoiceTile, IconButton, TextField, cardEdge } from "./com
 import { Actions, DialogShell } from "./dialog";
 import { selectionTap } from "./haptics";
 import { controlSize, font, spacing, type, useTheme } from "./theme";
+import { radioGroupKeys } from "./keys";
 
 type LinkDraft = { key: string; id?: string; url: string; price: string };
 
@@ -93,7 +94,7 @@ export function WishSheet({
       />
       <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
         <Body>{tr.wishes.priority}</Body>
-        <View role="radiogroup" accessibilityLabel={tr.wishes.priority} style={{ flexDirection: "row", gap: spacing.sm }}>
+        <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.wishes.priority} style={{ flexDirection: "row", gap: spacing.sm }}>
           {PRIORITIES.map((level) => (
             <ChoiceTile
               key={level}

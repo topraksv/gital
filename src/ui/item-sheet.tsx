@@ -28,6 +28,7 @@ import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type S
 import { Actions, DialogShell, appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { controlSize, font, itemPanel, spacing, type, useTheme } from "./theme";
+import { radioGroupKeys } from "./keys";
 
 type ListChoice = { id: string; name: string };
 
@@ -161,7 +162,7 @@ export function ItemSheet({
       {lists.length > 1 ? (
         <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
           <Body>{tr.items.list}</Body>
-          <View role="radiogroup" accessibilityLabel={tr.items.list} style={{ gap: spacing.sm }}>
+          <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.items.list} style={{ gap: spacing.sm }}>
             {rows.map((row, at) => (
               <View key={at} style={{ flexDirection: "row", gap: spacing.sm }}>
                 {row.map((list) => (
@@ -216,7 +217,7 @@ function AislePicker({ name, value, onChange }: { name: string; value: Aisle | "
       <Body>{tr.items.aisle}</Body>
       <ScrollView
         horizontal
-        role="radiogroup"
+        role="radiogroup" {...radioGroupKeys()}
         accessibilityLabel={tr.items.aisle}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}

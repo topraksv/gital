@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { keyHandler } from "../../src/ui/keys";
+import { keyHandler, radioGroupHandler } from "../../src/ui/keys";
 
 const press = (key: string, extra: Partial<{ altKey: boolean; ctrlKey: boolean; metaKey: boolean; repeat: boolean }> = {}) => ({
   key,
@@ -47,5 +47,39 @@ describe("keyHandler", () => {
     keyHandler({ " ": toggle }, { repeats: false })(held);
     expect(toggle).not.toHaveBeenCalled();
     expect(held.preventDefault).toHaveBeenCalledOnce();
+  });
+});
+
+describe("radioGroupHandler", () => {
+  const group = (checked: number, count = 3) => {
+    const radios = Array.from({ length: count }, (_, at) => ({
+      getAttribute: (name: string) => (name === "aria-checked" ? String(at === checked) : null),
+      click: vi.fn(),
+      focus: vi.fn(),
+    }));
+    return { radios, currentTarget: { querySelectorAll: () => radios } };
+  };
+
+  it("moves the choice to the next radio on the right arrow, and focus with it", () => {
+    const { radios, currentTarget } = group(0);
+    const event = { ...press("ArrowRight"), currentTarget };
+    radioGroupHandler(event);
+    expect(radios[1]!.click).toHaveBeenCalledOnce();
+    expect(radios[1]!.focus).toHaveBeenCalledOnce();
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+  });
+
+  it("wraps from the first radio to the last on the left arrow", () => {
+    const { radios, currentTarget } = group(0);
+    radioGroupHandler({ ...press("ArrowLeft"), currentTarget });
+    expect(radios[2]!.click).toHaveBeenCalledOnce();
+  });
+
+  it("lets Tab leave the group", () => {
+    const { radios, currentTarget } = group(0);
+    const event = { ...press("Tab"), currentTarget };
+    radioGroupHandler(event);
+    expect(radios.some((radio) => radio.click.mock.calls.length > 0)).toBe(false);
+    expect(event.preventDefault).not.toHaveBeenCalled();
   });
 });

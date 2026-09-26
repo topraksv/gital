@@ -26,3 +26,37 @@ export function keyHandler(actions: Partial<Record<string, () => void>>, { repea
 export function webKeys(actions: Partial<Record<string, () => void>>, options?: { repeats: boolean }): object {
   return typeof document === "undefined" ? {} : { onKeyDown: keyHandler(actions, options) };
 }
+
+type Radio = {
+  getAttribute: (name: string) => string | null;
+  click: () => void;
+  focus: () => void;
+  scrollIntoView?: (options: { block: "nearest"; inline: "nearest" }) => void;
+};
+const RADIO_STEPS: Partial<Record<string, number>> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+
+/**
+ * A radio group's arrows (WAI-ARIA): the choice moves to the next radio, or
+ * the one before, wrapping at the ends, and focus goes with it. It moves from
+ * the focused radio, since Tab reaches every one here, else from the chosen
+ * one. The radio is clicked, which is how react-native-web presses it.
+ */
+export function radioGroupHandler(event: Key & { currentTarget: { querySelectorAll: (selector: string) => ArrayLike<Radio> } }): void {
+  const step = RADIO_STEPS[event.key];
+  if (step == null || event.altKey || event.ctrlKey || event.metaKey) return;
+  const radios = Array.from(event.currentTarget.querySelectorAll("[role=radio]")).filter((radio) => radio.getAttribute("aria-disabled") !== "true");
+  if (radios.length === 0) return;
+  const focused = typeof document === "undefined" ? -1 : radios.indexOf(document.activeElement as unknown as Radio);
+  const from = focused >= 0 ? focused : Math.max(0, radios.findIndex((radio) => radio.getAttribute("aria-checked") === "true"));
+  const next = radios[(from + step + radios.length) % radios.length]!;
+  event.preventDefault();
+  next.click();
+  next.focus();
+  // Focus alone leaves a chip past a sideways row's edge where it was.
+  next.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+}
+
+/** `radioGroupHandler` on a radio group's container on the web; a phone's screen reader moves by swipe. */
+export function radioGroupKeys(): object {
+  return typeof document === "undefined" ? {} : { onKeyDown: radioGroupHandler };
+}

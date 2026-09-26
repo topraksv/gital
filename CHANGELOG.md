@@ -149,3 +149,6 @@ cannot be released.
   when the pull is short.
 - Product pictures stay available offline: the web app no longer empties its
   offline copy on every start once the catalogue's pictures have been seen.
+- On the web, the arrow keys move the choice in every set of options — the
+  aisle, the list, the priority, the theme and colours — and scroll a
+  sideways row to it.

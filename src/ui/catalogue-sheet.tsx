@@ -28,7 +28,7 @@ import { Actions, DialogShell, appError, appPrompt } from "./dialog";
 import { selectionTap } from "./haptics";
 import { showNotice, showUndo } from "./undo";
 import { interactionSurface } from "./interaction";
-import { webKeys } from "./keys";
+import { radioGroupKeys, webKeys } from "./keys";
 import { borderWidth, catalogueSheet, controlSize, font, offset, radius, spacing, themeShadow, type, useTheme } from "./theme";
 import { Press } from "./press";
 
@@ -68,7 +68,7 @@ export function CatalogueSheet<T extends { name: string }>({
 
   return (
     <DialogShell title={tr.catalogue.title} titleRef={titleRef} onDismiss={onClose}>
-      <View role="radiogroup" accessibilityLabel={tr.catalogue.title} style={{ flexDirection: "row", marginTop: spacing.sm, padding: offset.tuck, borderRadius: radius.md, backgroundColor: palette.surfaceAlt }}>
+      <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.catalogue.title} style={{ flexDirection: "row", marginTop: spacing.sm, padding: offset.tuck, borderRadius: radius.md, backgroundColor: palette.surfaceAlt }}>
         <ShelfChoice label={tr.catalogue.title} selected={shown === "catalogue"} onPress={() => setShown("catalogue")} />
         <ShelfChoice label={tr.catalogue.favourites} selected={shown === "favourites"} onPress={() => setShown("favourites")} />
         <ShelfChoice label={tr.catalogue.sets} selected={shown === "sets"} onPress={() => setShown("sets")} />
@@ -76,7 +76,7 @@ export function CatalogueSheet<T extends { name: string }>({
       {shown === "catalogue" ? (
         <ScrollView
           horizontal
-          role="radiogroup"
+          role="radiogroup" {...radioGroupKeys()}
           accessibilityLabel={tr.catalogue.aisle}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}

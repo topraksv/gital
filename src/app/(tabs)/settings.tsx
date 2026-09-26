@@ -11,6 +11,7 @@ import { Body, Button, Card, ChoiceTile, Screen, SectionHeader } from "../../ui/
 import { TourModal } from "../../ui/tour";
 import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, borderWidth, circle, PALETTES, radius, spacing, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
+import { radioGroupKeys } from "../../ui/keys";
 import { setAppearance } from "../_layout";
 
 const THEMES: readonly [ThemePreference, string][] = [
@@ -36,7 +37,7 @@ export default function SettingsScreen() {
       <SectionHeader>{tr.settings.appSection}</SectionHeader>
       <Card>
         <Body style={{ marginBottom: spacing.sm }}>{tr.settings.theme}</Body>
-        <View role="radiogroup" accessibilityLabel={tr.settings.theme} style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg }}>
+        <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.settings.theme} style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg }}>
           {THEMES.map(([value, label]) => (
             <ThemeChoice
               key={value}
@@ -50,7 +51,7 @@ export default function SettingsScreen() {
           ))}
         </View>
         <Body style={{ marginBottom: spacing.sm }}>{tr.settings.palette}</Body>
-        <View role="radiogroup" accessibilityLabel={tr.settings.palette} style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+        <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.settings.palette} style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
           {FAMILIES.map(([id, label, description]) => (
             <PaletteChoice
               key={id}

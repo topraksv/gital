@@ -17,6 +17,7 @@ import { Body, Button, TextField, Tile, Toggle, radioChoice, rowsOf } from "./co
 import { Actions, DialogShell } from "./dialog";
 import { borderWidth, circle, iconSize, iconStroke, listSheet, spacing, tileRadius, useTheme } from "./theme";
 import { Press } from "./press";
+import { radioGroupKeys } from "./keys";
 
 // The ring and a gap as wide as it, inside the cell.
 const TILE = listSheet.cell - 4 * borderWidth.selected;
@@ -92,7 +93,7 @@ export function ListSheet({
 function Grid({ label, children }: { label: string; children: ReactNode[] }) {
   const rows = rowsOf(children, listSheet.columns);
   return (
-    <View role="radiogroup" accessibilityLabel={label} style={{ gap: spacing.sm }}>
+    <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={label} style={{ gap: spacing.sm }}>
       {rows.map((row, at) => (
         <View key={at} style={{ flexDirection: "row", justifyContent: "space-between" }}>
           {row}
