@@ -67,5 +67,12 @@
     "audit:unused": "npx --yes knip@6.32.0",
     "audit:duplication": "npx --yes jscpd@5.0.16 src",
     "db:generate": "drizzle-kit generate"
+  },
+  "overrides": {
+    "xcode": {
+      "uuid": "^11.1.1"
+    },
+    "decode-uri-component": "^0.5.0",
+    "esbuild": "^0.25.12"
   }
 }
