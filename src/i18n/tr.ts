@@ -17,6 +17,11 @@ const DATE = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long" });
 const MONTH = new Intl.DateTimeFormat("tr-TR", { month: "short" });
 const MONTH_LONG = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" });
 
+const DAY_SHORT = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short" });
+
+/** A calendar day (`YYYY-MM-DD`) read at its local noon, so no zone moves it to the day before. */
+const localDay = (day: string) => new Date(`${day}T12:00:00`);
+
 function dateLabel(iso: string): string {
   const value = new Date(iso);
   return Number.isNaN(value.getTime()) ? iso : DATE.format(value);
@@ -287,7 +292,21 @@ export const tr = {
     /** Said as a product is added (SPEC 12.6), without stopping the add. */
     atHome: (held: readonly { name: string; quantityMilli: number; unit: Unit }[]) =>
       `Evde var: ${held.map((item) => `${item.name} ${formatQuantity(item)}`).join(", ")}`,
+    openHint: "Son kullanma tarihini gir",
+    expiry: "Son kullanma tarihi",
+    clearExpiry: "Tarihi kaldır",
+    /** On the row: the day while it is far, how near it is once it is soon (SPEC 12.3). */
+    expiresOn: (day: string) => `SKT ${DAY_SHORT.format(localDay(day))}`,
+    expiryLeft: (days: number) => (days < 0 ? "Tarihi geçti" : days === 0 ? "Bugün son gün" : `${days}\u00a0gün kaldı`),
     finished: (name: string, list: string | null) => (list == null ? `${name} bitti` : `${name} bitti, ${list} listesine eklendi`),
+  },
+  calendar: {
+    pick: "Tarih seç",
+    previous: "Önceki ay",
+    next: "Sonraki ay",
+    weekdays: ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"],
+    month: (key: string) => MONTH_LONG.format(localDay(`${key}-01`)),
+    day: (day: string) => DATE.format(localDay(day)),
   },
   tour: {
     step: (step: number, total: number, title: string) => `${total} adımdan ${step}. ${title}`,

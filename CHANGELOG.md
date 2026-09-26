@@ -127,3 +127,5 @@ cannot be released.
 - "Bitmiş olabilir" learns from Kiler: once a product has run out at home
   twice, how long it usually lasts is its rhythm, in place of the gaps
   between one list's shops.
+- A product in Kiler takes the date printed on it, picked on a calendar; its
+  row counts down the last three days and says when the date has passed.

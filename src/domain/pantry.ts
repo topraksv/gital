@@ -1,5 +1,6 @@
 /** What the pantry holds of a product (SPEC 12.8): the sum of what arrived and what was used. */
 
+import { daysBetweenISO, type ISODate } from "./dates";
 import { foldName, stepQuantity, type Unit } from "./items";
 
 export interface Stock {
@@ -53,6 +54,15 @@ export function lastedOf(moves: readonly (Stock & { at: string })[]): number[] {
     stock = next;
   }
   return lasted;
+}
+
+/** From this many days out, a date is drawn near (SPEC 12.3). */
+const EXPIRY_SOON_DAYS = 3;
+
+/** How many days a date leaves from `today`, negative once past, and whether that is soon. */
+export function expiryOf(expiresOn: ISODate, today: ISODate): { days: number; soon: boolean } {
+  const days = daysBetweenISO(today, expiresOn);
+  return { days, soon: days <= EXPIRY_SOON_DAYS };
 }
 
 /** What an entry adds that is already at home (SPEC 12.6), matched as 2.5 merges: by the folded name. */

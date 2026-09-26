@@ -129,6 +129,8 @@ export const pantryItems = sqliteTable("pantry_items", {
   name: text("name").notNull(),
   /** The list its latest arrival was bought on, where finishing it puts it back. */
   listId: text("list_id"),
+  /** The day printed on it (SPEC 12.3), a local `YYYY-MM-DD`; it goes when the product is finished. */
+  expiresOn: text("expires_on"),
 });
 
 /**

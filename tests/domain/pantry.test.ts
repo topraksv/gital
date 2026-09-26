@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { atHome, lastedOf, lessOf, stockOf, type Stock } from "../../src/domain/pantry";
+import { atHome, expiryOf, lastedOf, lessOf, stockOf, type Stock } from "../../src/domain/pantry";
 
 const of = (quantity: number, unit: Stock["unit"]): Stock => ({ quantityMilli: quantity * 1000, unit });
 
@@ -65,5 +65,14 @@ describe("lastedOf", () => {
   it("keeps counting a stay through a top-up, and measures none still going", () => {
     expect(lastedOf([at(0, 1), at(2, 1), at(6, -2), at(7, 1)])).toEqual([6 * DAY]);
     expect(lastedOf([at(0, 1)])).toEqual([]);
+  });
+});
+
+describe("expiryOf", () => {
+  it("counts the days left, and is soon from three days out (SPEC 12.3)", () => {
+    expect(expiryOf("2026-10-10", "2026-09-26")).toEqual({ days: 14, soon: false });
+    expect(expiryOf("2026-09-29", "2026-09-26")).toEqual({ days: 3, soon: true });
+    expect(expiryOf("2026-09-26", "2026-09-26")).toEqual({ days: 0, soon: true });
+    expect(expiryOf("2026-09-20", "2026-09-26")).toEqual({ days: -6, soon: true });
   });
 });

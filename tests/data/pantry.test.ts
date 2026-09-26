@@ -23,7 +23,7 @@ vi.mock("expo-crypto", () => ({
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { finishShop, reopenShop } = await import("../../src/data/shops");
 const { createList, deleteList, editList } = await import("../../src/data/lists");
-const { finishPantryItem, readLasted, readPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
+const { finishPantryItem, readLasted, readPantry, setExpiry, takeSome, undoFinish } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { migratedDatabase } = await import("../helpers");
 
@@ -177,5 +177,33 @@ describe("readLasted", () => {
     const lasted = new Map(await readLasted());
     expect(lasted.get("sut")?.map((ms) => Math.round(ms / DAY))).toEqual([3, 4]);
     expect(lasted.get("ekmek")).toEqual([]);
+  });
+});
+
+describe("setExpiry", () => {
+  it("dates a product at home and takes the date off again (SPEC 12.3)", async () => {
+    await shop(market, "süt");
+    const id = await idOf("Süt");
+    await setExpiry(id, "2026-10-03");
+    expect(await readPantry()).toMatchObject([{ name: "Süt", expiresOn: "2026-10-03" }]);
+    await setExpiry(id, null);
+    expect(await readPantry()).toMatchObject([{ name: "Süt", expiresOn: null }]);
+  });
+
+  it("refuses a day that is not one", async () => {
+    await shop(market, "süt");
+    await expect(setExpiry(await idOf("Süt"), "2026-02-30")).rejects.toThrow();
+  });
+
+  it("goes with the stay: finishing clears it, and its undo brings it back", async () => {
+    await shop(market, "süt");
+    const id = await idOf("Süt");
+    await setExpiry(id, "2026-10-03");
+    const finished = await finishPantryItem(id);
+    const stored = () => harness.db!.prepare("SELECT expires_on FROM pantry_items WHERE id = ?").get(id);
+    expect(stored()).toEqual({ expires_on: null });
+    tick();
+    await undoFinish(finished.written);
+    expect(await readPantry()).toMatchObject([{ name: "Süt", expiresOn: "2026-10-03" }]);
   });
 });

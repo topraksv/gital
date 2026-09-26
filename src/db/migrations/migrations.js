@@ -12,6 +12,7 @@ import m0007 from './0007_shop_total.sql';
 import m0008 from './0008_wishes.sql';
 import m0009 from './0009_pantry.sql';
 import m0010 from './0010_list_pantry.sql';
+import m0011 from './0011_pantry_expiry.sql';
 
   export default {
     journal,
@@ -26,7 +27,8 @@ m0006,
 m0007,
 m0008,
 m0009,
-m0010
+m0010,
+m0011
     }
   }
   

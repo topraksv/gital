@@ -1,0 +1,1 @@
+ALTER TABLE `pantry_items` ADD `expires_on` text;

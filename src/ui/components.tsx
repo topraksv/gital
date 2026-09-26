@@ -318,9 +318,10 @@ export function Tile({ id, name, size, color, icon, picture, round = false }: { 
   );
 }
 
-export type ShownItem = ItemChange & { checkedAt: string | null };
-
 type DetailPart = { text: string; tone?: "errorText" | "warningText" };
+
+/** `extra` is a part only one screen draws, after the quantity: a pantry row's expiry (SPEC 12.3). */
+export type ShownItem = ItemChange & { checkedAt: string | null; extra?: DetailPart };
 
 /**
  * An item's second line: whether it is urgent while it is still to buy, and
@@ -335,6 +336,7 @@ function detailOf(item: ShownItem): DetailPart[] {
     { text: item.boughtInstead ? tr.items.instead(item.boughtInstead) : "" },
     { text: item.priceMinor == null ? "" : formatMinor(item.priceMinor) },
     { text: formatQuantity(item) },
+    item.extra ?? { text: "" },
     { text: item.note ?? "" },
   ];
   return parts.filter((part) => part.text);

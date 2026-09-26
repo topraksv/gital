@@ -4,8 +4,9 @@ import { and, asc, eq, isNull, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
-import { editRow, findLiveRow, findRow, readLiveRow, revertRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
+import { editRow, findLiveRow, findRow, readLiveRow, revertRows, writeRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { pantryItems, pantryMoves } from "../db/schema";
+import { isISODate, type ISODate } from "../domain/dates";
 import { foldName, quantityOrOne, type Entry } from "../domain/items";
 import { lastedOf, lessOf, stockOf, type Stock } from "../domain/pantry";
 import { entryRows } from "./items";
@@ -13,6 +14,7 @@ import { entryRows } from "./items";
 export interface PantryItem extends Stock {
   id: string;
   name: string;
+  expiresOn: ISODate | null;
 }
 
 /** A product finished, for the undo bar: the list it went back on, if that list is still there. */
@@ -22,16 +24,16 @@ export interface Finished {
 }
 
 /** Each pantry row's moves, oldest first. */
-async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<string, { name: string; moves: (Stock & { at: string })[] }>> {
+async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<string, { name: string; expiresOn: ISODate | null; moves: (Stock & { at: string })[] }>> {
   const rows = await getDb()
-    .select({ id: pantryItems.id, name: pantryItems.name, quantityMilli: pantryMoves.quantityMilli, unit: pantryMoves.unit, at: pantryMoves.createdAt })
+    .select({ id: pantryItems.id, name: pantryItems.name, expiresOn: pantryItems.expiresOn, quantityMilli: pantryMoves.quantityMilli, unit: pantryMoves.unit, at: pantryMoves.createdAt })
     .from(pantryItems)
     .innerJoin(pantryMoves, and(eq(pantryMoves.pantryItemId, pantryItems.id), isNull(pantryMoves.deletedAt)))
     .where(where)
     .orderBy(asc(pantryMoves.createdAt), asc(pantryMoves.id));
-  const moves = new Map<string, { name: string; moves: (Stock & { at: string })[] }>();
-  for (const { id, name, ...move } of rows) {
-    const held = moves.get(id) ?? { name, moves: [] };
+  const moves = new Map<string, { name: string; expiresOn: ISODate | null; moves: (Stock & { at: string })[] }>();
+  for (const { id, name, expiresOn, ...move } of rows) {
+    const held = moves.get(id) ?? { name, expiresOn, moves: [] };
     held.moves.push(move);
     moves.set(id, held);
   }
@@ -40,9 +42,9 @@ async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<str
 
 async function readStocks(where?: SQL): Promise<Map<string, PantryItem>> {
   const stocks = new Map<string, PantryItem>();
-  for (const [id, { name, moves: all }] of await readMoves(where)) {
+  for (const [id, { name, expiresOn, moves: all }] of await readMoves(where)) {
     const stock = stockOf(all);
-    if (stock) stocks.set(id, { id, name, quantityMilli: stock.quantityMilli, unit: stock.unit });
+    if (stock) stocks.set(id, { id, name, expiresOn, quantityMilli: stock.quantityMilli, unit: stock.unit });
   }
   return stocks;
 }
@@ -116,12 +118,23 @@ async function finishWith(id: string, rest: (stock: PantryItem) => Stock | null)
     outcome.finished = stockOf([stock, move]) == null;
     if (!outcome.finished) return writes;
     const item = await readLiveRow("pantry_items", id);
+    // The date was the stay's; the next arrival is another package.
+    writes.push(...editRow("pantry_items", item, { expiresOn: null }));
     const list = item.list_id == null ? null : await findLiveRow("lists", String(item.list_id));
     if (!list) return writes;
     outcome.listName = String(list.name);
     return [...writes, ...(await entryRows(String(list.id), [{ name: stock.name, quantityMilli: null, unit: null, note: null, urgent: false }]))];
   });
   return outcome.finished ? { written, listName: outcome.listName } : null;
+}
+
+/** Date a product at home (SPEC 12.3), or with `null` take the date off. */
+export async function setExpiry(id: string, expiresOn: ISODate | null): Promise<void> {
+  if (expiresOn != null && !isISODate(expiresOn)) throw new Error("An expiry is a calendar day");
+  await writeRows(async () => {
+    await readStock(id);
+    return editRow("pantry_items", await readLiveRow("pantry_items", id), { expiresOn });
+  });
 }
 
 /** One press of −: a step less, and `Finished` when that leaves nothing (SPEC 12.8). */
