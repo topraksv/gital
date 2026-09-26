@@ -16,10 +16,12 @@ import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 // Measured 2026-09-26 on the pantry's flight to Listeler: entry 1_775_688,
-// all JS 1_912_232, export 3_517_525; pictures 324_522 on the catalogue. `docs/HEALTH.md` traces the growth.
+// all JS 1_912_232, export 3_517_525; pictures 324_522 on the catalogue. All JS
+// moved alone on a sheet's drag, at 1_932_016: the calculator's chunk had taken
+// 9 KB out of the entry into it. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
   entryJs: 1_793_400,
-  totalJs: 1_931_300,
+  totalJs: 1_951_300,
   totalExport: 3_552_700,
   pictures: 328_000,
 };

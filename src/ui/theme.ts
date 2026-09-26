@@ -610,6 +610,8 @@ export const dialog = {
   /** A multi-line prompt's field: six lines show, the rest scroll inside it. */
   multilineHeight: 160,
   handle: { width: 36, height: 4 },
+  /** How far a sheet is pulled down by its handle before it lets go and closes. */
+  dragAway: 96,
   keyboardGap: 140,
   keyboardGapShare: 0.22,
 } as const;

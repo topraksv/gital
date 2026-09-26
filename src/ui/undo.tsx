@@ -5,8 +5,8 @@
  * reporting.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { Animated, PanResponder, Platform, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 import Check from "lucide-react-native/icons/check";
 import RotateCcw from "lucide-react-native/icons/rotate-ccw";
 import TriangleAlert from "lucide-react-native/icons/triangle-alert";
@@ -16,7 +16,7 @@ import { tr } from "../i18n/tr";
 import { SlideUp, SuccessPop } from "./components";
 import { appError } from "./dialog";
 import { selectionTap } from "./haptics";
-import { isReducedMotion, springTo } from "./motion";
+import { useDragAway } from "./motion";
 import { alpha, controlSize, font, iconStroke, motion, navigationInset, radius, spacing, stateOpacity, themeShadow, type, undoBar, useTheme } from "./theme";
 import { Press } from "./press";
 
@@ -59,12 +59,9 @@ function present(offer: UndoOffer): void {
 /**
  * The drag that pushes the bar out of the way. Measured against the bar's own
  * height, about 64 points: half of it is unmistakably a drag and still in
- * reach of one thumb, and a flick counts even when it barely travelled.
+ * reach of one thumb.
  */
 const DISMISS_DISTANCE = 32;
-const DISMISS_VELOCITY = 0.6;
-/** Movement before the drag claims the gesture, so a tap still reaches the button inside. */
-const DRAG_CLAIM = 6;
 /** Far enough below its place to be gone behind the edge. */
 const DISMISS_TRAVEL = 140;
 
@@ -73,34 +70,11 @@ export function UndoSnackbar() {
   const offer = useUndo((s) => s.offer);
   const insets = useSafeAreaInsets();
   const [undoing, setUndoing] = useState(false);
-  const [dragY] = useState(() => new Animated.Value(0));
+  const { dragY, panHandlers } = useDragAway(DISMISS_DISTANCE, DISMISS_TRAVEL, clearUndo);
   // A new confirmation arrives at rest, however the last one was pushed away.
   useEffect(() => {
     dragY.setValue(0);
   }, [dragY, offer]);
-
-  const pan = useMemo(() => {
-    const springHome = () => springTo(dragY, 0).start();
-    return PanResponder.create({
-      // Never on touch-down: a press must reach the undo button.
-      onMoveShouldSetPanResponder: (_event, gesture) => gesture.dy > DRAG_CLAIM && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-      // Downward only: up is where the bar came from, and means nothing.
-      onPanResponderMove: (_event, gesture) => dragY.setValue(Math.max(0, gesture.dy)),
-      onPanResponderRelease: (_event, gesture) => {
-        if (gesture.dy <= DISMISS_DISTANCE && gesture.vy <= DISMISS_VELOCITY) {
-          springHome();
-          return;
-        }
-        // Read as it is when the gesture ends; the responder is made once.
-        if (isReducedMotion()) {
-          clearUndo();
-          return;
-        }
-        Animated.timing(dragY, { toValue: DISMISS_TRAVEL, duration: motion.feedback, useNativeDriver: Platform.OS !== "web" }).start(clearUndo);
-      },
-      onPanResponderTerminate: springHome,
-    });
-  }, [dragY]);
 
   if (!offer) return null;
   const { message, onUndo, tone } = offer;
@@ -135,7 +109,7 @@ export function UndoSnackbar() {
         {/* Announced, because for a delete this is the only confirmation.
             Polite: it reports what the person just did and must not interrupt. */}
         <Animated.View
-          {...pan.panHandlers}
+          {...panHandlers}
           accessibilityLiveRegion="polite"
           accessibilityRole="alert"
           style={{

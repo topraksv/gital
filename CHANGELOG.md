@@ -145,3 +145,5 @@ cannot be released.
   Süt is offered when typing, and Süt is not counted for it.
 - Buttons, cards, chips, tiles, calculator keys, calendar days and tabs shrink
   slightly while held and spring back on release, instead of sinking a point.
+- A panel closes when pulled down by its handle or title, and springs back
+  when the pull is short.

@@ -12,7 +12,7 @@
  */
 
 import { useState, type ReactNode, type RefObject } from "react";
-import { Modal, Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Modal, Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 import { tr } from "../i18n/tr";
@@ -20,7 +20,7 @@ import { useModalAccessibility } from "./accessibility";
 import { Body, Button, SlideUp, TextField } from "./components";
 import { errorNotice } from "./haptics";
 import { KeyboardSafeScrollView } from "./keyboard-safe";
-import { useReducedMotion } from "./motion";
+import { useDragAway, useReducedMotion } from "./motion";
 import { closeRequest, emptyRequestQueue, enqueueRequest, type RequestQueue } from "./request-queue";
 import { shouldPresentAsSheet } from "./responsive";
 import { circle, dialog, motion, radius, spacing, themeShadow, type, useTheme } from "./theme";
@@ -111,6 +111,9 @@ export function DialogShell({
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const asSheet = shouldPresentAsSheet(width);
+  // A sheet goes down by its handle and title, not by its body, whose own
+  // fields and lists take a vertical drag first.
+  const { dragY, panHandlers } = useDragAway(dialog.dragAway, height, onDismiss);
   const surface = [
     {
       backgroundColor: palette.surface,
@@ -126,26 +129,28 @@ export function DialogShell({
   ];
   const content = (
     <>
-      {asSheet ? (
-        // The grab handle every bottom sheet wears; decoration, since the scrim is the dismiss target.
-        <View
-          accessible={false}
-          style={{
-            alignSelf: "center",
-            width: dialog.handle.width,
-            height: dialog.handle.height,
-            borderRadius: circle(dialog.handle.height),
-            backgroundColor: palette.surfaceStrong,
-            marginBottom: spacing.md,
-          }}
-        />
-      ) : null}
-      {lead}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm }}>
-        <View ref={titleRef} accessible accessibilityRole="header" aria-level={2} tabIndex={-1} style={{ flex: 1 }}>
-          <Text style={[type.heading, { color: palette.text }]}>{title}</Text>
+      <View {...(asSheet ? panHandlers : {})}>
+        {asSheet ? (
+          // The grab handle every bottom sheet wears: pulled down, it closes the sheet.
+          <View
+            accessible={false}
+            style={{
+              alignSelf: "center",
+              width: dialog.handle.width,
+              height: dialog.handle.height,
+              borderRadius: circle(dialog.handle.height),
+              backgroundColor: palette.surfaceStrong,
+              marginBottom: spacing.md,
+            }}
+          />
+        ) : null}
+        {lead}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm }}>
+          <View ref={titleRef} accessible accessibilityRole="header" aria-level={2} tabIndex={-1} style={{ flex: 1 }}>
+            <Text style={[type.heading, { color: palette.text }]}>{title}</Text>
+          </View>
+          {action}
         </View>
-        {action}
       </View>
       {message ? <Body muted>{message}</Body> : null}
       {children}
@@ -179,9 +184,11 @@ export function DialogShell({
             onPress={() => {}}
             style={{ alignSelf: "center", width: "100%", maxWidth: asSheet ? undefined : dialog.maxWidth }}
           >
-            <SlideUp distance={asSheet ? motion.travel.sheet : motion.travel.rise} style={surface}>
-              {content}
-            </SlideUp>
+            <Animated.View style={{ transform: [{ translateY: dragY }] }}>
+              <SlideUp distance={asSheet ? motion.travel.sheet : motion.travel.rise} style={surface}>
+                {content}
+              </SlideUp>
+            </Animated.View>
           </Pressable>
         </KeyboardSafeScrollView>
       </Pressable>

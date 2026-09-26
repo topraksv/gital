@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { AccessibilityInfo, Animated, Easing, Platform, type EmitterSubscription } from "react-native";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { AccessibilityInfo, Animated, Easing, PanResponder, Platform, type EmitterSubscription, type GestureResponderHandlers } from "react-native";
 import { motion } from "./theme";
 
 let reducedMotion = false;
@@ -145,4 +145,41 @@ export function useValueFlash(key: string): Animated.Value {
     return () => animation.stop();
   }, [key, flash, reducedMotion]);
   return flash;
+}
+
+/** A flick counts even when it barely travelled. */
+const FLICK_VELOCITY = 0.6;
+/** Movement before a drag claims the gesture, so a tap still reaches a control inside. */
+const DRAG_CLAIM = 6;
+
+/**
+ * A surface pushed down and away: the undo bar, and a sheet by its handle.
+ * Past `distance`, or on a flick, it leaves by `travel` and `onGone` runs; short
+ * of it, it springs home. Downward only, since up is where it came from.
+ */
+export function useDragAway(distance: number, travel: number, onGone: () => void): { dragY: Animated.Value; panHandlers: GestureResponderHandlers } {
+  const [dragY] = useState(() => new Animated.Value(0));
+  // A new responder drops the gesture in flight, so it is rebuilt only when
+  // an argument changes. A drag re-renders nothing, so a caller's inline
+  // `onGone` rebuilds it between gestures, never during one.
+  const { panHandlers } = useMemo(() => {
+    const springHome = () => springTo(dragY, 0).start();
+    return PanResponder.create({
+      // Claimed on touch-down too, or a surface that is itself the responder,
+      // a sheet's, is never asked on the move. A control inside still gets the
+      // press, since the deepest view is asked first; its drag is taken on the move.
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_event, gesture) => gesture.dy > DRAG_CLAIM && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_event, gesture) => dragY.setValue(Math.max(0, gesture.dy)),
+      // Held once claimed: the sheet's scroll view asks for a long move.
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderRelease: (_event, gesture) => {
+        if (gesture.dy <= distance && gesture.vy <= FLICK_VELOCITY) return springHome();
+        if (isReducedMotion()) return onGone();
+        Animated.timing(dragY, { toValue: travel, duration: motion.feedback, useNativeDriver: Platform.OS !== "web" }).start(onGone);
+      },
+      onPanResponderTerminate: springHome,
+    });
+  }, [dragY, distance, travel, onGone]);
+  return { dragY, panHandlers };
 }
