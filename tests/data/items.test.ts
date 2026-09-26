@@ -562,6 +562,12 @@ describe("readKnownProducts", () => {
       { key: "ekmek", name: "Ekmek", times: 1 },
     ]);
   });
+
+  it("counts what was bought instead as the product that was bought", async () => {
+    const [sut] = await addItems(listId, "süt");
+    await updateItem(sut!, { ...as("Süt"), boughtInstead: "Sütaş" });
+    expect(await readKnownProducts()).toEqual([{ key: "sutas", name: "Sütaş", times: 1 }]);
+  });
 });
 
 describe("readBought", () => {

@@ -141,3 +141,5 @@ cannot be released.
   it was deleted, instead of bringing back the older copy over the newer one.
 - The web app's first download is 9 KB lighter: the calculator arrives when a
   price field is shown, and says so if it cannot load offline.
+- What was bought instead is suggested next time: Sütaş bought in place of
+  Süt is offered when typing, and Süt is not counted for it.

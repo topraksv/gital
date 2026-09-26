@@ -67,12 +67,14 @@ export function readItems(listId: string): Promise<Item[]> {
  * household has.
  */
 export async function readKnownProducts(): Promise<KnownProduct[]> {
+  // A substitute is what came home, so it is the product counted and offered.
+  const product = sql<string>`coalesce(${items.boughtInstead}, ${items.name})`;
   const rows = await getDb()
-    .select({ name: items.name, times: count() })
+    .select({ name: product, times: count() })
     .from(items)
     .innerJoin(lists, and(eq(lists.id, items.listId), isNull(lists.deletedAt)))
     .where(isNull(items.deletedAt))
-    .groupBy(items.name)
+    .groupBy(product)
     // One entry writes its items with one stamp; the name keeps their order fixed.
     .orderBy(desc(max(items.updatedAt)), asc(items.name));
   const known = new Map<string, KnownProduct>();
