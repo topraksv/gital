@@ -119,6 +119,18 @@ export const wishLinks = sqliteTable(
 );
 
 /**
+ * A product as its person keeps it, one row per product whatever list it is
+ * on: its id comes from the folded name. It holds the star (SPEC 5.1) now,
+ * and the aisle it was moved to (5.4) once that slice lands. Personal; the
+ * person joins its id with accounts, as a pantry row's.
+ */
+export const products = sqliteTable("products", {
+  ...syncColumns,
+  name: text("name").notNull(),
+  starred: integer("starred", { mode: "boolean" }).notNull().default(false),
+});
+
+/**
  * A product at home (SPEC 12.2), one row per product: its id comes from the
  * folded name, so every shop that brings it meets the same row. What it holds
  * is not a column but the sum of its moves (`docs/ARCHITECTURE.md`, "The pantry
@@ -167,6 +179,6 @@ export const outbox = sqliteTable(
   ],
 );
 
-export const SYNCED_TABLES = { lists, items, shops, wishes, wish_links: wishLinks, pantry_items: pantryItems, pantry_moves: pantryMoves } as const;
+export const SYNCED_TABLES = { lists, items, shops, wishes, wish_links: wishLinks, pantry_items: pantryItems, pantry_moves: pantryMoves, products } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;

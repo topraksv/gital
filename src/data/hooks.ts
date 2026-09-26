@@ -5,6 +5,7 @@ import { readBought, readItems, readKnownProducts, readShopItems } from "./items
 import { readLists } from "./lists";
 import { liveStore } from "./live-query";
 import { readLasted, readPantry } from "./pantry";
+import { readFavourites } from "./products";
 import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readWishes } from "./wishes";
 
@@ -86,4 +87,11 @@ const lastedStore = liveStore(readLasted, ["pantry_items", "pantry_moves"]);
 
 export function useLasted() {
   return useSyncExternalStore(lastedStore.subscribe, lastedStore.getSnapshot, lastedStore.getSnapshot);
+}
+
+// Shared by the item panel's star and the catalogue's Favoriler.
+const favouritesStore = liveStore(readFavourites, ["products"]);
+
+export function useFavourites() {
+  return useSyncExternalStore(favouritesStore.subscribe, favouritesStore.getSnapshot, favouritesStore.getSnapshot);
 }

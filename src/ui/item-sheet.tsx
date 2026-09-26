@@ -10,10 +10,12 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
+import Star from "lucide-react-native/icons/star";
 import Trash from "lucide-react-native/icons/trash";
 
-import { useBought } from "../data/hooks";
-import { NOTE_MAX, formatQuantity, quantityOrOne, stepQuantity, type ItemChange, type Quantity } from "../domain/items";
+import { useBought, useFavourites } from "../data/hooks";
+import { setStarred } from "../data/products";
+import { NOTE_MAX, foldName, formatQuantity, quantityOrOne, stepQuantity, type ItemChange, type Quantity } from "../domain/items";
 import { formatMinorInput, pastOf, priceRise, readPrice, type Bought as BoughtBefore } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
@@ -21,7 +23,7 @@ import { useModalAccessibility } from "./accessibility";
 import { PriceField } from "./calculator";
 import { PriceLine } from "./charts";
 import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type ShownItem } from "./components";
-import { Actions, DialogShell } from "./dialog";
+import { Actions, DialogShell, appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { controlSize, font, itemPanel, spacing, type, useTheme } from "./theme";
 
@@ -48,6 +50,12 @@ export function ItemSheet({
   const { palette } = useTheme();
   const titleRef = useModalAccessibility(true, item.id);
   const before = useBought(item.id).data;
+  const starred = useFavourites().data.some((favourite) => foldName(favourite.name) === foldName(item.name));
+  // The star is the product's, not this item's, so it is written at once rather than on Kaydet.
+  const star = () => {
+    selectionTap();
+    setStarred(item.name, !starred).catch(() => appError(tr.errors.saveFailed));
+  };
   const [name, setName] = useState(item.name);
   const [note, setNote] = useState(item.note ?? "");
   const [quantity, setQuantity] = useState({ quantityMilli: item.quantityMilli, unit: item.unit });
@@ -84,7 +92,12 @@ export function ItemSheet({
   };
 
   return (
-    <DialogShell title={item.name} titleRef={titleRef} onDismiss={onClose}>
+    <DialogShell
+      title={item.name}
+      titleRef={titleRef}
+      onDismiss={onClose}
+      action={<IconButton icon={Star} label={tr.items.favourite} on={starred} onPress={star} />}
+    >
       <TextField
         value={name}
         maxLength={NAME_MAX}

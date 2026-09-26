@@ -85,6 +85,13 @@
       "when": 1790430700072,
       "tag": "0011_pantry_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790433456325,
+      "tag": "0012_products",
+      "breakpoints": true
     }
   ]
 }

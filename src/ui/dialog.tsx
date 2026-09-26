@@ -93,9 +93,12 @@ export function DialogShell({
   titleRef,
   onDismiss,
   lead,
+  action,
   children,
 }: {
   title: string;
+  /** Beside the title: a control that acts on the whole thing the dialog is about, the item panel's star. */
+  action?: ReactNode;
   message?: string;
   /** Drawn above the title: the tour's picture of the slide. */
   lead?: ReactNode;
@@ -138,8 +141,11 @@ export function DialogShell({
         />
       ) : null}
       {lead}
-      <View ref={titleRef} accessible accessibilityRole="header" aria-level={2} tabIndex={-1}>
-        <Text style={[type.heading, { color: palette.text, marginBottom: spacing.sm }]}>{title}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm }}>
+        <View ref={titleRef} accessible accessibilityRole="header" aria-level={2} tabIndex={-1} style={{ flex: 1 }}>
+          <Text style={[type.heading, { color: palette.text }]}>{title}</Text>
+        </View>
+        {action}
       </View>
       {message ? <Body muted>{message}</Body> : null}
       {children}

@@ -133,6 +133,7 @@ export const tr = {
     noteLabel: "Not",
     notePlaceholder: "Not ya da marka: Pınar olsun",
     urgent: "Acil",
+    favourite: "Favori",
     notFound: "Bulunamadı",
     insteadLabel: "Yerine alınan",
     insteadPlaceholder: "Yerine alınan: Sütaş",
@@ -197,6 +198,8 @@ export const tr = {
     open: "Katalogdan seç",
     title: "Katalog",
     aisle: "Reyon",
+    favourites: "Favoriler",
+    noFavourites: "Bir ürünün panelindeki yıldız onu buraya ekler.",
     didYouMean: (name: string) => `Bunu mu demek istediniz: ${name}?`,
     keep: (typed: string) => `${typed} olarak ekle`,
     aisles: {

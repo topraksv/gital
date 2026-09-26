@@ -131,3 +131,5 @@ cannot be released.
   row counts down the last three days and says when the date has passed.
 - Finishing a product in Kiler flies its row down to the Listeler tab, which
   bounces as it lands.
+- A product can be starred from its panel, and the catalogue's Favoriler
+  shows everything starred, a tap away from the list.

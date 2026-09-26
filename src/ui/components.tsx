@@ -856,6 +856,7 @@ export function IconButton({
   onPress,
   tone = "default",
   disabled = false,
+  on,
 }: {
   icon: LucideIcon;
   label: string;
@@ -863,15 +864,18 @@ export function IconButton({
   onPress: () => void;
   tone?: "default" | "danger" | "primary";
   disabled?: boolean;
+  /** A toggle's state: on fills the icon and the button, and a screen reader hears it pressed. */
+  on?: boolean;
 }) {
   const { palette } = useTheme();
   const color = disabled
     ? palette.textMuted
-    : tone === "danger" ? palette.destructive : tone === "primary" ? palette.accentText : palette.textSecondary;
+    : tone === "danger" ? palette.destructive : tone === "primary" || on ? palette.accentText : palette.textSecondary;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      aria-pressed={on}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
@@ -887,7 +891,7 @@ export function IconButton({
             flexDirection: "row",
             gap: spacing.xs,
             borderRadius: radius.sm,
-            ...interactionSurface(palette, state, { base: tone === "primary" ? palette.primarySoft : palette.surface, enabled: !disabled }),
+            ...interactionSurface(palette, state, { base: tone === "primary" || on ? palette.primarySoft : palette.surface, enabled: !disabled }),
             alignItems: "center",
             justifyContent: "center",
             borderWidth: StyleSheet.hairlineWidth,
@@ -895,7 +899,7 @@ export function IconButton({
             transform: [{ translateY: state.pressed && !disabled ? pressDepth : 0 }],
           }}
         >
-          <Icon accessible={false} size={text ? iconSize.compact : iconSize.control} color={color} strokeWidth={iconStroke.regular} />
+          <Icon accessible={false} size={text ? iconSize.compact : iconSize.control} color={color} fill={on ? color : "none"} strokeWidth={iconStroke.regular} />
           {text ? (
             <Text maxFontSizeMultiplier={maxFontScale.measuredBox} style={[type.buttonCompact, { color }]}>
               {text}
