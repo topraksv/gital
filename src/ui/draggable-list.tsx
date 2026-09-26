@@ -17,6 +17,7 @@ import GripVertical from "lucide-react-native/icons/grip-vertical";
 
 import { tr } from "../i18n/tr";
 import { errorNotice, mediumImpact, selectionTap } from "./haptics";
+import { webKeys } from "./keys";
 import { useReducedMotion } from "./motion";
 import { follow } from "./reorder";
 import { controlSize, drag, iconSize, motion, useTheme } from "./theme";
@@ -256,6 +257,8 @@ export function ReorderGrip({ handle, name, position, count }: { handle: DragHan
         { name: "decrement", label: tr.items.moveDown },
       ]}
       onAccessibilityAction={(event) => (event.nativeEvent.actionName === "increment" ? handle.moveUp() : handle.moveDown())}
+      tabIndex={0}
+      {...webKeys({ ArrowUp: handle.moveUp, ArrowDown: handle.moveDown })}
       collapsable={false}
       style={{ minWidth: controlSize.minimumTarget, alignSelf: "stretch", alignItems: "center", justifyContent: "center", ...GRIP_WEB }}
     >

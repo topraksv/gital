@@ -37,6 +37,7 @@ import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { selectionTap } from "./haptics";
 import { interactionSurface } from "./interaction";
+import { webKeys } from "./keys";
 import { LIST_PICTURES } from "./list-look";
 import { useReducedMotion, useSpringTo } from "./motion";
 import { navigateBack } from "./navigation";
@@ -414,16 +415,18 @@ export function Toggle({ value, onValueChange, label }: { value: boolean; onValu
   const [progress] = useState(() => new Animated.Value(value ? 1 : 0));
   useSpringTo(progress, value ? 1 : 0);
   const thumb = toggleSize.height - toggleSize.padding * 2;
+  const flip = () => {
+    selectionTap();
+    onValueChange(!value);
+  };
   return (
     <Pressable
       accessibilityRole="switch"
       accessibilityLabel={label}
       aria-checked={value}
       accessibilityState={{ checked: value }}
-      onPress={() => {
-        selectionTap();
-        onValueChange(!value);
-      }}
+      onPress={flip}
+      {...webKeys({ " ": flip }, { repeats: false })}
       style={({ pressed }) => ({
         minHeight: controlSize.minimumTarget,
         flexDirection: "row",

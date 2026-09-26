@@ -40,6 +40,7 @@ import {
 import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
+import { webKeys } from "../../ui/keys";
 import { celebrate, hideCelebration } from "../../ui/celebration";
 import { DraggableList, ReorderGrip } from "../../ui/draggable-list";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
@@ -436,9 +437,11 @@ function ItemRow({
       {grip ?? (
       <Pressable
         accessibilityRole="checkbox"
+        aria-checked={checked}
         accessibilityState={{ checked }}
         accessibilityLabel={item.name}
         onPress={onToggle}
+        {...webKeys({ " ": onToggle }, { repeats: false })}
         style={(state) => ({
           minWidth: controlSize.minimumTarget,
           paddingHorizontal: spacing.md,

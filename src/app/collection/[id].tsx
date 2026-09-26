@@ -17,6 +17,7 @@ import { ArrivalScope, CheckMark, EmptyState, IconButton, ReadFailed, Screen, Se
 import { appError } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
+import { webKeys } from "../../ui/keys";
 import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion } from "../../ui/list-motion";
 import { navigateBack } from "../../ui/navigation";
@@ -234,9 +235,11 @@ function WishRow({ wish, onOpen, onToggle }: { wish: Wish; onOpen: () => void; o
       </Pressable>
       <Pressable
         accessibilityRole="checkbox"
+        aria-checked={done}
         accessibilityState={{ checked: done }}
         accessibilityLabel={tr.common.withDetail(wish.name, tr.wishes.bought)}
         onPress={onToggle}
+        {...webKeys({ " ": onToggle }, { repeats: false })}
         style={(state) => ({
           minWidth: controlSize.minimumTarget,
           paddingHorizontal: spacing.md,

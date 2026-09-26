@@ -87,3 +87,6 @@ cannot be released.
   cheapest, and the collection says what the open wishes come to.
 - The first open plays a five-step tour of what Gital does; Ayarlar plays it
   again.
+- On the web, Space ticks an item or a wish and flips a switch, and the arrow
+  keys move a row while sorting; an item's and a wish's circle now tell a
+  screen reader whether they are ticked, which they never did on the web.
