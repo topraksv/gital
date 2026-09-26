@@ -10,6 +10,7 @@ import { nameFrom } from "../domain/names";
 
 export interface ListSummary extends ListLook {
   id: string;
+  pantry: boolean;
   /** Items on the list, the basket included; a finished shop's are history. */
   total: number;
   inBasket: number;
@@ -18,7 +19,7 @@ export interface ListSummary extends ListLook {
 /** Oldest first, so a new list joins the end and nothing already there moves. Wish collections are İstekler's. */
 export async function readLists(): Promise<ListSummary[]> {
   const rows = await getDb()
-    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, total: count(items.id), inBasket: count(items.checkedAt) })
+    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, pantry: lists.pantry, total: count(items.id), inBasket: count(items.checkedAt) })
     .from(lists)
     .leftJoin(items, and(eq(items.listId, lists.id), isNull(items.shopId), isNull(items.deletedAt)))
     .where(and(isNull(lists.deletedAt), eq(lists.kind, "shop")))
@@ -41,11 +42,17 @@ export async function createList(input: string, kind: ListKind = "shop"): Promis
   return id;
 }
 
-export async function editList(id: string, look: ListLook): Promise<void> {
+/** A shopping list's panel also saves its pantry switch; a wish collection's names none, and one not named is left as it is. */
+export async function editList(id: string, look: ListLook & { pantry?: boolean }): Promise<void> {
   const name = nameOrThrow(look.name);
   // Only what this build can draw is written; reading is the lenient side.
   if (look.color !== knownOf(LIST_COLORS, look.color) || look.icon !== knownOf(LIST_ICONS, look.icon)) throw new Error("An unknown look");
-  await writeRows(async () => editRow("lists", await readLiveRow("lists", id), { name, color: look.color, icon: look.icon }));
+  await writeRows(async () => editRow("lists", await readLiveRow("lists", id), {
+    name,
+    color: look.color,
+    icon: look.icon,
+    ...(look.pantry != null && { pantry: look.pantry }),
+  }));
 }
 
 /** Returns what undo needs, or `null` when the list was already gone. */

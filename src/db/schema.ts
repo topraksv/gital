@@ -37,6 +37,8 @@ export const lists = sqliteTable("lists", {
   color: text("color"),
   icon: text("icon"),
   kind: text("kind", { enum: LIST_KINDS }).notNull().default("shop"),
+  /** "Alınanlar kilere gitsin" (SPEC 12.5): whether a finished shop fills the pantry. */
+  pantry: integer("pantry", { mode: "boolean" }).notNull().default(true),
 });
 
 /**

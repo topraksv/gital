@@ -113,7 +113,7 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
   const sqlite = await getSqliteAsync();
   let finished: { id: string; bought: number } | null = null;
   await writeRows(async () => {
-    await readLiveRow("lists", listId);
+    const list = fromDbShape("lists", await readLiveRow("lists", listId));
     const bought = await sqlite.getAllAsync<RowSnapshot>(
       "SELECT * FROM items WHERE list_id = ? AND shop_id IS NULL AND checked_at IS NOT NULL AND deleted_at IS NULL",
       [listId],
@@ -132,8 +132,8 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
       })),
     );
     const moves = bought.map((row, at): RowWrite[] => [...editRow("items", row, { deletedAt: now }), { table: "items", row: copies[at]! }]);
-    // What was bought comes home in the same write (SPEC 12.5).
-    const arrivals = await arrivalRows(
+    // What was bought comes home in the same write, unless the list's switch says not (SPEC 12.5).
+    const arrivals = list.pantry !== true ? [] : await arrivalRows(
       listId,
       bought.map((row, at) => ({ id: copies[at]!.id, name: String(row.name), quantityMilli: row.quantity_milli as number | null, unit: row.unit as Unit | null })),
     );

@@ -119,3 +119,5 @@ cannot be released.
   bought, with its quantity, and taking the shop back takes it out again. −
   uses some; a product used up, or marked finished, goes back on the list it
   came from, and the bar that says so can take it back.
+- A list's panel has "Alınanlar kilere gitsin", on by default: turned off, a
+  hardware list's shops stay out of Kiler.

@@ -88,8 +88,8 @@ describe("readLists", () => {
     const eczane = await createList("Eczane");
     await deleteList(pazar);
     expect(await readLists()).toEqual([
-      { id: market, name: "Market", color: null, icon: null, total: 0, inBasket: 0 },
-      { id: eczane, name: "Eczane", color: null, icon: null, total: 0, inBasket: 0 },
+      { id: market, name: "Market", color: null, icon: null, pantry: true, total: 0, inBasket: 0 },
+      { id: eczane, name: "Eczane", color: null, icon: null, pantry: true, total: 0, inBasket: 0 },
     ]);
   });
 
@@ -107,6 +107,16 @@ describe("editList", () => {
     expect(await readLists()).toMatchObject([{ id, color: "teal", icon: "cart" }]);
     await editList(id, { name: "Market", color: null, icon: null });
     expect(await readLists()).toMatchObject([{ id, color: null, icon: null }]);
+  });
+
+  it("turns a list's pantry switch off and on, and leaves it be when the save names none", async () => {
+    const id = await createList("Nalbur");
+    await editList(id, { name: "Nalbur", color: null, icon: null, pantry: false });
+    expect(await readLists()).toMatchObject([{ id, pantry: false }]);
+    await editList(id, { name: "Hırdavat", color: null, icon: null });
+    expect(await readLists()).toMatchObject([{ id, name: "Hırdavat", pantry: false }]);
+    await editList(id, { name: "Hırdavat", color: null, icon: null, pantry: true });
+    expect(await readLists()).toMatchObject([{ id, pantry: true }]);
   });
 
   it("stores only a colour and a picture this build knows, and reads an unknown one as none", async () => {

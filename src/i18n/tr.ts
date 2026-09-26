@@ -68,6 +68,7 @@ export const tr = {
     namePlaceholder: "Ör. Market",
     edit: (name: string) => `${name} listesini düzenle`,
     nameLabel: "Listenin adı",
+    pantry: "Alınanlar kilere gitsin",
     color: "Renk",
     picture: "Resim",
     /** The default: one of the theme's three tones, picked by the list's id. */

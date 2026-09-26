@@ -1,0 +1,1 @@
+ALTER TABLE `lists` ADD `pantry` integer DEFAULT true NOT NULL;

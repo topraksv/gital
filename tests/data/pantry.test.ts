@@ -22,7 +22,7 @@ vi.mock("expo-crypto", () => ({
 
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { finishShop, reopenShop } = await import("../../src/data/shops");
-const { createList, deleteList } = await import("../../src/data/lists");
+const { createList, deleteList, editList } = await import("../../src/data/lists");
 const { finishPantryItem, readPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { migratedDatabase } = await import("../helpers");
@@ -84,6 +84,13 @@ describe("a finished shop", () => {
     tick();
     await finishShop(market);
     expect(await stock()).toEqual([{ name: "Süt", quantityMilli: 3000, unit: "lt" }]);
+  });
+
+  it("fills nothing from a list whose pantry switch is off (SPEC 12.5)", async () => {
+    const nalbur = await createList("Nalbur");
+    await editList(nalbur, { name: "Nalbur", color: null, icon: null, pantry: false });
+    await shop(nalbur, "vida");
+    expect(await stock()).toEqual([]);
   });
 
   it("queues the pantry's rows for sync", async () => {
