@@ -161,3 +161,5 @@ cannot be released.
 - The browser tab reads "Gital · Ortak alışveriş listesi" instead of nothing,
   and on the web the keyboard's focus ring shows inside a panel as it does on
   the page, with none round a panel's title.
+- A list with something still to buy keeps the screen on, on the phone and
+  in a browser that allows it, and takes it back after a look at another app.
