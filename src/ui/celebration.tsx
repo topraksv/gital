@@ -20,8 +20,9 @@ import Check from "lucide-react-native/icons/check";
 import { create } from "zustand";
 
 import { useShops } from "../data/hooks";
-import { formatMinor, spentInMonth } from "../domain/money";
+import { formatMinor, spentByMonth } from "../domain/money";
 import { tr } from "../i18n/tr";
+import { MONTHS, MonthBars } from "./charts";
 import { SuccessPop, cardEdge } from "./components";
 import { useReducedMotion } from "./motion";
 import {
@@ -73,7 +74,8 @@ function Celebration({ summary }: { summary: ShopSummary }) {
   const reducedMotion = useReducedMotion();
   // The month is read here, once the finish has written its shop: the list
   // screen has no reason to watch every shop.
-  const month = spentInMonth(useShops().data, new Date());
+  const months = spentByMonth(useShops().data, new Date(), MONTHS);
+  const month = months.at(-1)!.spentMinor;
   const spent = useCountUp(summary.spentMinor ?? 0);
   return (
     <Pressable
@@ -147,9 +149,15 @@ function Celebration({ summary }: { summary: ShopSummary }) {
               </Text>
             ) : null}
             {month == null ? null : (
-              <Text style={[type.small, { color: palette.textSecondary }]}>
-                {tr.celebration.month(formatMinor(month))}
-              </Text>
+              <>
+                <Text style={[type.small, { color: palette.textSecondary }]}>
+                  {tr.celebration.month(formatMinor(month))}
+                </Text>
+                {/* Mounted with the card, so the bars rise with it; this month is the one marked. */}
+                <View style={{ alignSelf: "stretch", marginTop: spacing.sm }}>
+                  <MonthBars months={months} />
+                </View>
+              </>
             )}
           </View>
         </SuccessPop>

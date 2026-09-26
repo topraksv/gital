@@ -7,6 +7,7 @@ import { useLists } from "../../data/hooks";
 import { createList } from "../../data/lists";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
+import { ProgressRing } from "../../ui/charts";
 import { ArrivalScope, Button, EmptyState, IconButton, LinkCard, ReadFailed, Screen, SlideUp } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { selectionTap } from "../../ui/haptics";
@@ -61,6 +62,7 @@ export default function Lists() {
                     look={list}
                     title={list.name}
                     detail={tr.lists.summary(list.total, list.inBasket)}
+                    accessory={list.total > 0 ? <ProgressRing value={list.inBasket / list.total} /> : null}
                     hint={tr.lists.openHint}
                     onOpen={() => router.push({ pathname: "/list/[id]", params: { id: list.id } })}
                   />

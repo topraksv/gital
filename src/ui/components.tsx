@@ -85,11 +85,17 @@ const ScopePainted = createContext(true);
  * at rest and moving it in an effect showed one frame in the settled position.
  */
 function useEntranceProgress(): Animated.Value {
-  const reducedMotion = useReducedMotion();
-  const painted = useContext(ScopePainted);
-  const [progress] = useState(() => new Animated.Value(reducedMotion || !painted ? 1 : 0));
+  const moving = useArrivesMoving();
+  const [progress] = useState(() => new Animated.Value(moving ? 0 : 1));
   useSpringTo(progress, 1);
   return progress;
+}
+
+/** Whether what mounts now is an event that moves in, rather than part of a screen arriving at rest. */
+export function useArrivesMoving(): boolean {
+  const reducedMotion = useReducedMotion();
+  const painted = useContext(ScopePainted);
+  return !reducedMotion && painted;
 }
 
 /**
@@ -491,10 +497,13 @@ export function LinkCard({
   title,
   detail,
   figure,
+  accessory,
   hint,
   onOpen,
 }: {
   figure?: string;
+  /** Drawn before the chevron: a list's ring of its shop so far. */
+  accessory?: ReactNode;
   look?: TileLook;
   /** What the tile's tone is taken from, so a shop wears its list's tone. */
   tileId: string;
@@ -527,6 +536,7 @@ export function LinkCard({
         </View>
         <Text style={[type.small, { color: palette.textSecondary }]}>{detail}</Text>
       </View>
+      {accessory}
       <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
     </Pressable>
   );
@@ -594,10 +604,11 @@ export function TextField({ style, ...props }: TextInputProps & { ref?: Ref<Text
 }
 
 /** A section owns both sides of itself, because it separates two groups. */
-export function SectionHeader({ children }: { children: ReactNode }) {
+/** `flush` drops the gap above, for a header that opens a card rather than follows rows. */
+export function SectionHeader({ children, flush = false }: { children: ReactNode; flush?: boolean }) {
   const { palette } = useTheme();
   return (
-    <View style={{ marginTop: density.list.sectionGap, marginBottom: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+    <View style={{ marginTop: flush ? 0 : density.list.sectionGap, marginBottom: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md }}>
       <View
         accessible={false}
         style={{ width: sectionMark.width, height: sectionMark.height, borderRadius: sectionMark.radius, backgroundColor: palette.primary }}

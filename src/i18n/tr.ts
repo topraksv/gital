@@ -13,6 +13,9 @@ function dateTimeLabel(iso: string): string {
 
 const DATE = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long" });
 
+const MONTH = new Intl.DateTimeFormat("tr-TR", { month: "short" });
+const MONTH_LONG = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" });
+
 function dateLabel(iso: string): string {
   const value = new Date(iso);
   return Number.isNaN(value.getTime()) ? iso : DATE.format(value);
@@ -236,6 +239,11 @@ export const tr = {
     editTotal: "Toplamı fişe göre düzelt",
     addBack: (name: string) => `${name} ürününü listeye geri ekle`,
     addedBack: (name: string) => `${name} listeye eklendi`,
+    months: "Son 6 ay",
+    month: (start: string) => MONTH.format(new Date(start)),
+    /** Every bar read aloud as the eye reads it: the month, and what it cost or that nothing was priced. */
+    monthsLabel: (months: readonly { start: string; spentMinor: number | null }[]) =>
+      `Son 6 ay: ${months.map((month) => `${MONTH_LONG.format(new Date(month.start))} ${month.spentMinor == null ? "fiyat yok" : formatMinor(month.spentMinor)}`).join(", ")}`,
   },
   tour: {
     step: (step: number, total: number, title: string) => `${total} adımdan ${step}. ${title}`,

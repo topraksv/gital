@@ -40,23 +40,27 @@ export function isReducedMotion(): boolean {
   return reducedMotion;
 }
 
-/** The spring every moving part shares, so a gesture's settle and a mount's arrival feel alike. */
-export function springTo(value: Animated.Value, toValue: number): Animated.CompositeAnimation {
-  return Animated.spring(value, { toValue, useNativeDriver: Platform.OS !== "web", ...motion.spring.entrance });
+/**
+ * The spring every moving part shares, so a gesture's settle and a mount's
+ * arrival feel alike. `native: false` is for geometry the native driver cannot
+ * move, such as an SVG dash.
+ */
+export function springTo(value: Animated.Value, toValue: number, native = true): Animated.CompositeAnimation {
+  return Animated.spring(value, { toValue, useNativeDriver: native && Platform.OS !== "web", ...motion.spring.entrance });
 }
 
 /** Springs `value` to `target` whenever the target moves; under reduced motion it jumps there. */
-export function useSpringTo(value: Animated.Value, target: number): void {
+export function useSpringTo(value: Animated.Value, target: number, native = true): void {
   const reducedMotion = useReducedMotion();
   useEffect(() => {
     if (reducedMotion) {
       value.setValue(target);
       return;
     }
-    const animation = springTo(value, target);
+    const animation = springTo(value, target, native);
     animation.start();
     return () => animation.stop();
-  }, [value, target, reducedMotion]);
+  }, [value, target, reducedMotion, native]);
 }
 
 let reduceTransparency = false;

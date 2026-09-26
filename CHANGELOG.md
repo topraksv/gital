@@ -90,3 +90,6 @@ cannot be released.
 - On the web, Space ticks an item or a wish and flips a switch, and the arrow
   keys move a row while sorting; an item's and a wish's circle now tell a
   screen reader whether they are ticked, which they never did on the web.
+- Geçmiş opens on six months' totals as bars, the finish card's month rises
+  as the same bars, an item's panel draws its last prices as a line, and a
+  list's card fills a ring as its items go into the basket.

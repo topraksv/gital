@@ -21,15 +21,35 @@ export function spentOn(items: readonly { priceMinor: number | null }[]): number
   return priced.length === 0 ? null : priced.reduce((sum, price) => sum + price, 0);
 }
 
-/** What this calendar month's shops cost, on the device's clock; `null` when none was priced (SPEC 3.11). */
-export function spentInMonth(shops: readonly { finishedAt: string; spentMinor: number | null }[], now: Date): number | null {
-  const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  return spentOn(shops.filter((shop) => Date.parse(shop.finishedAt) >= start).map((shop) => ({ priceMinor: shop.spentMinor })));
+/**
+ * What each of the last `months` calendar months cost, this one last, on the
+ * device's clock; a month none of whose shops was priced is `null`, not ₺0
+ * (SPEC 3.9's chart, 3.11's month so far).
+ */
+export function spentByMonth(shops: readonly { finishedAt: string; spentMinor: number | null }[], now: Date, months: number): { start: string; spentMinor: number | null }[] {
+  return Array.from({ length: months }, (_, at) => {
+    const start = new Date(now.getFullYear(), now.getMonth() - months + 1 + at, 1);
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 1).getTime();
+    const inMonth = shops.filter((shop) => Date.parse(shop.finishedAt) >= start.getTime() && Date.parse(shop.finishedAt) < end);
+    return { start: start.toISOString(), spentMinor: spentOn(inMonth.map((shop) => ({ priceMinor: shop.spentMinor }))) };
+  });
 }
 
 /** ₺1.234,56 */
 export function formatMinor(minor: number): string {
   return LIRA.format(minor / 100);
+}
+
+/**
+ * ₺850, ₺1,2 B, ₺3,4 Mn: a figure short enough to sit under a chart's bar.
+ * Written by hand, as Hermes's `Intl` is not relied on for compact notation.
+ */
+export function formatMinorShort(minor: number): string {
+  const lira = minor / 100;
+  if (Math.round(lira) < 1000) return `₺${Math.round(lira)}`;
+  const thousands = Math.round(lira / 100) / 10;
+  const [figure, unit] = thousands < 1000 ? [thousands, "B"] : [Math.round(lira / 100_000) / 10, "Mn"];
+  return `₺${String(figure).replace(".", ",")} ${unit}`;
 }
 
 /**
@@ -83,19 +103,22 @@ export interface Bought extends PricePaid {
 }
 
 /**
- * When a product was last bought and its last three prices, oldest first
+ * When a product was last bought and its last six prices, oldest first
  * (SPEC 3.9), or `null` when it never was. `bought` comes latest first.
  */
 export function pastOf(bought: readonly Bought[], name: string): { lastAt: string; lastPriceMinor: number | null; prices: number[] } | null {
   const key = foldName(name);
   const own = bought.filter((row) => foldName(row.name) === key);
   if (own.length === 0) return null;
-  const prices = own.flatMap((row) => (row.priceMinor == null ? [] : [row.priceMinor])).slice(0, RECENT);
+  const prices = own.flatMap((row) => (row.priceMinor == null ? [] : [row.priceMinor])).slice(0, CHARTED);
   return { lastAt: own[0]!.boughtAt, lastPriceMinor: own[0]!.priceMinor, prices: prices.reverse() };
 }
 
 /** A tenth: a price within one is the same price at another shop, and saying so would be noise. */
 const RISE_FROM = 10;
+
+/** Enough points for a line to show a trend, and few enough that each is a point and not a blur. */
+const CHARTED = 6;
 
 /** Recent enough to be what the product costs now, and three so one odd price does not decide. */
 const RECENT = 3;

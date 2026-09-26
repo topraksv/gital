@@ -575,6 +575,13 @@ export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25
 
 export const progressBar = { height: 6 } as const;
 
+/**
+ * Helix's chart grammar at Gital's sizes (`docs/UI.md` section 12): the
+ * month bars' plot, the price line's, the ring on a list's card. A bar with
+ * any spend keeps `barFloor` of the plot, so a small month is still a mark.
+ */
+export const chart = { bars: 88, barFloor: 0.04, barWidth: "56%", line: 56, lineWidth: 2.5, marker: 3.5, ring: 28, ringWidth: 3.5 } as const;
+
 export const emptyState = { disc: 56, icon: 26 } as const;
 
 /**

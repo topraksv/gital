@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { MAX_PRICE_MINOR, formatMinor, formatMinorInput, formatPriceInput, isPrice, pastOf, priceRise, readPrice, spentInMonth, spentOn, type PricePaid } from "../../src/domain/money";
+import { MAX_PRICE_MINOR, formatMinor, formatMinorShort, formatMinorInput, formatPriceInput, isPrice, pastOf, priceRise, readPrice, spentByMonth, spentOn, type PricePaid } from "../../src/domain/money";
 
 describe("readPrice", () => {
   it("reads kuruş from what is typed, grouped or not, with or without the lira sign", () => {
@@ -100,18 +100,36 @@ describe("priceRise", () => {
   });
 });
 
-describe("spentInMonth", () => {
+describe("formatMinorShort", () => {
+  it("rounds to whole lira under a thousand, and to one decimal of a thousand or a million above", () => {
+    expect([0, 4590, 85_049, 99_949].map(formatMinorShort)).toEqual(["₺0", "₺46", "₺850", "₺999"]);
+    expect([99_950, 123_456, 1_250_000, 99_960_000].map(formatMinorShort)).toEqual(["₺1 B", "₺1,2 B", "₺12,5 B", "₺999,6 B"]);
+    expect([99_999_999, 123_456_789, 1_000_000_000].map(formatMinorShort)).toEqual(["₺1 Mn", "₺1,2 Mn", "₺10 Mn"]);
+  });
+});
+
+describe("spentByMonth", () => {
   const now = new Date(2026, 8, 26, 12);
   const shop = (finishedAt: Date, spentMinor: number | null) => ({ finishedAt: finishedAt.toISOString(), spentMinor });
 
-  it("adds what this calendar month's shops cost, by the device's own clock", () => {
+  it("adds what each calendar month's shops cost, by the device's own clock, oldest month first", () => {
     const shops = [shop(new Date(2026, 8, 26, 9), 5840), shop(new Date(2026, 8, 1, 0, 0), 1000), shop(new Date(2026, 7, 31, 23, 59), 9999)];
-    expect(spentInMonth(shops, now)).toBe(6840);
+    expect(spentByMonth(shops, now, 2)).toEqual([
+      { start: new Date(2026, 7, 1).toISOString(), spentMinor: 9999 },
+      { start: new Date(2026, 8, 1).toISOString(), spentMinor: 6840 },
+    ]);
   });
 
-  it("is nothing when no shop this month was priced, which is not ₺0", () => {
-    expect(spentInMonth([shop(new Date(2026, 8, 20), null), shop(new Date(2026, 7, 20), 500)], now)).toBeNull();
-    expect(spentInMonth([], now)).toBeNull();
+  it("crosses a year, and leaves out a shop older than the window", () => {
+    const january = new Date(2027, 0, 10);
+    const months = spentByMonth([shop(new Date(2026, 11, 31, 22), 300), shop(new Date(2026, 6, 31), 700)], january, 6);
+    expect(months.map((month) => new Date(month.start).getMonth())).toEqual([7, 8, 9, 10, 11, 0]);
+    expect(months.map((month) => month.spentMinor)).toEqual([null, null, null, null, 300, null]);
+  });
+
+  it("is nothing for a month whose shops went unpriced, which is not ₺0", () => {
+    expect(spentByMonth([shop(new Date(2026, 8, 20), null), shop(new Date(2026, 7, 20), 500)], now, 1)).toEqual([{ start: new Date(2026, 8, 1).toISOString(), spentMinor: null }]);
+    expect(spentByMonth([], now, 1)[0]!.spentMinor).toBeNull();
   });
 });
 
@@ -124,9 +142,10 @@ describe("pastOf", () => {
     boughtAt: new Date(Date.UTC(2026, 8, day)).toISOString(),
   });
 
-  it("says when the product was last bought, what it cost then, and its last three prices oldest first", () => {
-    const latestFirst = [bought("Ekmek", 25, 1500), bought("süt", 20, null), bought("Süt", 12, 4590), bought("SÜT", 5, 4250), bought("Süt", 3, 4000), bought("Süt", 1, 3500)];
-    expect(pastOf(latestFirst, "Süt")).toEqual({ lastAt: bought("", 20, null).boughtAt, lastPriceMinor: null, prices: [4000, 4250, 4590] });
+  it("says when the product was last bought, what it cost then, and its last six prices oldest first", () => {
+    const older = [3000, 3100, 3200, 3400, 3500].map((price, at) => bought("Süt", 9 - at * 2, price));
+    const latestFirst = [bought("Ekmek", 25, 1500), bought("süt", 20, null), bought("Süt", 12, 4590), bought("SÜT", 10, 4250), ...older];
+    expect(pastOf(latestFirst, "Süt")).toEqual({ lastAt: bought("", 20, null).boughtAt, lastPriceMinor: null, prices: [3400, 3200, 3100, 3000, 4250, 4590] });
   });
 
   it("is nothing for a product never bought", () => {

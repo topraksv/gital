@@ -19,6 +19,7 @@ import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
 import { PriceField } from "./calculator";
+import { PriceLine } from "./charts";
 import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type ShownItem } from "./components";
 import { Actions, DialogShell } from "./dialog";
 import { selectionTap } from "./haptics";
@@ -174,7 +175,7 @@ export function ItemSheet({
 
 /**
  * When the product was last bought, on any list, and how its price has moved
- * (SPEC 3.9): two quiet lines under its note, in words until the charts come.
+ * (SPEC 3.9): a quiet line under its note, and its prices as a line.
  */
 function Past({ before, name }: { before: readonly BoughtBefore[]; name: string }) {
   const { palette } = useTheme();
@@ -184,7 +185,7 @@ function Past({ before, name }: { before: readonly BoughtBefore[]; name: string 
   return (
     <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
       <Text style={line}>{tr.items.lastBought(past.lastAt, past.lastPriceMinor)}</Text>
-      {past.prices.length > 1 ? <Text style={line}>{tr.items.lastPrices(past.prices)}</Text> : null}
+      {past.prices.length > 1 ? <PriceLine prices={past.prices} /> : null}
     </View>
   );
 }
