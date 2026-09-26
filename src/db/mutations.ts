@@ -165,37 +165,6 @@ export async function readLiveRow(table: SyncedTableName, id: string): Promise<R
   return row;
 }
 
-/**
- * Tombstone a row. Returns what it was, for undo, or `null` when it was not there.
- *
- * The row is read inside the transaction: read before it, a write that landed
- * in between would be reverted by this one, and undo would restore the older
- * copy. Helix reads outside; a rename and a delete queued together are what
- * that misses.
- */
-export async function softDelete(table: SyncedTableName, id: string): Promise<RowSnapshot | null> {
-  let previous: RowSnapshot | null = null;
-  await writeRows(async () => {
-    previous = await findLiveRow(table, id);
-    return previous ? [{ table, row: { ...fromDbShape(table, previous), deletedAt: nowIso() } }] : [];
-  });
-  return previous;
-}
-
-/**
- * Undo a delete. Only a row that is still a tombstone may be restored: a
- * snapshot can outlive its screen, and restoring it over a row that came back
- * another way would overwrite the newer one.
- */
-export async function restoreRow(table: SyncedTableName, snapshot: RowSnapshot): Promise<void> {
-  const row: Record<string, unknown> = { ...fromDbShape(table, snapshot), deletedAt: null };
-  await writeRows(async () => {
-    const current = await findRow(table, String(row.id));
-    if (current?.deleted_at == null) throw new Error(`Cannot restore ${table} row without its tombstone`);
-    return [{ table, row }];
-  });
-}
-
 /** What undoing a write needs: each row it wrote, and that row as it was before, or `null` when it made it. */
 export interface RowsWritten {
   writes: readonly RowWrite[];
@@ -240,4 +209,24 @@ export function revertRows({ writes, before }: RowsWritten, check: () => Promise
     }
     return reverts;
   });
+}
+
+/**
+ * Tombstone a row, for `revertRows` to take back; `null` when it was already
+ * gone. The row is read inside the transaction: read before it, a write that
+ * landed in between would be reverted by this one. The undo is refused once
+ * the tombstone has changed, as any undo is, so it cannot overwrite a row
+ * that came back another way.
+ */
+export async function deleteRow(table: SyncedTableName, id: string): Promise<RowsWritten | null> {
+  const written = await writeUndoable(async () => {
+    const live = await findLiveRow(table, id);
+    return live ? [{ table, row: { ...fromDbShape(table, live), deletedAt: nowIso() } }] : [];
+  });
+  return written.writes.length > 0 ? written : null;
+}
+
+/** Take back a write that needs nothing else to be true. */
+export function undoRows(written: RowsWritten): Promise<void> {
+  return revertRows(written, async () => {});
 }

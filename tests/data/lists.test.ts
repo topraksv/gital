@@ -217,7 +217,7 @@ describe("deleteList and restoreList", () => {
     release();
     await Promise.all([held, renaming]);
     const snapshot = await removal;
-    expect(snapshot).toMatchObject({ name: "Pazar" });
+    expect(snapshot!.before[0]).toMatchObject({ name: "Pazar" });
     await restoreList(snapshot!);
     expect(stored(id)).toMatchObject({ name: "Pazar", deleted_at: null });
   });

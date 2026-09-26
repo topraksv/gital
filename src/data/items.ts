@@ -8,10 +8,9 @@ import {
   findLiveRow,
   fromDbShape,
   nowIso,
+  deleteRow,
   readLiveRow,
-  restoreRow,
   revertRows,
-  softDelete,
   writeRows,
   writeUndoable,
   type RowSnapshot,
@@ -339,10 +338,9 @@ export function undoSave(written: RowsWritten, listId: string): Promise<void> {
 }
 
 /** Returns what undo needs, or `null` when the item was already gone. */
-export function deleteItem(id: string): Promise<RowSnapshot | null> {
-  return softDelete("items", id);
+export function deleteItem(id: string): Promise<RowsWritten | null> {
+  return deleteRow("items", id);
 }
 
-export function restoreItem(snapshot: RowSnapshot): Promise<void> {
-  return restoreRow("items", snapshot);
-}
+export { undoRows as restoreItem } from "../db/mutations";
+

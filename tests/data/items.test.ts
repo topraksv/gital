@@ -520,6 +520,14 @@ describe("deleteItem and restoreItem", () => {
     await restoreItem(snapshot!);
     expect(await names(listId)).toEqual(["Süt", "Ekmek"]);
   });
+
+  it("refuses the undo once the deleted row has come back another way", async () => {
+    const [sut] = await addItems(listId, "süt");
+    const snapshot = await deleteItem(sut!);
+    await addItems(listId, "süt");
+    await expect(restoreItem(snapshot!)).rejects.toThrow(/changed since/);
+    expect(await names(listId)).toEqual(["Süt"]);
+  });
 });
 
 describe("readLists counts", () => {

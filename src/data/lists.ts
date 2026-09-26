@@ -3,7 +3,7 @@
 import { and, asc, count, eq, isNull } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
-import { editRow, readLiveRow, restoreRow, softDelete, writeRows, type RowSnapshot } from "../db/mutations";
+import { deleteRow, editRow, readLiveRow, writeRows, type RowsWritten } from "../db/mutations";
 import { items, lists, type ListKind } from "../db/schema";
 import { LIST_COLORS, LIST_ICONS, knownOf, lookOf, type ListLook } from "../domain/lists";
 import { nameFrom } from "../domain/names";
@@ -56,10 +56,9 @@ export async function editList(id: string, look: ListLook & { pantry?: boolean }
 }
 
 /** Returns what undo needs, or `null` when the list was already gone. */
-export function deleteList(id: string): Promise<RowSnapshot | null> {
-  return softDelete("lists", id);
+export function deleteList(id: string): Promise<RowsWritten | null> {
+  return deleteRow("lists", id);
 }
 
-export function restoreList(snapshot: RowSnapshot): Promise<void> {
-  return restoreRow("lists", snapshot);
-}
+export { undoRows as restoreList } from "../db/mutations";
+

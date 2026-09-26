@@ -4,7 +4,7 @@ import { and, asc, eq, isNull, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
-import { editRow, findLiveRow, findRow, readLiveRow, revertRows, writeRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
+import { editRow, findLiveRow, findRow, readLiveRow, writeRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { pantryItems, pantryMoves } from "../db/schema";
 import { isISODate, type ISODate } from "../domain/dates";
 import { foldName, quantityOrOne, type Entry } from "../domain/items";
@@ -146,6 +146,4 @@ export async function finishPantryItem(id: string): Promise<Finished> {
   return (await finishWith(id, () => null))!;
 }
 
-export function undoFinish(written: RowsWritten): Promise<void> {
-  return revertRows(written, async () => {});
-}
+export { undoRows as undoFinish } from "../db/mutations";

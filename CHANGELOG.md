@@ -137,3 +137,5 @@ cannot be released.
   goes onto any list in one tap from the catalogue's Setler, with its undo.
 - A product moved to another aisle in its panel stays there, on every list
   and in Kiler.
+- Undoing a delete is refused when the item, list, wish or set changed after
+  it was deleted, instead of bringing back the older copy over the newer one.

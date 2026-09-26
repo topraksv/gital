@@ -3,7 +3,7 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
-import { editRow, fromDbShape, nowIso, readLiveRow, restoreRow, softDelete, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
+import { deleteRow, editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { lists, wishLinks, wishes } from "../db/schema";
 import { itemNameFrom, noteFrom } from "../domain/items";
 import { lookOf, type ListLook } from "../domain/lists";
@@ -147,10 +147,9 @@ export function toggleWishBought(id: string): Promise<void> {
 }
 
 /** Its links stay under the tombstone, out of every read, so undo needs only the wish. */
-export function deleteWish(id: string): Promise<RowSnapshot | null> {
-  return softDelete("wishes", id);
+export function deleteWish(id: string): Promise<RowsWritten | null> {
+  return deleteRow("wishes", id);
 }
 
-export function restoreWish(snapshot: RowSnapshot): Promise<void> {
-  return restoreRow("wishes", snapshot);
-}
+export { undoRows as restoreWish } from "../db/mutations";
+

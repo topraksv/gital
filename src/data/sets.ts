@@ -7,7 +7,7 @@
 import { and, asc, inArray, isNull } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
-import { restoreRow, softDelete, writeRows, type RowSnapshot } from "../db/mutations";
+import { deleteRow, writeRows, type RowsWritten } from "../db/mutations";
 import { setItems, sets } from "../db/schema";
 import { foldName, type ListedEntry } from "../domain/items";
 import { nameFrom } from "../domain/names";
@@ -59,11 +59,10 @@ export async function createSet(input: string, entries: readonly ListedEntry[]):
   return id;
 }
 
-/** Its items stay under the tombstone, so the undo brings the set back whole. */
-export function deleteSet(id: string): Promise<RowSnapshot | null> {
-  return softDelete("sets", id);
+/** Its items stay under the tombstone, so `undoRows` brings the set back whole. */
+export function deleteSet(id: string): Promise<RowsWritten | null> {
+  return deleteRow("sets", id);
 }
 
-export function restoreSet(snapshot: RowSnapshot): Promise<void> {
-  return restoreRow("sets", snapshot);
-}
+export { undoRows as restoreSet } from "../db/mutations";
+
