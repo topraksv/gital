@@ -139,6 +139,22 @@ export async function addEntries(listId: string, added: readonly Entry[]): Promi
 }
 
 /**
+ * Add a scanned product (SPEC 2.8) as adding its name would, with its brand
+ * as the note and its picture as the photo, in one write.
+ */
+export async function addScanned(listId: string, scanned: { name: string; note: string | null; photo: PhotoChange }): Promise<string> {
+  const name = itemNameFrom(scanned.name);
+  if (name == null) throw new Error("An item needs a name");
+  const id = await openItemId(listId, name);
+  const entry = { name, quantityMilli: null, unit: null, note: noteFrom(scanned.note), urgent: false };
+  await writeRows(async () => {
+    const { photoId } = await photoColumn(scanned.photo);
+    return landEntries(listId, new Map([[id, { ...entry, photoId }]]));
+  });
+  return id;
+}
+
+/**
  * Add a pasted list (SPEC 6.2) as `addEntries` adds an entry, each item with
  * its note and urgency, in one write the undo bar takes back whole
  * (`undoSave`). `null` when it changes nothing: it names no product, or only

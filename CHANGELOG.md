@@ -171,3 +171,6 @@ cannot be released.
   product that has probably run out on its usual rhythm.
 - A shop link copied before opening the app is offered for İstekler: on
   Android with the link filled in, on iPhone ready to paste.
+- A list's add field has a barcode button on the phone: the product's name,
+  brand and picture come from Open Food Facts, and a code it does not know
+  is typed in.

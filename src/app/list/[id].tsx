@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, ScrollView, StyleSheet, Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import CheckCheck from "lucide-react-native/icons/check-check";
@@ -9,11 +9,12 @@ import ListPlus from "lucide-react-native/icons/list-plus";
 import Pencil from "lucide-react-native/icons/pencil";
 import LayoutGrid from "lucide-react-native/icons/layout-grid";
 import Plus from "lucide-react-native/icons/plus";
+import ScanBarcode from "lucide-react-native/icons/scan-barcode";
 import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
 import { useItems, useKnownProducts, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
-import { addEntries, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
+import { addEntries, addScanned, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { readPantry } from "../../data/pantry";
 import { finishShop, reopenShop } from "../../data/shops";
@@ -24,6 +25,8 @@ import { spentOn } from "../../domain/money";
 import { atHome } from "../../domain/pantry";
 import { restockDue, type Purchase } from "../../domain/restock";
 import { tr } from "../../i18n/tr";
+import { lookUpBarcode, type ScannedProduct } from "../../services/barcode";
+import { canScan, launchScanner, onScanned } from "../../services/barcode-scan";
 import { shareText } from "../../services/share";
 import { ArrivalScope, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
@@ -339,6 +342,7 @@ function QuickAdd({
           maxLength={ENTRY_MAX}
           style={{ flex: 1 }}
         />
+        {canScan ? <ScanButton listId={listId} /> : null}
         <IconButton icon={LayoutGrid} label={tr.catalogue.open} onPress={() => setBrowsing(true)} />
         <IconButton icon={Plus} label={tr.items.add} tone="primary" onPress={() => add(parseEntry(text))} />
       </View>
@@ -380,6 +384,40 @@ function QuickAdd({
       )}
     </View>
   );
+}
+
+/**
+ * A product added by its barcode (SPEC 2.8): the name Open Food Facts gives
+ * is offered to correct, and one it does not give is typed. Its brand becomes
+ * the note and its picture the photo.
+ */
+function ScanButton({ listId }: { listId: string }) {
+  // One code at a time: iOS's scanner can read the same packet twice before it closes.
+  const busy = useRef(false);
+  useEffect(
+    () =>
+      onScanned(async (code) => {
+        if (busy.current) return;
+        busy.current = true;
+        showNotice(tr.barcode.looking);
+        const found: ScannedProduct | null | "offline" = await lookUpBarcode(code).catch(() => "offline" as const);
+        const product = found === "offline" ? null : found;
+        const message = found === "offline" ? tr.barcode.offline : product ? tr.barcode.found(product.brand) : tr.barcode.unknown;
+        const name = await appPrompt(tr.barcode.title, message, { confirmLabel: tr.barcode.add, initialValue: product?.name, maxLength: ENTRY_MAX });
+        busy.current = false;
+        if (name == null) return;
+        await addScanned(listId, { name, note: product?.brand ?? null, photo: product?.photo ?? null }).then(selectionTap, () => appError(tr.errors.saveFailed));
+      }),
+    [listId],
+  );
+  const scan = () =>
+    launchScanner().then(
+      (launched) => {
+        if (!launched) void appError(tr.barcode.denied);
+      },
+      () => appError(tr.barcode.failed),
+    );
+  return <IconButton icon={ScanBarcode} label={tr.barcode.scan} onPress={() => void scan()} />;
 }
 
 /**

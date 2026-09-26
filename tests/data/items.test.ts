@@ -21,7 +21,7 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, deleteItem, importEntries, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
+const { addEntries, addScanned, deleteItem, importEntries, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
 const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
@@ -556,6 +556,15 @@ describe("a photo", () => {
       await expect(updateItem(sut!, { ...as("Süt"), photo })).rejects.toThrow();
     }
     expect(harness.db!.prepare("SELECT COUNT(*) AS n FROM photos").get()).toEqual({ n: 0 });
+  });
+
+  it("comes with a scanned product, its brand as the note, onto the product's row (SPEC 2.8)", async () => {
+    await addItems(listId, "2 süt");
+    const id = await addScanned(listId, { name: " süt ", note: "Pınar", photo: shot("b") });
+    expect(await readItems(listId)).toMatchObject([{ id, name: "Süt", quantityMilli: 2000, note: "Pınar", photo: shot("b").thumb }]);
+    const bare = await addScanned(listId, { name: "Zeytin", note: null, photo: null });
+    expect((await readItems(listId)).find((item) => item.id === bare)).toMatchObject({ name: "Zeytin", note: null, photoId: null });
+    await expect(addScanned(listId, { name: "  ", note: null, photo: null })).rejects.toThrow();
   });
 
   it("reads as nothing where the photo has not reached this device", async () => {

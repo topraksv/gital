@@ -11,6 +11,7 @@
     "babel-preset-expo": "~57.0.0",
     "drizzle-orm": "^0.45.3",
     "expo": "~57.0.24",
+    "expo-camera": "~57.0.5",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.19",
     "expo-crypto": "~57.0.3",

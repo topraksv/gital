@@ -377,6 +377,18 @@ export const tr = {
     /** The collection a link starts when there is none yet. */
     collection: "İsteklerim",
   },
+  barcode: {
+    scan: "Barkod okut",
+    looking: "Ürün aranıyor…",
+    title: "Okunan ürün",
+    found: (brand: string | null) =>
+      brand ? `Open Food Facts'te ${brand} markasıyla buldum. Adını düzeltebilirsin.` : "Open Food Facts'te buldum. Adını düzeltebilirsin.",
+    unknown: "Bu barkodu tanımadım. Adını yaz, listene ekleyeyim; fotoğrafını ürüne dokunup ekleyebilirsin.",
+    offline: "Ürünü arayamadım, bağlantı yok gibi. Adını yaz, listene ekleyeyim.",
+    add: "Listeye ekle",
+    denied: "Kamera izni verilmedi. Telefonun ayarlarından Gital'e kamera izni verebilirsin.",
+    failed: "Barkod okuyucu açılamadı.",
+  },
   reminders: {
     title: "Hatırlatıcılar",
     hint: "Alışveriş gününde, kilerdeki bir tarih yaklaşınca ve bir ürün bitmiş olabilecekken telefonuna bildirim gelir.",
