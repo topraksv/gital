@@ -1,0 +1,45 @@
+/**
+ * The web app installs and opens offline under its base (SPEC 11.4, 10.1).
+ * The manifest, the worker and the shell each name the base as a literal,
+ * since none of them runs through the bundler; a move to Gital's own origin
+ * (`docs/BACKLOG.md`) that changed `baseUrl` alone would break installing
+ * and the offline start without a single failing screen.
+ */
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const root = join(import.meta.dirname, "..", "..");
+const read = (path: string) => readFileSync(join(root, path), "utf8");
+const base = `${JSON.parse(read("app.json")).expo.experiments.baseUrl}/`;
+const manifest = JSON.parse(read("public/manifest.webmanifest"));
+
+/** Width and height from a PNG's IHDR chunk. */
+function pngSize(path: string): string {
+  const bytes = readFileSync(join(root, path));
+  return `${bytes.readUInt32BE(16)}x${bytes.readUInt32BE(20)}`;
+}
+
+describe("the installed web app", () => {
+  it("starts and stays under the export's base", () => {
+    expect(manifest.start_url).toBe(base);
+    expect(manifest.scope).toBe(base);
+  });
+
+  it("has the icons it declares, at the sizes it declares", () => {
+    expect(manifest.icons.map((icon: { sizes: string }) => icon.sizes)).toEqual(["192x192", "512x512"]);
+    for (const icon of manifest.icons) {
+      expect(icon.src.startsWith(base), icon.src).toBe(true);
+      expect(pngSize(`public/${icon.src.slice(base.length)}`)).toBe(icon.sizes);
+    }
+    expect(pngSize("public/icons/apple-touch-icon.png")).toBe("180x180");
+  });
+
+  it("registers a worker scoped to the base, whose offline shell is the base's page", () => {
+    const shell = read("src/app/+html.tsx");
+    expect(shell).toContain(`register("${base}sw.js",{scope:"${base}"})`);
+    expect(shell).toContain(`href="${base}manifest.webmanifest"`);
+    expect(read("public/sw.js")).toContain(`const SHELL = "${base}index.html";`);
+  });
+});

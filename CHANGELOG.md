@@ -77,3 +77,5 @@ cannot be released.
   tap skips it, and taking the finish back closes it.
 - An item's panel says when the product was last bought on any list, what it
   cost then, and its last three prices.
+- The web app installs to a phone's home screen with its own icon, the Noto
+  shopping cart, and opens without a connection once it has been opened once.
