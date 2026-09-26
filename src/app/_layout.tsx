@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppState, Platform, View, useColorScheme } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
@@ -9,9 +9,13 @@ import DatabaseZap from "lucide-react-native/icons/database-zap";
 import { migrateDb } from "../db/migrate";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
+import { createList } from "../data/lists";
+import { addWish, readCollections } from "../data/wishes";
+import { LINK_MAX, linkFrom } from "../domain/wishes";
+import { clipboardOffer } from "../services/clipboard-link";
 import { remindersAvailable, replanReminders } from "../services/reminders";
 import { Button, EmptyState } from "../ui/components";
-import { DialogHost, PromptHost } from "../ui/dialog";
+import { appError, appPrompt, DialogHost, PromptHost } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
 import { KeyboardSafeRoot } from "../ui/keyboard-safe";
 import { GestureRoot } from "../ui/list-motion";
@@ -156,6 +160,7 @@ export default function RootLayout() {
               <>
                 <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
                 <ReminderPlanner />
+                <ClipboardLinkOffer />
               </>
             )}
             <StatusBar style={scheme === "dark" ? "light" : "dark"} />
@@ -199,6 +204,34 @@ function ReminderPlanner() {
     plan();
     const subscription = AppState.addEventListener("change", (state) => state === "background" && plan());
     return () => subscription.remove();
+  }, []);
+  return null;
+}
+
+/**
+ * A product link on the clipboard, offered once as the app opens (SPEC 2.9):
+ * it becomes a wish in the first collection, or in a new one when there is
+ * none, and the collection opens on it. The field holds the link where the
+ * phone let it be read, and takes a paste where it did not.
+ */
+function ClipboardLinkOffer() {
+  useEffect(() => {
+    void (async () => {
+      const offer = await clipboardOffer();
+      if (!offer) return;
+      const typed = await appPrompt(tr.clipboard.title, offer.url ? tr.clipboard.message : tr.clipboard.pasteMessage, {
+        confirmLabel: tr.clipboard.add,
+        placeholder: tr.wishes.linkPlaceholder,
+        initialValue: offer.url ?? "",
+        maxLength: LINK_MAX,
+      });
+      if (typed == null || typed.trim() === "") return;
+      const url = linkFrom(typed);
+      if (!url) return appError(tr.wishes.linkInvalid);
+      const collection = (await readCollections())[0]?.id ?? (await createList(tr.clipboard.collection, "wish"));
+      await addWish(collection, url);
+      router.push({ pathname: "/collection/[id]", params: { id: collection } });
+    })().catch(() => appError(tr.errors.saveFailed));
   }, []);
   return null;
 }

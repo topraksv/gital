@@ -369,6 +369,14 @@ export const tr = {
     paletteForest: "Servi",
     paletteForestDesc: "Taş nötrleri, koyu servi ve yaban eriği.",
   },
+  clipboard: {
+    title: "Panoda bir bağlantı var",
+    message: "İsteklerine ekleyeyim mi?",
+    pasteMessage: "Kopyaladığın bağlantıyı buraya yapıştır, isteklerine ekleyeyim.",
+    add: "İsteklere ekle",
+    /** The collection a link starts when there is none yet. */
+    collection: "İsteklerim",
+  },
   reminders: {
     title: "Hatırlatıcılar",
     hint: "Alışveriş gününde, kilerdeki bir tarih yaklaşınca ve bir ürün bitmiş olabilecekken telefonuna bildirim gelir.",

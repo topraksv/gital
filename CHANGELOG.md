@@ -169,3 +169,5 @@ cannot be released.
 - Ayarlar turns on reminders on the phone: a weekly shopping day at a chosen
   hour saying what each list holds, a pantry date the morning before, and a
   product that has probably run out on its usual rhythm.
+- A shop link copied before opening the app is offered for İstekler: on
+  Android with the link filled in, on iPhone ready to paste.
