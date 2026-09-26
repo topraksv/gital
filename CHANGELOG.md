@@ -79,3 +79,5 @@ cannot be released.
   cost then, and its last three prices.
 - The web app installs to a phone's home screen with its own icon, the Noto
   shopping cart, and opens without a connection once it has been opened once.
+- A list's items can be sorted: "Sırala" puts a grip on each row to drag it
+  by, and the order stays; urgent items stay on top while sorting.

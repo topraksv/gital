@@ -21,7 +21,7 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, deleteItem, importEntries, readItems, readBought, readKnownProducts, readShopItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
+const { addEntries, deleteItem, importEntries, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
 const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
@@ -163,6 +163,37 @@ describe("readItems", () => {
     await addItems(await createList("Pazar"), "biber");
     await deleteItem(sut!);
     expect(await names(listId)).toEqual(["Ekmek"]);
+  });
+});
+
+describe("reorderItems", () => {
+  it("puts what is left to buy in the order it was dragged into, and writes only the rows that moved", async () => {
+    const [domates, sut, ekmek, biber] = await addItems(listId, "domates, süt, ekmek, biber");
+    const queued = outboxCount();
+    await reorderItems(listId, [domates!, ekmek!, sut!, biber!]);
+    expect(await names(listId)).toEqual(["Domates", "Ekmek", "Süt", "Biber"]);
+    expect(outboxCount() - queued).toBeLessThanOrEqual(4);
+    const again = outboxCount();
+    await reorderItems(listId, [domates!, ekmek!, sut!, biber!]);
+    expect(outboxCount()).toBe(again);
+  });
+
+  it("keeps a new item landing on top of a dragged order", async () => {
+    const [domates, sut] = await addItems(listId, "domates, süt");
+    await reorderItems(listId, [sut!, domates!]);
+    await addItems(listId, "ekmek");
+    expect(await names(listId)).toEqual(["Ekmek", "Süt", "Domates"]);
+  });
+
+  it("leaves alone an item ticked, deleted or moved elsewhere while it was dragged", async () => {
+    const [domates, sut, ekmek] = await addItems(listId, "domates, süt, ekmek");
+    await toggleChecked(domates!);
+    await deleteItem(sut!);
+    const before = { domates: stored(domates!), sut: stored(sut!) };
+    await reorderItems(listId, [ekmek!, sut!, domates!, "no-such-item"]);
+    expect(stored(domates!)).toEqual(before.domates);
+    expect(stored(sut!)).toEqual(before.sut);
+    expect(await names(listId)).toEqual(["Ekmek", "Domates"]);
   });
 });
 

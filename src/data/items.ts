@@ -244,6 +244,30 @@ export function toggleChecked(id: string): Promise<void> {
 }
 
 /**
+ * What is left to buy, in the order it was dragged into (SPEC 4.1): each open
+ * item takes its position as its place. Read inside the write, an item ticked,
+ * deleted or sent elsewhere during the drag keeps its own; one added during it
+ * is not in the order and keeps the place it landed on, above the rest.
+ */
+export function reorderItems(listId: string, orderedIds: readonly string[]): Promise<void> {
+  return writeRows(async () => {
+    const sqlite = await getSqliteAsync();
+    const open = new Map(
+      (
+        await sqlite.getAllAsync<RowSnapshot>(
+          "SELECT * FROM items WHERE list_id = ? AND shop_id IS NULL AND checked_at IS NULL AND deleted_at IS NULL",
+          [listId],
+        )
+      ).map((row) => [row.id, row]),
+    );
+    return orderedIds.flatMap((id, place) => {
+      const stored = open.get(id);
+      return stored ? editItem(stored, { sortOrder: place }) : [];
+    });
+  });
+}
+
+/**
  * Save the item panel: its name, quantity, note, urgency, whether it was not
  * found or something else was bought instead, and what was paid, in one
  * write. What was bought instead or paid for was bought, so it goes into the

@@ -164,6 +164,7 @@ export function Screen({
   back,
   actions,
   width: widthName = "form",
+  scrollEnabled = true,
 }: {
   children?: ReactNode;
   title?: string;
@@ -172,6 +173,8 @@ export function Screen({
   /** Controls at the title's trailing edge, or on a pushed screen the back button's. */
   actions?: ReactNode;
   width?: ContentWidth;
+  /** Off while a row is dragged, or the scroll takes the vertical pan. */
+  scrollEnabled?: boolean;
 }) {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
@@ -201,6 +204,7 @@ export function Screen({
       ) : null}
       <ScrollView
         ref={scrollRef}
+        scrollEnabled={scrollEnabled}
         automaticallyAdjustContentInsets={false}
         // A tap on a control while the keyboard is up lands on the first try,
         // so the quick-add field's + and a row's check need no second tap.

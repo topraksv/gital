@@ -413,6 +413,9 @@ export const alpha = { edge: "70", tileEdge: "80", controlEdge: "90", selectedTi
 
 export const stateOpacity = { pressed: 0.85 } as const;
 
+/** A held row: lifted a little over its neighbours, and drawn above them. */
+export const drag = { scale: 1.03, layer: 10 } as const;
+
 /** Every face here is loaded in `src/app/_layout.tsx`; an unused one is ~175 KB of TTF. */
 export const font = {
   regular: "Inter_400Regular",

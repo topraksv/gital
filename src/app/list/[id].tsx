@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import CheckCheck from "lucide-react-native/icons/check-check";
+import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
+import Check from "lucide-react-native/icons/check";
 import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Pencil from "lucide-react-native/icons/pencil";
@@ -10,7 +12,7 @@ import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 
 import { useItems, useKnownProducts, useLists, usePurchases } from "../../data/hooks";
-import { addEntries, deleteItem, importEntries, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
+import { addEntries, deleteItem, importEntries, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { finishShop, reopenShop } from "../../data/shops";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry, type ItemChange } from "../../domain/items";
@@ -39,11 +41,12 @@ import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { interactionSurface } from "../../ui/interaction";
 import { celebrate, hideCelebration } from "../../ui/celebration";
+import { DraggableList, ReorderGrip } from "../../ui/draggable-list";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { ListSheet } from "../../ui/list-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { navigateBack } from "../../ui/navigation";
-import { controlSize, density, motion, spacing, type, useTheme } from "../../ui/theme";
+import { controlSize, density, motion, spacing, themeShadow, type, useTheme } from "../../ui/theme";
 import { showNotice, showUndo } from "../../ui/undo";
 
 export default function ListScreen() {
@@ -58,6 +61,8 @@ export default function ListScreen() {
   // animates away, and so nothing on it can be pressed a second time.
   const [leaving, setLeaving] = useState<ListSummary | null>(null);
   const [editing, setEditing] = useState<Item | null>(null);
+  const [sorting, setSorting] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const list = leaving ?? lists.data.find((candidate) => candidate.id === id);
 
   // A link to a list that is not here — deleted elsewhere, or never existed.
@@ -182,9 +187,11 @@ export default function ListScreen() {
       back="/"
       title={list?.name}
       width="workspace"
+      scrollEnabled={!dragging}
       actions={
         list && !leaving ? (
           <>
+            <SortToggle sorting={sorting} canSort={open.length > 1} onChange={setSorting} />
             <IconButton icon={ClipboardPaste} label={tr.items.paste(list.name)} onPress={() => paste(list)} />
             <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={open.length === 0} onPress={() => share(list)} />
             <EditList list={list} />
@@ -207,7 +214,9 @@ export default function ListScreen() {
                 {/* One keyed array: a tick moves its row into the basket, where
                     two would unmount it from one and mount a copy in the other. */}
                 {[
-                  ...open.map(row),
+                  ...(sorting
+                    ? [<SortOpen key="sort" listId={list.id} open={open} onOpen={setEditing} onDragging={setDragging} />]
+                    : open.map(row)),
                   basket.length > 0 ? (
                     <RowMotion key="basket">
                       <SlideUp distance={motion.travel.bar}>
@@ -380,11 +389,33 @@ function Progress({ done, total }: { done: number; total: number }) {
  * panel; the check is its own control at the trailing edge, the row's full
  * height, so a thumb in the aisle cannot open what it meant to tick.
  */
-function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; onToggle: () => void }) {
+function ItemRow({
+  item,
+  onOpen,
+  onToggle,
+  grip,
+  lifted = false,
+}: {
+  item: Item;
+  onOpen: () => void;
+  onToggle: () => void;
+  /** While the list is sorted, the grip takes the circle's place: a tick mid-sort would move the row away. */
+  grip?: ReactNode;
+  lifted?: boolean;
+}) {
   const { palette } = useTheme();
   const checked = item.checkedAt != null;
   return (
-    <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
+    <View
+      style={{
+        ...cardEdge(palette),
+        ...(lifted && themeShadow.overlay(palette)),
+        padding: 0,
+        flexDirection: "row",
+        backgroundColor: palette.surface,
+        overflow: lifted ? "visible" : "hidden",
+      }}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={tr.common.withDetail(item.name, itemDetail(item))}
@@ -402,6 +433,7 @@ function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; o
       >
         <ItemLabel item={item} struck={checked} />
       </Pressable>
+      {grip ?? (
       <Pressable
         accessibilityRole="checkbox"
         accessibilityState={{ checked }}
@@ -417,8 +449,79 @@ function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; o
       >
         <CheckMark checked={checked} />
       </Pressable>
+      )}
     </View>
   );
+}
+
+/** Sorting is a mode: the grips would crowd every row in the aisle. */
+function SortToggle({ sorting, canSort, onChange }: { sorting: boolean; canSort: boolean; onChange: (sorting: boolean) => void }) {
+  return sorting ? (
+    <IconButton icon={Check} text={tr.items.sortDone} label={tr.items.sortDone} tone="primary" onPress={() => onChange(false)} />
+  ) : (
+    <IconButton icon={ArrowUpDown} label={tr.items.sort} disabled={!canSort} onPress={() => onChange(true)} />
+  );
+}
+
+/**
+ * What is left to buy, sorted by its grips (SPEC 4.1). Urgent items stay on
+ * top and those not found at the bottom, so each run of them sorts on its own:
+ * a row dragged past the edge of its run would jump back on release.
+ */
+function SortOpen({
+  listId,
+  open,
+  onOpen,
+  onDragging,
+}: {
+  listId: string;
+  open: readonly Item[];
+  onOpen: (item: Item) => void;
+  onDragging: (dragging: boolean) => void;
+}) {
+  const runs = runsOf(open);
+  const reorder = (at: number, keys: string[]) =>
+    reorderItems(listId, runs.flatMap((run, index) => (index === at ? keys : run.map(keyOf)))).catch((error: unknown) => {
+      void appError(tr.errors.saveFailed);
+      throw error;
+    });
+  return (
+    <View style={{ gap: density.list.rowGap }}>
+      {runs.map((run, at) => (
+        <DraggableList
+          // A run is its kind, so dragging a row to its top does not remount it.
+          key={`${run[0]!.urgent}-${run[0]!.notFound}`}
+          items={run}
+          keyOf={keyOf}
+          gap={density.list.rowGap}
+          onReorder={(keys) => reorder(at, keys)}
+          onDragging={onDragging}
+          renderRow={(item, handle, position) => (
+            <ItemRow
+              item={item}
+              onOpen={() => onOpen(item)}
+              onToggle={() => undefined}
+              lifted={handle.lifted}
+              grip={<ReorderGrip handle={handle} name={item.name} position={position + 1} count={run.length} />}
+            />
+          )}
+        />
+      ))}
+    </View>
+  );
+}
+
+const keyOf = (item: Item) => item.id;
+
+/** Consecutive items that are urgent, or not found, alike: `readItems` already groups them. */
+function runsOf(open: readonly Item[]): Item[][] {
+  const runs: Item[][] = [];
+  for (const item of open) {
+    const last = runs.at(-1)?.[0];
+    if (last && last.urgent === item.urgent && last.notFound === item.notFound) runs.at(-1)!.push(item);
+    else runs.push([item]);
+  }
+  return runs;
 }
 
 /** The pencil and the list panel it opens: a list's name, colour and picture (SPEC 1.8). */
