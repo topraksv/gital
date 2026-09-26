@@ -382,6 +382,8 @@ export const motion = {
    * travel to read as one (Helix's picker).
    */
   travel: { rise: 10, bar: 24, sheet: 40 },
+  /** A row flying to another tab shrinks to `shrink` on the way; the tab's icon lands at `bounce` and springs home. */
+  landing: { shrink: 0.2, bounce: 1.3 },
 } as const;
 
 /**

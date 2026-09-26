@@ -129,3 +129,5 @@ cannot be released.
   between one list's shops.
 - A product in Kiler takes the date printed on it, picked on a calendar; its
   row counts down the last three days and says when the date has passed.
+- Finishing a product in Kiler flies its row down to the Listeler tab, which
+  bounces as it lands.

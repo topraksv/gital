@@ -11,13 +11,14 @@
  * selection haptic, once per crossing. Helix also tapped here, which doubled it.
  */
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, PanResponder, Platform, Pressable, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useReduceTransparency, useSpringTo } from "./motion";
+import { springTo, useReducedMotion, useReduceTransparency, useSpringTo } from "./motion";
 import { shouldUseCompactNavigationMaterial, tabLabelsFit, tooWide } from "./responsive";
-import { alpha, font, maxFontScale, NAV_GLASS, navigationMaterial, radius, stateOpacity, TAB_BAR, tabBarBottomOffset, tabBarHeight, themeShadow, type, useTheme } from "./theme";
+import { placeTabs, onLanding } from "./tab-landing";
+import { alpha, font, maxFontScale, motion, NAV_GLASS, navigationMaterial, radius, stateOpacity, TAB_BAR, tabBarBottomOffset, tabBarHeight, themeShadow, type, useTheme } from "./theme";
 
 /** A tap slides a little; a scrub is a distance nobody crosses by accident. */
 const DRAG_CLAIM_DISTANCE = 24;
@@ -63,11 +64,15 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const barRef = useRef<View>(null);
   const [barWidth, setBarWidth] = useState(0);
   const [barX, setBarX] = useState(0);
-  const measureBarX = () => barRef.current?.measureInWindow((x) => setBarX(x));
   // The columns share what lies inside the outline and the padding. Helix
   // subtracted only the padding, so its selection drifted 0.4pt a tab and
   // overran the fifth column by 2pt.
   const edge = TAB_BAR.border + TAB_BAR.padding;
+  const measureBarX = () =>
+    barRef.current?.measureInWindow((x, y, width, height) => {
+      setBarX(x);
+      placeTabs(state.routes.map((route) => route.name), { x, y, width, height }, edge);
+    });
   const slotWidth = state.routes.length > 0 && barWidth > 0
     ? (barWidth - edge * 2) / state.routes.length
     : 0;
@@ -159,7 +164,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             justifyContent: "center",
           }}
         >
-          {options.tabBarIcon?.({ focused, color, size: TAB_BAR.icon })}
+          <Landing name={route.name}>{options.tabBarIcon?.({ focused, color, size: TAB_BAR.icon })}</Landing>
         </View>
         <TabLabel
           // Keyed on the bar width: a mounted native label does not re-layout
@@ -248,6 +253,22 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       </View>
     </View>
   );
+}
+
+/** A tab's icon, which bounces when something another screen sent lands on it. */
+function Landing({ name, children }: { name: string; children: ReactNode }) {
+  const reducedMotion = useReducedMotion();
+  const [scale] = useState(() => new Animated.Value(1));
+  useEffect(
+    () =>
+      onLanding((landed) => {
+        if (landed !== name || reducedMotion) return;
+        scale.setValue(motion.landing.bounce);
+        springTo(scale, 1).start();
+      }),
+    [name, scale, reducedMotion],
+  );
+  return <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>;
 }
 
 /**
