@@ -17,6 +17,7 @@ describe("classify-changes", () => {
     ["the dependency tree moved", ["package-lock.json"], true],
     ["the root layout moved", ["src/app/_layout.tsx"], true],
     ["a script the gate runs moved", ["scripts/check-web-budget.mjs"], true],
+    ["the browser suite moved", ["e2e/first-list.spec.ts"], true],
     ["a path nobody classified appeared", ["babel.config.js", "somewhere/new.ts"], true],
     ["a screen moved", ["src/app/index.tsx"], false],
     ["a token moved", ["src/ui/theme.ts"], false],

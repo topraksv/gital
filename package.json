@@ -45,6 +45,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "22.20.2",
     "@types/react": "~19.2.2",
     "@vitest/coverage-v8": "5.0.1",
@@ -71,7 +72,8 @@
     "web:export": "expo export -p web --clear",
     "web:preview": "npm run web:export && node scripts/serve-web-export.mjs dist",
     "bundle:check": "node scripts/check-web-budget.mjs dist",
-    "verify:full": "npm run verify && npm run web:export && npm run bundle:check",
+    "verify:full": "npm run verify && npm run web:export && npm run bundle:check && npm run test:e2e",
+    "test:e2e": "node scripts/export-e2e-web.mjs && playwright test",
     "audit:unused": "npx --yes knip@6.32.0",
     "audit:duplication": "npx --yes jscpd@5.0.16 src",
     "db:generate": "drizzle-kit generate"

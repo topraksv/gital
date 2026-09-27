@@ -176,7 +176,9 @@ export function DialogShell({
     </>
   );
   return (
-    <Modal transparent animationType={reducedMotion ? "none" : "fade"} visible onRequestClose={onDismiss}>
+    // On the web the Modal is the element with `role="dialog"`, and takes the
+    // name there; a label on a generic element inside it names nothing.
+    <Modal aria-label={title} transparent animationType={reducedMotion ? "none" : "fade"} visible onRequestClose={onDismiss}>
       <Pressable
         accessible={false}
         tabIndex={-1}
@@ -193,8 +195,8 @@ export function DialogShell({
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* The modal surface carries the dialog's name, or a screen reader
-              announces an anonymous dialog at the moment it takes focus. */}
+          {/* The modal surface carries the dialog's name on a phone, or a
+              screen reader announces an anonymous dialog as it takes focus. */}
           <Pressable
             accessible={false}
             tabIndex={-1}

@@ -6,7 +6,7 @@ module.exports = defineConfig([
   expoConfig,
   {
     // Deno's, with remote imports the app's toolchain cannot resolve.
-    ignores: ["dist/*", "coverage/*", ".expo/**", "supabase/functions/**"],
+    ignores: ["dist/*", "dist-e2e/*", "test-results/*", "coverage/*", ".expo/**", "supabase/functions/**"],
   },
   {
     files: ["scripts/**/*.mjs", ".claude/**/*.mjs"],

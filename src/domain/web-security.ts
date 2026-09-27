@@ -29,7 +29,9 @@ export function contentSecurityPolicy(supabaseUrl: string | undefined): string {
   const project = origin ? ` ${origin} ${origin.replace(/^https:/, "wss:")}` : "";
   return [
     "default-src 'self'",
-    // The sqlite worker compiles WebAssembly.
+    // Helix's, for the sqlite worker's WebAssembly. Chromium gives a worker
+    // loaded by URL the policy of its own response, not this one, and boots
+    // without it (measured 2026-09-27); an engine that passes it down does not.
     "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",

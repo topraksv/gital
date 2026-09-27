@@ -22,9 +22,12 @@ import { fileURLToPath } from "node:url";
  */
 export const CI_EXECUTED_SCRIPTS = [
   "scripts/check-lint-ratchet.mjs",
+  "scripts/export-e2e-web.mjs",
   "scripts/check-published.mjs",
   "scripts/check-web-budget.mjs",
   "scripts/classify-changes.mjs",
+  // Started by `playwright.config.ts`, not by a `run:`.
+  "scripts/serve-web-export.mjs",
 ];
 
 /** What a record means, what gets written, and what builds or checks the app. */

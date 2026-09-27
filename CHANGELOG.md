@@ -213,3 +213,4 @@ cannot be released.
 - The web app may connect only to itself and its own Supabase project.
 - The privacy notice (Aydınlatma Metni) opens from sign-up, feedback and
   Ayarlar, and creating an account waits for it to be accepted.
+- On the web, a screen reader announces each dialog by its title.

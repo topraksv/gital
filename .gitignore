@@ -56,3 +56,8 @@ supabase/.temp/
 
 # The private mirror lives in its own git directory beside this one.
 /.private.git/
+
+# Browser suite output
+/dist-e2e/
+/test-results/
+/playwright-report/
