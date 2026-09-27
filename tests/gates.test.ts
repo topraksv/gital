@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { CI_EXECUTED_SCRIPTS, classify } from "../scripts/classify-changes.mjs";
 import { evaluate } from "../scripts/check-lint-ratchet.mjs";
+import { evaluate as evaluateMutation, scoreOf } from "../scripts/check-mutation-ratchet.mjs";
 import { appVersionOf, entryOf, titleOf } from "../scripts/check-published.mjs";
 
 const root = join(import.meta.dirname, "..");
@@ -81,6 +82,39 @@ describe("lint ratchet", () => {
     const { problems, improvements } = evaluate({ complexity: 1 }, { rules: { complexity: 2, eqeqeq: 4 } });
     expect(problems).toEqual([]);
     expect(improvements).toEqual(["complexity: 2 -> 1", "eqeqeq: 4 -> 0"]);
+  });
+});
+
+describe("mutation ratchet", () => {
+  const present = () => true;
+
+  it("counts a timeout as detected and an uncovered mutant against the total", () => {
+    expect(scoreOf([{ status: "Killed" }, { status: "Timeout" }, { status: "Survived" }, { status: "NoCoverage" }])).toBe(50);
+    expect(scoreOf([{ status: "CompileError" }])).toBe(100);
+  });
+
+  it("holds a file to its recorded score, half a point of runner drift aside", () => {
+    expect(evaluateMutation({ "a.ts": 91.4 }, { files: { "a.ts": 91.8 } }, present).problems).toEqual([]);
+    expect(evaluateMutation({ "a.ts": 91.2 }, { files: { "a.ts": 91.8 } }, present).problems).toEqual(["WORSE a.ts: 91.80 -> 91.20."]);
+  });
+
+  it("refuses a file nobody measured and an entry whose file is gone", () => {
+    const { problems } = evaluateMutation({ "new.ts": 99 }, { files: { "gone.ts": 80 } }, (file) => file !== "gone.ts");
+    expect(problems.map((problem) => problem.split(" ")[0])).toEqual(["UNRECORDED", "STALE"]);
+  });
+
+  // Vitest 5 matches a name filter against "suite > test", which Stryker 10
+  // does not send, so a mutant's covering tests are run by file instead.
+  it("runs a mutant's covering tests by their files, not by a name Vitest 5 would not match", async () => {
+    const { strykerPlugins } = await import("../scripts/stryker-vitest-files.mjs");
+    const calls: unknown[] = [];
+    const upstream = { run: (options: unknown) => calls.push(options) };
+    const injector = { provideValue: () => ({ injectClass: () => upstream }) };
+    // `run` is the upstream runner's own method, not part of Stryker's `TestRunner` contract.
+    const runner = strykerPlugins[0]!.factory(injector) as unknown as { run: (options: object) => void };
+    runner.run({ testIds: ["tests/a.test.ts#suite one", "tests/a.test.ts#suite two", "tests/b.test.ts#other"], relatedFiles: ["x"] });
+    runner.run({ relatedFiles: ["x"] });
+    expect(calls).toEqual([{ relatedFiles: ["x"], testFiles: ["tests/a.test.ts", "tests/b.test.ts"] }, { relatedFiles: ["x"] }]);
   });
 });
 

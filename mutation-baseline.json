@@ -1,0 +1,18 @@
+{
+  "files": {
+    "src/domain/calculator.ts": 79.33,
+    "src/domain/catalogue.ts": 95.24,
+    "src/domain/dates.ts": 85.37,
+    "src/domain/feedback.ts": 95.65,
+    "src/domain/items.ts": 83.08,
+    "src/domain/lists.ts": 100,
+    "src/domain/money.ts": 95.49,
+    "src/domain/names.ts": 96.67,
+    "src/domain/pantry.ts": 91.94,
+    "src/domain/qr.ts": 95.83,
+    "src/domain/reminders.ts": 79.59,
+    "src/domain/restock.ts": 91.8,
+    "src/domain/web-security.ts": 81.82,
+    "src/domain/wishes.ts": 82.39
+  }
+}

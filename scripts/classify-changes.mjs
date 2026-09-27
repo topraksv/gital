@@ -22,12 +22,15 @@ import { fileURLToPath } from "node:url";
  */
 export const CI_EXECUTED_SCRIPTS = [
   "scripts/check-lint-ratchet.mjs",
+  "scripts/check-mutation-ratchet.mjs",
   "scripts/export-e2e-web.mjs",
   "scripts/check-published.mjs",
   "scripts/check-web-budget.mjs",
   "scripts/classify-changes.mjs",
   // Started by `playwright.config.ts`, not by a `run:`.
   "scripts/serve-web-export.mjs",
+  // Loaded by `stryker.config.mjs` as the mutation gate's runner.
+  "scripts/stryker-vitest-files.mjs",
 ];
 
 /** What a record means, what gets written, and what builds or checks the app. */

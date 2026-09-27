@@ -11,6 +11,9 @@ import { TYPO_FROM, foldName, nearly, type KnownProduct } from "./items";
 export const AISLES = ["produce", "fruit", "bakery", "dairy", "meat", "fish", "staples", "frozen", "snacks", "drinks", "cleaning", "laundry", "paper", "care", "baby", "pet", "pharmacy", "home"] as const;
 export type Aisle = (typeof AISLES)[number];
 
+// Stryker disable all: a table of names and pictures is 1,072 static mutants,
+// each re-running the whole suite, and took the gate from 4 minutes to 18.
+// The catalogue's tests hold its entries; the functions below stay mutated.
 export const PRODUCT_PICTURES = [
   "avocado", "baby-bottle", "bagel", "baguette", "banana", "bandage", "basket", "battery", "beans", "bell-pepper", "bird", "blueberries", "bone",
   "bowl", "bread", "broccoli", "broom", "bubbles", "bucket", "bulb", "burger", "butter", "cake", "candle", "candy", "canned", "carrot", "cat",
@@ -140,6 +143,7 @@ const SHELVES: Record<Aisle, readonly (readonly [name: string, picture: ProductP
     ["Makas", "scissors"], ["Bant", "toilet-paper"],
   ],
 };
+// Stryker restore all
 
 export const CATALOGUE: readonly CatalogueProduct[] = AISLES.flatMap((aisle) =>
   SHELVES[aisle].map(([name, picture]) => ({ key: foldName(name), name, aisle, picture })),
