@@ -15,14 +15,15 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-26 on a photo for an item or a wish (SPEC 8.2): entry
-// 1_799_084, all JS 1_968_823, export 3_575_561; pictures 324_522 on the
-// catalogue. The picker and the resizer are the 22 KB `photo-take` chunk, not
-// the entry. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-26 on accounts (SPEC 9.1): entry 2_060_459, all JS
+// 2_230_199, export 3_917_417; pictures 324_522 on the catalogue. Supabase is
+// 187 KB of the 247 KB added and tslib, which it brings, 11 KB — Realtime
+// already stubbed out; the rest is sign-in, the reset page, the account card
+// and the session. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 1_817_100,
-  totalJs: 1_988_500,
-  totalExport: 3_611_300,
+  entryJs: 2_081_100,
+  totalJs: 2_252_600,
+  totalExport: 3_956_600,
   pictures: 328_000,
 };
 

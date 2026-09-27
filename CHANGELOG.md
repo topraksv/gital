@@ -178,3 +178,7 @@ cannot be released.
   the product is finished and goes back on its list.
 - A wish can carry a day it is wanted by; its row shows it and the phone
   reminds of it the morning before.
+- Gital asks for an account: sign up with an e-mail confirmation, sign in,
+  reset a forgotten password from its e-mail, and in Ayarlar change the
+  e-mail or password, sign out and delete the account. The first account
+  keeps the lists already on the device, and nothing syncs yet.

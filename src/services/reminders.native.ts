@@ -101,6 +101,15 @@ export function replanReminders(): Promise<void> {
   return queue;
 }
 
+/**
+ * Nothing left to ring, the switch left as it was: a sign-out takes the lists
+ * the reminders name, and the next account's first plan starts afresh.
+ */
+export function cancelReminders(): Promise<void> {
+  queue = queue.catch(() => {}).then(() => Notifications.cancelAllScheduledNotificationsAsync());
+  return queue;
+}
+
 async function replace(): Promise<void> {
   if (!(await readReminderPreferences()).on || !granted(await Notifications.getPermissionsAsync())) {
     await Notifications.cancelAllScheduledNotificationsAsync();

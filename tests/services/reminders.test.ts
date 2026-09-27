@@ -40,7 +40,7 @@ vi.mock("../../src/data/shops", () => ({ readPurchases: async () => [] }));
 vi.mock("../../src/data/items", () => ({ readItems: async () => [] }));
 vi.mock("../../src/data/wishes", () => ({ readDueWishes: async () => phone.wishes }));
 
-const { disableReminders, enableReminders, replanReminders } = await import("../../src/services/reminders.native");
+const { cancelReminders, disableReminders, enableReminders, replanReminders } = await import("../../src/services/reminders.native");
 const { saveShoppingDay } = await import("../../src/services/reminder-preferences");
 const { addDaysISO, todayISO } = await import("../../src/domain/dates");
 
@@ -96,5 +96,17 @@ describe("reminders on the phone", () => {
     expect(calls).toEqual(["cancel"]);
     await replanReminders();
     expect(calls).toEqual(["cancel", "cancel"]);
+  });
+
+  it("clear everything at a sign-out, and keep the switch for the next account", async () => {
+    await saveShoppingDay({ weekday: 6, hour: 10, minute: 0 });
+    await enableReminders();
+    calls.length = 0;
+    await cancelReminders();
+    expect(calls).toEqual(["cancel"]);
+    calls.length = 0;
+    await replanReminders();
+    expect(calls[0]).toBe("cancel");
+    expect(calls.length).toBeGreaterThan(1);
   });
 });

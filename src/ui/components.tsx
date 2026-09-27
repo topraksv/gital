@@ -689,6 +689,26 @@ export function SectionHeader({ children, flush = false }: { children: ReactNode
   );
 }
 
+/** Under a field, once what it holds cannot be sent. */
+export function FieldError({ text }: { text: string }) {
+  const { palette } = useTheme();
+  return <Text style={[type.small, { color: palette.errorText, marginTop: spacing.xs }]}>{text}</Text>;
+}
+
+/** What a form's last attempt answered, read out as it appears. */
+export function Notice({ tone, text }: { tone: "error" | "success"; text: string }) {
+  const { palette } = useTheme();
+  return (
+    <Text
+      accessibilityRole={tone === "error" ? "alert" : undefined}
+      accessibilityLiveRegion={tone === "error" ? "assertive" : "polite"}
+      style={[type.body, { color: tone === "error" ? palette.errorText : palette.successText, marginTop: spacing.md }]}
+    >
+      {text}
+    </Text>
+  );
+}
+
 export function Body({ children, muted, style }: { children: ReactNode; muted?: boolean; style?: StyleProp<TextStyle> }) {
   const { palette } = useTheme();
   return (

@@ -7,8 +7,9 @@
  *   const name = await appPrompt(title, message, { confirmLabel, initialValue });
  *
  * `DialogHost` and `PromptHost` render once in the root layout; RN's Modal
- * overlays every screen. Helix's confirm and its operation header are left
- * out until a caller needs them: a reversible delete goes through the undo bar.
+ * overlays every screen, and outlives the screen that asked. Helix's operation
+ * header is left out until a caller needs it; a confirm is only for what the
+ * undo bar cannot take back, which a list's delete is not.
  */
 
 import { useState, type ReactNode, type RefObject } from "react";
@@ -27,11 +28,20 @@ import { shouldPresentAsSheet } from "./responsive";
 import { circle, dialog, motion, radius, spacing, themeShadow, type, useTheme } from "./theme";
 
 interface DialogRequest {
+  title: string;
   message: string;
-  resolve: () => void;
+  /** The action a confirm asks for; an error has none and only closes. */
+  confirmLabel: string | null;
+  resolve: (confirmed: boolean) => void;
 }
 
 const useDialogStore = create<RequestQueue<DialogRequest>>(() => emptyRequestQueue<DialogRequest>());
+
+function ask(request: Omit<DialogRequest, "resolve">): Promise<boolean> {
+  return new Promise((resolve) => {
+    useDialogStore.setState(enqueueRequest(useDialogStore.getState(), { ...request, resolve }));
+  });
+}
 
 /**
  * Helix's `appAlert`, cut to the one kind Gital shows: a failure, which says
@@ -39,9 +49,12 @@ const useDialogStore = create<RequestQueue<DialogRequest>>(() => emptyRequestQue
  */
 export function appError(message: string): Promise<void> {
   errorNotice();
-  return new Promise((resolve) => {
-    useDialogStore.setState(enqueueRequest(useDialogStore.getState(), { message, resolve }));
-  });
+  return ask({ title: tr.errors.title, message, confirmLabel: null }).then(() => {});
+}
+
+/** Helix's `appConfirm`: true only for the named action, never for a tap outside. */
+export function appConfirm(title: string, message: string, confirmLabel: string): Promise<boolean> {
+  return ask({ title, message, confirmLabel });
 }
 
 interface PromptRequest {
@@ -54,8 +67,12 @@ interface PromptRequest {
   initialValue: string;
   maxLength: number | undefined;
   multiline: boolean | undefined;
+  kind: PromptKind;
   resolve: (value: string | null) => void;
 }
+
+/** What the field holds, which decides its keyboard and what the phone may fill in. */
+type PromptKind = "text" | "email" | "password" | "new-password";
 
 const usePromptStore = create<RequestQueue<PromptRequest>>(() => emptyRequestQueue<PromptRequest>());
 let promptId = 0;
@@ -64,7 +81,7 @@ let promptId = 0;
 export function appPrompt(
   title: string,
   message: string,
-  opts: { confirmLabel: string; placeholder?: string; initialValue?: string; maxLength?: number; multiline?: boolean },
+  opts: { confirmLabel: string; placeholder?: string; initialValue?: string; maxLength?: number; multiline?: boolean; kind?: PromptKind },
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const request: PromptRequest = {
@@ -76,6 +93,7 @@ export function appPrompt(
       initialValue: opts.initialValue ?? "",
       maxLength: opts.maxLength,
       multiline: opts.multiline,
+      kind: opts.kind ?? "text",
       resolve,
     };
     usePromptStore.setState(enqueueRequest(usePromptStore.getState(), request));
@@ -220,6 +238,7 @@ function PromptBody({ request, onClose }: { request: PromptRequest; onClose: (va
         // A rename opens on the whole name selected, so typing replaces it.
         selectTextOnFocus={request.initialValue !== ""}
         multiline={request.multiline}
+        {...fieldFor(request.kind)}
         // Enter in a multi-line field is a new line and never submits, so
         // only the button confirms it, and the key must not promise more.
         returnKeyType={request.multiline ? "default" : "done"}
@@ -234,6 +253,18 @@ function PromptBody({ request, onClose }: { request: PromptRequest; onClose: (va
   );
 }
 
+function fieldFor(kind: PromptKind) {
+  if (kind === "text") return {};
+  if (kind === "email") return { autoCapitalize: "none", autoCorrect: false, autoComplete: "email", keyboardType: "email-address", textContentType: "emailAddress" } as const;
+  const fresh = kind === "new-password";
+  return {
+    autoCapitalize: "none",
+    secureTextEntry: true,
+    autoComplete: fresh ? "new-password" : "current-password",
+    textContentType: fresh ? "newPassword" : "password",
+  } as const;
+}
+
 export function PromptHost() {
   const current = usePromptStore((s) => s.current);
   if (!current) return null;
@@ -245,11 +276,18 @@ export function DialogHost() {
   const current = useDialogStore((s) => s.current);
   const titleRef = useModalAccessibility(current != null, current);
   if (!current) return null;
-  const close = () => closeRequest(useDialogStore, current, (request) => request.resolve());
+  const close = (confirmed: boolean) => closeRequest(useDialogStore, current, (request) => request.resolve(confirmed));
   return (
-    <DialogShell title={tr.errors.title} message={current.message} titleRef={titleRef} onDismiss={close}>
+    <DialogShell title={current.title} message={current.message} titleRef={titleRef} onDismiss={() => close(false)}>
       <Actions>
-        <Button label={tr.common.done} size="sm" onPress={close} />
+        {current.confirmLabel ? (
+          <>
+            <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={() => close(false)} />
+            <Button label={current.confirmLabel} size="sm" onPress={() => close(true)} />
+          </>
+        ) : (
+          <Button label={tr.common.done} size="sm" onPress={() => close(false)} />
+        )}
       </Actions>
     </DialogShell>
   );

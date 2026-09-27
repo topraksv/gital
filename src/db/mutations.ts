@@ -230,3 +230,21 @@ export async function deleteRow(table: SyncedTableName, id: string): Promise<Row
 export function undoRows(written: RowsWritten): Promise<void> {
   return revertRows(written, async () => {});
 }
+
+/** Writes this device has made and not yet sent; before sync, every write it ever made. */
+export async function pendingOutboxCount(): Promise<number> {
+  const sqlite = await getSqliteAsync();
+  return (await sqlite.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM outbox"))?.n ?? 0;
+}
+
+/**
+ * Every row this device holds, for a sign-out, a deleted account or another
+ * account signing in (Helix's). One transaction, so a failure leaves the
+ * workspace whole and its account still signed in.
+ */
+export async function resetLocalWorkspace(): Promise<void> {
+  const sqlite = await getSqliteAsync();
+  await withTransaction(async () => {
+    for (const table of [...Object.keys(SYNCED_TABLES), "photos", "outbox"]) await sqlite.runAsync(`DELETE FROM ${table}`);
+  });
+}

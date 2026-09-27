@@ -34,4 +34,15 @@ export const kv = {
     }
     await SecureStore.setItemAsync(key, value);
   },
+  async remove(key: string): Promise<void> {
+    if (Platform.OS === "web") {
+      try {
+        globalThis.localStorage?.removeItem(key);
+      } catch {
+        // As `set`: a store the browser blocks holds nothing to remove.
+      }
+      return;
+    }
+    await SecureStore.deleteItemAsync(key);
+  },
 };

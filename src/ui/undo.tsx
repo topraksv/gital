@@ -31,7 +31,8 @@ const useUndo = create<{ offer: UndoOffer | null }>(() => ({ offer: null }));
 
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
-function clearUndo(): void {
+/** Also at an account change: an offer to undo the last account's delete must not reach the next one. */
+export function clearUndo(): void {
   if (hideTimer) clearTimeout(hideTimer);
   hideTimer = null;
   useUndo.setState({ offer: null });

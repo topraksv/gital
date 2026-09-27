@@ -1,17 +1,23 @@
 import { useEffect, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import BookOpen from "lucide-react-native/icons/book-open";
+import KeyRound from "lucide-react-native/icons/key-round";
+import LogOut from "lucide-react-native/icons/log-out";
+import Mail from "lucide-react-native/icons/mail";
+import Trash from "lucide-react-native/icons/trash";
 import Check from "lucide-react-native/icons/check";
 import Monitor from "lucide-react-native/icons/monitor";
 import Moon from "lucide-react-native/icons/moon";
 import Sun from "lucide-react-native/icons/sun";
 
+import { SIGN_OUT_PENDING_CHANGES, useSession } from "../../auth/session";
 import type { ShoppingDay } from "../../domain/reminders";
 import { tr } from "../../i18n/tr";
 import { readReminderPreferences, saveShoppingDay, type ReminderPreferences } from "../../services/reminder-preferences";
 import { disableReminders, enableReminders, remindersAvailable, replanReminders } from "../../services/reminders";
-import { Body, Button, Card, ChoiceTile, Screen, SectionHeader, Toggle, rowsOf } from "../../ui/components";
-import { appError } from "../../ui/dialog";
+import { isSupabaseConfigured } from "../../sync/supabase";
+import { Body, Button, Card, ChoiceTile, Notice, Screen, SectionHeader, Toggle, rowsOf } from "../../ui/components";
+import { appConfirm, appError, appPrompt } from "../../ui/dialog";
 import { TourModal } from "../../ui/tour";
 import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, borderWidth, circle, controlSize, PALETTES, radius, spacing, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
@@ -38,6 +44,14 @@ export default function SettingsScreen() {
   const [touring, setTouring] = useState(false);
   return (
     <Screen title={tr.tabs.settings} width="workspace">
+      {isSupabaseConfigured ? (
+        <>
+          <SectionHeader>{tr.account.title}</SectionHeader>
+          <Card>
+            <Account />
+          </Card>
+        </>
+      ) : null}
       <SectionHeader>{tr.settings.appSection}</SectionHeader>
       <Card>
         <Body style={{ marginBottom: spacing.sm }}>{tr.settings.theme}</Body>
@@ -78,6 +92,88 @@ export default function SettingsScreen() {
       </Card>
       {touring ? <TourModal onClose={() => setTouring(false)} /> : null}
     </Screen>
+  );
+}
+
+/**
+ * The account (SPEC 9.1): who is signed in, and every change to it. Each one
+ * asks for the password first, through the brake on repeated failures; the
+ * two that end the account here speak through dialogs, which outlive this
+ * screen once the guard has swapped it for sign-in.
+ */
+function Account() {
+  const { email, previousLoginAt, verifyPassword, changeEmail, changePassword, signOut, deleteAccount } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+
+  const run = (work: () => Promise<{ tone: "error" | "success"; text: string } | null>) => async () => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const outcome = await work();
+      if (outcome) setNotice(outcome);
+    } catch {
+      setNotice({ tone: "error", text: tr.auth.errGeneric });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const confirmed = async (body: string): Promise<{ ok: true; password: string } | { ok: false; refused: string } | null> => {
+    const password = await appPrompt(tr.account.confirmPasswordTitle, body, { confirmLabel: tr.common.done, kind: "password" });
+    if (password == null) return null;
+    const refused = await verifyPassword(password);
+    return refused ? { ok: false, refused } : { ok: true, password };
+  };
+  const failed = (text: string) => ({ tone: "error", text }) as const;
+
+  const newEmail = run(async () => {
+    const next = await appPrompt(tr.account.changeEmail, tr.account.newEmail, { confirmLabel: tr.common.save, kind: "email" });
+    if (next == null) return null;
+    const check = await confirmed(tr.account.confirmPasswordBody);
+    if (!check) return null;
+    if (!check.ok) return failed(check.refused);
+    const refused = await changeEmail(next);
+    return refused ? failed(refused) : { tone: "success", text: tr.account.emailChangeSent };
+  });
+  const newPassword = run(async () => {
+    const check = await confirmed(tr.account.confirmPasswordBody);
+    if (!check) return null;
+    if (!check.ok) return failed(check.refused);
+    const next = await appPrompt(tr.account.changePassword, tr.account.newPasswordBody, { confirmLabel: tr.common.save, kind: "new-password" });
+    if (next == null) return null;
+    const refused = await changePassword(check.password, next);
+    return refused ? failed(refused) : { tone: "success", text: tr.account.passwordChanged };
+  });
+  const leave = run(async () => {
+    let refused = await signOut();
+    if (refused === SIGN_OUT_PENDING_CHANGES) {
+      if (!(await appConfirm(tr.account.signOutTitle, SIGN_OUT_PENDING_CHANGES, tr.account.signOutAnyway))) return null;
+      refused = await signOut({ force: true });
+    }
+    if (refused) await appError(refused);
+    return null;
+  });
+  const remove = run(async () => {
+    if (!(await appConfirm(tr.account.deleteTitle, tr.account.deleteBody, tr.account.deleteConfirm))) return null;
+    const check = await confirmed(tr.account.deletePasswordBody);
+    if (!check) return null;
+    const refused = check.ok ? await deleteAccount() : check.refused;
+    if (refused) await appError(refused);
+    return null;
+  });
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {email ? <Body>{tr.account.signedInAs(email)}</Body> : null}
+      {previousLoginAt ? <Body muted>{tr.account.previousLogin(previousLoginAt)}</Body> : null}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm }}>
+        <Button label={tr.account.changeEmail} icon={Mail} variant="ghost" disabled={busy} onPress={() => void newEmail()} />
+        <Button label={tr.account.changePassword} icon={KeyRound} variant="ghost" disabled={busy} onPress={() => void newPassword()} />
+        <Button label={tr.account.signOut} icon={LogOut} variant="ghost" disabled={busy} onPress={() => void leave()} />
+        <Button label={tr.account.delete} icon={Trash} variant="ghost" disabled={busy} onPress={() => void remove()} />
+      </View>
+      {notice ? <Notice {...notice} /> : null}
+    </View>
   );
 }
 

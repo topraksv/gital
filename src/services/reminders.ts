@@ -13,3 +13,5 @@ export async function enableReminders(): Promise<boolean> {
 export async function disableReminders(): Promise<void> {}
 
 export async function replanReminders(): Promise<void> {}
+
+export async function cancelReminders(): Promise<void> {}

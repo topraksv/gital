@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import DatabaseZap from "lucide-react-native/icons/database-zap";
 
+import { useSession } from "../auth/session";
 import { migrateDb } from "../db/migrate";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
@@ -22,13 +23,21 @@ import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
 import { CelebrationHost } from "../ui/celebration";
-import { UndoSnackbar } from "../ui/undo";
+import { clearUndo, UndoSnackbar } from "../ui/undo";
 
 // Helix's subset faces, byte for byte (`docs/ARCHITECTURE.md`, "The fonts are Helix's").
 const Inter_400Regular = require("../../assets/fonts/Inter_400Regular.ttf");
 const Inter_500Medium = require("../../assets/fonts/Inter_500Medium.ttf");
 const Inter_600SemiBold = require("../../assets/fonts/Inter_600SemiBold.ttf");
 const IBMPlexSerif_600SemiBold = require("../../assets/fonts/IBMPlexSerif_600SemiBold.ttf");
+
+/**
+ * A reset link opened on the web: a page of its own, with no database and no
+ * session. The mail app may open it beside a tab that holds the database, and
+ * the web's database admits one tab (`docs/ARCHITECTURE.md`, 2026-09-26).
+ */
+const RECOVERY_PAGE = Platform.OS === "web" && typeof location !== "undefined" && /\/reset-password\/?$/.test(location.pathname);
+const DATABASE_AT_START = RECOVERY_PAGE ? "ready" : "opening";
 
 /** Fonts are cosmetic: a slow web fetch must not hold the app on a blank screen. */
 const FONT_GRACE_MS = 2500;
@@ -59,12 +68,13 @@ export default function RootLayout() {
   const [appearance, setAppearanceState] = useState<Appearance | null>(null);
   const [fontGrace, setFontGrace] = useState(false);
   const [fontsLoaded, fontsError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, IBMPlexSerif_600SemiBold });
-  const [database, setDatabase] = useState<"opening" | "ready" | "failed">("opening");
+  const [database, setDatabase] = useState<"opening" | "ready" | "failed">(DATABASE_AT_START);
   const [openAttempt, setOpenAttempt] = useState(0);
 
   // Every screen reads the database, so none is drawn until it is migrated;
   // a failure gets its own screen with a retry rather than empty lists.
   useEffect(() => {
+    if (RECOVERY_PAGE) return;
     let cancelled = false;
     migrateDb().then(
       () => !cancelled && setDatabase("ready"),
@@ -157,11 +167,7 @@ export default function RootLayout() {
                 />
               </View>
             ) : (
-              <>
-                <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.background } }} />
-                <ReminderPlanner />
-                <ClipboardLinkOffer />
-              </>
+              <Routes background={theme.palette.background} />
             )}
             <StatusBar style={scheme === "dark" ? "light" : "dark"} />
             <CelebrationHost />
@@ -188,6 +194,47 @@ function WebTitle() {
     <Head>
       <title>{tr.meta.title}</title>
     </Head>
+  );
+}
+
+/**
+ * The account decides the routes (SPEC 9.1): the lists behind a session, the
+ * sign-in without one, the reset page for either. Expo Router's guard rather
+ * than a redirect, which throws when it runs before the navigator mounts.
+ */
+function Routes({ background }: { background: string }) {
+  const ready = useSession((s) => s.ready);
+  const userId = useSession((s) => s.userId);
+  useEffect(() => {
+    if (RECOVERY_PAGE) return;
+    // A launch that cannot decide opens on sign-in rather than on nothing.
+    useSession.getState().bootstrap().catch(() => useSession.setState({ ready: true }));
+  }, []);
+  // Helix's bug: an undo offered to one account ran against the next one's lists.
+  useEffect(() => clearUndo(), [userId]);
+  if (!ready && !RECOVERY_PAGE) return null;
+  const signedIn = userId != null;
+  return (
+    <>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: background } }}>
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="list/[id]" />
+          <Stack.Screen name="shop/[id]" />
+          <Stack.Screen name="collection/[id]" />
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="(auth)/sign-in" />
+        </Stack.Protected>
+        <Stack.Screen name="(auth)/reset-password" />
+      </Stack>
+      {signedIn ? (
+        <>
+          <ReminderPlanner />
+          <ClipboardLinkOffer />
+        </>
+      ) : null}
+    </>
   );
 }
 

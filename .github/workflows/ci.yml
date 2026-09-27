@@ -117,6 +117,11 @@ jobs:
     timeout-minutes: 20
     outputs:
       entry: ${{ steps.entry.outputs.path }}
+    # Client keys, as Helix's: they ship inside the bundle by design, and are
+    # `.env`'s values. The service-role key is only keepalive.yml's secret.
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://nfarwwozyapjqminmyso.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mYXJ3d296eWFwanFtaW5teXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNzE4MTcsImV4cCI6MjEwNTc0NzgxN30.5qXw2lOJwqUbI8Og11Q_BvIKMsgIAcViZyVOsOViSFg
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
