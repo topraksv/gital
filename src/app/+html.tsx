@@ -1,6 +1,7 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 
+import { contentSecurityPolicy } from "../domain/web-security";
 import { tr } from "../i18n/tr";
 import { focusRingCss } from "../ui/focus-ring";
 import { APPEARANCE_KEYS, DEFAULT_PALETTE_ID, PALETTES } from "../ui/theme";
@@ -42,6 +43,10 @@ export default function Root({ children }: PropsWithChildren) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        <meta httpEquiv="Content-Security-Policy" content={contentSecurityPolicy(process.env.EXPO_PUBLIC_SUPABASE_URL)} />
+        {/* A reset link's code must not ride the page's asset requests as a
+            referrer before supabase-js takes it from the address. Helix's. */}
+        <meta name="referrer" content="no-referrer" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
         <title>{tr.meta.title}</title>
         {/* Installing to the home screen (SPEC 11.4). The browser's chrome

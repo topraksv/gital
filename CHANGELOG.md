@@ -210,3 +210,4 @@ cannot be released.
 - Ayarlar sends feedback: a category, what happened and up to four
   screenshots, mailed to the owner.
 - The first-open tour plays only for a new account, not on every new device.
+- The web app may connect only to itself and its own Supabase project.
