@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { CI_EXECUTED_SCRIPTS, classify } from "../scripts/classify-changes.mjs";
 import { evaluate } from "../scripts/check-lint-ratchet.mjs";
 import { evaluate as evaluateMutation, scoreOf } from "../scripts/check-mutation-ratchet.mjs";
-import { appVersionOf, entryOf, titleOf } from "../scripts/check-published.mjs";
+import { appVersionOf, entryOf, otaRecord, titleOf } from "../scripts/check-published.mjs";
 
 const root = join(import.meta.dirname, "..");
 
@@ -40,6 +40,19 @@ describe("classify-changes", () => {
     ["only prose moved", ["docs/RELEASE.md"], false],
   ])("publishes the web when %s", (_, files, publishes) => {
     expect(classify(files).deploy_web).toBe(publishes);
+  });
+
+  it.each([
+    ["no diff could be taken", null, true],
+    ["a screen moved", ["src/app/index.tsx"], true],
+    ["a picture the app bundles moved", ["assets/icon.png"], true],
+    ["the dependency tree moved", ["package-lock.json"], true],
+    ["the deploy itself moved", [".github/workflows/ci.yml"], true],
+    ["only the web's own files moved", ["public/products/tomato.webp", "scripts/check-web-budget.mjs"], false],
+    ["only a test moved", ["tests/gates.test.ts"], false],
+    ["only prose moved", ["docs/RELEASE.md"], false],
+  ])("publishes to Expo Go when %s", (_, files, publishes) => {
+    expect(classify(files).deploy_mobile).toBe(publishes);
   });
 
   it("escalates a mixed push by its riskiest path", () => {
@@ -135,6 +148,31 @@ describe("check-published", () => {
 
   // Expo embeds the app config as an escaped JSON string, beside libraries
   // that declare versions of their own.
+  // One `eas update --platform all`: both platforms, one group, and the
+  // runtime Expo Go loads for this SDK, or the phone never sees it.
+  it("accepts one update per platform in one group on Expo Go's runtime, and records it", () => {
+    const update = (platform: string, runtimeVersion = "exposdk:57.0.0", group = "g1") => ({
+      platform, runtimeVersion, group, id: `${platform}-id`, message: "1.0.0 abc", manifestPermalink: `https://u.expo.dev/${platform}`,
+    });
+    const { problems, summary } = otaRecord([update("ios"), update("android")], 57);
+    expect(problems).toEqual([]);
+    expect(summary.join("\n")).toContain("`g1`");
+    expect(summary.join("\n")).toContain("| android | `android-id` |");
+    expect(otaRecord([update("ios")], 57).problems).toEqual(["expected one update per platform, got [ios]"]);
+    expect(otaRecord([update("ios"), update("android", "exposdk:57.0.0", "g2")], 57).problems).toEqual(["expected one update group, got 2"]);
+    expect(otaRecord([update("ios", "1.0.0"), update("android")], 57).problems).toEqual(["the ios update targets 1.0.0, not exposdk:57.0.0"]);
+    expect(otaRecord(null, 57).problems).toHaveLength(2);
+  });
+
+  // `eas.json` names the CLI the project needs; the publish runs another only
+  // by someone moving one and forgetting the other.
+  it("publishes with the EAS CLI eas.json names", () => {
+    const wanted = JSON.parse(readFileSync(join(root, "eas.json"), "utf8")).cli.version;
+    const used = [...readFileSync(join(root, ".github/workflows/ci.yml"), "utf8").matchAll(/eas-cli@([\d.]+)/g)].map(([, version]) => version);
+    expect(used.length).toBeGreaterThan(1);
+    expect(new Set(used)).toEqual(new Set([wanted]));
+  });
+
   it("reads the version of the object that carries the app's slug", () => {
     const bundle = String.raw`x={\"name\":\"lib\",\"version\":\"9.9.9\"};y="{\"name\":\"Gital\",\"slug\":\"gital\",\"version\":\"1.2.0\"}"`;
     expect(appVersionOf(bundle, "gital")).toBe("1.2.0");

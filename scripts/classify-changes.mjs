@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Decide what a push to main has to prove, and whether it republishes the web.
+ * Decide what a push to main has to prove, and whether it republishes the web
+ * and the Expo Go update.
  *
  * The safe error is a slow run: an unrecognised path gets the full gate, and
  * so does a push with no usable base (the first push, a dispatch). Only paths
@@ -91,22 +92,36 @@ const AFFECTS_WEB = [
   /^\.github\/workflows\/ci\.yml$/,
 ];
 
+/** What reaches Expo Go: the web's inputs less what only the export carries. */
+const AFFECTS_MOBILE = [
+  /^src\//,
+  /^assets\//,
+  /^app\.json$/,
+  /^package(-lock)?\.json$/,
+  /^\.npmrc$/,
+  /^(babel|metro)\.config\.js$/,
+  /^tsconfig\.json$/,
+  /^scripts\/check-published\.mjs$/,
+  /^\.github\/workflows\/ci\.yml$/,
+];
+
 const matches = (path, patterns) => patterns.some((pattern) => pattern.test(path));
 
 /** `files` is null when no diff could be taken, and empty when one was. */
 export function classify(files) {
-  if (files === null) return { full_gate: true, deploy_web: true, reason: "no diff available; fail-open full gate and publish" };
+  if (files === null) return { full_gate: true, deploy_web: true, deploy_mobile: true, reason: "no diff available; fail-open full gate and publish" };
 
   const relevant = files.filter((file) => !matches(file, NO_APP_IMPACT));
-  if (relevant.length === 0) return { full_gate: false, deploy_web: false, reason: "no application impact; light gate retained" };
+  if (relevant.length === 0) return { full_gate: false, deploy_web: false, deploy_mobile: false, reason: "no application impact; light gate retained" };
   const deploy_web = relevant.some((file) => matches(file, AFFECTS_WEB));
+  const deploy_mobile = relevant.some((file) => matches(file, AFFECTS_MOBILE));
 
   const escalating = relevant.filter(
     (file) => matches(file, HIGH_RISK) || CI_EXECUTED_SCRIPTS.includes(file) || !matches(file, KNOWN_LIGHT),
   );
   return escalating.length > 0
-    ? { full_gate: true, deploy_web, reason: `high risk: ${escalating.slice(0, 5).join(", ")}` }
-    : { full_gate: false, deploy_web, reason: "ordinary change; light gate" };
+    ? { full_gate: true, deploy_web, deploy_mobile, reason: `high risk: ${escalating.slice(0, 5).join(", ")}` }
+    : { full_gate: false, deploy_web, deploy_mobile, reason: "ordinary change; light gate" };
 }
 
 const hasBase = (base) => Boolean(base) && !/^0+$/.test(base);

@@ -32,6 +32,7 @@ jobs:
     outputs:
       full_gate: ${{ steps.route.outputs.full_gate }}
       deploy_web: ${{ steps.route.outputs.deploy_web }}
+      deploy_mobile: ${{ steps.route.outputs.deploy_mobile }}
       reason: ${{ steps.route.outputs.reason }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,7 +120,7 @@ jobs:
       entry: ${{ steps.entry.outputs.path }}
     # Client keys, as Helix's: they ship inside the bundle by design, and are
     # `.env`'s values. The service-role key is only keepalive.yml's secret.
-    env:
+    env: &supabase-client
       EXPO_PUBLIC_SUPABASE_URL: https://nfarwwozyapjqminmyso.supabase.co
       EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mYXJ3d296eWFwanFtaW5teXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNzE4MTcsImV4cCI6MjEwNTc0NzgxN30.5qXw2lOJwqUbI8Og11Q_BvIKMsgIAcViZyVOsOViSFg
     steps:
@@ -253,3 +254,60 @@ jobs:
           BASE: ${{ steps.deployment.outputs.page_url }}
           ENTRY: ${{ needs.web-build.outputs.entry }}
         run: node scripts/check-published.mjs web "$BASE" --entry "$ENTRY" --wait 600
+
+  # Helix's: Expo Go loads the update from the EAS branch `preview`, after the
+  # gate, from this commit. Expo Go runs the SDK's own runtime, so there is no
+  # build and no store credential.
+  deploy-mobile:
+    needs: [classify, gate]
+    if: >-
+      ${{ !cancelled()
+      && needs.gate.result == 'success'
+      && needs.classify.outputs.deploy_mobile == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: gital
+    # The same client keys the web is built with.
+    env: *supabase-client
+    steps:
+      - name: Refuse to publish a commit main has moved past
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::error::main is at $head and this run is $GITHUB_SHA; nothing was published, and the run for $head publishes"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Helix's reason: the CLI is not in the lockfile, so it is installed in a
+      # step without the token, with no install scripts, from the registry as
+      # it stood the day after `eas.json`'s version was published; the publish
+      # step's `--yes=false` then refuses to install anything. Move the date
+      # with that version.
+      - name: Install the pinned EAS CLI without the credential
+        env:
+          npm_config_before: "2026-09-17"
+        run: npx --yes --ignore-scripts eas-cli@24.7.0 --version
+      - name: Publish the Expo Go preview update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::EXPO_TOKEN is not configured; nothing was published."
+            exit 1
+          fi
+          version=$(node -p "require('./app.json').expo.version")
+          npx --yes=false eas-cli@24.7.0 update --branch preview --environment preview --platform all --message "$version $GITHUB_SHA" --clear-cache --non-interactive --json > "$RUNNER_TEMP/eas-update.json"
+      - name: Verify and record the published update
+        run: node scripts/check-published.mjs ota "$RUNNER_TEMP/eas-update.json"

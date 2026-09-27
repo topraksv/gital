@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
  * Ask what was actually published, rather than whether a request succeeded.
- * Ported from Helix on 2026-09-26, the web half only: its `ota` and `expo-go`
- * checks land with the phone deploy.
+ * Ported from Helix: the web half on 2026-09-26, `ota` with the phone deploy on
+ * 2026-09-27. Helix's `expo-go` waits for a nightly.
  *
  *   node scripts/check-published.mjs entry <export-dir>
  *   node scripts/check-published.mjs web <base-url> --entry <path> [--wait <seconds>]
+ *   node scripts/check-published.mjs ota <eas-update.json>
  *
  * `entry` prints the export's entry bundle as `path=…`, for $GITHUB_OUTPUT,
  * and refuses an export whose page has no title to show.
@@ -42,6 +43,38 @@ export function appVersionOf(bundle, slug) {
   const after = new RegExp(`"slug":"${slug}"[^{}]*?"version":"(\\d+\\.\\d+\\.\\d+)"`).exec(flat);
   const before = new RegExp(`"version":"(\\d+\\.\\d+\\.\\d+)"[^{}]*?"slug":"${slug}"`).exec(flat);
   return after?.[1] ?? before?.[1] ?? null;
+}
+
+/**
+ * One `eas update --platform all`, verified and written down: two updates in
+ * one group, each on the runtime Expo Go loads for this SDK, or it was
+ * published for a client no phone here runs. The group and ids are what a
+ * rollback republishes from, so the run's summary keeps them.
+ */
+export function otaRecord(updates, sdkMajor) {
+  const list = Array.isArray(updates) ? updates : [];
+  const runtime = `exposdk:${sdkMajor}.0.0`;
+  const problems = [];
+  const platforms = list.map((update) => update.platform).sort().join(",");
+  if (platforms !== "android,ios") problems.push(`expected one update per platform, got [${platforms}]`);
+  const groups = new Set(list.map((update) => update.group));
+  if (groups.size !== 1) problems.push(`expected one update group, got ${groups.size}`);
+  for (const update of list) {
+    if (update.runtimeVersion !== runtime) problems.push(`the ${update.platform} update targets ${update.runtimeVersion}, not ${runtime}`);
+  }
+  const [first] = list;
+  const summary = [
+    "### Expo Go preview update",
+    "",
+    `- **Group:** \`${first?.group ?? "none"}\``,
+    `- **Runtime:** \`${first?.runtimeVersion ?? "none"}\``,
+    `- **Message:** ${first?.message ?? "none"}`,
+    "",
+    "| Platform | Update | Manifest |",
+    "|---|---|---|",
+    ...list.map((update) => `| ${update.platform} | \`${update.id}\` | ${update.manifestPermalink} |`),
+  ];
+  return { problems, summary };
 }
 
 const fail = (message) => {
@@ -105,8 +138,14 @@ async function main() {
   } else if (command === "web" && target && option("--entry")) {
     const { version, slug } = JSON.parse(readFileSync("app.json", "utf8")).expo;
     await checkWeb(target, { expected: option("--entry"), waitSeconds: Number(option("--wait") ?? 0), version, slug });
+  } else if (command === "ota" && target) {
+    const sdkMajor = Number.parseInt(JSON.parse(readFileSync("package.json", "utf8")).dependencies.expo.replace(/^\D*/, ""), 10);
+    const { problems, summary } = otaRecord(JSON.parse(readFileSync(target, "utf8")), sdkMajor);
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary.join("\n")}\n`);
+    console.log(summary.join("\n"));
+    for (const problem of problems) fail(problem);
   } else {
-    console.error("usage: check-published.mjs entry <dir> | web <base-url> --entry <path> [--wait <seconds>]");
+    console.error("usage: check-published.mjs entry <dir> | web <base-url> --entry <path> [--wait <seconds>] | ota <file>");
     process.exitCode = 1;
   }
 }
