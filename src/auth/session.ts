@@ -179,8 +179,12 @@ interface SessionStore {
   ready: boolean;
   /** The sign-in before this session's, for the account screen. */
   previousLoginAt: string | null;
-  /** This device is freezing the account, and signs out next: the gate stays shut. */
-  isFreezing: boolean;
+  /**
+   * What this device is doing to the account, drawn over the app while it
+   * runs. A freeze signs out as its last step, so it stays "freeze" — which
+   * also keeps the frozen gate shut on the device doing the freezing.
+   */
+  operation: AccountOperation | null;
   bootstrap: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (email: string, password: string) => Promise<SignUpResult>;
@@ -199,12 +203,25 @@ interface SessionStore {
   changePassword: (currentPassword: string, newPassword: string) => Promise<string | null>;
 }
 
+export type AccountOperation = "sign-in" | "sign-out" | "freeze" | "delete";
+
+/** `work` shown as `operation`, unless one already runs: a freeze's own sign-out stays a freeze. */
+async function running<T>(operation: AccountOperation, work: () => Promise<T>): Promise<T> {
+  if (useSession.getState().operation) return work();
+  useSession.setState({ operation });
+  try {
+    return await work();
+  } finally {
+    useSession.setState({ operation: null });
+  }
+}
+
 export const useSession = create<SessionStore>((set, get) => ({
   userId: null,
   email: null,
   ready: false,
   previousLoginAt: null,
-  isFreezing: false,
+  operation: null,
 
   bootstrap: async () => {
     const supabase = getSupabase();
@@ -247,21 +264,22 @@ export const useSession = create<SessionStore>((set, get) => ({
     set({ ...signedOut, ready: true });
   },
 
-  signIn: async (email, password) => {
-    const supabase = getSupabase();
-    if (!supabase) return tr.auth.errNotConfigured;
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return friendlyAuthError(error.message);
-    const refused = await claim(supabase, data.user, email);
-    if (refused) return refused;
-    const previousLoginAt = await recordSuccessfulLogin(kv, data.user.id, data.user.last_sign_in_at ?? new Date().toISOString()).catch(absent);
-    // Signing in is the password check, so it reopens a frozen account: a
-    // write newer than the freeze, which the gate on every device follows.
-    await setAccountFrozen(false).catch(ignore);
-    startSyncSession(data.user.id);
-    set({ userId: data.user.id, email: data.user.email ?? email, previousLoginAt });
-    return null;
-  },
+  signIn: (email, password) =>
+    running("sign-in", async () => {
+      const supabase = getSupabase();
+      if (!supabase) return tr.auth.errNotConfigured;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return friendlyAuthError(error.message);
+      const refused = await claim(supabase, data.user, email);
+      if (refused) return refused;
+      const previousLoginAt = await recordSuccessfulLogin(kv, data.user.id, data.user.last_sign_in_at ?? new Date().toISOString()).catch(absent);
+      // Signing in is the password check, so it reopens a frozen account: a
+      // write newer than the freeze, which the gate on every device follows.
+      await setAccountFrozen(false).catch(ignore);
+      startSyncSession(data.user.id);
+      set({ userId: data.user.id, email: data.user.email ?? email, previousLoginAt });
+      return null;
+    }),
 
   signUp: async (email, password) => {
     const supabase = getSupabase();
@@ -331,33 +349,33 @@ export const useSession = create<SessionStore>((set, get) => ({
     return null;
   },
 
-  signOut: async (options) => {
-    // A build with no accounts has nothing to sign out of, and its lists no other copy.
-    const supabase = getSupabase();
-    if (!supabase) return tr.auth.errNotConfigured;
-    const userId = get().userId;
-    // Send what is waiting first, so the question is asked only about what truly cannot leave.
-    if (userId) await flushOutbox(userId);
-    if (!options?.force && (await pendingOutboxCount()) > 0) return SIGN_OUT_PENDING_CHANGES;
-    await stopSyncSession();
-    await cancelReminders().catch(ignore);
-    try {
-      await resetLocalWorkspace();
-    } catch {
-      if (userId) startSyncSession(userId);
-      return tr.auth.errWorkspaceReset;
-    }
-    set(signedOut);
-    await endAuthSession(supabase, "local");
-    await forgetAccount();
-    return null;
-  },
+  signOut: (options) =>
+    running("sign-out", async () => {
+      // A build with no accounts has nothing to sign out of, and its lists no other copy.
+      const supabase = getSupabase();
+      if (!supabase) return tr.auth.errNotConfigured;
+      const userId = get().userId;
+      // Send what is waiting first, so the question is asked only about what truly cannot leave.
+      if (userId) await flushOutbox(userId);
+      if (!options?.force && (await pendingOutboxCount()) > 0) return SIGN_OUT_PENDING_CHANGES;
+      await stopSyncSession();
+      await cancelReminders().catch(ignore);
+      try {
+        await resetLocalWorkspace();
+      } catch {
+        if (userId) startSyncSession(userId);
+        return tr.auth.errWorkspaceReset;
+      }
+      set(signedOut);
+      await endAuthSession(supabase, "local");
+      await forgetAccount();
+      return null;
+    }),
 
-  freezeAccount: async () => {
-    const userId = get().userId;
-    if (!getSupabase() || !userId) return tr.auth.errNotConfigured;
-    set({ isFreezing: true });
-    try {
+  freezeAccount: () =>
+    running("freeze", async () => {
+      const userId = get().userId;
+      if (!getSupabase() || !userId) return tr.auth.errNotConfigured;
       // The sign-out sends everything first and refuses while anything is
       // unsent, so its success is the proof that the freeze reached the server.
       await setAccountFrozen(true);
@@ -366,46 +384,44 @@ export const useSession = create<SessionStore>((set, get) => ({
       // Helix's lesson: a failure after the flag must put it back, or every launch opens on the gate.
       if (!(await setAccountFrozen(false).then(() => true, () => false))) return tr.account.freezeRollbackFailed;
       return refused === SIGN_OUT_PENDING_CHANGES ? tr.account.freezeSyncFailed : refused;
-    } finally {
-      set({ isFreezing: false });
-    }
-  },
+    }),
 
-  deleteAccount: async () => {
-    const supabase = getSupabase();
-    const userId = get().userId;
-    if (!supabase || !userId) return tr.auth.errNotConfigured;
-    // Nothing is sent while the account is taken apart. Its photos go first,
-    // since nothing cascades to Storage; then the account, and if the server
-    // keeps it, the device keeps everything and sync sends the photos back.
-    await stopSyncSession();
-    let error: { message: string } | null;
-    try {
-      await purgeOwnPhotos();
-      ({ error } = await supabase.rpc("delete_own_account"));
-    } catch (failure) {
-      error = { message: failure instanceof Error ? failure.message : String(failure) };
-    }
-    if (error) {
-      startSyncSession(userId);
-      const friendly = friendlyAuthError(error.message);
-      return friendly === tr.auth.errSessionExpired ? friendly : tr.account.deleteCloudFailed;
-    }
-    await cancelReminders().catch(ignore);
-    // The identity is gone, so every device's session goes with it: the one global revoke.
-    await endAuthSession(supabase, "global");
-    try {
-      await resetLocalWorkspace();
-    } catch {
+  deleteAccount: () =>
+    running("delete", async () => {
+      const supabase = getSupabase();
+      const userId = get().userId;
+      if (!supabase || !userId) return tr.auth.errNotConfigured;
+      // Nothing is sent while the account is taken apart. Its photos go first,
+      // since nothing cascades to Storage; then the account, and if the server
+      // keeps it, the device keeps everything and sync sends the photos back.
+      await stopSyncSession();
+      let error: { message: string } | null;
+      try {
+        await purgeOwnPhotos();
+        ({ error } = await supabase.rpc("delete_own_account"));
+      } catch (failure) {
+        error = { message: failure instanceof Error ? failure.message : String(failure) };
+      }
+      if (error) {
+        startSyncSession(userId);
+        const friendly = friendlyAuthError(error.message);
+        return friendly === tr.auth.errSessionExpired ? friendly : tr.account.deleteCloudFailed;
+      }
+      await cancelReminders().catch(ignore);
+      // The identity is gone, so every device's session goes with it: the one global revoke.
+      await endAuthSession(supabase, "global");
+      try {
+        await resetLocalWorkspace();
+      } catch {
+        set(signedOut);
+        await kv.set(OWNER_KEY, WIPE_PENDING).catch(ignore);
+        await kv.remove(LAST_USER_KEY).catch(ignore);
+        return tr.account.deleteWipeFailed;
+      }
       set(signedOut);
-      await kv.set(OWNER_KEY, WIPE_PENDING).catch(ignore);
-      await kv.remove(LAST_USER_KEY).catch(ignore);
-      return tr.account.deleteWipeFailed;
-    }
-    set(signedOut);
-    await forgetAccount();
-    return null;
-  },
+      await forgetAccount();
+      return null;
+    }),
 
   verifyPassword: async (password) => {
     const supabase = getSupabase();

@@ -701,6 +701,13 @@ export const tr = {
     } as Record<string, string>,
     record: "Kayıt",
   },
+  /** Helix's waiting page, one per account operation, each named. */
+  operation: {
+    "sign-in": { title: "Giriş yapılıyor", body: "E-posta ve şifren doğrulanıyor" },
+    "sign-out": { title: "Güvenli çıkış", body: "Son değişikliklerin eşitleniyor; ardından oturumun kapanacak" },
+    freeze: { title: "Hesap donduruluyor", body: "Son değişikliklerin güvenle korunuyor; ardından oturumun kapanacak" },
+    delete: { title: "Hesap siliniyor", body: "Hesabın, listelerin ve fotoğrafların kalıcı olarak kaldırılıyor" },
+  },
   account: {
     section: "Hesap ve Güvenlik",
     security: "Hesap Güvenliği",

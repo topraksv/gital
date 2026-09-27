@@ -388,6 +388,8 @@ export const motion = {
   travel: { rise: 10, bar: 24, sheet: 40 },
   /** A row flying to another tab shrinks to `shrink` on the way; the tab's icon lands at `bounce` and springs home. */
   landing: { shrink: 0.2, bounce: 1.3 },
+  /** An account operation's medallion breathing in and out, Helix's `OperationFlow`; shown only past `reveal`, so a quick one never flashes. */
+  operation: { breath: 1100, reveal: 350 },
 } as const;
 
 /**
@@ -597,6 +599,19 @@ export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25
 
 /** A photo in a panel (SPEC 8.2): about a third of a phone's height, whatever its proportions. */
 export const photoPreview = { height: 220 } as const;
+
+/** Helix's waiting page for an account operation: a halo breathing round a medallion. */
+export const operationWait = {
+  halo: 128,
+  medallion: 96,
+  icon: 34,
+  maxWidth: 440,
+  haloOpacity: [0.35, 0.9],
+  haloScale: [0.82, 1],
+  haloTint: "12",
+  medallionTint: "1A",
+  medallionEdge: "3A",
+} as const;
 
 /** A screenshot on a report (SPEC 13.1): enough to tell one from another. `edge` is what is sent, where print must read. */
 export const screenshot = { thumb: 84, edge: 1600 } as const;

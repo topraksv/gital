@@ -479,7 +479,7 @@ describe("freezing the account", () => {
     sync.flushSends = true;
     expect(await session().freezeAccount()).toBeNull();
     expect(frozenSent().at(-1)).toBe("true");
-    expect(session()).toMatchObject({ userId: null, isFreezing: false });
+    expect(session()).toMatchObject({ userId: null, operation: null });
     expect(count("lists")).toBe(0);
   });
 
@@ -487,7 +487,7 @@ describe("freezing the account", () => {
     await session().signIn(A.email, A.password);
     await createList("Market");
     expect(await session().freezeAccount()).toBe(tr.account.freezeSyncFailed);
-    expect(session()).toMatchObject({ userId: A.id, isFreezing: false });
+    expect(session()).toMatchObject({ userId: A.id, operation: null });
     expect(isFrozen(await readSettings())).toBe(false);
     expect(count("lists")).toBe(1);
   });
@@ -508,7 +508,7 @@ describe("freezing the account", () => {
       throw new Error("Failed to fetch");
     };
     expect(await session().freezeAccount()).toBe(tr.account.freezeSyncFailed);
-    expect(session()).toMatchObject({ userId: A.id, isFreezing: false });
+    expect(session()).toMatchObject({ userId: A.id, operation: null });
     expect(isFrozen(await readSettings())).toBe(false);
   });
 
@@ -527,10 +527,23 @@ describe("freezing the account", () => {
   it("holds the gate back on this device while it freezes", async () => {
     await session().signIn(A.email, A.password);
     sync.flushSends = true;
-    let freezing: boolean | undefined;
-    sync.onFlush = () => (freezing = session().isFreezing);
+    let during: string | null | undefined;
+    sync.onFlush = () => (during = session().operation);
     await session().freezeAccount();
-    expect(freezing).toBe(true);
+    expect(during, "its own sign-out stays a freeze").toBe("freeze");
+  });
+
+  it("names each account operation while it runs, and nothing after", async () => {
+    let during: string | null | undefined;
+    sync.onFlush = () => (during = session().operation);
+    await session().signIn(A.email, A.password);
+    await session().signOut();
+    expect(during).toBe("sign-out");
+    expect(session().operation).toBeNull();
+    const signing = session().signIn(A.email, A.password);
+    expect(session().operation).toBe("sign-in");
+    await signing;
+    expect(session().operation).toBeNull();
   });
 
   it("is reopened by signing in, which is the password check", async () => {

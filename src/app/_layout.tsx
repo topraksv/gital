@@ -32,6 +32,7 @@ import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, spacing, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
 import { CelebrationHost } from "../ui/celebration";
+import { OperationWait } from "../ui/operation-wait";
 import { clearUndo, UndoSnackbar } from "../ui/undo";
 
 // Helix's subset faces, byte for byte (`docs/ARCHITECTURE.md`, "The fonts are Helix's").
@@ -221,7 +222,7 @@ function WebTitle() {
 function Routes({ background }: { background: string }) {
   const ready = useSession((s) => s.ready);
   const userId = useSession((s) => s.userId);
-  const freezing = useSession((s) => s.isFreezing);
+  const operation = useSession((s) => s.operation);
   const signedIn = userId != null;
   const frozen = useAccountFrozen(signedIn && !RECOVERY_PAGE);
   useEffect(() => {
@@ -240,7 +241,7 @@ function Routes({ background }: { background: string }) {
   }, [signedIn]);
   if ((!ready || (signedIn && frozen == null)) && !RECOVERY_PAGE) return null;
   // The device that freezes signs out; its own freezing is not a lock.
-  const locked = frozen === true && !freezing;
+  const locked = frozen === true && operation !== "freeze";
   return (
     <>
       {locked ? (
@@ -274,6 +275,7 @@ function Routes({ background }: { background: string }) {
           {locked ? null : <ClipboardLinkOffer />}
         </>
       ) : null}
+      {operation ? <OperationWait operation={operation} /> : null}
     </>
   );
 }
