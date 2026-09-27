@@ -600,6 +600,20 @@ export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25
 /** A photo in a panel (SPEC 8.2): about a third of a phone's height, whatever its proportions. */
 export const photoPreview = { height: 220 } as const;
 
+/**
+ * Gital's mark, the cart in flight: its ink tinted by the theme, its flames
+ * flickering (`src/ui/brand.tsx`). `aspect` is the drawing's own width over
+ * its height.
+ */
+export const brandMark = {
+  aspect: 1.78,
+  flicker: 520,
+  flameScale: [0.92, 1.04],
+  flameOpacity: [0.8, 1],
+  flameDrift: -2,
+  rattle: -1.5,
+} as const;
+
 /** Helix's waiting page for an account operation: a halo breathing round a medallion. */
 export const operationWait = {
   halo: 128,

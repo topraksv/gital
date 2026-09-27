@@ -17,15 +17,15 @@ import { join, relative } from "node:path";
 
 // Measured 2026-09-27 with Helix's sign-in, Ayarlar and Hesap ve Güvenlik:
 // entry 2_204_921, all JS 2_455_028, export 4_278_580, the CSP repeated in
-// each of the export's pages; pictures 324_522 on the catalogue. The
-// Realtime transport is a chunk of its own (67 KB), loaded only by someone
-// sharing a list; the QR encoder another (13 KB), with the first invitation.
-// `docs/HEALTH.md` traces the growth.
+// each of the export's pages; pictures 324_522 on the catalogue, then
+// 341_284 with the brand mark's two layers (16_762, 2026-09-27). The Realtime
+// transport is a chunk of its own (67 KB), loaded only by someone sharing a
+// list. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
   entryJs: 2_227_000,
   totalJs: 2_479_600,
   totalExport: 4_321_400,
-  pictures: 328_000,
+  pictures: 344_700,
 };
 
 // Pictures are WebP and nothing else is (SPEC 14.1), so they are weighed apart:

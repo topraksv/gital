@@ -1,5 +1,5 @@
 import { memo, useRef, useState, type ReactNode, type Ref } from "react";
-import { Image, StyleSheet, Text, View, useWindowDimensions, type TextInput } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions, type TextInput } from "react-native";
 import ClipboardList from "lucide-react-native/icons/clipboard-list";
 import CloudOff from "lucide-react-native/icons/cloud-off";
 import Refrigerator from "lucide-react-native/icons/refrigerator";
@@ -12,7 +12,7 @@ import { Body, Button, Card, Notice, Screen, TextField } from "../../ui/componen
 import { interactionSurface } from "../../ui/interaction";
 import { Press } from "../../ui/press";
 import { LegalConsentControl, LegalNoticeSheet } from "../../ui/legal-notice";
-import { LIST_PICTURES } from "../../ui/list-look";
+import { BrandMark } from "../../ui/brand";
 import { shouldSplitAuthHero } from "../../ui/responsive";
 import { alpha, authHero, contentWidth, controlSize, font, maxFontScale, radius, spacing, type, useTheme } from "../../ui/theme";
 
@@ -24,11 +24,6 @@ const MODE: Record<Mode, { heading: string; subtitle: string; action: string; ot
   signUp: { heading: tr.auth.signUpTitle, subtitle: tr.auth.signUpSubtitle, action: tr.auth.signUpTitle, other: tr.auth.toSignIn, otherMode: "signIn", passwordReady: isValidNewPassword },
   forgot: { heading: tr.auth.forgotTitle, subtitle: tr.auth.forgotSubtitle, action: tr.auth.sendResetLink, other: tr.auth.backToSignIn, otherMode: "signIn", passwordReady: () => true },
 };
-
-/** The mark that leads the greeting: Gital's own cart, as the app icon draws it. */
-function BrandMark({ size }: { size: number }) {
-  return <Image accessible={false} aria-hidden source={LIST_PICTURES.cart} style={{ width: size, height: size }} resizeMode="contain" />;
-}
 
 function JourneyNode({ icon: Icon, label, active = false }: { icon: LucideIcon; label: string; active?: boolean }) {
   const { palette } = useTheme();
@@ -185,7 +180,7 @@ const AuthGreeting = memo(function AuthGreeting({ wide, artwork }: { wide: boole
   return (
     <AuthColumn wide={wide} share={1.08}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.sm }}>
-        <BrandMark size={wide ? authHero.markWide : authHero.mark} />
+        <BrandMark height={wide ? authHero.markWide : authHero.mark} />
         <Text
           accessibilityRole="header"
           aria-level={1}
