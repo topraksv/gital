@@ -1,10 +1,12 @@
 /**
  * The account session (SPEC 9.1) over a stubbed Supabase and the real write
- * layer on Node's SQLite. Helix's rules hold — a workspace belongs to one
- * account, a sign-out asks before it destroys what was never sent, a deleted
- * account leaves nothing behind — with Gital's departures for a device that
- * holds the only copy until sync: the first account adopts the lists made
- * before accounts, and a session Supabase ends keeps them behind sign-in.
+ * layer on Node's SQLite, the sync engine replaced by a recorder. Helix's
+ * rules hold — a workspace belongs to one account, sync runs only while its
+ * account is open, a sign-out sends what is waiting and asks before it
+ * destroys what could not leave, a deleted account leaves nothing behind —
+ * with Gital's two departures: the first account adopts the lists made
+ * before accounts, and a session Supabase ends keeps what was never sent
+ * behind sign-in rather than wiping it.
  */
 
 import type { DatabaseSync } from "node:sqlite";
@@ -73,6 +75,21 @@ vi.mock("../../src/services/kv", () => {
   };
 });
 vi.mock("../../src/services/reminders", () => ({ cancelReminders: async () => void device.cancelled++ }));
+const sync = vi.hoisted(() => ({ calls: [] as string[], flushSends: false, purgeFails: false }));
+vi.mock("../../src/sync/engine", () => ({
+  startSyncSession: (userId: string) => void sync.calls.push(`start:${userId}`),
+  stopSyncSession: async () => void sync.calls.push("stop"),
+  flushOutbox: async () => {
+    sync.calls.push("flush");
+    if (sync.flushSends) harness.db!.exec("DELETE FROM outbox");
+  },
+}));
+vi.mock("../../src/sync/photos", () => ({
+  purgeOwnPhotos: async () => {
+    cloud.calls.push("photos:purge");
+    if (sync.purgeFails) throw new Error("Failed to fetch");
+  },
+}));
 vi.mock("../../src/sync/supabase", () => {
   const user = (found: CloudUser) => ({ id: found.id, email: found.email, last_sign_in_at: "2026-09-26T09:00:00.000Z" });
   const client = {
@@ -174,6 +191,7 @@ beforeEach(() => {
   device.readFailsOnce.clear();
   device.cancelled = 0;
   Object.assign(cloud, { configured: true, users: [A, B], session: null, sessionError: null, rpcError: null, updateError: null, signUpError: null, resetError: null, setSessionError: null, signUpSession: true, throws: false, calls: [] });
+  Object.assign(sync, { calls: [], flushSends: false, purgeFails: false });
   useSession.setState({ userId: null, email: null, ready: false, previousLoginAt: null });
 });
 
@@ -185,6 +203,7 @@ describe("whose lists the device holds", () => {
     expect((await readLists()).map((list) => list.name)).toEqual(["Market"]);
     expect(device.stored.get(OWNER)).toBe(A.id);
     expect(device.stored.get(LAST_USER)).toBe(A.id);
+    expect(sync.calls, "and syncs them under it").toEqual([`start:${A.id}`]);
   });
 
   it("will not let another account sign in over lists never sent, and empties the device once they were", async () => {
@@ -251,6 +270,7 @@ describe("opening the app", () => {
     device.stored.set(`gital.login.previous.${A.id}`, "2026-09-24T08:00:00.000Z");
     await session().bootstrap();
     expect(session()).toMatchObject({ ready: true, userId: A.id, email: A.email, previousLoginAt: "2026-09-24T08:00:00.000Z" });
+    expect(sync.calls).toEqual([`start:${A.id}`]);
   });
 
   it("opens the last account offline, and nobody once Auth has refused the session", async () => {
@@ -260,6 +280,7 @@ describe("opening the app", () => {
     cloud.sessionError = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
     await session().bootstrap();
     expect(session()).toMatchObject({ ready: true, userId: A.id, email: A.email });
+    expect(sync.calls, "offline too: it syncs once the network is back").toEqual([`start:${A.id}`]);
 
     useSession.setState({ userId: null, ready: false });
     cloud.sessionError = null;
@@ -293,6 +314,7 @@ describe("opening the app", () => {
     await session().bootstrap();
     expect(session()).toMatchObject({ ready: true, userId: LOCAL_USER_ID });
     expect(device.stored.has(OWNER)).toBe(false);
+    expect(sync.calls, "with no server there is nothing to sync with").toEqual([]);
     for (const refused of [
       session().signIn(A.email, A.password),
       session().signUp(A.email, A.password).then((result) => result.status === "error" && result.message),
@@ -308,13 +330,14 @@ describe("opening the app", () => {
     expect(await session().preparePasswordRecovery(`${HOSTED_RECOVERY_PAGE}#access_token=a&refresh_token=r&type=recovery`)).toBe("invalid");
   });
 
-  it("keeps the lists behind sign-in when Supabase ends the session by itself", async () => {
+  it("keeps what was never sent behind sign-in when Supabase ends the session by itself", async () => {
     await session().bootstrap();
     await session().signIn(A.email, A.password);
     await createList("Market");
     for (const listener of cloud.listeners) listener("SIGNED_OUT");
     await settle();
     expect(session().userId).toBeNull();
+    expect(sync.calls).toEqual([`start:${A.id}`, "stop"]);
     expect(count("lists")).toBe(1);
     expect(device.stored.has(LAST_USER)).toBe(false);
     expect(device.stored.get(OWNER)).toBe(A.id);
@@ -323,6 +346,17 @@ describe("opening the app", () => {
     for (const listener of cloud.listeners) listener("TOKEN_REFRESHED");
     await session().signIn(A.email, A.password);
     expect((await readLists()).map((list) => list.name)).toEqual(["Market"]);
+  });
+
+  it("empties the device when Supabase ends a session whose lists the server already holds", async () => {
+    await session().bootstrap();
+    await session().signIn(A.email, A.password);
+    await createList("Market");
+    sent();
+    for (const listener of cloud.listeners) listener("SIGNED_OUT");
+    await vi.waitFor(() => expect(count("lists")).toBe(0));
+    expect(session().userId).toBeNull();
+    for (const key of [OWNER, LAST_USER, LAST_EMAIL]) expect(device.stored.has(key)).toBe(false);
   });
 });
 
@@ -345,7 +379,16 @@ describe("creating an account", () => {
 });
 
 describe("signing out", () => {
-  it("asks before destroying lists that were never sent, then empties the device", async () => {
+  it("sends what is waiting first, and then has nothing to ask", async () => {
+    await session().signIn(A.email, A.password);
+    await createList("Market");
+    sync.flushSends = true;
+    expect(await session().signOut()).toBeNull();
+    expect(sync.calls, "sync stops before the device is emptied under it").toEqual([`start:${A.id}`, "flush", "stop"]);
+    expect(count("lists")).toBe(0);
+  });
+
+  it("asks before destroying what could not be sent, then empties the device", async () => {
     await session().signIn(A.email, A.password);
     await createList("Market");
     expect(await session().signOut()).toBe(SIGN_OUT_PENDING_CHANGES);
@@ -369,6 +412,7 @@ describe("signing out", () => {
     expect(session().userId).toBe(A.id);
     expect([count("lists"), count("outbox")]).toEqual([1, 1]);
     expect(cloud.calls).toEqual([]);
+    expect(sync.calls.at(-1), "still signed in, so still syncing").toBe(`start:${A.id}`);
 
     // Nor does another account's sign-in go ahead over lists it could not clear.
     useSession.setState({ userId: null });
@@ -394,13 +438,25 @@ describe("deleting the account", () => {
     expect(await session().deleteAccount()).toBe(tr.auth.errSessionExpired);
     expect(session().userId).toBe(A.id);
     expect(count("lists")).toBe(1);
+    expect(sync.calls.at(-1), "and syncs again, the photos it took down sent back").toBe(`start:${A.id}`);
+  });
+
+  it("deletes nothing when the account's photos could not be taken down first", async () => {
+    await session().signIn(A.email, A.password);
+    await createList("Market");
+    sync.purgeFails = true;
+    expect(await session().deleteAccount()).toBe(tr.account.deleteCloudFailed);
+    expect(cloud.calls).toEqual(["photos:purge"]);
+    expect(session().userId).toBe(A.id);
+    expect(count("lists")).toBe(1);
   });
 
   it("then empties the device and ends every session the account had", async () => {
     await session().signIn(A.email, A.password);
     await createList("Market");
     expect(await session().deleteAccount()).toBeNull();
-    expect(cloud.calls).toEqual(["rpc:delete_own_account", "signOut:global", "signOut:local"]);
+    expect(sync.calls).toEqual([`start:${A.id}`, "stop"]);
+    expect(cloud.calls).toEqual(["photos:purge", "rpc:delete_own_account", "signOut:global", "signOut:local"]);
     expect(session().userId).toBeNull();
     expect(count("lists")).toBe(0);
     for (const key of [OWNER, LAST_USER, LAST_EMAIL]) expect(device.stored.has(key)).toBe(false);

@@ -15,6 +15,7 @@ import { addWish, readCollections } from "../data/wishes";
 import { LINK_MAX, linkFrom } from "../domain/wishes";
 import { clipboardOffer } from "../services/clipboard-link";
 import { remindersAvailable, replanReminders } from "../services/reminders";
+import { syncNow } from "../sync/engine";
 import { Button, EmptyState } from "../ui/components";
 import { appError, appPrompt, DialogHost, PromptHost } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
@@ -222,6 +223,7 @@ function Routes({ background }: { background: string }) {
           <Stack.Screen name="list/[id]" />
           <Stack.Screen name="shop/[id]" />
           <Stack.Screen name="collection/[id]" />
+          <Stack.Screen name="sync-issues" />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="(auth)/sign-in" />
@@ -230,12 +232,36 @@ function Routes({ background }: { background: string }) {
       </Stack>
       {signedIn ? (
         <>
+          <SyncRunner userId={userId} />
           <ReminderPlanner />
           <ClipboardLinkOffer />
         </>
       ) : null}
     </>
   );
+}
+
+/** How often an open app looks for the other phone's changes (SPEC 10.2). */
+const SYNC_POLL_MS = 30_000;
+
+/**
+ * When to sync; the engine decides how, and a write schedules its own. On
+ * opening, on coming back to the front — the web's visibility, through
+ * React Native Web — and every half minute while in front, since the other
+ * phone's changes arrive with nothing here to announce them.
+ */
+function SyncRunner({ userId }: { userId: string }) {
+  useEffect(() => {
+    const sync = () => void syncNow(userId);
+    sync();
+    const subscription = AppState.addEventListener("change", (state) => state === "active" && sync());
+    const poll = setInterval(() => AppState.currentState === "active" && sync(), SYNC_POLL_MS);
+    return () => {
+      subscription.remove();
+      clearInterval(poll);
+    };
+  }, [userId]);
+  return null;
 }
 
 /**

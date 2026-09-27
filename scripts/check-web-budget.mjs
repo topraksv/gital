@@ -15,15 +15,14 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-26 on accounts (SPEC 9.1): entry 2_060_459, all JS
-// 2_230_199, export 3_917_417; pictures 324_522 on the catalogue. Supabase is
-// 187 KB of the 247 KB added and tslib, which it brings, 11 KB — Realtime
-// already stubbed out; the rest is sign-in, the reset page, the account card
-// and the session. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-27 on sync (SPEC 10): entry 2_087_436, all JS 2_257_176,
+// export 3_964_633; pictures 324_522 on the catalogue. Sync's own modules are
+// about 18 KB of the 27 KB added, with no library; the export's other 20 KB is
+// the new page. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 2_081_100,
-  totalJs: 2_252_600,
-  totalExport: 3_956_600,
+  entryJs: 2_108_400,
+  totalJs: 2_279_800,
+  totalExport: 4_004_300,
   pictures: 328_000,
 };
 

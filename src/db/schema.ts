@@ -204,6 +204,8 @@ export const photos = sqliteTable("photos", {
   /** At most `THUMB_EDGE`, for a row's tile, so a list never decodes the full photo. */
   thumb: text("thumb").notNull(),
   createdAt: text("created_at").notNull(),
+  /** When Storage took both sizes, or when they came from it; `null` is still to send. */
+  uploadedAt: text("uploaded_at"),
 });
 
 /** Local only: every write waiting to be pushed. Never synced itself. */
@@ -224,6 +226,28 @@ export const outbox = sqliteTable(
   ],
 );
 
-export const SYNCED_TABLES = { lists, items, shops, wishes, wish_links: wishLinks, pantry_items: pantryItems, pantry_moves: pantryMoves, products, sets, set_items: setItems } as const;
+/**
+ * Local only: an outbox event the push would not send, or the server would not
+ * take (SPEC 10.3). The row itself stays as it is on the device; this is the
+ * clue, kept until a retry sends it or the person dismisses it.
+ */
+export const syncDeadLetters = sqliteTable("sync_dead_letters", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  outboxId: integer("outbox_id").notNull().unique(),
+  tableName: text("table_name").notNull(),
+  rowId: text("row_id").notNull(),
+  payload: text("payload").notNull(),
+  reason: text("reason", { enum: ["malformed_payload", "invalid_row", "refused"] }).notNull(),
+  quarantinedAt: text("quarantined_at").notNull(),
+});
+
+/** Local only: how far each table has been pulled, as `"<updated_at>|<id>"`. */
+export const syncState = sqliteTable("sync_state", {
+  tableName: text("table_name").primaryKey(),
+  lastPulledAt: text("last_pulled_at").notNull(),
+});
+
+/** Parents before children, the order a push sends them in: the server checks an item's list. */
+export const SYNCED_TABLES = { lists, shops, items, wishes, wish_links: wishLinks, products, sets, set_items: setItems, pantry_items: pantryItems, pantry_moves: pantryMoves } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;

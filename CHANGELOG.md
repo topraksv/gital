@@ -182,3 +182,10 @@ cannot be released.
   reset a forgotten password from its e-mail, and in Ayarlar change the
   e-mail or password, sign out and delete the account. The first account
   keeps the lists already on the device, and nothing syncs yet.
+- Lists, what is on them, products, sets, the pantry and photos sync between
+  the web and phones signed in to one account: offline first, the later edit
+  winning, a delete never undone by a phone that missed it, and a product
+  added again after another phone bought it kept. Ayarlar shows the state and
+  runs it now; a record the server refused waits on its own screen, still on
+  the device. Signing out sends what is waiting first, and deleting the
+  account removes its photos too.

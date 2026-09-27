@@ -5,9 +5,9 @@
  * write. Deletes are tombstones, which is also what undo restores from.
  *
  * Where it departs: Helix stamps every row with the signed-in `user_id` and
- * refuses to overwrite another account's row. A Gital list is scoped by its
- * members instead, and there are no members until accounts exist, so that
- * check arrives with sharing as a role check (`docs/ARCHITECTURE.md`).
+ * refuses to overwrite another account's row. A Gital device holds one
+ * account's rows, the push stamps the person on a personal row, and the
+ * server decides who may write a list's (`docs/ARCHITECTURE.md`).
  */
 
 import { getTableColumns } from "drizzle-orm";
@@ -59,7 +59,8 @@ export function fromDbShape(table: SyncedTableName, dbRow: object): Record<strin
 /**
  * A delete moves the generation on by exactly one; an edit or an undo keeps
  * the highest generation already seen. Helix's `sync/tombstone-policy.ts`,
- * here until the sync layer exists to own it.
+ * kept here because it decides what a write stores, and this layer may not
+ * import sync.
  */
 function resolveTombstoneVersion(
   existing: { deletedAt: string | null; tombstoneVersion: number } | null,
@@ -88,6 +89,13 @@ function upsertSql(table: SyncedTableName, dbRow: Record<string, unknown>): { sq
 
 type ExistingRow = { deleted_at: string | null; tombstone_version: number };
 
+let localWriteListener: (() => void) | null = null;
+
+/** Told after every write that queued something; sync sets it, since this layer may not import sync. */
+export function onLocalWrite(listener: () => void): void {
+  localWriteListener = listener;
+}
+
 /**
  * Upsert each row and queue its outbox event, all in one transaction. A write
  * that depends on what is stored passes a function: it reads inside the same
@@ -96,8 +104,10 @@ type ExistingRow = { deleted_at: string | null; tombstone_version: number };
  */
 export async function writeRows(writes: readonly RowWrite[] | (() => Promise<readonly RowWrite[]>)): Promise<void> {
   const sqlite = await getSqliteAsync();
+  let queued = 0;
   await withTransaction(async () => {
     for (const { table, row } of typeof writes === "function" ? await writes() : writes) {
+      queued += 1;
       const id = row.id;
       if (typeof id !== "string" || id === "") throw new Error(`Write row id is invalid in ${table}`);
       const existing = await sqlite.getFirstAsync<ExistingRow>(
@@ -133,6 +143,7 @@ export async function writeRows(writes: readonly RowWrite[] | (() => Promise<rea
       );
     }
   });
+  if (queued > 0) localWriteListener?.();
 }
 
 /**
@@ -231,7 +242,7 @@ export function undoRows(written: RowsWritten): Promise<void> {
   return revertRows(written, async () => {});
 }
 
-/** Writes this device has made and not yet sent; before sync, every write it ever made. */
+/** Writes this device has made and the server has not yet taken. */
 export async function pendingOutboxCount(): Promise<number> {
   const sqlite = await getSqliteAsync();
   return (await sqlite.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM outbox"))?.n ?? 0;
@@ -245,6 +256,8 @@ export async function pendingOutboxCount(): Promise<number> {
 export async function resetLocalWorkspace(): Promise<void> {
   const sqlite = await getSqliteAsync();
   await withTransaction(async () => {
-    for (const table of [...Object.keys(SYNCED_TABLES), "photos", "outbox"]) await sqlite.runAsync(`DELETE FROM ${table}`);
+    for (const table of [...Object.keys(SYNCED_TABLES), "photos", "outbox", "sync_dead_letters", "sync_state"]) {
+      await sqlite.runAsync(`DELETE FROM ${table}`);
+    }
   });
 }

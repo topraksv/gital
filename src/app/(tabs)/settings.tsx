@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
+import { router } from "expo-router";
 import BookOpen from "lucide-react-native/icons/book-open";
+import CloudAlert from "lucide-react-native/icons/cloud-alert";
 import KeyRound from "lucide-react-native/icons/key-round";
 import LogOut from "lucide-react-native/icons/log-out";
 import Mail from "lucide-react-native/icons/mail";
+import RefreshCw from "lucide-react-native/icons/refresh-cw";
 import Trash from "lucide-react-native/icons/trash";
 import Check from "lucide-react-native/icons/check";
 import Monitor from "lucide-react-native/icons/monitor";
@@ -15,6 +18,8 @@ import type { ShoppingDay } from "../../domain/reminders";
 import { tr } from "../../i18n/tr";
 import { readReminderPreferences, saveShoppingDay, type ReminderPreferences } from "../../services/reminder-preferences";
 import { disableReminders, enableReminders, remindersAvailable, replanReminders } from "../../services/reminders";
+import { syncNow } from "../../sync/engine";
+import { useSyncStatus } from "../../sync/status";
 import { isSupabaseConfigured } from "../../sync/supabase";
 import { Body, Button, Card, ChoiceTile, Notice, Screen, SectionHeader, Toggle, rowsOf } from "../../ui/components";
 import { appConfirm, appError, appPrompt } from "../../ui/dialog";
@@ -49,6 +54,10 @@ export default function SettingsScreen() {
           <SectionHeader>{tr.account.title}</SectionHeader>
           <Card>
             <Account />
+          </Card>
+          <SectionHeader>{tr.sync.title}</SectionHeader>
+          <Card>
+            <Sync />
           </Card>
         </>
       ) : null}
@@ -173,6 +182,27 @@ function Account() {
         <Button label={tr.account.delete} icon={Trash} variant="ghost" disabled={busy} onPress={() => void remove()} />
       </View>
       {notice ? <Notice {...notice} /> : null}
+    </View>
+  );
+}
+
+/**
+ * Sync as Helix shows it (SPEC 10.3): its state, when it last finished, and a
+ * button to run it now. What the server refused opens on a screen of its own,
+ * since nothing is lost and nothing here is urgent.
+ */
+function Sync() {
+  const userId = useSession((s) => s.userId);
+  const { state, lastSyncAt, error } = useSyncStatus();
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {state === "error" ? <Notice tone="error" text={error ?? tr.sync.errGeneric} /> : <Body>{tr.sync[state]}</Body>}
+      <Body muted>{lastSyncAt ? tr.sync.lastSync(lastSyncAt) : tr.sync.never}</Body>
+      {state === "attention" ? <Body muted>{tr.sync.errQuarantined}</Body> : null}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm }}>
+        <Button label={tr.sync.now} icon={RefreshCw} variant="ghost" disabled={!userId || state === "syncing"} onPress={() => userId && void syncNow(userId)} />
+        {state === "attention" ? <Button label={tr.sync.issues} icon={CloudAlert} variant="ghost" onPress={() => router.push("/sync-issues")} /> : null}
+      </View>
     </View>
   );
 }

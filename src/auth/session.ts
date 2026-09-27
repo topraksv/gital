@@ -1,15 +1,15 @@
 /**
- * The account session (SPEC 9.1), Helix's `src/auth/session.ts` for a Gital
- * that does not sync yet. The last account signed in is kept on the device,
- * so the app opens offline, and Supabase refreshes the session when it can.
+ * The account session (SPEC 9.1), Helix's `src/auth/session.ts`. The last
+ * account signed in is kept on the device, so the app opens offline, and
+ * Supabase refreshes the session when it can. Sync runs exactly while an
+ * account is open here: this file starts it, and stops it before anything
+ * empties the device under it.
  *
- * Until sync lands the device holds the only copy of the lists, and every
- * departure from Helix follows from that (`docs/ARCHITECTURE.md`, 2026-09-26):
- * the first account to sign in adopts the lists made before accounts; a
- * session Supabase ends by itself keeps them behind the sign-in screen rather
- * than wiping them; and no account signs in over another's lists while any
- * change is unsent. Freezing and resetting the data write through sync, so
- * they wait for it.
+ * Where it departs (`docs/ARCHITECTURE.md`, 2026-09-26 and 2026-09-27): the
+ * first account to sign in adopts the lists made before accounts; a session
+ * Supabase ends by itself keeps what was never sent behind the sign-in
+ * screen rather than wiping it; and no account signs in over another's lists
+ * while any change is unsent.
  */
 
 import { create } from "zustand";
@@ -20,6 +20,8 @@ import { pendingOutboxCount, resetLocalWorkspace } from "../db/mutations";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
 import { cancelReminders } from "../services/reminders";
+import { flushOutbox, startSyncSession, stopSyncSession } from "../sync/engine";
+import { purgeOwnPhotos } from "../sync/photos";
 import { createRecoveryClient, getSupabase, subscribeSupabaseAuthEvents } from "../sync/supabase";
 import { friendlyAuthError } from "./auth-errors";
 import { loadPreviousLogin, recordSuccessfulLogin, seedCurrentLogin, startLoginHistory } from "./login-history";
@@ -138,13 +140,17 @@ async function endAuthSession(supabase: SupabaseClient, scope: "local" | "global
 /**
  * A session that ended without a sign-out — revoked, deleted elsewhere,
  * replaced — closes the app on the sign-in screen. Helix wipes the device
- * here, because its cloud holds the rows; Gital's device may hold the only
- * copy, so the lists stay, still owned, and only their account reopens them.
+ * here, because its cloud holds the rows. So does Gital once nothing is
+ * waiting to be sent; what is waiting may exist nowhere else, so it stays,
+ * still owned, and only its account reopens it.
  */
-function closeEndedSession(): void {
+async function closeEndedSession(): Promise<void> {
   useSession.setState(signedOut);
-  void kv.remove(LAST_USER_KEY).catch(ignore);
-  void cancelReminders().catch(ignore);
+  await stopSyncSession();
+  await kv.remove(LAST_USER_KEY).catch(ignore);
+  await cancelReminders().catch(ignore);
+  // A count that fails is not a zero.
+  if ((await pendingOutboxCount().catch(ignore)) === 0) await resetLocalWorkspace().then(forgetAccount, ignore);
 }
 
 function listenForEndedSessions(): void {
@@ -152,7 +158,7 @@ function listenForEndedSessions(): void {
   listening = true;
   subscribeSupabaseAuthEvents((event) => {
     // Supabase warns against auth work inside its own callback.
-    if (event === "SIGNED_OUT" && !explicitSignOut) queueMicrotask(closeEndedSession);
+    if (event === "SIGNED_OUT" && !explicitSignOut) queueMicrotask(() => void closeEndedSession());
   });
 }
 
@@ -204,6 +210,7 @@ export const useSession = create<SessionStore>((set, get) => ({
           return;
         }
         await seedCurrentLogin(kv, user.id, user.last_sign_in_at ?? new Date().toISOString()).catch(ignore);
+        startSyncSession(user.id);
         set({ userId: user.id, email: user.email ?? null, ready: true, previousLoginAt: await loadPreviousLogin(kv, user.id).catch(absent) });
         return;
       }
@@ -215,6 +222,7 @@ export const useSession = create<SessionStore>((set, get) => ({
     // with no session has refused it, and reopening it would hide that.
     const lastUser = offline ? await kv.get(LAST_USER_KEY).catch(absent) : null;
     if (lastUser && !(await ensureWorkspaceFor(lastUser))) {
+      startSyncSession(lastUser);
       set({
         userId: lastUser,
         email: await kv.get(LAST_EMAIL_KEY).catch(absent),
@@ -234,6 +242,7 @@ export const useSession = create<SessionStore>((set, get) => ({
     const refused = await claim(supabase, data.user, email);
     if (refused) return refused;
     const previousLoginAt = await recordSuccessfulLogin(kv, data.user.id, data.user.last_sign_in_at ?? new Date().toISOString()).catch(absent);
+    startSyncSession(data.user.id);
     set({ userId: data.user.id, email: data.user.email ?? email, previousLoginAt });
     return null;
   },
@@ -250,6 +259,7 @@ export const useSession = create<SessionStore>((set, get) => ({
     const refused = await claim(supabase, data.user, email);
     if (refused) return { status: "error", message: refused };
     await startLoginHistory(kv, data.user.id, new Date().toISOString()).catch(ignore);
+    startSyncSession(data.user.id);
     set({ userId: data.user.id, email: data.user.email ?? email, previousLoginAt: null });
     return { status: "signed-in" };
   },
@@ -291,11 +301,16 @@ export const useSession = create<SessionStore>((set, get) => ({
     // A build with no accounts has nothing to sign out of, and its lists no other copy.
     const supabase = getSupabase();
     if (!supabase) return tr.auth.errNotConfigured;
+    const userId = get().userId;
+    // Send what is waiting first, so the question is asked only about what truly cannot leave.
+    if (userId) await flushOutbox(userId);
     if (!options?.force && (await pendingOutboxCount()) > 0) return SIGN_OUT_PENDING_CHANGES;
+    await stopSyncSession();
     await cancelReminders().catch(ignore);
     try {
       await resetLocalWorkspace();
     } catch {
+      if (userId) startSyncSession(userId);
       return tr.auth.errWorkspaceReset;
     }
     set(signedOut);
@@ -306,11 +321,21 @@ export const useSession = create<SessionStore>((set, get) => ({
 
   deleteAccount: async () => {
     const supabase = getSupabase();
-    if (!supabase || !get().userId) return tr.auth.errNotConfigured;
-    // The account first: if the server keeps it, the device keeps everything,
-    // and nothing reads as deleted that still exists.
-    const { error } = await supabase.rpc("delete_own_account");
+    const userId = get().userId;
+    if (!supabase || !userId) return tr.auth.errNotConfigured;
+    // Nothing is sent while the account is taken apart. Its photos go first,
+    // since nothing cascades to Storage; then the account, and if the server
+    // keeps it, the device keeps everything and sync sends the photos back.
+    await stopSyncSession();
+    let error: { message: string } | null;
+    try {
+      await purgeOwnPhotos();
+      ({ error } = await supabase.rpc("delete_own_account"));
+    } catch (failure) {
+      error = { message: failure instanceof Error ? failure.message : String(failure) };
+    }
     if (error) {
+      startSyncSession(userId);
       const friendly = friendlyAuthError(error.message);
       return friendly === tr.auth.errSessionExpired ? friendly : tr.account.deleteCloudFailed;
     }
@@ -351,7 +376,7 @@ export const useSession = create<SessionStore>((set, get) => ({
       // The address was another account's, whose session just replaced this
       // one's: end it, and let this account sign in again to its own lists.
       await endAuthSession(supabase, "local");
-      closeEndedSession();
+      await closeEndedSession();
       return tr.auth.errSessionExpired;
     }
     brake = recordVerificationSuccess(brake, owner);
