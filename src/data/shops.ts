@@ -7,14 +7,14 @@
 import { and, asc, count, desc, eq, gte, isNotNull, isNull, sum } from "drizzle-orm";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
-import { editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
+import { editRow, fromDbShape, nowIso, readLiveRow, actingUser, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
 import { items, lists, shops } from "../db/schema";
-import { foldName, type Unit } from "../domain/items";
+import { foldName } from "../domain/items";
 import { isPrice } from "../domain/money";
 import { lookOf, type ListLook } from "../domain/lists";
 import type { Purchase } from "../domain/restock";
 import { openItemId } from "./items";
-import { arrivalRows, arrivalsOf } from "./pantry";
+import { arrivalRows, arrivalsOf, boughtEntry } from "./pantry";
 
 /** A shop wears its list's colour and picture (SPEC 1.8). */
 export interface Shop extends Omit<ListLook, "name"> {
@@ -108,7 +108,9 @@ async function lastShopNumber(listId: string): Promise<number> {
  * edit from a screen, or later a device, that has not seen the finish meets
  * a tombstone, which every edit refuses and sync's delete generation settles,
  * instead of taking the item back out of history with a whole-row write.
- * `stocked` is how many went to the pantry (SPEC 12.5), for the celebration.
+ * `stocked` is how many went to the pantry (SPEC 12.5), for the celebration:
+ * this person's ticks only, since a pantry is its owner's to write, and each
+ * other member's device brings theirs home (`settleArrivals`).
  */
 export async function finishShop(listId: string): Promise<{ id: string; bought: number; stocked: number } | null> {
   const sqlite = await getSqliteAsync();
@@ -123,8 +125,10 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
     const number = (await lastShopNumber(listId)) + 1;
     const id = await deterministicId(naturalKeys.shop(listId, number));
     const now = nowIso();
-    const stocked = list.pantry === true;
-    finished = { id, bought: bought.length, stocked: stocked ? bought.length : 0 };
+    // A tick made with nobody signed in is this device's person's too.
+    const mine = (row: RowSnapshot) => row.checked_by == null || row.checked_by === actingUser();
+    const home = list.pantry === true ? bought.flatMap((row, at) => (mine(row) ? [at] : [])) : [];
+    finished = { id, bought: bought.length, stocked: home.length };
     const copies = await Promise.all(
       bought.map(async (row) => ({
         ...fromDbShape("items", row),
@@ -135,9 +139,9 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
     );
     const moves = bought.map((row, at): RowWrite[] => [...editRow("items", row, { deletedAt: now }), { table: "items", row: copies[at]! }]);
     // What was bought comes home in the same write, unless the list's switch says not (SPEC 12.5).
-    const arrivals = !stocked ? [] : await arrivalRows(
+    const arrivals = await arrivalRows(
       listId,
-      bought.map((row, at) => ({ id: copies[at]!.id, name: String(row.name), quantityMilli: row.quantity_milli as number | null, unit: row.unit as Unit | null })),
+      home.map((at) => boughtEntry({ ...bought[at]!, id: copies[at]!.id })),
     );
     // An undone shop finished again is the same rows, brought back, summed
     // afresh rather than wearing the total typed before. The shop goes last: Geçmiş re-reads on a shop's change and not on an item's, so

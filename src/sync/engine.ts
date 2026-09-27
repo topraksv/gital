@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSqliteAsync, withTransaction } from "../db/client";
 import { fromDbShape, nowIso, onLocalWrite, setActor, writeRows, type RowWrite } from "../db/mutations";
 import { SYNCED_TABLES, type SyncedTableName } from "../db/schema";
+import { settleArrivals } from "../data/pantry";
 import { tr } from "../i18n/tr";
 import {
   classifyOutboxBatch,
@@ -428,6 +429,8 @@ async function runSync(userId: string, token: SessionEpochToken, allowRefresh: b
     await pushOutbox(supabase, userId, token);
     await pullAll(supabase, userId, token);
     await followMemberships(supabase, userId, token);
+    assertActive(token);
+    await settleArrivals(userId);
     await fetchMissingPhotos(supabase, token.signal);
     assertActive(token);
     const state = completedSyncState(await deadLetterCount());

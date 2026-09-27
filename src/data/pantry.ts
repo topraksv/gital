@@ -4,10 +4,10 @@ import { and, asc, eq, isNull, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
-import { editRow, findLiveRow, findRow, readLiveRow, writeRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
+import { editRow, findLiveRow, findRow, nowIso, readLiveRow, writeRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { pantryItems, pantryMoves } from "../db/schema";
 import { isISODate, type ISODate } from "../domain/dates";
-import { foldName, quantityOrOne, type Entry } from "../domain/items";
+import { foldName, quantityOrOne, type Entry, type Unit } from "../domain/items";
 import { lastedOf, lessOf, stockOf, type Stock } from "../domain/pantry";
 import { entryRows } from "./items";
 
@@ -86,6 +86,52 @@ export async function arrivalRows(
     );
   }
   return writes;
+}
+
+/** A bought row as an arrival reads it. */
+export function boughtEntry(row: RowSnapshot): { id: string } & Entry {
+  return { id: String(row.id), name: String(row.name), quantityMilli: row.quantity_milli as number | null, unit: row.unit as Unit | null };
+}
+
+/** How far back a pull looks for a shop someone else finished: each bought row costs a hash. */
+const SETTLE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * A shared list's shop someone else finished (SPEC 12.2, 12.5): what this
+ * person ticked comes home to their pantry, and goes again with an undo. Only
+ * a pantry's owner writes it, so each member's device settles its own after a
+ * pull. The arrival's id is the bought row's, so a shop seen twice, or on a
+ * second device, adds nothing twice; a list never shared is left to its own
+ * finish, which stocked it. An arrival an undo took back returns with
+ * the shop only while its product is still at home, since a pantry reset
+ * takes both.
+ */
+export async function settleArrivals(userId: string): Promise<void> {
+  const sqlite = await getSqliteAsync();
+  const since = new Date(Date.now() - SETTLE_WINDOW_MS).toISOString();
+  await writeRows(async () => {
+    const bought = await sqlite.getAllAsync<RowSnapshot>(
+      `SELECT items.*, items.deleted_at IS NULL AND shops.deleted_at IS NULL AS home FROM items
+         JOIN shops ON shops.id = items.shop_id
+         JOIN lists ON lists.id = items.list_id
+       WHERE items.checked_by = ? AND lists.pantry = 1 AND shops.finished_at > ?
+         AND EXISTS (SELECT 1 FROM list_members WHERE list_members.list_id = items.list_id)`,
+      [userId, since],
+    );
+    const writes: RowWrite[] = [];
+    for (const row of bought) {
+      const home = row.home === 1;
+      const arrival = await findRow("pantry_moves", await deterministicId(naturalKeys.arrival(String(row.id))));
+      if (!arrival) {
+        if (home) writes.push(...(await arrivalRows(String(row.list_id), [boughtEntry(row)])));
+      } else if (arrival.deleted_at == null && !home) {
+        writes.push(...editRow("pantry_moves", arrival, { deletedAt: nowIso() }));
+      } else if (arrival.deleted_at != null && home && (await findLiveRow("pantry_items", String(arrival.pantry_item_id)))) {
+        writes.push(...editRow("pantry_moves", arrival, { deletedAt: null }));
+      }
+    }
+    return writes;
+  });
 }
 
 /** An undone shop's arrivals, tombstoned: what it bought was not brought home after all. */

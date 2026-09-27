@@ -204,3 +204,6 @@ cannot be released.
   their initials.
 - A shared list is live: what someone else changed arrives within seconds,
   and while they shop it the list and its card say they are at the market.
+- A finished shared shop fills each member's pantry with what that member
+  ticked, and an undo takes it back. Resetting the data no longer empties a
+  list someone else owns, or its history, for everyone.

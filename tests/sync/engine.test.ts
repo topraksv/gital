@@ -29,7 +29,8 @@ const { addEntries, addScanned, deleteItem, readItems, toggleChecked } = await i
 const { createList, editList, readLists } = await import("../../src/data/lists");
 const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry } = await import("../../src/data/pantry");
-const { finishShop } = await import("../../src/data/shops");
+const { finishShop, readShops, reopenShop } = await import("../../src/data/shops");
+const { countDataReset, resetData } = await import("../../src/data/reset");
 const { readPhoto } = await import("../../src/data/photos");
 const { isFrozen, memberNameOf, readSettings, setAccountFrozen, setMemberName } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
@@ -454,6 +455,85 @@ describe("two people sharing a list", () => {
     await on("C", async () => {
       await sync();
       expect(roleOf(await readMembers(listId), OTHER)).toBe("viewer");
+    });
+  });
+
+  it("brings home to each member's pantry what that member ticked, once, and takes it back with the shop", async () => {
+    const listId = await sharedMarket();
+    const tick = async (name: string) => toggleChecked((await readItems(listId)).find((item) => item.name === name)!.id);
+    const pantry = async () => (await readPantry()).map((item) => item.name);
+    await on("C", async () => {
+      await tick("elma");
+      await sync();
+    });
+    const shopId = await on("A", async () => {
+      await sync();
+      await tick("süt");
+      const finished = await finishShop(listId);
+      expect(finished?.stocked).toBe(1);
+      expect(await pantry()).toEqual(["süt"]);
+      await sync();
+      return finished!.id;
+    });
+    await on("C", async () => {
+      await sync();
+      expect(await pantry()).toEqual(["elma"]);
+      await sync();
+      expect((await readPantry()).map((item) => [item.name, item.quantityMilli])).toEqual([["elma", 1000]]);
+    });
+    await on("A", async () => {
+      await sync();
+      await reopenShop(shopId);
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      expect(await pantry()).toEqual([]);
+    });
+    await on("A", async () => {
+      await sync();
+      await finishShop(listId);
+      await sync();
+      expect(await pantry()).toEqual(["süt"]);
+    });
+    await on("C", async () => {
+      await sync();
+      await sync();
+      expect((await readPantry()).map((item) => [item.name, item.quantityMilli])).toEqual([["elma", 1000]]);
+      // Emptied by hand, the pantry stays empty: the shop is still there, and still recent.
+      await resetData(["pantry"]);
+      await sync();
+      await sync();
+      expect(await pantry()).toEqual([]);
+      // And what comes home next counts from nothing.
+      const kendi = (await readLists()).find((list) => list.name === "Kendi")!.id;
+      await add(kendi, "elma");
+      await toggleChecked((await readItems(kendi))[0]!.id);
+      await finishShop(kendi);
+      expect((await readPantry()).map((item) => [item.name, item.quantityMilli])).toEqual([["elma", 1000]]);
+    });
+  });
+
+  it("resets only what is the person's own: a list someone else owns, and its history, stay theirs", async () => {
+    const listId = await sharedMarket();
+    await on("A", async () => {
+      await sync();
+      await toggleChecked((await readItems(listId)).find((item) => item.name === "süt")!.id);
+      await finishShop(listId);
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      expect(await countDataReset(["lists", "history"])).toBe(1);
+      await resetData(["lists", "history"]);
+      await sync();
+      expect((await readLists()).map((list) => list.name)).toEqual(["Market"]);
+      expect(await readDeadLetters()).toEqual([]);
+    });
+    await on("A", async () => {
+      await sync();
+      expect(await names(listId)).toEqual(["elma"]);
+      expect(await readShops()).toHaveLength(1);
     });
   });
 

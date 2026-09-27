@@ -97,6 +97,11 @@ export function setActor(userId: string | null): void {
   actor = userId;
 }
 
+/** The signed-in person, or `null` on a device nobody has signed in to. */
+export function actingUser(): string | null {
+  return actor;
+}
+
 /**
  * Who added a row and who ticked it (SPEC 1.5), stamped here rather than by
  * each of the many writes that add or tick, so none can forget. A live row

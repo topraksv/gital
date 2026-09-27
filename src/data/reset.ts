@@ -9,11 +9,19 @@
  */
 
 import { getSqliteAsync } from "../db/client";
-import { fromDbShape, nowIso, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
+import { actingUser, fromDbShape, nowIso, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
 import type { SyncedTableName } from "../db/schema";
 
 export const RESET_SCOPES = ["lists", "history", "wishes", "products", "sets", "pantry"] as const;
 export type ResetScope = (typeof RESET_SCOPES)[number];
+
+/**
+ * A list someone else owns is theirs, and so are its rows and its history: a
+ * member who resets lets none of it go, or an editor would empty the owner's
+ * list for everyone. Leaving is how a member lets a list go.
+ */
+const THEIRS = "SELECT list_id FROM list_members WHERE user_id = ? AND role <> 'owner'";
+const LIST_COLUMN: Partial<Record<SyncedTableName, string>> = { lists: "id", items: "list_id", shops: "list_id", wishes: "list_id", wish_links: "list_id" };
 
 const SHOP_LISTS = "SELECT id FROM lists WHERE kind = 'shop'";
 const WISH_LISTS = "SELECT id FROM lists WHERE kind = 'wish'";
@@ -54,7 +62,9 @@ async function chosenRows(scopes: readonly ResetScope[]): Promise<Map<string, re
   const sqlite = await getSqliteAsync();
   const rows = new Map<string, readonly [SyncedTableName, RowSnapshot]>();
   for (const [table, which] of scopes.flatMap((scope) => PARTS[scope])) {
-    for (const row of await sqlite.getAllAsync<RowSnapshot>(`SELECT * FROM ${table} WHERE deleted_at IS NULL AND (${which})`)) {
+    const column = LIST_COLUMN[table];
+    const own = column ? ` AND ${column} NOT IN (${THEIRS})` : "";
+    for (const row of await sqlite.getAllAsync<RowSnapshot>(`SELECT * FROM ${table} WHERE deleted_at IS NULL AND (${which})${own}`, column ? [actingUser()] : [])) {
       rows.set(`${table}:${String(row.id)}`, [table, row]);
     }
   }
