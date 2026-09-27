@@ -24,6 +24,7 @@ import { memberNameOf, readSettings, setMemberName } from "../data/settings";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { shareText } from "../services/share";
+import { setShopping, useShoppers } from "../sync/live";
 import { createInvite, inviteLink, type InviteRole } from "../sync/sharing";
 import { useSession } from "../auth/session";
 import { useModalAccessibility } from "./accessibility";
@@ -63,6 +64,24 @@ export function useShare(listId: string) {
 /** What only an editor or the owner is offered; a viewer sees `fallback` in its place. */
 export function EditorsOnly({ viewer, fallback = null, children }: { viewer: boolean; fallback?: ReactNode; children: ReactNode }) {
   return viewer ? fallback : children;
+}
+
+/** Says on a shared list's channel that this person is shopping it, while `shopping` holds (SPEC 1.6). */
+export function useShoppingHere(listId: string, shopping: boolean, viewer: boolean) {
+  const on = shopping && !viewer;
+  useEffect(() => {
+    if (!on) return;
+    setShopping(listId);
+    return () => setShopping(null);
+  }, [listId, on]);
+}
+
+/** Who else is at the shop with this list now, by the name they gave it. */
+export function ShoppersNote({ listId, members }: { listId: string; members: readonly Member[] }) {
+  const here = useShoppers((s) => s.byList[listId]);
+  if (!here?.length) return null;
+  const names = here.map((userId) => members.find((member) => member.userId === userId)?.name || tr.sharing.unnamed);
+  return <Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.shopping(names)}</Body>;
 }
 
 /**

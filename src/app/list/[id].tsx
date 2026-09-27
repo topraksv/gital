@@ -37,7 +37,7 @@ import { DraggableList, ReorderGrip } from "../../ui/draggable-list";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import { ListSheet } from "../../ui/list-sheet";
-import { EditorsOnly, PeopleActions, useShare } from "../../ui/members-sheet";
+import { EditorsOnly, PeopleActions, ShoppersNote, useShare, useShoppingHere } from "../../ui/members-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
@@ -64,8 +64,12 @@ export default function ListScreen() {
   const [dragging, setDragging] = useState(false);
   const list = leaving ?? lists.data.find((candidate) => candidate.id === id);
   // A list open with something still to buy is a shop under way (SPEC 3.3):
-  // the phone stays on in the hand between one shelf and the next.
-  useStayAwake(items.data.some((item) => item.checkedAt == null));
+  // the phone stays on in the hand between one shelf and the next, and the
+  // others sharing the list see who is at the shop (SPEC 1.6) — never a
+  // viewer, who can tick nothing.
+  const shopping = items.data.some((item) => item.checkedAt == null);
+  useStayAwake(shopping);
+  useShoppingHere(id, shopping, viewer);
 
   // A link to a list that is not here — deleted elsewhere, or never existed.
   if (lists.updatedAt != null && !list) return <Redirect href="/" />;
@@ -217,6 +221,7 @@ export default function ListScreen() {
         <ReadFailed queries={queries} />
       ) : list && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
+          <ShoppersNote listId={list.id} members={members.data} />
           <EditorsOnly viewer={viewer} fallback={<Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.viewOnly}</Body>}>
             <QuickAdd listId={list.id} items={items.data} purchases={purchases.data} onRemove={removeItem} />
           </EditorsOnly>

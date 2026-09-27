@@ -13,15 +13,17 @@ import { SIGN_OUT_PENDING_CHANGES, useSession } from "../auth/session";
 import { migrateDb } from "../db/migrate";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
-import { useAccountFrozen } from "../data/hooks";
+import { useAccountFrozen, useSharedLists } from "../data/hooks";
 import { createList } from "../data/lists";
 import { setAccountFrozen } from "../data/settings";
 import { addWish, readCollections } from "../data/wishes";
 import { LINK_MAX, linkFrom } from "../domain/wishes";
 import { clipboardOffer } from "../services/clipboard-link";
 import { remindersAvailable, replanReminders } from "../services/reminders";
-import { syncNow } from "../sync/engine";
+import { scheduleSync, syncNow } from "../sync/engine";
+import { followLists, startLive, stopLive } from "../sync/live";
 import { inviteFromPage, inviteTokenFrom } from "../sync/sharing";
+import { realtimeAccess } from "../sync/supabase";
 import { Button, EmptyState } from "../ui/components";
 import { appConfirm, appError, appPrompt, DialogHost, PromptHost } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
@@ -264,6 +266,7 @@ function Routes({ background }: { background: string }) {
         <>
           {/* Kept while locked: the reopening may come from another device. */}
           <SyncRunner userId={userId} />
+          <LiveRunner userId={userId} />
           <ReminderPlanner />
           {locked ? null : <ClipboardLinkOffer />}
         </>
@@ -345,6 +348,24 @@ function SyncRunner({ userId }: { userId: string }) {
       clearInterval(poll);
     };
   }, [userId]);
+  return null;
+}
+
+/**
+ * A shared list is live (SPEC 1.3): what someone else changed is pulled
+ * within seconds rather than at the next poll, which stays behind it for a
+ * nudge the socket lost. A person who shares nothing never loads the socket.
+ */
+function LiveRunner({ userId }: { userId: string }) {
+  const lists = useSharedLists(userId).data.join(",");
+  const shared = lists !== "";
+  useEffect(() => {
+    const access = shared ? realtimeAccess() : null;
+    if (!access) return;
+    startLive({ ...access, userId, onMoved: () => scheduleSync(userId) }).catch(() => {});
+    return stopLive;
+  }, [userId, shared]);
+  useEffect(() => followLists(lists ? lists.split(",") : []), [lists]);
   return null;
 }
 

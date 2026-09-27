@@ -43,6 +43,17 @@ export function getSupabase(): SupabaseClient | null {
   return client;
 }
 
+/** What `src/sync/live.ts` needs to open its own Realtime client, beside this one. */
+export function realtimeAccess(): { url: string; apiKey: string; accessToken: () => Promise<string | null> } | null {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  return {
+    url: url!,
+    apiKey: anonKey!,
+    accessToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
+  };
+}
+
 /** One Supabase listener for the app; a callback must not await auth work (Supabase's rule). */
 export function subscribeSupabaseAuthEvents(listener: (event: AuthChangeEvent, session: Session | null) => void): () => void {
   getSupabase();

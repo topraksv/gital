@@ -202,3 +202,5 @@ cannot be released.
 - A shared list marks what someone else added since the last look as new,
   and counts it on its card; each row names who added and who bought it by
   their initials.
+- A shared list is live: what someone else changed arrives within seconds,
+  and while they shop it the list and its card say they are at the market.

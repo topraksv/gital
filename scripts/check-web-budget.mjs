@@ -15,15 +15,15 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-27 on sharing's screens (SPEC 1.4): entry 2_125_819, all
-// JS 2_308_758, export 4_056_693; pictures 324_522 on the catalogue. The QR
-// encoder is a chunk of its own (13 KB), loaded with the first invitation; the
-// entry's 23 KB is the people panel, the invitation page and their strings,
-// with no library. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-27 with shared lists live (SPEC 1.3, 1.6): entry
+// 2_133_093, all JS 2_383_195, export 4_131_130; pictures 324_522 on the
+// catalogue. The Realtime transport is a chunk of its own (67 KB), loaded only
+// by someone sharing a list; the QR encoder another (13 KB), with the first
+// invitation. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
   entryJs: 2_147_000,
-  totalJs: 2_331_700,
-  totalExport: 4_097_200,
+  totalJs: 2_407_100,
+  totalExport: 4_172_500,
   pictures: 328_000,
 };
 

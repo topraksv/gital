@@ -16,9 +16,10 @@ const SERVER_ENVIRONMENTS = new Set(["node", "react-server"]);
 const SERVER_SQLITE_STUB = path.resolve(__dirname, "src/db/expo-sqlite.server.js");
 
 /**
- * Supabase's Realtime transport, on every platform until a shared list is
- * live (SPEC 1.3): supabase-js builds it whether or not anything subscribes,
- * and Metro does not tree-shake. The stub says what happens when that changes.
+ * Supabase's Realtime transport, as supabase-js imports it: it builds one
+ * whether or not anything subscribes, and Metro does not tree-shake. Gital's
+ * own live channels (`src/sync/live.ts`) import the real one lazily, into a
+ * chunk the entry does not carry.
  */
 const REALTIME_STUB = path.resolve(__dirname, "src/sync/realtime-absent.js");
 
@@ -33,7 +34,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === "expo-sqlite" && SERVER_ENVIRONMENTS.has(context.customResolverOptions?.environment)) {
     return { type: "sourceFile", filePath: SERVER_SQLITE_STUB };
   }
-  if (moduleName === "@supabase/realtime-js") return { type: "sourceFile", filePath: REALTIME_STUB };
+  if (moduleName === "@supabase/realtime-js" && context.originModulePath.includes(`${path.sep}@supabase${path.sep}supabase-js${path.sep}`)) {
+    return { type: "sourceFile", filePath: REALTIME_STUB };
+  }
   return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
 };
 

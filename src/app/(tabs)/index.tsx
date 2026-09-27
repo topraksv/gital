@@ -9,6 +9,7 @@ import { useFresh, useLists } from "../../data/hooks";
 import { createList } from "../../data/lists";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
+import { useShoppers } from "../../sync/live";
 import { ProgressRing } from "../../ui/charts";
 import { ArrivalScope, Button, EmptyState, IconButton, LinkCard, ReadFailed, Screen, SlideUp } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
@@ -20,6 +21,12 @@ export default function Lists() {
   const lists = useLists();
   const router = useRouter();
   const fresh = new Map(useFresh(useSession((s) => s.userId) ?? "").data.map((row) => [row.listId, row.count]));
+  const shoppers = useShoppers((s) => s.byList);
+  const detail = (list: { id: string; total: number; inBasket: number }) => {
+    const here = shoppers[list.id]?.length ?? 0;
+    const summary = tr.lists.summary(list.total, list.inBasket);
+    return here ? `${tr.sharing.shoppingCount(here)} · ${summary}` : summary;
+  };
 
   const create = async () => {
     const name = await appPrompt(tr.lists.createTitle, tr.lists.createMessage, {
@@ -71,7 +78,7 @@ export default function Lists() {
                     tileId={list.id}
                     look={list}
                     title={list.name}
-                    detail={tr.lists.summary(list.total, list.inBasket)}
+                    detail={detail(list)}
                     badge={fresh.has(list.id) ? tr.sharing.freshCount(fresh.get(list.id)!) : null}
                     accessory={list.total > 0 ? <ProgressRing value={list.inBasket / list.total} /> : null}
                     hint={tr.lists.openHint}

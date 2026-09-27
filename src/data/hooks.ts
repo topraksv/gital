@@ -5,7 +5,7 @@ import type { Aisle } from "../domain/catalogue";
 import { foldName } from "../domain/items";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
-import { readFresh, readMembers } from "./members";
+import { readFresh, readMembers, readSharedLists } from "./members";
 import { liveStore } from "./live-query";
 import { readLasted, readPantry } from "./pantry";
 import { readProducts } from "./products";
@@ -23,6 +23,12 @@ export function useMembers(listId: string) {
 // Listeler's count of what is new on each shared list (SPEC 1.9), for the person signed in.
 export function useFresh(userId: string) {
   const store = useMemo(() => liveStore(() => readFresh(userId), ["items", "list_members"]), [userId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+// The lists kept live, each on its own channel (SPEC 1.3).
+export function useSharedLists(userId: string) {
+  const store = useMemo(() => liveStore(() => readSharedLists(userId), ["list_members"]), [userId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 

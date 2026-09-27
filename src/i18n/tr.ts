@@ -439,6 +439,9 @@ export const tr = {
     open: (name: string) => `${name} kişileri`,
     fresh: "Yeni",
     freshCount: (count: number) => `${count} yeni`,
+    /** SPEC 1.6, on the list the others are shopping. */
+    shopping: (names: readonly string[]) => `${names.join(", ")} şu an markette`,
+    shoppingCount: (count: number) => (count === 1 ? "Biri şu an markette" : `${count} kişi şu an markette`),
     /** Initials, as a row shows them (SPEC 1.5). */
     by: (added: string | null, checked: string | null) =>
       [added ? `${added} ekledi` : "", checked ? `${checked} aldı` : ""].filter(Boolean).join(", "),

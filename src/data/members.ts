@@ -89,6 +89,18 @@ export function readFresh(userId: string): Promise<{ listId: string; count: numb
     .groupBy(items.listId);
 }
 
+/** The lists `userId` shares with someone still in them: those worth a live channel (SPEC 1.3). */
+export async function readSharedLists(userId: string): Promise<string[]> {
+  const rows = await getDb()
+    .select({ listId: listMembers.listId })
+    .from(listMembers)
+    .where(isNull(listMembers.deletedAt))
+    .groupBy(listMembers.listId)
+    .having(sql`count(*) > 1 and max(${listMembers.userId} = ${userId})`)
+    .orderBy(asc(listMembers.listId));
+  return rows.map((row) => row.listId);
+}
+
 /** Leaving a list's screen: what was new has been seen. A list nobody shares has nothing to mark. */
 export async function markSeen(listId: string, userId: string): Promise<void> {
   const [mine] = (await readMembers(listId)).filter((member) => member.userId === userId);

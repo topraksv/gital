@@ -33,7 +33,9 @@ const { finishShop } = await import("../../src/data/shops");
 const { readPhoto } = await import("../../src/data/photos");
 const { isFrozen, memberNameOf, readSettings, setAccountFrozen, setMemberName } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
-const { leaveList, markSeen, readFresh, readMembers, removeMember, roleOf, rowPeople, setMemberRole } = await import("../../src/data/members");
+const { leaveList, markSeen, readFresh, readMembers, readSharedLists, removeMember, roleOf, rowPeople, setMemberRole } = await import(
+  "../../src/data/members"
+);
 const { acceptInvite, createInvite, inviteFromPage, inviteLink, inviteTokenFrom } = await import("../../src/sync/sharing");
 const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
@@ -455,6 +457,21 @@ describe("two people sharing a list", () => {
     });
   });
 
+  it("keeps live the lists a person shares with someone, and only while both are in them", async () => {
+    const listId = await sharedMarket();
+    await on("A", async () => {
+      await sync();
+      await createList("Kendi");
+      expect(await readSharedLists(USER)).toEqual([listId]);
+    });
+    await on("C", async () => {
+      await sync();
+      expect(await readSharedLists(OTHER)).toEqual([listId]);
+      await leaveList(listId, OTHER);
+      expect(await readSharedLists(OTHER)).toEqual([]);
+    });
+  });
+
   it("marks what the other person added since the last look as new, counts it on the card, and lets it go once seen", async () => {
     const listId = await sharedMarket();
     await on("A", async () => {
@@ -463,6 +480,8 @@ describe("two people sharing a list", () => {
       expect(await readFresh(USER)).toEqual([]);
       await markSeen(listId, USER);
       await sync();
+      // One device's clock stands in for two: an addition in the look's own millisecond is not after it.
+      await new Promise((resolve) => setTimeout(resolve, 2));
     });
     await on("C", async () => {
       await sync();

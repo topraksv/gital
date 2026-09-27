@@ -1,4 +1,4 @@
--- What sharing lets each person do (migration 5): an owner, an editor, a
+-- What sharing lets each person do (migrations 5 and 6): an owner, an editor, a
 -- viewer and someone outside. `sync_rls.sql`'s harness: fixtures as postgres,
 -- every assertion as the role a request would carry, and a rollback at the end.
 begin;
@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(35);
+select extensions.plan(42);
 
 create function pg_temp.exec_sqlstate(command text)
 returns text
@@ -209,6 +209,38 @@ select is(
   'a member''s device leaves by its push'
 );
 select is((select count(*) from public.lists), 0::bigint, 'a member who leaves reads the list no more');
+
+-- Realtime (migration 6): each change on a list is told on its private channel,
+-- which only its members hear, and where only they say they are shopping.
+reset role;
+select ok(
+  (select count(*) > 0 from realtime.messages
+    where topic = 'list:a0000000-0000-7000-8000-00000000000a' and event = 'moved' and private and extension = 'broadcast' and payload ? 'by'),
+  'a change on a list is told on the list''s private channel, with who made it'
+);
+set local role authenticated;
+select set_config('realtime.topic', 'list:a0000000-0000-7000-8000-00000000000a', true);
+select pg_temp.act_as('10000000-0000-4000-8000-000000000001');
+select ok((select count(*) > 0 from realtime.messages), 'its members hear it');
+select lives_ok(
+  $$insert into realtime.messages (topic, extension, event, payload, private) values ('list:a0000000-0000-7000-8000-00000000000a', 'presence', 'presence', '{}', true)$$,
+  'and say on it that they are shopping'
+);
+select is(
+  pg_temp.exec_sqlstate($$insert into realtime.messages (topic, extension, event, payload, private) values ('list:a0000000-0000-7000-8000-00000000000a', 'broadcast', 'moved', '{}', true)$$),
+  '42501',
+  'but only the server says the list moved'
+);
+select pg_temp.act_as('30000000-0000-4000-8000-000000000003');
+select is((select count(*) from realtime.messages), 0::bigint, 'someone no longer in the list hears nothing');
+select is(
+  pg_temp.exec_sqlstate($$insert into realtime.messages (topic, extension, event, payload, private) values ('list:a0000000-0000-7000-8000-00000000000a', 'presence', 'presence', '{}', true)$$),
+  '42501',
+  'nor says anything there'
+);
+select set_config('realtime.topic', 'list:not-a-list', true);
+select is((select count(*) from realtime.messages), 0::bigint, 'a topic that names no list is nobody''s');
+select set_config('realtime.topic', '', true);
 
 -- An invitation past its week opens nothing.
 select pg_temp.act_as('10000000-0000-4000-8000-000000000001');
