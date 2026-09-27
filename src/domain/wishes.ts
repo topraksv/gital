@@ -93,12 +93,27 @@ export function openTotal(wishes: readonly Wish[]): number | null {
   return prices.length === 0 ? null : prices.reduce((sum, price) => sum + price, 0);
 }
 
-/** Open before bought; the most wanted first, then the newest; bought, the latest first. */
-export function sortWishes(wishes: readonly Wish[]): Wish[] {
+export const WISH_ORDERS = ["wanted", "cheapest", "dearest"] as const;
+export type WishOrder = (typeof WISH_ORDERS)[number];
+
+/** Where a price puts an open wish: by price either way, one without any after every priced one. */
+function byPrice(a: Wish, b: Wish, order: WishOrder): number {
+  if (order === "wanted") return 0;
+  const [left, right] = [priceOf(a), priceOf(b)];
+  if (left == null || right == null) return Number(left == null) - Number(right == null);
+  return order === "cheapest" ? left - right : right - left;
+}
+
+/**
+ * Open before bought; by price when asked (the owner, 2026-09-27), otherwise
+ * the most wanted first, then the newest; bought, the latest first.
+ */
+export function sortWishes(wishes: readonly Wish[], order: WishOrder = "wanted"): Wish[] {
   return [...wishes].sort(
     (a, b) =>
       Number(a.boughtAt != null) - Number(b.boughtAt != null) ||
       (b.boughtAt ?? "").localeCompare(a.boughtAt ?? "") ||
+      byPrice(a, b, order) ||
       b.priority - a.priority ||
       b.createdAt.localeCompare(a.createdAt) ||
       a.id.localeCompare(b.id),

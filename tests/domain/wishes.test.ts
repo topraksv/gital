@@ -98,4 +98,26 @@ describe("sortWishes", () => {
     ]);
     expect(sorted.map((w) => w.id)).toEqual(["high", "new-normal", "old-normal", "low", "bought"]);
   });
+
+  // By price, the owner asked 2026-09-27: a link's price before a guess, one
+  // with neither after every priced one, and what was bought still last.
+  it("orders the open wishes by price either way, the unpriced after them", () => {
+    const wishes = [
+      // Named to sort first by id, so only the price can put it last.
+      wish({ id: "a-none" }),
+      wish({ id: "guess-300", estimateMinor: 300_00 }),
+      wish({ id: "link-100", estimateMinor: 900_00, links: [{ id: "l", url: "https://a.com/", priceMinor: 100_00 }] }),
+      wish({ id: "bought", estimateMinor: 1, boughtAt: "2026-09-20T00:00:00.000Z" }),
+      wish({ id: "guess-200", estimateMinor: 200_00 }),
+    ];
+    expect(sortWishes(wishes, "cheapest").map((w) => w.id)).toEqual(["link-100", "guess-200", "guess-300", "a-none", "bought"]);
+    expect(sortWishes(wishes, "dearest").map((w) => w.id)).toEqual(["guess-300", "guess-200", "link-100", "a-none", "bought"]);
+    expect(sortWishes([...wishes].reverse(), "cheapest").map((w) => w.id)).toEqual(["link-100", "guess-200", "guess-300", "a-none", "bought"]);
+  });
+
+  it("leaves price out of the order unless it is asked for", () => {
+    const wishes = [wish({ id: "b-dear", priority: 2, estimateMinor: 900_00 }), wish({ id: "a-cheap", estimateMinor: 100_00 })];
+    expect(sortWishes(wishes).map((w) => w.id)).toEqual(["b-dear", "a-cheap"]);
+    expect(sortWishes(wishes, "wanted").map((w) => w.id)).toEqual(["b-dear", "a-cheap"]);
+  });
 });

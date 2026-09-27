@@ -68,6 +68,11 @@ describe("createList", () => {
     expect(JSON.parse(events[0]!.payload)).toEqual(stored(id));
   });
 
+  it("gives a new list the picture its name says, and none when it says nothing", async () => {
+    expect(stored(await createList("Pazar"))).toMatchObject({ icon: "vegetables" });
+    expect(stored(await createList("Cumartesi"))).toMatchObject({ icon: null });
+  });
+
   it("mints a uuidv7 id", async () => {
     expect(await createList("Pazar")).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
@@ -88,8 +93,8 @@ describe("readLists", () => {
     const eczane = await createList("Eczane");
     await deleteList(pazar);
     expect(await readLists()).toEqual([
-      { id: market, name: "Market", color: null, icon: null, pantry: true, total: 0, inBasket: 0 },
-      { id: eczane, name: "Eczane", color: null, icon: null, pantry: true, total: 0, inBasket: 0 },
+      { id: market, name: "Market", color: null, icon: "cart", pantry: true, total: 0, inBasket: 0 },
+      { id: eczane, name: "Eczane", color: null, icon: "pharmacy", pantry: true, total: 0, inBasket: 0 },
     ]);
   });
 
@@ -123,7 +128,7 @@ describe("editList", () => {
     const id = await createList("Market");
     await expect(editList(id, { name: "Market", color: "gold" as never, icon: null })).rejects.toThrow();
     await expect(editList(id, { name: "Market", color: null, icon: "rocket" as never })).rejects.toThrow();
-    expect(stored(id)).toMatchObject({ color: null, icon: null });
+    expect(stored(id)).toMatchObject({ color: null, icon: "cart" });
     // A newer device's colour or picture, arrived by sync, draws as the default.
     harness.db!.prepare("UPDATE lists SET color = 'gold', icon = 'rocket' WHERE id = ?").run(id);
     expect(await readLists()).toMatchObject([{ id, color: null, icon: null }]);
@@ -158,9 +163,9 @@ describe("editList, renaming", () => {
   });
 
   it("writes nothing when the name has not changed", async () => {
-    const id = await createList("Market");
+    const id = await createList("Cumartesi");
     vi.setSystemTime(new Date(T0.getTime() + 5000));
-    await rename(id, "  Market ");
+    await rename(id, "  Cumartesi ");
     expect(stored(id)).toMatchObject({ updated_at: T0.toISOString() });
     // An empty edit stamped as new would beat a real rename under last-writer-wins.
     expect(outbox()).toHaveLength(1);

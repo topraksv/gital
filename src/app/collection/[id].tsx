@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
 import Gift from "lucide-react-native/icons/gift";
 import Pencil from "lucide-react-native/icons/pencil";
 import Plus from "lucide-react-native/icons/plus";
@@ -9,7 +10,7 @@ import { useCollections, useWishes } from "../../data/hooks";
 import { deleteList, editList, restoreList } from "../../data/lists";
 import { addWish, deleteWish, restoreWish, saveWish, toggleWishBought, type Collection, type WishChange } from "../../data/wishes";
 import type { ListLook } from "../../domain/lists";
-import { LINK_MAX, leadOf, shopOf, type Wish } from "../../domain/wishes";
+import { LINK_MAX, WISH_ORDERS, leadOf, shopOf, sortWishes, type Wish, type WishOrder } from "../../domain/wishes";
 import { formatMinor } from "../../domain/money";
 import { tr } from "../../i18n/tr";
 import { ArrivalScope, Body, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, TextField, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
@@ -36,12 +37,15 @@ export default function CollectionScreen() {
   const queries = [collections, wishes, members];
   const [leaving, setLeaving] = useState<Collection | null>(null);
   const [editing, setEditing] = useState<Wish | null>(null);
+  // How the open wishes are ordered, for this visit: a price order is a question asked now.
+  const [order, setOrder] = useState<WishOrder>("wanted");
+  const shown = sortWishes(wishes.data, order);
   const collection = leaving ?? collections.data.find((candidate) => candidate.id === id);
 
   if (collections.updatedAt != null && !collection) return <Redirect href="/wishes" />;
 
-  const open = wishes.data.filter((wish) => wish.boughtAt == null);
-  const bought = wishes.data.filter((wish) => wish.boughtAt != null);
+  const open = shown.filter((wish) => wish.boughtAt == null);
+  const bought = shown.filter((wish) => wish.boughtAt != null);
 
   const remove = async (current: Collection) => {
     setLeaving(current);
@@ -101,6 +105,13 @@ export default function CollectionScreen() {
       actions={
         collection && !leaving ? (
           <>
+            <IconButton
+              icon={ArrowUpDown}
+              text={tr.wishes.orders[order]}
+              label={tr.wishes.orderLabel(tr.wishes.orders[order])}
+              disabled={open.length < 2}
+              onPress={() => setOrder(WISH_ORDERS[(WISH_ORDERS.indexOf(order) + 1) % WISH_ORDERS.length]!)}
+            />
             <PeopleActions list={collection} userId={userId} role={role} back="/wishes" deleteLabel={tr.wishes.delete(collection.name)} onDelete={() => remove(collection)}>
               <EditorsOnly viewer={viewer}>
                 <EditCollection collection={collection} />
@@ -115,7 +126,7 @@ export default function CollectionScreen() {
       ) : collection && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
           <EditorsOnly viewer={viewer} fallback={<Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.viewOnly}</Body>}>
-            <AddWish listId={collection.id} open={wishes.data.filter((wish) => wish.boughtAt == null)} />
+            <AddWish listId={collection.id} open={open} />
           </EditorsOnly>
           {collection.openTotalMinor == null ? null : <OpenTotal totalMinor={collection.openTotalMinor} />}
           {wishes.data.length === 0 ? (

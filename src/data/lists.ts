@@ -5,7 +5,7 @@ import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
 import { deleteRow, editRow, readLiveRow, writeRows, type RowsWritten } from "../db/mutations";
 import { items, lists, type ListKind } from "../db/schema";
-import { LIST_COLORS, LIST_ICONS, knownOf, lookOf, type ListLook } from "../domain/lists";
+import { LIST_COLORS, LIST_ICONS, iconForName, knownOf, lookOf, type ListLook } from "../domain/lists";
 import { nameFrom } from "../domain/names";
 
 export interface ListSummary extends ListLook {
@@ -38,7 +38,7 @@ function nameOrThrow(input: string): string {
 export async function createList(input: string, kind: ListKind = "shop"): Promise<string> {
   const name = nameOrThrow(input);
   const id = uuidv7();
-  await writeRows([{ table: "lists", row: { id, name, kind } }]);
+  await writeRows([{ table: "lists", row: { id, name, kind, icon: iconForName(name) } }]);
   return id;
 }
 

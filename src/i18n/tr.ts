@@ -281,6 +281,8 @@ export const tr = {
     delete: (name: string) => `${name} setini sil`,
   },
   wishes: {
+    orders: { wanted: "Öncelik", cheapest: "En ucuz", dearest: "En pahalı" },
+    orderLabel: (order: string) => `Sıralama: ${order}. Değiştirmek için dokun`,
     create: "Yeni Koleksiyon",
     createTitle: "Yeni koleksiyon",
     createMessage: "Ev, giyim, hediye… İsteklerini koleksiyonlara ayır.",

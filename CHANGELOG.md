@@ -242,3 +242,6 @@ cannot be released.
 - Kiler works as a list does: sort it by dragging, paste a message into
   it, fill it from the catalogue or a set, share it as text, and take a
   product out from its panel without it going onto a list.
+- A new list takes the picture its name says — "Pazar" gets vegetables,
+  "Eczane" the pharmacy — and its panel still changes it.
+- A wish collection orders its open wishes by priority, cheapest or dearest.
