@@ -1,10 +1,13 @@
+import { router } from "expo-router";
+import Check from "lucide-react-native/icons/check";
+import ShieldCheck from "lucide-react-native/icons/shield-check";
 import { useRef, useState, type RefObject } from "react";
 import { Text, View, type TextInput } from "react-native";
 
 import { isValidNewPassword, useSession } from "../../auth/session";
 import { tr } from "../../i18n/tr";
 import { Body, Button, Card, FieldError, Notice, Screen, TextField } from "../../ui/components";
-import { spacing, type, useTheme } from "../../ui/theme";
+import { iconSize, iconStroke, spacing, type, useTheme } from "../../ui/theme";
 
 type Mode = "signIn" | "signUp" | "forgot";
 
@@ -52,8 +55,8 @@ async function attempt(mode: Mode, email: string, password: string): Promise<Out
 /**
  * Helix's sign-in, one card in three modes (SPEC 9.1). Success needs no
  * navigation: the root layout's guard swaps this screen for the lists once the
- * session names an account. Helix's artwork and consent control are left out
- * (`docs/ARCHITECTURE.md`, 2026-09-26 on accounts).
+ * session names an account. Sign-up waits for the privacy notice, accepted at
+ * its end (`src/app/privacy.tsx`). Helix's artwork is left out.
  */
 export default function SignInScreen() {
   const { palette } = useTheme();
@@ -63,10 +66,11 @@ export default function SignInScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Outcome | null>(null);
   const passwordRef = useRef<TextInput>(null);
+  const consented = useSession((s) => s.consented);
 
   const { title, subtitle, action, other, otherMode, password: asks } = MODE[mode];
   const emailValid = /.+@.+\..+/.test(email.trim());
-  const ready = emailValid && (asks?.accepts(password) ?? true) && !busy;
+  const ready = emailValid && (asks?.accepts(password) ?? true) && (mode !== "signUp" || consented) && !busy;
 
   const submit = async () => {
     if (!ready) return;
@@ -118,6 +122,7 @@ export default function SignInScreen() {
         />
         {email.trim().length > 3 && !emailValid ? <FieldError text={tr.auth.emailInvalid} /> : null}
         {asks ? <PasswordField asks={asks} value={password} onChange={edit(setPassword)} onSubmit={() => void submit()} inputRef={passwordRef} /> : null}
+        {mode === "signUp" ? <Consent given={consented} /> : null}
         {message ? <Notice {...message} /> : null}
         <View style={{ marginTop: spacing.lg }}>
           <Button label={action} onPress={() => void submit()} disabled={!ready} />
@@ -128,6 +133,32 @@ export default function SignInScreen() {
         </View>
       </Card>
     </Screen>
+  );
+}
+
+/** Why an account is a different thing from the device alone, and the way to the notice that says where. */
+function Consent({ given }: { given: boolean }) {
+  const { palette } = useTheme();
+  return (
+    <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+      <Body muted>{tr.legal.signUpNotice}</Body>
+      {given ? (
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, flexShrink: 1 }}>
+            <Check accessible={false} size={iconSize.control} color={palette.successText} strokeWidth={iconStroke.regular} />
+            <Text style={[type.body, { color: palette.successText, flexShrink: 1 }]}>{tr.legal.consentGiven}</Text>
+          </View>
+          <Button label={tr.legal.consentView} variant="ghost" size="sm" onPress={() => router.push("/privacy")} />
+        </View>
+      ) : (
+        <Button
+          label={tr.legal.consentOpen}
+          icon={ShieldCheck}
+          variant="ghost"
+          onPress={() => router.push({ pathname: "/privacy", params: { consent: "1" } })}
+        />
+      )}
+    </View>
   );
 }
 

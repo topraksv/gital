@@ -100,7 +100,10 @@ export default function FeedbackScreen() {
       <Shots images={images} onRemove={(at) => setImages((current) => current.filter((_, position) => position !== at))} />
       <Button label={tr.feedback.imageAdd} icon={ImagePlus} variant="ghost" disabled={busy || full} onPress={() => void pick()} />
       {refusal ? <Notice tone="error" text={refusal} /> : null}
-      <Body muted style={{ marginVertical: spacing.lg }}>{tr.feedback.privacy}</Body>
+      <Body muted style={{ marginTop: spacing.lg }}>{tr.feedback.privacy}</Body>
+      <View style={{ alignItems: "flex-start", marginBottom: spacing.lg }}>
+        <Button label={tr.legal.open} variant="ghost" size="sm" onPress={() => router.push("/privacy")} />
+      </View>
       <Button label={busy ? tr.feedback.sending : tr.feedback.send} icon={Send} disabled={busy} onPress={() => void submit()} />
     </Screen>
   );

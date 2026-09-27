@@ -261,6 +261,7 @@ function Routes({ background }: { background: string }) {
             <Stack.Screen name="(auth)/sign-in" />
           </Stack.Protected>
           <Stack.Screen name="(auth)/reset-password" />
+          <Stack.Screen name="privacy" />
         </Stack>
       )}
       {signedIn ? (

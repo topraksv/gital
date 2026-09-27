@@ -211,3 +211,5 @@ cannot be released.
   screenshots, mailed to the owner.
 - The first-open tour plays only for a new account, not on every new device.
 - The web app may connect only to itself and its own Supabase project.
+- The privacy notice (Aydınlatma Metni) opens from sign-up, feedback and
+  Ayarlar, and creating an account waits for it to be accepted.

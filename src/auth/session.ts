@@ -174,6 +174,8 @@ interface SessionStore {
   previousLoginAt: string | null;
   /** This device is freezing the account, and signs out next: the gate stays shut. */
   isFreezing: boolean;
+  /** The privacy notice was accepted at its end, which sign-up waits for. */
+  consented: boolean;
   bootstrap: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (email: string, password: string) => Promise<SignUpResult>;
@@ -198,6 +200,7 @@ export const useSession = create<SessionStore>((set, get) => ({
   ready: false,
   previousLoginAt: null,
   isFreezing: false,
+  consented: false,
 
   bootstrap: async () => {
     const supabase = getSupabase();

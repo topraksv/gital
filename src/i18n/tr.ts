@@ -433,6 +433,94 @@ export const tr = {
     signOutPending: "Bazı değişikliklerin henüz gönderilemedi. Şimdi çıkış yaparsan bu cihazdan silinirler ve geri getirilemezler.",
   },
   /** SPEC 13.1, Helix's words where the report is the same. */
+  /* The KVKK notice (Helix's `legal`). `docs/PRIVACY.md` is its engineering
+     source; this is the text a person reads, before an account exists. */
+  legal: {
+    title: "Aydınlatma Metni",
+    open: "Aydınlatma Metni",
+    openHint: "Kişisel verilerinin nasıl işlendiğini okursun.",
+    updated: "Son güncelleme: 27 Eylül 2026",
+    controllerName: "Ömer Toprak Şavlı",
+    contactEmail: "topraksavli@hotmail.com",
+    intro: "Bu metin, 6698 sayılı Kişisel Verilerin Korunması Kanunu'nun 10. maddesi uyarınca hazırlanmıştır. Gital'i kullandığınızda hangi kişisel verilerinizin, hangi amaçla ve hangi hukuki sebeple işlendiğini, kimlere aktarıldığını, ne kadar saklandığını ve Kanunun size tanıdığı hakları açıklar.",
+
+    controllerTitle: "1. Veri sorumlusunun kimliği",
+    controllerBody: (name: string, email: string) =>
+      `Veri sorumlusu, Gital'i geliştiren gerçek kişi ${name}'dir. Gital bir şirket bünyesinde yürütülmemektedir; bu nedenle veri sorumlusu temsilcisi bulunmamaktadır. Her türlü talep ve başvurunuz için: ${email}`,
+
+    collectedTitle: "2. İşlenen kişisel verileriniz",
+    collectedIntro: "Aşağıdakiler dışında hiçbir kişisel veri işlenmez. Gital'de reklam, analitik, davranış takibi veya hata kaydı toplayan hiçbir bileşen yoktur.",
+    collected: [
+      "**Kimlik ve iletişim verisi:** E-posta adresiniz ve şifrenizin doğrulama özeti; şifrenin kendisi hiçbir yerde saklanmaz. Gital hesapsız kullanılamadığı için bu veri her kullanıcı için oluşur.",
+      "**Alışveriş verisi:** Listeleriniz ve üzerlerindeki ürünler, notlar, miktarlar ve fiyatlar; bitirdiğiniz alışverişler, kileriniz, ürün hafızanız, setleriniz, istekleriniz ve bağlantıları. Bunlar sizin girdiğiniz verilerdir.",
+      "**Görsel veri:** Ürünlere ve isteklere eklediğiniz fotoğraflar.",
+      "**Paylaşım verisi:** Bir listeyi paylaştığınızda ya da bir listeye katıldığınızda, o listede görünen adınız, rolünüz, bir ürünü sizin eklediğiniz ya da işaretlediğiniz ve o an alışverişte olduğunuz. Bu sonuncusu hiçbir yere kaydedilmez.",
+      "**Talep ve şikâyet verisi:** Geri bildirim formuyla gönderdiğiniz mesaj, kategori, ekran görüntüleri, cihazınızın platformu ve uygulama sürümü.",
+    ],
+
+    methodTitle: "3. Kişisel verilerin toplanma yöntemi",
+    methodBody: "Kişisel verileriniz doğrudan sizden, sizin uygulamaya girdiğiniz, eklediğiniz ve gönderdiğiniz kadarıyla toplanır. Paylaşılan bir listede, diğer üyelerin o listeye girdikleri de size ulaşır. Üçüncü kişilerden veri temin edilmez, satın alınmaz ve herhangi bir veri tabanıyla eşleştirilmez.",
+
+    purposeTitle: "4. İşleme amaçları ve hukuki sebepler",
+    purposes: [
+      "**Hizmetin sunulması, cihazlarınız arasında eşitlenmesi ve seçtiğiniz kişilerle paylaşılması** — kimlik, iletişim, alışveriş, görsel ve paylaşım verisi. Hukuki sebep: KVKK m. 5/2-c, bir sözleşmenin kurulması veya ifasıyla doğrudan ilgili olması.",
+      "**Talebinizin karşılanması ve size dönülmesi** — talep ve şikâyet verisi. Hukuki sebep: KVKK m. 5/1, açık rızanız. Formu göndermedikçe bu veri oluşmaz.",
+    ],
+
+    transferTitle: "5. Aktarım ve yurt dışına aktarım",
+    transferIntro: "Gital bir hesapla kullanılır; kayıt olmadan kullanılabilen bir sürümü yoktur. Her satır alıcıyı, aktarılan veriyi ve aktarımın ne zaman yapıldığını söyler:",
+    transfers: [
+      "**Supabase** — barındırma Amazon Web Services, **Frankfurt / Almanya**. Hesap açtığınızda ve her eşitlemede. Aktarılan veri: kimlik ve iletişim, alışveriş, görsel ve paylaşım verisi. Hesap doğrulama ve şifre yenileme e-postaları da buradan gönderilir. Verilerinizin asıl bulunduğu yer burasıdır.",
+      "**Paylaştığınız kişiler** — bir listeyi paylaştığınızda o listenin satırları, fotoğrafları, adınız ve kimin neyi eklediği o listenin üyelerine görünür. Kileriniz, hafızanız ve setleriniz kimseye görünmez.",
+      "**Google (Gmail)** — Amerika Birleşik Devletleri. Yalnız geri bildirim gönderdiğinizde. Aktarılan veri: mesajınız, kategori, ekran görüntüleriniz, size dönülebilmesi için e-posta adresiniz, cihazınızın platformu ve uygulama sürümü.",
+      "**Open Food Facts** — Fransa. Yalnız telefonda bir barkod okuttuğunuzda. Aktarılan veri: barkod numarası ve bağlantı bilgisi; hesabınız ve listeleriniz gönderilmez.",
+      "**GitHub Pages** — Amerika Birleşik Devletleri. Web sürümünü, bir davet ya da şifre yenileme sayfasını açtığınızda. Aktarılan veri: bağlantı bilgisi (IP adresi, tarayıcı bilgisi).",
+      "**Expo (Expo Go)** — Amerika Birleşik Devletleri. Telefonda uygulama açılırken güncelleme sorulduğunda. Aktarılan veri: güncelleme sorgusu ve bağlantı bilgisi.",
+    ],
+    transferNote: "Türkiye dışına yapılan bu aktarımlar KVKK m. 9 hükümlerine tabidir. Gital hesap açmadan kullanılamadığı için bu aktarımların dışında kalmanın yolu, hesap oluşturmamanızdır. Kayıtlarınız ve fotoğraflarınız yalnız Supabase'e ve paylaştığınız kişilere; geri bildiriminiz yalnız Google'a (Gmail) gider. Open Food Facts, GitHub Pages ve Expo'ya kayıtlarınız gitmez, yalnız bağlantı bilginiz ve okuttuğunuz barkod.",
+
+    retentionTitle: "6. Saklama ve imha",
+    retention: [
+      "**Cihazınızdaki veriler**, çıkış yapana, verileri sıfırlayana ya da uygulamayı kaldırana kadar saklanır.",
+      "**Buluttaki veriler ve fotoğraflar**, hesabınızı silene kadar saklanır. Hesabı sildiğinizde kimliğiniz, listeleriniz, fotoğraflarınız ve diğer kayıtlarınız silinir; sahibi olduğunuz paylaşılmış listeler üyeleri için de silinir.",
+      "**Başkasının paylaştığı bir listeye** eklediğiniz ürünler o listenin parçasıdır: listeden ayrılsanız ya da hesabınızı silseniz de liste sahibinde kalır.",
+      "**Geri bildirim e-postaları**, talebiniz sonuçlandıktan sonra e-posta kutusunda kalır; silinmesini istediğinizde silinir.",
+    ],
+
+    rightsTitle: "7. İlgili kişi olarak haklarınız",
+    rightsIntro: "Kanunun 11. maddesi uyarınca veri sorumlusuna başvurarak:",
+    rights: [
+      "Kişisel verinizin işlenip işlenmediğini öğrenme; işlenmişse buna ilişkin bilgi talep etme.",
+      "İşlenme amacını ve amacına uygun kullanılıp kullanılmadığını öğrenme.",
+      "Yurt içinde veya yurt dışında verinizin aktarıldığı üçüncü kişileri bilme.",
+      "Eksik veya yanlış işlenmişse düzeltilmesini isteme.",
+      "Kanunun 7. maddesindeki şartlarla silinmesini veya yok edilmesini isteme.",
+      "Düzeltme, silme ve yok etmenin, verinin aktarıldığı üçüncü kişilere bildirilmesini isteme.",
+      "Münhasıran otomatik sistemlerle analiz edilmesi sonucu aleyhinize bir sonuca itiraz etme.",
+      "Kanuna aykırı işleme sebebiyle zarara uğramanız hâlinde zararın giderilmesini talep etme.",
+    ],
+
+    selfServiceTitle: "8. Başvuru beklemeden kullanabileceğiniz araçlar",
+    selfService: [
+      "**Hesabınızı ve buluttaki verilerinizi silmek için:** Ayarlar → Hesabı Sil.",
+      "**Belirli kayıtları her cihazınızdan silmek için:** Ayarlar → Verileri Sıfırla.",
+      "**Paylaşılan bir listeden çıkmak için:** listenin Kişiler panelinde Listeden ayrıl.",
+      "**Yalnız bu cihazı temizlemek için:** Ayarlar → Çıkış Yap.",
+    ],
+
+    contactTitle: "9. Başvuru usulü",
+    contactBody: (email: string) =>
+      `Kanunun 13. maddesi uyarınca taleplerinizi, kimliğinizi tespit edici bilgilerle ${email} adresine iletebilirsiniz. Başvurunuz en geç otuz gün içinde ücretsiz sonuçlandırılır; reddedilirse gerekçesi bildirilir. Başvurunuzun reddedilmesi, cevabı yetersiz bulmanız veya süresinde cevap verilmemesi hâlinde Kişisel Verileri Koruma Kurulu'na şikâyet hakkınız saklıdır.`,
+
+    disclaimer: "Bu metin, uygulamanın kaynak kodunda gerçekte ne yaptığını anlatır ve kodla birlikte güncellenir. Hukuki danışmanlık niteliği taşımaz.",
+
+    signUpNotice: "Hesap oluşturduğunda e-postan ve listelerin cihazından çıkıp bulut sunucusunda tutulmaya başlar. Nereye ve neden olduğu Aydınlatma Metni'nde yazıyor.",
+    consentOpen: "Aydınlatma Metni'ni Oku ve Onayla",
+    consentGiven: "Aydınlatma Metni onaylandı",
+    consentView: "Görüntüle",
+    accept: "Okudum, Kabul Ediyorum",
+    acceptLabel: "Okudum, anladım ve kişisel verilerimin burada anlatıldığı şekilde işlenmesini kabul ediyorum.",
+  },
   feedback: {
     title: "Geri bildirim",
     open: "Sorun bildir ya da fikrini yaz",
