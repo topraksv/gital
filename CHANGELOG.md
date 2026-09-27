@@ -207,3 +207,6 @@ cannot be released.
 - A finished shared shop fills each member's pantry with what that member
   ticked, and an undo takes it back. Resetting the data no longer empties a
   list someone else owns, or its history, for everyone.
+- Ayarlar sends feedback: a category, what happened and up to four
+  screenshots, mailed to the owner.
+- The first-open tour plays only for a new account, not on every new device.

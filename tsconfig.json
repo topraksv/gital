@@ -12,5 +12,6 @@
     "noUnusedParameters": true
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules", "dist", "coverage"]
+  // Deno's, with remote imports; a test imports what it runs of them.
+  "exclude": ["node_modules", "dist", "coverage", "supabase/functions"]
 }

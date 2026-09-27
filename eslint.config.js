@@ -5,7 +5,8 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*", "coverage/*", ".expo/**"],
+    // Deno's, with remote imports the app's toolchain cannot resolve.
+    ignores: ["dist/*", "coverage/*", ".expo/**", "supabase/functions/**"],
   },
   {
     files: ["scripts/**/*.mjs", ".claude/**/*.mjs"],

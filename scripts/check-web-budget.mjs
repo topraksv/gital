@@ -15,13 +15,13 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-27 with shared lists live (SPEC 1.3, 1.6): entry
-// 2_133_093, all JS 2_383_195, export 4_131_130; pictures 324_522 on the
-// catalogue. The Realtime transport is a chunk of its own (67 KB), loaded only
-// by someone sharing a list; the QR encoder another (13 KB), with the first
-// invitation. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-27 with the feedback screen (SPEC 13.1): entry 2_146_594,
+// all JS 2_396_700, export 4_164_874; pictures 324_522 on the catalogue. The
+// Realtime transport is a chunk of its own (67 KB), loaded only by someone
+// sharing a list; the QR encoder another (13 KB), with the first invitation.
+// `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 2_147_000,
+  entryJs: 2_168_100,
   totalJs: 2_407_100,
   totalExport: 4_172_500,
   pictures: 328_000,

@@ -1,0 +1,126 @@
+/**
+ * Reporting a problem from inside the app (SPEC 13.1), Helix's `feedback.tsx`:
+ * a category among tiles, since each carries the sentence that makes the
+ * reporter and the owner mean one thing by it; a description; screenshots.
+ * Each refusal is said inline, beside what caused it. Opened from Ayarlar, a
+ * root route, so closing it returns there.
+ */
+
+import { useState } from "react";
+import { Image, View } from "react-native";
+import { useRouter } from "expo-router";
+import ImagePlus from "lucide-react-native/icons/image-plus";
+import Send from "lucide-react-native/icons/send";
+import X from "lucide-react-native/icons/x";
+
+import { FEEDBACK_CATEGORIES, FEEDBACK_MESSAGE_MAX, FEEDBACK_MESSAGE_MIN, MAX_FEEDBACK_IMAGES, feedbackMessageRejection, type FeedbackCategory } from "../domain/feedback";
+import { tr } from "../i18n/tr";
+import { sendFeedback, type FeedbackResult } from "../services/feedback";
+import { Body, Button, ChoiceTile, FieldError, IconButton, Notice, Screen, SectionHeader, TextField, rowsOf } from "../ui/components";
+import { radioGroupKeys } from "../ui/keys";
+import { navigateBack } from "../ui/navigation";
+import { controlSize, radius, screenshot, spacing, useTheme } from "../ui/theme";
+import { showNotice } from "../ui/undo";
+
+const loadTake = () => import("../ui/photo-take").then((module) => module.default);
+
+const REFUSED: Record<Exclude<FeedbackResult, "sent">, string> = {
+  unconfigured: tr.feedback.unconfigured,
+  unauthenticated: tr.feedback.unauthenticated,
+  rateLimited: tr.feedback.rateLimited,
+  failed: tr.feedback.failed,
+};
+
+export default function FeedbackScreen() {
+  const router = useRouter();
+  const [category, setCategory] = useState<FeedbackCategory>("functional");
+  const [message, setMessage] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Said only once a send is tried, so the form does not scold while typing.
+  const [attempted, setAttempted] = useState(false);
+  const rejection = feedbackMessageRejection(message);
+  const full = images.length >= MAX_FEEDBACK_IMAGES;
+
+  const pick = async () => {
+    setRefusal(null);
+    try {
+      const taken = await (await loadTake())("library", screenshot.edge);
+      if (typeof taken !== "string") setImages((current) => [...current, taken.data]);
+    } catch {
+      setRefusal(tr.feedback.unreadable);
+    }
+  };
+
+  const submit = async () => {
+    setAttempted(true);
+    if (rejection) return;
+    setBusy(true);
+    setRefusal(null);
+    const result = await sendFeedback({ category, message, images });
+    setBusy(false);
+    if (result !== "sent") return setRefusal(REFUSED[result]);
+    showNotice(tr.feedback.sent);
+    navigateBack(router, "/settings");
+  };
+
+  return (
+    <Screen back="/settings" title={tr.feedback.title} width="form">
+      <Body muted style={{ marginBottom: spacing.lg }}>{tr.feedback.intro}</Body>
+      <SectionHeader>{tr.feedback.categoryLabel}</SectionHeader>
+      <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.feedback.categoryLabel} style={{ gap: spacing.sm }}>
+        {rowsOf(FEEDBACK_CATEGORIES, 2).map((row, at) => (
+          <View key={at} style={{ flexDirection: "row", gap: spacing.sm }}>
+            {row.map((value) => (
+              <ChoiceTile
+                key={value}
+                label={tr.feedback.category[value]}
+                description={tr.feedback.categoryHint[value]}
+                selected={category === value}
+                minHeight={controlSize.minimumTarget}
+                onPress={() => setCategory(value)}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
+      <SectionHeader>{tr.feedback.messageLabel}</SectionHeader>
+      <TextField
+        value={message}
+        onChangeText={setMessage}
+        multiline
+        maxLength={FEEDBACK_MESSAGE_MAX}
+        accessibilityLabel={tr.feedback.messageLabel}
+        placeholder={tr.feedback.placeholder}
+      />
+      {attempted && rejection ? <FieldError text={tr.feedback.rejected[rejection](FEEDBACK_MESSAGE_MIN, message.trim().length)} /> : null}
+      <SectionHeader>{tr.feedback.imageTitle}</SectionHeader>
+      <Body muted>{tr.feedback.imageHint(MAX_FEEDBACK_IMAGES)}</Body>
+      <Shots images={images} onRemove={(at) => setImages((current) => current.filter((_, position) => position !== at))} />
+      <Button label={tr.feedback.imageAdd} icon={ImagePlus} variant="ghost" disabled={busy || full} onPress={() => void pick()} />
+      {refusal ? <Notice tone="error" text={refusal} /> : null}
+      <Body muted style={{ marginVertical: spacing.lg }}>{tr.feedback.privacy}</Body>
+      <Button label={busy ? tr.feedback.sending : tr.feedback.send} icon={Send} disabled={busy} onPress={() => void submit()} />
+    </Screen>
+  );
+}
+
+function Shots({ images, onRemove }: { images: readonly string[]; onRemove: (at: number) => void }) {
+  const { palette } = useTheme();
+  if (images.length === 0) return null;
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginVertical: spacing.md }}>
+      {images.map((uri, at) => (
+        <View key={at} style={{ alignItems: "center" }}>
+          <Image
+            source={{ uri }}
+            accessibilityLabel={tr.feedback.imageLabel(at + 1)}
+            style={{ width: screenshot.thumb, height: screenshot.thumb, borderRadius: radius.sm, backgroundColor: palette.surfaceAlt }}
+          />
+          <IconButton icon={X} tone="danger" label={tr.feedback.imageRemove(at + 1)} onPress={() => onRemove(at)} />
+        </View>
+      ))}
+    </View>
+  );
+}

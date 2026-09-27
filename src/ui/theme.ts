@@ -592,6 +592,9 @@ export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25
 /** A photo in a panel (SPEC 8.2): about a third of a phone's height, whatever its proportions. */
 export const photoPreview = { height: 220 } as const;
 
+/** A screenshot on a report (SPEC 13.1): enough to tell one from another. `edge` is what is sent, where print must read. */
+export const screenshot = { thumb: 84, edge: 1600 } as const;
+
 /**
  * An invitation's QR code (SPEC 1.4): dark on white in every theme, since a
  * scanner reads the light margin as the code's edge, and wide enough that a

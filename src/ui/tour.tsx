@@ -5,9 +5,13 @@
  * plays it again. Back, skip and next, because Helix measured that a tour with
  * no way back makes a skimmed slide cost the whole tour.
  *
- * The device flag decides on its own until accounts: with them, a sign-in to
- * an account that already has lists must not introduce Gital again (Helix's
- * `isNewSignup`).
+ * It opens for a new account only (Helix's `isNewSignup`): a second device, or
+ * a cleared browser, of an account that already holds lists must not be
+ * introduced to Gital again. Helix keys on the sign-up's own session, which
+ * Gital never has, since its sign-up waits for the e-mail's confirmation; so
+ * the account is new when its first sync here brings no list, read from the
+ * database once that sync has finished rather than from a screen's query,
+ * which may not have caught up. A build with no cloud has only this device.
  */
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -16,7 +20,10 @@ import Check from "lucide-react-native/icons/check";
 import Plus from "lucide-react-native/icons/plus";
 
 import { tr } from "../i18n/tr";
+import { readLists } from "../data/lists";
 import { kv } from "../services/kv";
+import { useSyncStatus } from "../sync/status";
+import { isSupabaseConfigured } from "../sync/supabase";
 import { useModalAccessibility } from "./accessibility";
 import { Button, SlideUp } from "./components";
 import { Actions, DialogShell } from "./dialog";
@@ -27,10 +34,17 @@ const SLIDES = tr.tour.slides;
 
 /** Mounted on Listeler: the one screen every first open reaches. */
 export function FirstRunTour() {
+  const settled = useSyncStatus((s) => s.lastSyncAt != null) || !isSupabaseConfigured;
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    void kv.get(SEEN_KEY).then((seen) => setOpen(seen !== "true"));
-  }, []);
+    if (!settled) return;
+    void (async () => {
+      if ((await kv.get(SEEN_KEY)) === "true") return;
+      // Remembered, so emptying the lists later does not make the account new.
+      if ((await readLists()).length > 0) return void kv.set(SEEN_KEY, "true");
+      setOpen(true);
+    })().catch(() => {});
+  }, [settled]);
   if (!open) return null;
   return (
     <TourModal

@@ -7,6 +7,7 @@ import Eraser from "lucide-react-native/icons/eraser";
 import KeyRound from "lucide-react-native/icons/key-round";
 import LogOut from "lucide-react-native/icons/log-out";
 import Mail from "lucide-react-native/icons/mail";
+import MessageSquare from "lucide-react-native/icons/message-square";
 import RefreshCw from "lucide-react-native/icons/refresh-cw";
 import Snowflake from "lucide-react-native/icons/snowflake";
 import Trash from "lucide-react-native/icons/trash";
@@ -100,6 +101,8 @@ export default function SettingsScreen() {
       <Card>
         <Body muted style={{ marginBottom: spacing.md }}>{tr.tour.replayHint}</Body>
         <Button label={tr.tour.replay} icon={BookOpen} variant="ghost" onPress={() => setTouring(true)} />
+        <Body muted style={{ marginVertical: spacing.md }}>{tr.feedback.hint}</Body>
+        <Button label={tr.feedback.open} icon={MessageSquare} variant="ghost" onPress={() => router.push("/feedback")} />
       </Card>
       {touring ? <TourModal onClose={() => setTouring(false)} /> : null}
     </Screen>

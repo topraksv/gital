@@ -35,7 +35,8 @@ async function shrunk(uri: string, width: number, height: number, edge: number):
   return `data:image/jpeg;base64,${saved.base64}`;
 }
 
-export default async function takePhoto(from: "camera" | "library"): Promise<Taken> {
+/** `edge` is larger for a screenshot, whose print must read in a report (SPEC 13.1). */
+export default async function takePhoto(from: "camera" | "library", edge = PHOTO_EDGE): Promise<Taken> {
   if (from === "camera" && !(await requestCameraPermissionsAsync()).granted) return "denied";
   // The library needs no permission: the system's own picker hands over only what was chosen.
   const launch = from === "camera" ? launchCameraAsync : launchImageLibraryAsync;
@@ -43,7 +44,7 @@ export default async function takePhoto(from: "camera" | "library"): Promise<Tak
   const asset = picked.canceled ? null : picked.assets[0];
   if (!asset) return "cancelled";
   const [data, thumb] = await Promise.all([
-    shrunk(asset.uri, asset.width, asset.height, PHOTO_EDGE),
+    shrunk(asset.uri, asset.width, asset.height, edge),
     shrunk(asset.uri, asset.width, asset.height, THUMB_EDGE),
   ]);
   return { data, thumb };

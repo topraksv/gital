@@ -1,12 +1,12 @@
 -- What sync's tables let one account do to another's rows, asserted
--- (migrations 3 to 5). Helix's harness: fixtures as postgres, every assertion as
+-- (migrations 3 to 5, and 7). Helix's harness: fixtures as postgres, every assertion as
 -- the role a request would carry, and a rollback at the end.
 begin;
 
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(46);
+select extensions.plan(50);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -229,6 +229,21 @@ select ok(public.can_see_photo('f0000000-0000-7000-8000-00000000000f'), 'A can s
 select ok(not public.can_see_photo('f1000000-0000-7000-8000-00000000000f'), 'no row names the other photo');
 select is(public.photo_of_object('f0000000-0000-7000-8000-00000000000f/thumb.jpg'), 'f0000000-0000-7000-8000-00000000000f'::uuid, 'a thumbnail''s name gives its photo');
 select is(public.photo_of_object('../f0000000-0000-7000-8000-00000000000f/full.jpg'), null::uuid, 'a path that climbs gives none');
+
+-- Feedback's send limit (migration 7): five an hour, and a ledger nobody reads.
+select ok(
+  (select bool_and(public.record_feedback_send()) from generate_series(1, 5)),
+  'A sends five reports in an hour'
+);
+select ok(not public.record_feedback_send(), 'but not a sixth');
+select is(
+  pg_temp.exec_sqlstate($$delete from public.feedback_reports$$),
+  '42501',
+  'and cannot erase what counts against it'
+);
+select set_config('request.jwt.claim.sub', '20000000-0000-4000-8000-000000000002', true);
+select ok(public.record_feedback_send(), 'B''s limit is B''s own');
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
 
 -- Deleting the account takes every row it owns.
 select lives_ok($$select public.delete_own_account()$$, 'A deletes its account');

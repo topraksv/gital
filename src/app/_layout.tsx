@@ -255,6 +255,7 @@ function Routes({ background }: { background: string }) {
             <Stack.Screen name="sync-issues" />
             <Stack.Screen name="data-reset" />
             <Stack.Screen name="invite" />
+            <Stack.Screen name="feedback" />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="(auth)/sign-in" />
