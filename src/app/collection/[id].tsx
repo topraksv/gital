@@ -21,6 +21,7 @@ import { EditorsOnly, PeopleActions, useShare } from "../../ui/members-sheet";
 import { RowMotion } from "../../ui/list-motion";
 import { useCountUp } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
+import { readLinkPages } from "../../ui/page-reader";
 import { density, font, itemRow, motion, offset, spacing, type, useTheme } from "../../ui/theme";
 import { WishSuggestions } from "../../ui/suggestions";
 import { showUndo } from "../../ui/undo";
@@ -73,6 +74,7 @@ export default function CollectionScreen() {
     setEditing(null);
     try {
       await saveWish(wish.id, change);
+      readLinkPages(wish.id);
     } catch {
       void appError(tr.errors.saveFailed);
     }
@@ -176,7 +178,7 @@ function AddWish({ listId, open }: { listId: string; open: readonly { name: stri
     if (typed.trim() === "") return;
     setText("");
     try {
-      await addWish(listId, typed);
+      readLinkPages(await addWish(listId, typed));
       selectionTap();
     } catch {
       setText((current) => (current === "" ? typed : current));

@@ -15,7 +15,7 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-const { addWish, deleteWish, readCollections, readDueWishes, readKnownWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
+const { addWish, deleteWish, fillFromPage, unpricedLinksOf, readCollections, readDueWishes, readKnownWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { readPhoto } = await import("../../src/data/photos");
 const { migratedDatabase } = await import("../helpers");
@@ -204,5 +204,42 @@ describe("a wish's photo", () => {
     expect(await readWishes(collection)).toMatchObject([{ photo: shot.thumb }]);
     await saveWish(lamp, change({ name: "Lamba", photo: null }));
     expect(await readWishes(collection)).toMatchObject([{ photoId: null, photo: null }]);
+  });
+});
+
+describe("a link's page (SPEC 7.2)", () => {
+  const shot = { data: "data:image/jpeg;base64,full", thumb: "data:image/jpeg;base64,thumb" };
+  const found = { name: "Krups KM480D10 Kahve Makinesi", priceMinor: 674_900, photo: shot };
+
+  it("names a wish still called after its shop, prices the link and gives the wish its picture", async () => {
+    const id = await addWish(collection, "https://www.trendyol.com/krups/km480-p-925787811");
+    const { links } = (await readWishes(collection))[0]!;
+    expect(await unpricedLinksOf(id)).toEqual([{ id: links[0]!.id, url: "https://www.trendyol.com/krups/km480-p-925787811" }]);
+    await fillFromPage(links[0]!.id, found);
+    const [wish] = await readWishes(collection);
+    expect(wish).toMatchObject({ name: "Krups KM480D10 Kahve Makinesi", photo: shot.thumb, links: [{ priceMinor: 674_900 }] });
+    expect(await readPhoto(wish!.photoId!)).toBe(shot.data);
+    expect(await unpricedLinksOf(id)).toEqual([]);
+  });
+
+  it("never overwrites what the person gave: a name of their own, a price, a photo", async () => {
+    const id = await addWish(collection, "https://www.trendyol.com/krups/km480-p-925787811");
+    const { links } = (await readWishes(collection))[0]!;
+    const own = { data: "data:image/jpeg;base64,own", thumb: "data:image/jpeg;base64,ownthumb" };
+    await saveWish(id, change({ name: "Annemin kahve makinesi", photo: own, links: [{ ...links[0]!, priceMinor: 500_000 }] }));
+    await fillFromPage(links[0]!.id, found);
+    expect(await readWishes(collection)).toMatchObject([{ name: "Annemin kahve makinesi", photo: own.thumb, links: [{ priceMinor: 500_000 }] }]);
+  });
+
+  it("writes nothing when the page found nothing new, or the wish is gone", async () => {
+    const id = await addWish(collection, "https://www.amazon.com.tr/dp/B0CZY1V3XP");
+    const { links } = (await readWishes(collection))[0]!;
+    const outbox = () => (harness.db!.prepare("SELECT COUNT(*) AS n FROM outbox").get() as { n: number }).n;
+    const before = outbox();
+    await fillFromPage(links[0]!.id, { name: null, priceMinor: null, photo: null });
+    expect(outbox()).toBe(before);
+    await deleteWish(id);
+    await fillFromPage(links[0]!.id, found);
+    expect(live("wishes")).toEqual([]);
   });
 });

@@ -614,6 +614,12 @@ export const brandMark = {
   rattle: -1.5,
 } as const;
 
+/**
+ * The WebView a wish's page is read in (`src/ui/page-reader.native.tsx`):
+ * drawn, since a WebView with no size may never load, but a pixel nobody sees.
+ */
+export const pageReader = { size: 1 } as const;
+
 /** Helix's waiting page for an account operation: a halo breathing round a medallion. */
 export const operationWait = {
   halo: 128,

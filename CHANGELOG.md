@@ -8,6 +8,12 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.2.0
+
+### Minor Changes
+
+- Bir isteğe Trendyol, Hepsiburada ya da Amazon bağlantısı eklenince telefon sayfayı görünmeden açıyor; ürünün adı, resmi ve fiyatı kendiliğinden geliyor, senin yazdığın hiçbir şeyin üstüne yazılmıyor.
+
 ## 1.1.0
 
 ### Minor Changes

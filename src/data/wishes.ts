@@ -3,13 +3,13 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
-import { deleteRow, editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
+import { deleteRow, editRow, findLiveRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { lists, photos, wishLinks, wishes } from "../db/schema";
 import { isISODate, type ISODate } from "../domain/dates";
 import { itemNameFrom, knownFrom, noteFrom, type KnownProduct } from "../domain/items";
 import { lookOf, type ListLook } from "../domain/lists";
 import { isPrice } from "../domain/money";
-import { photoColumn, type PhotoChange } from "./photos";
+import { photoColumn, type NewPhoto, type PhotoChange } from "./photos";
 import { PRIORITIES, isLinkLike, linkFrom, openTotal, shopOf, sortWishes, type Priority, type Wish } from "../domain/wishes";
 
 export interface Collection extends ListLook {
@@ -173,6 +173,35 @@ export async function saveWish(id: string, change: WishChange): Promise<void> {
     const deletedAt = nowIso();
     for (const dropped of held.values()) writes.push({ table: "wish_links", row: { ...fromDbShape("wish_links", dropped), deletedAt } });
     return writes;
+  });
+}
+
+/** A wish's links with no price yet: the pages worth reading (SPEC 7.2). */
+export async function unpricedLinksOf(wishId: string): Promise<{ id: string; url: string }[]> {
+  return getDb()
+    .select({ id: wishLinks.id, url: wishLinks.url })
+    .from(wishLinks)
+    .where(and(eq(wishLinks.wishId, wishId), isNull(wishLinks.priceMinor), isNull(wishLinks.deletedAt)))
+    .orderBy(asc(wishLinks.createdAt), asc(wishLinks.id));
+}
+
+/**
+ * What a link's page said (SPEC 7.2), filling only what is still empty: a
+ * name still the shop's, a link with no price, a wish with no photo. The page
+ * is read after the add returns, and by then the person may have written
+ * their own; theirs is kept. Nothing is written for a wish gone meanwhile.
+ */
+export async function fillFromPage(linkId: string, found: { name: string | null; priceMinor: number | null; photo: NewPhoto | null }): Promise<void> {
+  await writeRows(async () => {
+    const link = await findLiveRow("wish_links", linkId);
+    const wish = link && (await findLiveRow("wishes", String(link.wish_id)));
+    if (!link || !wish) return [];
+    const name = found.name != null && wish.name === itemNameFrom(shopOf(String(link.url))) ? itemNameFrom(found.name) : null;
+    const photo = found.photo != null && wish.photo_id == null ? await photoColumn(found.photo) : {};
+    return [
+      ...editRow("wishes", wish, { ...(name ? { name } : {}), ...photo }),
+      ...(link.price_minor == null && found.priceMinor != null ? editRow("wish_links", link, { priceMinor: priceOrThrow(found.priceMinor) }) : []),
+    ];
   });
 }
 

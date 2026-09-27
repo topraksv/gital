@@ -49,3 +49,26 @@ export default async function takePhoto(from: "camera" | "library", edge = PHOTO
   ]);
   return { data, thumb };
 }
+
+// A picture larger than any product shot, which a page could point at to spend the phone's data.
+const PICTURE_MAX_BYTES = 8_000_000;
+
+/**
+ * A shop's product picture (SPEC 7.2), fetched by the phone and shrunk as a
+ * taken photo is. It travels as a data URI, which the manipulator reads
+ * without a file system package; a remote address it is not documented to.
+ */
+export async function photoFromWeb(url: string): Promise<NewPhoto> {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  if (!response.ok || !blob.type.startsWith("image/") || blob.size > PICTURE_MAX_BYTES) throw new Error("Not a picture");
+  const uri = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("The picture was not read"));
+    reader.readAsDataURL(blob);
+  });
+  const { width, height } = await ImageManipulator.manipulate(uri).renderAsync();
+  const [data, thumb] = await Promise.all([shrunk(uri, width, height, PHOTO_EDGE), shrunk(uri, width, height, THUMB_EDGE)]);
+  return { data, thumb };
+}

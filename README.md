@@ -67,7 +67,7 @@ değil.
 <td align="center" width="33%"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/m-settings-dark.png"><img src="assets/screenshots/m-settings-light.png" alt="Ayarlar: hesap, eşitleme, tema, palet ve hatırlatıcılar" width="215"></picture></td>
 </tr>
 <tr>
-<td align="center"><b>İstek listesi</b><br><sub>Bir ad ya da Trendyol, Hepsiburada, Amazon bağlantısı. Öncelik ya da fiyat sırasıyla dizilir.</sub></td>
+<td align="center"><b>İstek listesi</b><br><sub>Bir ad ya da Trendyol, Hepsiburada, Amazon bağlantısı; telefonda adı, resmi ve fiyatı kendiliğinden gelir.</sub></td>
 <td align="center"><b>Ne alındı, ne harcandı?</b><br><sub>Biten her alışveriş fişinin fotoğrafıyla durur; her ürün tek dokunuşla listesine döner.</sub></td>
 <td align="center"><b>Senin düzenin</b><br><sub>Üç palet, iki tema, ekranın açık kalması, hatırlatıcılar ve son girişin hangi cihazdan olduğu.</sub></td>
 </tr>
@@ -157,8 +157,9 @@ Gital, Helix'in tasarım dilini taşır ve ona biraz daha hareket ekler.
 - **Yetki sunucudadır:** her tablo RLS ile korunur; bir listeyi yalnız sahibi
   ve davet ettikleri görür, istemci kontrolü yetki sayılmaz.
 - **Anahtarlar:** istemci yalnız publishable anon anahtarı taşır.
-- **Dış istekler:** Supabase ve e-posta dışındaki tek dış istek, barkodun Open Food Facts'e sorulmasıdır;
-  istek bağlantısı yalnız saklanır, açılmaz. Kime ne gittiği uygulama içindeki Aydınlatma Metni'nde,
+- **Dış istekler:** barkod Open Food Facts'e sorulur; bir isteğin bağlantısını
+  telefon görünmeden açar ve adını, resmini, fiyatını okur — mağaza olağan bir
+  ziyaret görür. Kime ne gittiği uygulama içindeki Aydınlatma Metni'nde,
   alıcısıyla birlikte yazılı.
 - **Giriş kaydı** cihazın adını tutar (iPhone · Safari), konumunu tutmaz.
 

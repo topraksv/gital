@@ -17,6 +17,7 @@ vi.mock("expo-image-manipulator", () => ({
   SaveFormat: { JPEG: "jpeg" },
   ImageManipulator: {
     manipulate: () => ({
+      renderAsync: async () => ({ width: 1500, height: 1200 }),
       resize(size: unknown) {
         const base64 = `b${resized.push(size)}`;
         return { renderAsync: async () => ({ saveAsync: async () => ({ base64 }) }) };
@@ -25,7 +26,7 @@ vi.mock("expo-image-manipulator", () => ({
   },
 }));
 
-const { default: takePhoto, edgeOf, PHOTO_EDGE, THUMB_EDGE } = await import("../../src/ui/photo-take");
+const { default: takePhoto, edgeOf, photoFromWeb, PHOTO_EDGE, THUMB_EDGE } = await import("../../src/ui/photo-take");
 
 const shot = { canceled: false, assets: [{ uri: "file:///a.jpg", width: 4032, height: 3024 }] };
 
@@ -61,5 +62,35 @@ describe("takePhoto", () => {
     picker.launchImageLibraryAsync.mockResolvedValueOnce({ canceled: true, assets: null });
     expect(await takePhoto("library")).toBe("cancelled");
     expect(picker.requestCameraPermissionsAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("photoFromWeb", () => {
+  // React Native's FileReader, which Node lacks: the one way it turns a blob into a data URI.
+  vi.stubGlobal(
+    "FileReader",
+    class {
+      result: string | null = null;
+      onload: (() => void) | null = null;
+      readAsDataURL(blob: Blob) {
+        this.result = `data:${blob.type};base64,eA==`;
+        queueMicrotask(() => this.onload?.());
+      }
+    },
+  );
+  const answer = (type: string, status = 200) => vi.fn(async () => new Response(new Blob(["x"], { type }), { status }));
+
+  it("fetches a shop's picture and shrinks it as a taken photo is", async () => {
+    vi.stubGlobal("fetch", answer("image/webp"));
+    expect(await photoFromWeb("https://cdn.example/1.jpg")).toEqual({ data: "data:image/jpeg;base64,b1", thumb: "data:image/jpeg;base64,b2" });
+    expect(resized).toEqual([{ width: PHOTO_EDGE }, { width: THUMB_EDGE }]);
+  });
+
+  it("refuses what is not a picture, or did not come", async () => {
+    vi.stubGlobal("fetch", answer("text/html"));
+    await expect(photoFromWeb("https://cdn.example/1.jpg")).rejects.toThrow();
+    vi.stubGlobal("fetch", answer("image/jpeg", 404));
+    await expect(photoFromWeb("https://cdn.example/1.jpg")).rejects.toThrow();
+    expect(resized).toEqual([]);
   });
 });

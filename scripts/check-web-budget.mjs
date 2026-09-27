@@ -22,7 +22,7 @@ import { join, relative } from "node:path";
 // transport is a chunk of its own (67 KB), loaded only by someone sharing a
 // list. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 2_227_000,
+  entryJs: 2_249_600,
   totalJs: 2_479_600,
   totalExport: 4_321_400,
   pictures: 344_700,

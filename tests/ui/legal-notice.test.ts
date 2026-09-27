@@ -78,6 +78,8 @@ describe("the privacy notice", () => {
     const transfers = tr.legal.transfers.join(" ");
     for (const name of [...Object.values(DISCLOSED_AS), "Supabase", "Gmail", "Expo"]) expect(transfers).toContain(name);
     expect(transfers).toMatch(/Frankfurt/);
+    // The phone opens a wish's page itself (`src/ui/page-reader.native.tsx`): any host the person links.
+    expect(transfers).toMatch(/\*\*Bağlantısını eklediğiniz mağaza\*\*/);
   });
 
   it("gives every store an end, and tells a member what stays on a list", () => {

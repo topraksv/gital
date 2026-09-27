@@ -33,6 +33,7 @@ import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, spacing, ThemeContext, typ
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
 import { CelebrationHost } from "../ui/celebration";
 import { OperationWait } from "../ui/operation-wait";
+import { PageReaderHost, readLinkPages } from "../ui/page-reader";
 import { clearUndo, UndoSnackbar } from "../ui/undo";
 
 // Helix's subset faces, byte for byte (`docs/ARCHITECTURE.md`, "The fonts are Helix's").
@@ -273,6 +274,7 @@ function Routes({ background }: { background: string }) {
           <LiveRunner userId={userId} />
           <ReminderPlanner />
           {locked ? null : <ClipboardLinkOffer />}
+          <PageReaderHost />
         </>
       ) : null}
       {operation ? <OperationWait operation={operation} /> : null}
@@ -419,7 +421,7 @@ function ClipboardLinkOffer() {
       const url = linkFrom(typed);
       if (!url) return appError(tr.wishes.linkInvalid);
       const collection = (await readCollections())[0]?.id ?? (await createList(tr.clipboard.collection, "wish"));
-      await addWish(collection, url);
+      readLinkPages(await addWish(collection, url));
       router.push({ pathname: "/collection/[id]", params: { id: collection } });
     })().catch(() => appError(tr.errors.saveFailed));
   }, []);

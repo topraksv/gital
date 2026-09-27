@@ -10,9 +10,10 @@
     "src/domain/money.ts": 95.49,
     "src/domain/names.ts": 96.67,
     "src/domain/pantry.ts": 91.94,
+    "src/domain/product-page.ts": 85.93,
     "src/domain/reminders.ts": 79.59,
     "src/domain/restock.ts": 91.8,
     "src/domain/web-security.ts": 81.82,
-    "src/domain/wishes.ts": 82.39
+    "src/domain/wishes.ts": 83.51
   }
 }
