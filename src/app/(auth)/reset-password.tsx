@@ -37,9 +37,10 @@ export default function ResetPasswordScreen() {
     let active = true;
     void (async () => {
       const result = await preparePasswordRecovery(await Linking.getInitialURL()).catch(() => "invalid" as const);
-      // The session is held in memory now; out of the address bar, it cannot
-      // be bookmarked, synced to another device or read back from history.
-      if (result === "ready" && Platform.OS === "web") history.replaceState(null, "", location.pathname);
+      // An older link's session, in the fragment, is held in memory now; out
+      // of the address bar it cannot be bookmarked, synced or read back. The
+      // token in the query stays, unspent until save, so a reload still works.
+      if (result === "ready" && Platform.OS === "web") history.replaceState(null, "", location.pathname + location.search);
       if (active) setState(result);
     })();
     return () => {

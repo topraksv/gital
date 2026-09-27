@@ -472,12 +472,12 @@ export const tr = {
     transfers: [
       "**Supabase** — barındırma Amazon Web Services, **Frankfurt / Almanya**. Hesap açtığınızda ve her eşitlemede. Aktarılan veri: kimlik ve iletişim, alışveriş, görsel ve paylaşım verisi. Hesap doğrulama ve şifre yenileme e-postaları da buradan gönderilir. Verilerinizin asıl bulunduğu yer burasıdır.",
       "**Paylaştığınız kişiler** — bir listeyi paylaştığınızda o listenin satırları, fotoğrafları, adınız ve kimin neyi eklediği o listenin üyelerine görünür. Kileriniz, hafızanız ve setleriniz kimseye görünmez.",
-      "**Google (Gmail)** — Amerika Birleşik Devletleri. Yalnız geri bildirim gönderdiğinizde. Aktarılan veri: mesajınız, kategori, ekran görüntüleriniz, size dönülebilmesi için e-posta adresiniz, cihazınızın platformu ve uygulama sürümü.",
+      "**Google (Gmail)** — Amerika Birleşik Devletleri. Gital'in e-postalarını gönderen servistir. Şifre yenileme, e-posta doğrulama ve e-posta değişikliği iletilerinde aktarılan veri: e-posta adresiniz ve iletideki tek kullanımlık bağlantı. Geri bildirim gönderdiğinizde aktarılan veri: mesajınız, kategori, ekran görüntüleriniz, size dönülebilmesi için e-posta adresiniz, cihazınızın platformu ve uygulama sürümü.",
       "**Open Food Facts** — Fransa. Yalnız telefonda bir barkod okuttuğunuzda. Aktarılan veri: barkod numarası ve bağlantı bilgisi; hesabınız ve listeleriniz gönderilmez.",
       "**GitHub Pages** — Amerika Birleşik Devletleri. Web sürümünü, bir davet ya da şifre yenileme sayfasını açtığınızda. Aktarılan veri: bağlantı bilgisi (IP adresi, tarayıcı bilgisi).",
       "**Expo (Expo Go)** — Amerika Birleşik Devletleri. Telefonda uygulama açılırken güncelleme sorulduğunda. Aktarılan veri: güncelleme sorgusu ve bağlantı bilgisi.",
     ],
-    transferNote: "Türkiye dışına yapılan bu aktarımlar KVKK m. 9 hükümlerine tabidir. Gital hesap açmadan kullanılamadığı için bu aktarımların dışında kalmanın yolu, hesap oluşturmamanızdır. Kayıtlarınız ve fotoğraflarınız yalnız Supabase'e ve paylaştığınız kişilere; geri bildiriminiz yalnız Google'a (Gmail) gider. Open Food Facts, GitHub Pages ve Expo'ya kayıtlarınız gitmez, yalnız bağlantı bilginiz ve okuttuğunuz barkod.",
+    transferNote: "Türkiye dışına yapılan bu aktarımlar KVKK m. 9 hükümlerine tabidir. Gital hesap açmadan kullanılamadığı için bu aktarımların dışında kalmanın yolu, hesap oluşturmamanızdır. Kayıtlarınız ve fotoğraflarınız yalnız Supabase'e ve paylaştığınız kişilere; Gital'in gönderdiği e-postalar ve geri bildiriminiz yalnız Google'a (Gmail) gider. Open Food Facts, GitHub Pages ve Expo'ya kayıtlarınız gitmez, yalnız bağlantı bilginiz ve okuttuğunuz barkod.",
 
     retentionTitle: "6. Saklama ve imha",
     retention: [

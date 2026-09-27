@@ -40,6 +40,7 @@ const cloud = vi.hoisted(() => ({
   signUpError: null as { message: string } | null,
   resetError: null as { message: string } | null,
   setSessionError: null as { name: string; message: string } | null,
+  verifyError: null as { name: string; message: string; code?: string } | null,
   signUpSession: true,
   /** A client that throws instead of answering, as a fetch polyfill can. */
   throws: false,
@@ -153,6 +154,10 @@ vi.mock("../../src/sync/supabase", () => {
         cloud.calls.push(`reset:${email}:${redirectTo}`);
         return { error: cloud.resetError };
       },
+      verifyOtp: async ({ token_hash, type }: { token_hash: string; type: string }) => {
+        cloud.calls.push(`recovery:verifyOtp:${token_hash}:${type}`);
+        return { error: cloud.verifyError };
+      },
       setSession: async ({ access_token }: { access_token: string }) => {
         cloud.calls.push(`recovery:setSession:${access_token}`);
         return { error: cloud.setSessionError };
@@ -209,7 +214,7 @@ beforeEach(() => {
   device.failing.clear();
   device.readFailsOnce.clear();
   device.cancelled = 0;
-  Object.assign(cloud, { configured: true, users: [A, B], session: null, sessionError: null, rpcError: null, updateError: null, signUpError: null, resetError: null, setSessionError: null, signUpSession: true, throws: false, calls: [] });
+  Object.assign(cloud, { configured: true, users: [A, B], session: null, sessionError: null, rpcError: null, updateError: null, signUpError: null, resetError: null, setSessionError: null, verifyError: null, signUpSession: true, throws: false, calls: [] });
   Object.assign(sync, { calls: [], flushSends: false, purgeFails: false, sent: [], onFlush: null });
   useSession.setState({ userId: null, email: null, ready: false, previousLoginAt: null });
 });
@@ -667,6 +672,36 @@ describe("a forgotten password", () => {
     // The device's own session was never touched, and the link is spent.
     expect(session().userId).toBeNull();
     expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
+  });
+
+  const tokenLink = `${HOSTED_RECOVERY_PAGE}?token_hash=hash&type=recovery`;
+
+  it("spends a token link only on save, so opening it spends nothing", async () => {
+    expect(await session().preparePasswordRecovery(tokenLink)).toBe("ready");
+    expect(await session().preparePasswordRecovery(tokenLink)).toBe("ready");
+    expect(cloud.calls).toEqual([]);
+    expect(await session().completePasswordRecovery("kisa")).toBe(tr.auth.errWeakPassword);
+    expect(cloud.calls).toEqual([]);
+    // A refused save keeps the redeemed session: the token is not asked again.
+    cloud.updateError = { message: "New password should be different from the old password." };
+    expect(await session().completePasswordRecovery("eski-parola1")).toBe(tr.auth.errSamePassword);
+    cloud.updateError = null;
+    expect(await session().completePasswordRecovery("yeni-parola1")).toBeNull();
+    expect(cloud.calls).toEqual(["recovery:verifyOtp:hash:recovery", "recovery:updateUser", "recovery:updateUser", "recovery:signOut"]);
+    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
+  });
+
+  it("keeps a token a dropped connection never delivered, and drops one Auth refused", async () => {
+    await session().preparePasswordRecovery(tokenLink);
+    cloud.verifyError = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
+    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.errNetwork);
+    cloud.verifyError = { name: "AuthApiError", message: "Email link is invalid or has expired", code: "otp_expired" };
+    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetExpiredBody);
+    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
+    await session().preparePasswordRecovery(tokenLink);
+    cloud.verifyError = { name: "AuthApiError", message: "Token has been used" };
+    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
+    expect(cloud.calls.filter((call) => call.startsWith("recovery:verifyOtp"))).toHaveLength(3);
   });
 
   it("tells an expired link, a refused one and a dropped connection apart", async () => {

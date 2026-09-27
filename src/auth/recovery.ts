@@ -1,13 +1,13 @@
 /**
- * The reset link, read on the page it lands on. Helix's `src/auth/recovery.ts`
- * for the link Gital's e-mail carries: with no sender of its own, the project
- * keeps Supabase's template, whose link passes through Auth's verify endpoint
- * and arrives with a recovery session in its fragment. The request asks for no
- * PKCE, so that session opens in whichever browser the mail app picks, not
- * only in the one that asked (`docs/ARCHITECTURE.md`, 2026-09-26 on accounts).
+ * The reset link, read on the page it lands on: Helix's `src/auth/recovery.ts`.
+ * The e-mail's template (`supabase/templates/recovery.html`) brings the token
+ * here unspent, rather than through Auth's verify endpoint, which spends it on
+ * the first GET — a mail client's link checker was enough, and "the link has
+ * expired" arrived seconds after the e-mail. It is redeemed on save.
  */
 
 type RecoveryLink =
+  | { kind: "tokenHash"; tokenHash: string }
   | { kind: "session"; accessToken: string; refreshToken: string }
   | { kind: "expired" }
   | { kind: "invalid" };
@@ -49,6 +49,9 @@ export function parseRecoveryLink(url: string | null, page: string): RecoveryLin
   new URLSearchParams(parsed.hash.slice(1)).forEach((value, key) => params.set(key, value));
   if (["error_code", "error_description"].some((key) => /expired/i.test(params.get(key) ?? ""))) return { kind: "expired" };
   if (params.has("error") || params.has("error_code")) return { kind: "invalid" };
+  const tokenHash = params.get("token_hash");
+  if (tokenHash) return params.get("type") === "recovery" ? { kind: "tokenHash", tokenHash } : { kind: "invalid" };
+  // Supabase's own template, for links already in an inbox before it moved.
   const accessToken = params.get("access_token");
   const refreshToken = params.get("refresh_token");
   return accessToken && refreshToken && params.get("type") === "recovery"

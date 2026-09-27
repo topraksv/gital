@@ -214,3 +214,6 @@ cannot be released.
 - The privacy notice (Aydınlatma Metni) opens from sign-up, feedback and
   Ayarlar, and creating an account waits for it to be accepted.
 - On the web, a screen reader announces each dialog by its title.
+- A password-reset link keeps working after a reload or a mail app's link
+  check, and lasts five minutes; account e-mails and feedback all come from
+  one Gital sender.

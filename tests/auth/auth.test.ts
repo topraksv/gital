@@ -1,10 +1,8 @@
 /**
  * The account's pure rules (SPEC 9.1), Helix's `tests/auth` for Gital: Auth's
  * English errors in Turkish, the previous sign-in, the brake on password
- * checks, and the reset link. The link is where Gital departs: with no sender
- * of its own the reset e-mail keeps Supabase's template, so the link reaches
- * the page with a recovery session in its fragment rather than an unspent
- * token (`docs/ARCHITECTURE.md`, 2026-09-26 on accounts).
+ * checks, and the reset link: Helix's, which reaches the page with its token
+ * unspent and is redeemed on save.
  */
 
 import { readFileSync } from "node:fs";
@@ -123,6 +121,14 @@ describe("the reset link", () => {
     expect(recoveryRedirect({ origin: "http://localhost:8081", baseUrl: "" })).toBe("http://localhost:8081/reset-password");
   });
 
+  it("holds an unspent recovery token, and only a recovery one", () => {
+    expect(parseRecoveryLink(`${page}?token_hash=abc&type=recovery`, page)).toEqual({ kind: "tokenHash", tokenHash: "abc" });
+    expect(parseRecoveryLink(`${page}?token_hash=abc&type=signup`, page)).toEqual({ kind: "invalid" });
+    expect(parseRecoveryLink(`${page}?token_hash=abc`, page)).toEqual({ kind: "invalid" });
+    expect(parseRecoveryLink(`https://evil.example/gital/reset-password?token_hash=abc&type=recovery`, page)).toEqual({ kind: "invalid" });
+  });
+
+  // Links already in an inbox from before the template moved.
   it("takes the recovery session from the fragment, whole and only for recovery", () => {
     expect(parseRecoveryLink(`${page}#${session}`, page)).toEqual({ kind: "session", accessToken: "access", refreshToken: "refresh" });
     for (const fragment of ["access_token=a&type=recovery", "refresh_token=r&type=recovery", session.replace("recovery", "signup"), session.replace("&type=recovery", "")]) {
@@ -168,6 +174,17 @@ describe("the server's account settings", () => {
 
   it("lets the reset link come back to the hosted page", () => {
     expect(config).toContain(`"${HOSTED_RECOVERY_PAGE}"`);
+  });
+
+  // Helix's template: the token reaches the page unspent, where a mail
+  // client's link checker cannot spend it, and lives five minutes.
+  it("mails a reset link that carries its token to the page, for five minutes", () => {
+    expect(config).toMatch(/^otp_expiry = 300$/m);
+    expect(config).toMatch(/\[auth\.email\.template\.recovery\][\s\S]*?^content_path = "\.\/supabase\/templates\/recovery\.html"$/m);
+    const template = readFileSync(join(import.meta.dirname, "../../supabase/templates/recovery.html"), "utf8");
+    expect(template).toContain('href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery"');
+    expect(template).not.toContain("{{ .ConfirmationURL }}");
+    expect(template).not.toMatch(/Helix/);
   });
 
   it("lets a signed-in account delete itself and nothing else", () => {

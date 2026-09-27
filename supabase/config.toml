@@ -251,6 +251,15 @@ otp_expiry = 300
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# Helix's: the reset link lands on the app with its token UNSPENT and the app
+# redeems it on save. The default template links through Auth's verify
+# endpoint, which spends the token on the first GET — a mail client's link
+# checker was enough. The hosted project does not read this file: see
+# docs/RELEASE.md.
+[auth.email.template.recovery]
+subject = "🔑 Gital şifre yenileme bağlantın"
+content_path = "./supabase/templates/recovery.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

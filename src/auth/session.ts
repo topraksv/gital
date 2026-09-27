@@ -55,6 +55,8 @@ let explicitSignOut = false;
 let listening = false;
 /** The session a reset link opened, on a client of its own, until the new password is saved. */
 let recovery: SupabaseClient | null = null;
+/** A reset link's token, held unspent until save: opening the page, or reloading it, spends nothing. */
+let pendingRecoveryToken: string | null = null;
 
 const signedOut = { userId: null, email: null, previousLoginAt: null } as const;
 
@@ -287,8 +289,13 @@ export const useSession = create<SessionStore>((set, get) => ({
 
   preparePasswordRecovery: async (url) => {
     recovery = null;
+    pendingRecoveryToken = null;
     const web = webPage();
     const link = parseRecoveryLink(url, web ? recoveryPage(web.origin, web.baseUrl) : HOSTED_RECOVERY_PAGE);
+    if (link.kind === "tokenHash") {
+      pendingRecoveryToken = link.tokenHash;
+      return "ready";
+    }
     if (link.kind !== "session") return link.kind;
     const client = createRecoveryClient();
     if (!client) return "invalid";
@@ -299,8 +306,21 @@ export const useSession = create<SessionStore>((set, get) => ({
   },
 
   completePasswordRecovery: async (newPassword) => {
-    if (!recovery) return tr.auth.resetInvalidBody;
+    if (!recovery && !pendingRecoveryToken) return tr.auth.resetInvalidBody;
     if (!isValidNewPassword(newPassword)) return tr.auth.errWeakPassword;
+    if (!recovery) {
+      // Redeemed on a client of its own, needing no PKCE verifier, so the link
+      // works in whichever browser the mail app opens and touches nothing this
+      // device is signed in with.
+      const client = createRecoveryClient();
+      if (!client) return tr.auth.errNotConfigured;
+      const { error } = await client.auth.verifyOtp({ token_hash: pendingRecoveryToken!, type: "recovery" });
+      // A request that never reached Auth spent nothing; Auth's refusal is final.
+      if (unreachable(error)) return friendlyAuthError(error!.message);
+      pendingRecoveryToken = null;
+      if (error) return error.code === "otp_expired" ? tr.auth.resetExpiredBody : tr.auth.resetInvalidBody;
+      recovery = client;
+    }
     // A refused save keeps the session, so the next press needs no new link.
     const { error } = await recovery.auth.updateUser({ password: newPassword });
     if (error) return friendlyAuthError(error.message);
