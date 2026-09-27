@@ -15,6 +15,7 @@ export interface PantryItem extends Stock {
   id: string;
   name: string;
   expiresOn: ISODate | null;
+  sortOrder: number;
 }
 
 /** A product finished, for the undo bar: the list it went back on, if that list is still there. */
@@ -23,17 +24,27 @@ export interface Finished {
   listName: string | null;
 }
 
+type Held = Pick<PantryItem, "name" | "expiresOn" | "sortOrder"> & { moves: (Stock & { at: string })[] };
+
 /** Each pantry row's moves, oldest first. */
-async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<string, { name: string; expiresOn: ISODate | null; moves: (Stock & { at: string })[] }>> {
+async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<string, Held>> {
   const rows = await getDb()
-    .select({ id: pantryItems.id, name: pantryItems.name, expiresOn: pantryItems.expiresOn, quantityMilli: pantryMoves.quantityMilli, unit: pantryMoves.unit, at: pantryMoves.createdAt })
+    .select({
+      id: pantryItems.id,
+      name: pantryItems.name,
+      expiresOn: pantryItems.expiresOn,
+      sortOrder: pantryItems.sortOrder,
+      quantityMilli: pantryMoves.quantityMilli,
+      unit: pantryMoves.unit,
+      at: pantryMoves.createdAt,
+    })
     .from(pantryItems)
     .innerJoin(pantryMoves, and(eq(pantryMoves.pantryItemId, pantryItems.id), isNull(pantryMoves.deletedAt)))
     .where(where)
     .orderBy(asc(pantryMoves.createdAt), asc(pantryMoves.id));
-  const moves = new Map<string, { name: string; expiresOn: ISODate | null; moves: (Stock & { at: string })[] }>();
-  for (const { id, name, expiresOn, ...move } of rows) {
-    const held = moves.get(id) ?? { name, expiresOn, moves: [] };
+  const moves = new Map<string, Held>();
+  for (const { id, name, expiresOn, sortOrder, ...move } of rows) {
+    const held = moves.get(id) ?? { name, expiresOn, sortOrder, moves: [] };
     held.moves.push(move);
     moves.set(id, held);
   }
@@ -42,9 +53,9 @@ async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<str
 
 async function readStocks(where?: SQL): Promise<Map<string, PantryItem>> {
   const stocks = new Map<string, PantryItem>();
-  for (const [id, { name, expiresOn, moves: all }] of await readMoves(where)) {
+  for (const [id, { moves: all, ...held }] of await readMoves(where)) {
     const stock = stockOf(all);
-    if (stock) stocks.set(id, { id, name, expiresOn, quantityMilli: stock.quantityMilli, unit: stock.unit });
+    if (stock) stocks.set(id, { id, ...held, quantityMilli: stock.quantityMilli, unit: stock.unit });
   }
   return stocks;
 }
@@ -57,9 +68,24 @@ export async function readLasted(): Promise<[string, number[]][]> {
   return [...(await readMoves()).values()].map(({ name, moves }) => [foldName(name), lastedOf(moves)]);
 }
 
-/** What is at home, by name; a product used up is not. */
+/** What is at home, in its dragged order and otherwise by name; a product used up is not. */
 export async function readPantry(): Promise<PantryItem[]> {
-  return [...(await readStocks()).values()].sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  return [...(await readStocks()).values()].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "tr"));
+}
+
+/**
+ * Kiler in the order it was dragged into (SPEC 4.1, as a list's): each product
+ * takes its place. One finished during the drag keeps its own.
+ */
+export function reorderPantry(orderedIds: readonly string[]): Promise<void> {
+  return writeRows(async () => {
+    const home = await readStocks();
+    const writes: RowWrite[] = [];
+    for (const [place, id] of orderedIds.entries()) {
+      if (home.has(id)) writes.push(...editRow("pantry_items", await readLiveRow("pantry_items", id), { sortOrder: place }));
+    }
+    return writes;
+  });
 }
 
 /**
@@ -106,8 +132,8 @@ export async function arrivalRows(
  * is, each an arrival no shop brought. A product's row keeps the list its
  * last shop came from, so finishing it still goes back there.
  */
-export async function stockPantry(entries: readonly Entry[]): Promise<void> {
-  await writeRows(async () => {
+export function stockPantry(entries: readonly Entry[]): Promise<RowsWritten> {
+  return writeUndoable(async () => {
     const writes: RowWrite[] = [];
     const made = new Map<string, string>();
     for (const entry of entries) {
@@ -236,6 +262,20 @@ export async function setStock(id: string, quantityMilli: number): Promise<Finis
 
 export async function finishPantryItem(id: string): Promise<Finished> {
   return (await finishWith(id, () => null))!;
+}
+
+/**
+ * Deleted from its panel: emptied as a finish is, but onto no list, since it
+ * did not run out — it was never there, or it went in the bin.
+ */
+export function removePantryItem(id: string): Promise<RowsWritten> {
+  return writeUndoable(async () => {
+    const stock = await readStock(id);
+    return [
+      { table: "pantry_moves", row: { id: uuidv7(), pantryItemId: id, quantityMilli: -stock.quantityMilli, unit: stock.unit } },
+      ...editRow("pantry_items", await readLiveRow("pantry_items", id), { expiresOn: null }),
+    ];
+  });
 }
 
 export { undoRows as undoFinish } from "../db/mutations";

@@ -200,6 +200,8 @@ export const pantryItems = sqliteTable("pantry_items", {
   listId: text("list_id"),
   /** The day printed on it (SPEC 12.3), a local `YYYY-MM-DD`; it goes when the product is finished. */
   expiresOn: text("expires_on"),
+  /** Its place in Kiler once dragged (SPEC 4.1 there); 0 until then, so an arrival lands on top. */
+  sortOrder: integer("sort_order").notNull().default(0),
 });
 
 /**

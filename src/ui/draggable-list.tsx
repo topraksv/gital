@@ -13,9 +13,12 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, PanResponder, Platform, View, type GestureResponderHandlers, type ViewStyle } from "react-native";
+import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
+import Check from "lucide-react-native/icons/check";
 import GripVertical from "lucide-react-native/icons/grip-vertical";
 
 import { tr } from "../i18n/tr";
+import { IconButton } from "./components";
 import { errorNotice, mediumImpact, selectionTap } from "./haptics";
 import { webKeys } from "./keys";
 import { useReducedMotion } from "./motion";
@@ -264,5 +267,14 @@ export function ReorderGrip({ handle, name, position, count }: { handle: DragHan
     >
       <GripVertical accessible={false} size={iconSize.control} color={palette.textSecondary} />
     </View>
+  );
+}
+
+/** Sorting is a mode: the grips would crowd every row in the aisle. */
+export function SortToggle({ sorting, canSort, onChange }: { sorting: boolean; canSort: boolean; onChange: (sorting: boolean) => void }) {
+  return sorting ? (
+    <IconButton icon={Check} text={tr.items.sortDone} label={tr.items.sortDone} tone="primary" onPress={() => onChange(false)} />
+  ) : (
+    <IconButton icon={ArrowUpDown} label={tr.items.sort} disabled={!canSort} onPress={() => onChange(true)} />
   );
 }

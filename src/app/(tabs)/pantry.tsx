@@ -1,36 +1,50 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Platform, Text, View, type TextInput } from "react-native";
+import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
+import LayoutGrid from "lucide-react-native/icons/layout-grid";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
 import Refrigerator from "lucide-react-native/icons/refrigerator";
+import Share from "lucide-react-native/icons/share";
 
 import { useMovedAisles, usePantry } from "../../data/hooks";
-import { finishPantryItem, setExpiry, setStock, stockPantry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
-import { listSections } from "../../domain/catalogue";
+import { finishPantryItem, removePantryItem, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
+import { listSections, type Section } from "../../domain/catalogue";
 import { todayISO } from "../../domain/dates";
-import { ENTRY_MAX, parseEntry } from "../../domain/items";
+import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, type ListedEntry } from "../../domain/items";
 import { expiryOf, leavesSome } from "../../domain/pantry";
+import { shareText } from "../../services/share";
 import { tr } from "../../i18n/tr";
 import { useModalAccessibility } from "../../ui/accessibility";
 import { QuantityFace, useCalculator } from "../../ui/calculator";
 import { DateField } from "../../ui/calendar";
 import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SectionHeader, SlideUp, cardEdge, itemDetail, RowOpen, TextField } from "../../ui/components";
-import { Actions, DialogShell, appError } from "../../ui/dialog";
+import { CatalogueSheet } from "../../ui/catalogue-sheet";
+import { Actions, DialogShell, appError, appPrompt } from "../../ui/dialog";
+import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { isReducedMotion } from "../../ui/motion";
 import { flightTo, landTab, tabCentre } from "../../ui/tab-landing";
 import { ProductSuggestions } from "../../ui/suggestions";
-import { showUndo } from "../../ui/undo";
+import { showNotice, showUndo } from "../../ui/undo";
 import { density, motion, spacing, type, useTheme } from "../../ui/theme";
 
 /** The Listeler tab's route, where a finished product goes back onto its list. */
 const LISTS_TAB = "index";
 
-/** What is at home (SPEC 12.2, 12.8), by aisle as a list is. */
+/**
+ * What is at home (SPEC 12.2, 12.8), by aisle as a list is, and worked as a
+ * list is (the owner asked 2026-09-27): sorted by its grips, filled from a
+ * pasted message or the catalogue, and shared as text. Kiler is one, so it
+ * has no name, colour or delete of its own.
+ */
 export default function Pantry() {
   const pantry = usePantry();
   const moved = useMovedAisles();
+  const [sorting, setSorting] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const sections = listSections(pantry.data, moved);
 
   /** Whether the product finished, so a row that flew for it knows to come back. */
   const act = async (item: PantryItem, action: (id: string) => Promise<Finished | null>) => {
@@ -50,28 +64,85 @@ export default function Pantry() {
     }
   };
 
+  const remove = async (item: PantryItem) => {
+    try {
+      const written = await removePantryItem(item.id);
+      mediumImpact();
+      showUndo(tr.common.deleted(item.name), () => undoFinish(written));
+    } catch {
+      void appError(tr.errors.deleteFailed);
+    }
+  };
+
+  // A list from a message (SPEC 6.2), taken back whole from the bar.
+  const paste = async () => {
+    const text = await appPrompt(tr.items.pasteTitle, tr.pantry.pasteMessage, {
+      confirmLabel: tr.items.add,
+      placeholder: tr.items.pastePlaceholder,
+      maxLength: LIST_TEXT_MAX,
+      multiline: true,
+    });
+    if (text == null) return;
+    const entries = parseList(text);
+    if (entries.length === 0) return showNotice(tr.items.pastedNothing);
+    try {
+      const written = await stockPantry(entries);
+      selectionTap();
+      showUndo(tr.pantry.pasted(entries.length), () => undoFinish(written));
+    } catch {
+      void appError(tr.errors.saveFailed);
+    }
+  };
+
+  const share = async () => {
+    try {
+      if ((await shareText(formatList(tr.tabs.pantry, pantry.data.map(listed)))) === "clipboard") showNotice(tr.pantry.copied);
+    } catch {
+      void appError(tr.errors.shareFailed);
+    }
+  };
+
+  const row = (item: PantryItem, grip?: ReactNode) => (
+    <PantryRow
+      item={item}
+      grip={grip}
+      onLess={() => void act(item, takeSome)}
+      onCount={(quantityMilli) => void act(item, (id) => setStock(id, quantityMilli))}
+      onFinish={() => act(item, finishPantryItem)}
+      onRemove={() => void remove(item)}
+    />
+  );
+
   return (
-    <Screen title={tr.tabs.pantry} width="workspace">
-      <PantryAdd />
+    <Screen
+      title={tr.tabs.pantry}
+      width="workspace"
+      scrollEnabled={!dragging}
+      actions={
+        <>
+          <SortToggle sorting={sorting} canSort={pantry.data.length > 1} onChange={setSorting} />
+          <IconButton icon={ClipboardPaste} label={tr.pantry.paste} onPress={() => void paste()} />
+          <IconButton icon={Share} label={tr.pantry.share} disabled={pantry.data.length === 0} onPress={() => void share()} />
+        </>
+      }
+    >
+      <PantryAdd held={pantry.data} />
       {pantry.status === "error" ? (
         <ReadFailed queries={[pantry]} />
       ) : pantry.updatedAt != null ? (
         <ArrivalScope>
           {pantry.data.length === 0 ? (
             <EmptyState icon={Refrigerator} title={tr.pantry.emptyTitle} hint={tr.pantry.emptyHint} />
+          ) : sorting ? (
+            <SortPantry sections={sections} row={row} onDragging={setDragging} />
           ) : (
             <View style={{ gap: density.list.rowGap }}>
-              {listSections(pantry.data, moved).map((section, at) => (
+              {sections.map((section, at) => (
                 <View key={section.key} style={{ gap: density.list.rowGap }}>
                   {section.aisle ? <SectionHeader flush={at === 0}>{tr.catalogue.aisles[section.aisle]}</SectionHeader> : null}
                   {section.items.map((item) => (
                     <SlideUp key={item.id} distance={motion.travel.bar}>
-                      <PantryRow
-                        item={item}
-                        onLess={() => void act(item, takeSome)}
-                        onCount={(quantityMilli) => void act(item, (id) => setStock(id, quantityMilli))}
-                        onFinish={() => act(item, finishPantryItem)}
-                      />
+                      {row(item)}
                     </SlideUp>
                   ))}
                 </View>
@@ -84,12 +155,55 @@ export default function Pantry() {
   );
 }
 
+/** A product at home as a list's shared text and a set read it. */
+const listed = (item: PantryItem): ListedEntry => ({ name: item.name, quantityMilli: item.quantityMilli, unit: item.unit, note: null, urgent: false });
+
+/**
+ * Kiler sorted by its grips, each aisle on its own as on a list; the whole
+ * order is written, so the stored one is the order drawn.
+ */
+function SortPantry({
+  sections,
+  row,
+  onDragging,
+}: {
+  sections: readonly Section<PantryItem>[];
+  row: (item: PantryItem, grip: ReactNode) => ReactNode;
+  onDragging: (dragging: boolean) => void;
+}) {
+  const reorder = (at: number, keys: string[]) =>
+    reorderPantry(sections.flatMap((section, index) => (index === at ? keys : section.items.map((item) => item.id)))).catch((error: unknown) => {
+      void appError(tr.errors.saveFailed);
+      throw error;
+    });
+  return (
+    <View style={{ gap: density.list.rowGap }}>
+      {sections.map((section, at) => (
+        <View key={section.key} style={{ gap: density.list.rowGap }}>
+          {section.aisle ? <SectionHeader flush={at === 0}>{tr.catalogue.aisles[section.aisle]}</SectionHeader> : null}
+          <DraggableList
+            items={section.items}
+            keyOf={(item) => item.id}
+            gap={density.list.rowGap}
+            onReorder={(keys) => reorder(at, keys)}
+            onDragging={onDragging}
+            renderRow={(item, handle, position) =>
+              row(item, <ReorderGrip handle={handle} name={item.name} position={position + 1} count={section.items.length} />)
+            }
+          />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
  * What is already at home, typed in as a list's entry is (SPEC 12.11): "2 kg
  * un, tuz" is two products. Enter adds and keeps the keyboard up, as there.
  */
-function PantryAdd() {
+function PantryAdd({ held }: { held: readonly PantryItem[] }) {
   const [text, setText] = useState("");
+  const [browsing, setBrowsing] = useState(false);
   const field = useRef<TextInput>(null);
   const add = async (entries = parseEntry(text)) => {
     if (entries.length === 0) return;
@@ -119,7 +233,21 @@ function PantryAdd() {
           style={{ flex: 1 }}
         />
         <IconButton icon={Plus} label={tr.pantry.add} tone="primary" field onPress={() => void add()} />
+        <IconButton icon={LayoutGrid} label={tr.catalogue.open} field onPress={() => setBrowsing(true)} />
       </View>
+      {browsing ? (
+        <CatalogueSheet
+          items={held}
+          open={held.map(listed)}
+          // A tile already at home adds another: nothing here takes one back but its panel.
+          onAdd={(product) => void add([{ name: product.name, quantityMilli: null, unit: null }])}
+          addSet={async (entries) => {
+            const written = await stockPantry(entries);
+            return () => undoFinish(written);
+          }}
+          onClose={() => setBrowsing(false)}
+        />
+      ) : null}
       {text ? (
         <ProductSuggestions
           text={text}
@@ -152,14 +280,19 @@ function expiryPart(expiresOn: string | null, today: string) {
  */
 function PantryRow({
   item,
+  grip,
   onLess,
   onCount,
   onFinish,
+  onRemove,
 }: {
   item: PantryItem;
+  /** While Kiler is sorted, the grip takes the buttons' place: a press mid-sort would move the row away. */
+  grip?: ReactNode;
   onLess: () => void;
   onCount: (quantityMilli: number) => void;
   onFinish: () => Promise<boolean>;
+  onRemove: () => void;
 }) {
   const { palette } = useTheme();
   const [open, setOpen] = useState(false);
@@ -219,19 +352,34 @@ function PantryRow({
         <ItemLabel item={shown} />
       </RowOpen>
       <View style={{ flexDirection: "row", paddingRight: spacing.sm }}>
-        {leavesSome(item) ? <IconButton icon={Minus} label={tr.pantry.less(item.name)} onPress={onLess} /> : null}
-        <IconButton icon={ListPlus} label={tr.pantry.finish(item.name)} tone="primary" onPress={finish} />
+        {grip ?? (
+          <>
+            {leavesSome(item) ? <IconButton icon={Minus} label={tr.pantry.less(item.name)} onPress={onLess} /> : null}
+            <IconButton icon={ListPlus} label={tr.pantry.finish(item.name)} tone="primary" onPress={finish} />
+          </>
+        )}
       </View>
-      {open ? <PantrySheet item={item} onCount={onCount} onClose={() => setOpen(false)} /> : null}
+      {open ? <PantrySheet item={item} onCount={onCount} onRemove={onRemove} onClose={() => setOpen(false)} /> : null}
     </Animated.View>
   );
 }
 
 /**
  * A product's panel: how much is at home, counted on the calculator (12.8),
- * and the date printed on it, picked on the calendar or taken off (12.3).
+ * the date printed on it, picked on the calendar or taken off (12.3), and a
+ * way out of Kiler that puts it on no list, for what was never there.
  */
-function PantrySheet({ item, onCount, onClose }: { item: PantryItem; onCount: (quantityMilli: number) => void; onClose: () => void }) {
+function PantrySheet({
+  item,
+  onCount,
+  onRemove,
+  onClose,
+}: {
+  item: PantryItem;
+  onCount: (quantityMilli: number) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
   const { palette } = useTheme();
   const titleRef = useModalAccessibility(true, item.id);
   const [expiresOn, setExpiresOn] = useState(item.expiresOn);
@@ -258,6 +406,17 @@ function PantrySheet({ item, onCount, onClose }: { item: PantryItem; onCount: (q
       <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
         <Body>{tr.pantry.expiry}</Body>
         <DateField label={tr.pantry.expiry} value={expiresOn} onChange={setExpiresOn} />
+      </View>
+      <View style={{ marginTop: spacing.lg, alignItems: "flex-start" }}>
+        <Button
+          label={tr.pantry.remove}
+          variant="ghost"
+          size="sm"
+          onPress={() => {
+            onClose();
+            onRemove();
+          }}
+        />
       </View>
       <Actions>
         {expiresOn != null ? <Button label={tr.pantry.clearExpiry} variant="ghost" size="sm" onPress={() => setExpiresOn(null)} /> : null}

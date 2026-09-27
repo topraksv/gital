@@ -2,8 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, ScrollView, StyleSheet, Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import CheckCheck from "lucide-react-native/icons/check-check";
-import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
-import Check from "lucide-react-native/icons/check";
 import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Pencil from "lucide-react-native/icons/pencil";
@@ -33,7 +31,7 @@ import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDeta
 import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { celebrate, hideCelebration } from "../../ui/celebration";
-import { DraggableList, ReorderGrip } from "../../ui/draggable-list";
+import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import { ListSheet } from "../../ui/list-sheet";
@@ -404,8 +402,11 @@ function QuickAdd({
       {browsing ? (
         <CatalogueSheet
           items={items}
-          listId={listId}
           open={items.filter((item) => item.checkedAt == null)}
+          addSet={async (entries) => {
+            const written = await importEntries(listId, entries);
+            return written && (() => undoSave(written, listId));
+          }}
           onAdd={(product) => add([{ name: product.name, quantityMilli: null, unit: null }])}
           onRemove={onRemove}
           onClose={() => setBrowsing(false)}
@@ -560,14 +561,6 @@ function BasketHeader({ spentMinor }: { spentMinor: number | null }) {
   return <SectionHeader>{tr.items.basket(spentMinor == null ? null : shown)}</SectionHeader>;
 }
 
-/** Sorting is a mode: the grips would crowd every row in the aisle. */
-function SortToggle({ sorting, canSort, onChange }: { sorting: boolean; canSort: boolean; onChange: (sorting: boolean) => void }) {
-  return sorting ? (
-    <IconButton icon={Check} text={tr.items.sortDone} label={tr.items.sortDone} tone="primary" onPress={() => onChange(false)} />
-  ) : (
-    <IconButton icon={ArrowUpDown} label={tr.items.sort} disabled={!canSort} onPress={() => onChange(true)} />
-  );
-}
 
 /**
  * What is left to buy, sorted by its grips (SPEC 4.1). Urgent items stay on

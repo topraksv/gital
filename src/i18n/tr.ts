@@ -277,7 +277,7 @@ export const tr = {
     makeMessage: (count: number) => `Listede alınacak ${count} ürün sete girer.`,
     empty: "Listedeki alınacakları set olarak sakla; tek dokunuşla her listeye eklenir.",
     add: (name: string) => `${name} setini listeye ekle`,
-    added: (name: string, count: number) => `${name}: ${count} ürün listeye eklendi`,
+    added: (name: string, count: number) => `${name}: ${count} ürün eklendi`,
     delete: (name: string) => `${name} setini sil`,
   },
   wishes: {
@@ -357,6 +357,12 @@ export const tr = {
     expiryLeft: (days: number) => (days < 0 ? "Tarihi geçti" : days === 0 ? "Bugün son gün" : `${days}\u00a0gün kaldı`),
     /** The undo bar's line; a list deleted since takes nothing back. */
     finished: (name: string, list: string | null) => (list == null ? `${name} bitti` : `${name} bitti, ${list} listesine eklendi`),
+    paste: "Kilere metinden ekle",
+    pasteMessage: "Bir listeyi yapıştır: her satır ya da virgül bir ürün, miktarıyla.",
+    pasted: (count: number) => `${count} ürün kilere eklendi`,
+    share: "Kileri paylaş",
+    copied: "Kiler panoya kopyalandı",
+    remove: "Kilerden çıkar",
   },
   calendar: {
     pick: "Tarih seç",

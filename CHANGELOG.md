@@ -239,3 +239,6 @@ cannot be released.
   dropping under it.
 - Kiler and İstekler suggest as a list does while something is typed:
   products for Kiler, the wishes named before for İstekler.
+- Kiler works as a list does: sort it by dragging, paste a message into
+  it, fill it from the catalogue or a set, share it as text, and take a
+  product out from its panel without it going onto a list.

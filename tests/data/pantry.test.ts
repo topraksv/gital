@@ -23,7 +23,7 @@ vi.mock("expo-crypto", () => ({
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { finishShop, reopenShop } = await import("../../src/data/shops");
 const { createList, deleteList, editList } = await import("../../src/data/lists");
-const { finishPantryItem, readLasted, readPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
+const { finishPantryItem, readLasted, readPantry, removePantryItem, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { migratedDatabase } = await import("../helpers");
 
@@ -128,6 +128,49 @@ describe("stockPantry", () => {
     expect(finished.listName).toBeNull();
     await stockPantry(parseEntry("pirinç"));
     expect(await stock()).toEqual([{ name: "Pirinç", quantityMilli: 1000, unit: "adet" }]);
+  });
+
+  // A pasted message is taken back whole from the bar, as on a list (SPEC 6.2).
+  it("is taken back whole by its undo", async () => {
+    await stockPantry(parseEntry("un"));
+    tick();
+    const written = await stockPantry(parseEntry("2 un, tuz"));
+    expect(written.writes.length).toBeGreaterThan(0);
+    await undoFinish(written);
+    expect(await stock()).toEqual([{ name: "Un", quantityMilli: 1000, unit: "adet" }]);
+  });
+});
+
+// Kiler sorts as a list does, by its grips (SPEC 4.1 in Kiler, the owner asked 2026-09-27).
+describe("reorderPantry", () => {
+  it("keeps the dragged order, and puts a product that arrives later above it", async () => {
+    await stockPantry(parseEntry("un, tuz, şeker"));
+    await reorderPantry([await idOf("Tuz"), await idOf("Un"), await idOf("Şeker")]);
+    expect((await stock()).map((item) => item.name)).toEqual(["Tuz", "Un", "Şeker"]);
+    tick();
+    await stockPantry(parseEntry("pirinç"));
+    expect((await stock()).map((item) => item.name)).toEqual(["Pirinç", "Tuz", "Un", "Şeker"]);
+  });
+
+  it("leaves out what is no longer at home", async () => {
+    await stockPantry(parseEntry("un, tuz"));
+    const un = await idOf("Un");
+    await finishPantryItem(un);
+    await reorderPantry([await idOf("Tuz"), un]);
+    expect((await stock()).map((item) => item.name)).toEqual(["Tuz"]);
+  });
+});
+
+// Deleted from the panel: gone from home, and put on no list, since it did
+// not run out — it was never there, or it was thrown away.
+describe("removePantryItem", () => {
+  it("takes it out without putting it on its list, and the undo brings it back", async () => {
+    await shop(market, "2 süt");
+    const written = await removePantryItem(await idOf("Süt"));
+    expect(await stock()).toEqual([]);
+    expect(await readItems(market)).toEqual([]);
+    await undoFinish(written);
+    expect(await stock()).toEqual([{ name: "Süt", quantityMilli: 2000, unit: "adet" }]);
   });
 });
 

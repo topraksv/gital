@@ -7,7 +7,8 @@
  * outside the catalogue drawn with its initial as a list's item is. Setler
  * (5.3) lists the person's sets: one is made from the list's open items, a
  * tap puts one on the list, and both that and a delete close the panel, since
- * the undo bar they raise is drawn under it.
+ * the undo bar they raise is drawn under it. Kiler opens the same panel
+ * (the owner asked 2026-09-27), so where a product goes is the caller's.
  */
 
 import { useState } from "react";
@@ -16,7 +17,6 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import Trash from "lucide-react-native/icons/trash";
 
 import { useProducts, useSets } from "../data/hooks";
-import { importEntries, undoSave } from "../data/items";
 import { createSet, deleteSet, restoreSet, type ProductSet } from "../data/sets";
 import { AISLES, CATALOGUE, catalogueProduct, type Aisle, type CatalogueProduct } from "../domain/catalogue";
 import { foldName, type ListedEntry } from "../domain/items";
@@ -39,18 +39,20 @@ type Shelf = "catalogue" | "favourites" | "sets";
 
 export function CatalogueSheet<T extends { name: string }>({
   items,
-  listId,
   open,
   onAdd,
   onRemove,
+  addSet,
   onClose,
 }: {
   items: readonly T[];
-  listId: string;
   /** What is still to buy on the list, which a new set is made from. */
   open: readonly ListedEntry[];
   onAdd: (product: Shown) => void;
-  onRemove: (item: T) => void;
+  /** Left out where a second tap has nothing to take back, and adds again. */
+  onRemove?: (item: T) => void;
+  /** Puts a set's entries where they go, and hands back its undo, or null when nothing was new. */
+  addSet: (entries: readonly ListedEntry[]) => Promise<(() => Promise<unknown>) | null>;
   onClose: () => void;
 }) {
   const { palette } = useTheme();
@@ -87,7 +89,7 @@ export function CatalogueSheet<T extends { name: string }>({
           ))}
         </ScrollView>
       ) : shown === "sets" ? (
-        <SetsShelf listId={listId} open={open} onClose={onClose} />
+        <SetsShelf addSet={addSet} open={open} onClose={onClose} />
       ) : shelf.length === 0 ? (
         <Body muted>{tr.catalogue.noFavourites}</Body>
       ) : null}
@@ -96,7 +98,7 @@ export function CatalogueSheet<T extends { name: string }>({
           <View key={`${shown}-${aisle}-${at}`} style={{ flexDirection: "row", gap: spacing.xs }}>
             {row.map((product) => {
               const item = listed.get(product.key);
-              return <ProductTile key={product.key} product={product} added={item != null} onPress={() => (item ? onRemove(item) : onAdd(product))} />;
+              return <ProductTile key={product.key} product={product} added={item != null} onPress={() => (item && onRemove ? onRemove(item) : onAdd(product))} />;
             })}
             {Array.from({ length: catalogueSheet.columns - row.length }, (_, cell) => (
               <View key={cell} style={{ flex: 1 }} />
@@ -111,7 +113,15 @@ export function CatalogueSheet<T extends { name: string }>({
   );
 }
 
-function SetsShelf({ listId, open, onClose }: { listId: string; open: readonly ListedEntry[]; onClose: () => void }) {
+function SetsShelf({
+  addSet,
+  open,
+  onClose,
+}: {
+  addSet: (entries: readonly ListedEntry[]) => Promise<(() => Promise<unknown>) | null>;
+  open: readonly ListedEntry[];
+  onClose: () => void;
+}) {
   const sets = useSets().data;
   const make = async () => {
     const name = await appPrompt(tr.sets.makeTitle, tr.sets.makeMessage(open.length), {
@@ -130,10 +140,10 @@ function SetsShelf({ listId, open, onClose }: { listId: string; open: readonly L
   const add = async (set: ProductSet) => {
     onClose();
     try {
-      const written = await importEntries(listId, set.entries);
-      if (!written) return showNotice(tr.items.pastedNothing);
+      const undo = await addSet(set.entries);
+      if (!undo) return showNotice(tr.items.pastedNothing);
       selectionTap();
-      showUndo(tr.sets.added(set.name, written.writes.length), () => undoSave(written, listId));
+      showUndo(tr.sets.added(set.name, set.entries.length), undo);
     } catch {
       void appError(tr.errors.saveFailed);
     }
