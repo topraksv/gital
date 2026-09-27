@@ -26,7 +26,7 @@ import { useModalAccessibility } from "./accessibility";
 import { PriceField, QuantityFace, useCalculator } from "./calculator";
 import { AisleChip } from "./catalogue-sheet";
 import { PriceLine } from "./charts";
-import { Body, Button, ChoiceTile, IconButton, TextField, Toggle, rowsOf, type ShownItem } from "./components";
+import { Body, Button, ChoiceTile, IconButton, TextField, ToggleRow, rowsOf, type ShownItem } from "./components";
 import { Actions, DialogShell, appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { controlSize, itemPanel, spacing, type, useTheme } from "./theme";
@@ -127,7 +127,7 @@ export function ItemSheet({
         maxLength={NOTE_MAX}
         onChangeText={setNote}
         accessibilityLabel={tr.items.noteLabel}
-        placeholder={tr.items.notePlaceholder}
+        examples={tr.placeholders.itemNote}
         {...submits}
         style={{ marginTop: spacing.sm }}
       />
@@ -143,11 +143,11 @@ export function ItemSheet({
           <QuantityFace quantity={shownQuantity} quiet={quantity.quantityMilli == null} onPress={calculate} />
           <IconButton icon={Plus} label={tr.items.more(item.name)} disabled={!more} onPress={() => step(more)} />
         </View>
-        <Toggle value={urgent} onValueChange={setUrgent} label={tr.items.urgent} />
+        <ToggleRow value={urgent} onValueChange={setUrgent} title={tr.items.urgent} />
         {/* A ticked item was found. */}
         {item.checkedAt == null && !moving ? (
           <PanelPart appears>
-            <Toggle value={notFound} onValueChange={setNotFound} label={tr.items.notFound} />
+            <ToggleRow value={notFound} onValueChange={setNotFound} title={tr.items.notFound} />
           </PanelPart>
         ) : null}
       </View>
@@ -194,7 +194,7 @@ export function ItemSheet({
             </View>
             {to ? (
               <PanelPart appears>
-                <Toggle value={keep} onValueChange={setKeep} label={tr.items.keepHere} />
+                <ToggleRow value={keep} onValueChange={setKeep} title={tr.items.keepHere} />
               </PanelPart>
             ) : null}
           </View>
@@ -294,12 +294,12 @@ function Bought({
         maxLength={NAME_MAX}
         onChangeText={onInstead}
         accessibilityLabel={tr.items.insteadLabel}
-        placeholder={tr.items.insteadPlaceholder}
+        examples={tr.placeholders.instead}
         {...submits}
         style={{ marginTop: spacing.sm }}
       />
       <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
-        <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} placeholder={tr.items.pricePlaceholder} {...submits} />
+        <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} examples={tr.placeholders.price} {...submits} />
         {rise == null ? null : <Text style={[type.small, { color: palette.warningText }]}>{tr.items.priceRise(rise)}</Text>}
       </View>
     </>

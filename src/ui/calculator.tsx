@@ -13,7 +13,7 @@ import CalculatorIcon from "lucide-react-native/icons/calculator";
 import { formatQuantity, type Quantity, type Unit } from "../domain/items";
 import { formatMinorInput, formatPriceInput } from "../domain/money";
 import { tr } from "../i18n/tr";
-import { TextField } from "./components";
+import { TextField, fieldAccessoryStyle } from "./components";
 import { appError } from "./dialog";
 import { interactionSurface } from "./interaction";
 import { Press } from "./press";
@@ -36,6 +36,7 @@ export function PriceField({
   value: string;
   onChangeText: (typed: string) => void;
   label: string;
+  examples?: readonly string[];
   style?: StyleProp<ViewStyle>;
 }) {
   const { palette } = useTheme();
@@ -58,18 +59,7 @@ export function PriceField({
         accessibilityRole="button"
         accessibilityLabel={tr.calc.open(label)}
         onPress={open}
-        style={(state) => ({
-          position: "absolute",
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: controlSize.minimumTarget,
-          alignItems: "center",
-          justifyContent: "center",
-          borderTopRightRadius: radius.sm,
-          borderBottomRightRadius: radius.sm,
-          ...interactionSurface(palette, state),
-        })}
+        style={(state) => fieldAccessoryStyle(palette, state)}
       >
         <CalculatorIcon accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
       </Pressable>

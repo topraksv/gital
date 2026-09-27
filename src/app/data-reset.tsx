@@ -12,7 +12,7 @@ import Eraser from "lucide-react-native/icons/eraser";
 import { useSession } from "../auth/session";
 import { countDataReset, resetData, RESET_SCOPES, type ResetScope } from "../data/reset";
 import { tr } from "../i18n/tr";
-import { Body, Button, Card, Screen, Toggle } from "../ui/components";
+import { Body, Button, Card, Divider, Screen, ToggleRow } from "../ui/components";
 import { appConfirm, appError, appPrompt } from "../ui/dialog";
 import { spacing } from "../ui/theme";
 import { showNotice } from "../ui/undo";
@@ -60,18 +60,21 @@ export default function DataResetScreen() {
   };
 
   return (
-    <Screen title={tr.dataReset.title} back="/settings">
+    <Screen title={tr.dataReset.title} back="/account-security">
       <View style={{ gap: spacing.md }}>
         <Body muted>{tr.dataReset.intro}</Body>
-        <Card>
-          <View style={{ gap: spacing.md }}>
-            {RESET_SCOPES.map((scope) => (
-              <View key={scope}>
-                <Toggle value={chosen.includes(scope)} onValueChange={(on) => choose(scope, on)} label={tr.dataReset.scope[scope]} />
-                <Body muted>{tr.dataReset.scopeHint[scope]}</Body>
-              </View>
-            ))}
-          </View>
+        <Card rows>
+          {RESET_SCOPES.map((scope, at) => (
+            <View key={scope}>
+              {at > 0 ? <Divider /> : null}
+              <ToggleRow
+                value={chosen.includes(scope)}
+                onValueChange={(on) => choose(scope, on)}
+                title={tr.dataReset.scope[scope]}
+                subtitle={tr.dataReset.scopeHint[scope]}
+              />
+            </View>
+          ))}
         </Card>
         <View accessibilityLiveRegion="polite">{count == null ? null : <Body>{tr.dataReset.count(count)}</Body>}</View>
         <View style={{ alignItems: "flex-start" }}>

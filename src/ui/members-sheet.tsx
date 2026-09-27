@@ -45,7 +45,7 @@ export async function memberName(): Promise<string | null> {
   if (known) return known;
   const typed = await appPrompt(tr.sharing.nameTitle, tr.sharing.nameMessage, {
     confirmLabel: tr.common.save,
-    placeholder: tr.sharing.namePlaceholder,
+    examples: tr.placeholders.memberName,
     maxLength: NAME_MAX,
   });
   if (typed == null || typed.trim() === "") return null;

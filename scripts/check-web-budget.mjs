@@ -15,16 +15,16 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-27 with the privacy notice (10.3 KB of its text): entry
-// 2_163_544, all JS 2_413_650, export 4_216_367, the CSP repeated in each of
-// the export's 24 pages; pictures 324_522 on the catalogue. The
+// Measured 2026-09-27 with Helix's sign-in, Ayarlar and Hesap ve Güvenlik:
+// entry 2_204_921, all JS 2_455_028, export 4_278_580, the CSP repeated in
+// each of the export's pages; pictures 324_522 on the catalogue. The
 // Realtime transport is a chunk of its own (67 KB), loaded only by someone
 // sharing a list; the QR encoder another (13 KB), with the first invitation.
 // `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 2_185_200,
-  totalJs: 2_437_800,
-  totalExport: 4_258_600,
+  entryJs: 2_227_000,
+  totalJs: 2_479_600,
+  totalExport: 4_321_400,
   pictures: 328_000,
 };
 

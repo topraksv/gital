@@ -116,7 +116,7 @@ function SetsShelf({ listId, open, onClose }: { listId: string; open: readonly L
   const make = async () => {
     const name = await appPrompt(tr.sets.makeTitle, tr.sets.makeMessage(open.length), {
       confirmLabel: tr.lists.createConfirm,
-      placeholder: tr.sets.namePlaceholder,
+      examples: tr.placeholders.setName,
       maxLength: NAME_MAX,
     });
     if (name == null) return;

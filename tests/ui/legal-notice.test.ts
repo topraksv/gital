@@ -22,9 +22,9 @@ describe("the privacy notice", () => {
   });
 
   it("is reachable from sign-up, from feedback and from Ayarlar", () => {
-    for (const file of ["src/app/(auth)/sign-in.tsx", "src/app/feedback.tsx", "src/app/(tabs)/settings.tsx"]) {
-      expect(read(file), file).toContain('"/privacy"');
-    }
+    for (const file of ["src/app/feedback.tsx", "src/app/(tabs)/settings.tsx"]) expect(read(file), file).toContain('"/privacy"');
+    // Sign-up opens it over the form, as Helix's does: a push would cost what was typed.
+    expect(read("src/app/(auth)/sign-in.tsx")).toContain("<LegalNoticeSheet");
   });
 
   it("opens before an account exists", () => {
@@ -34,12 +34,26 @@ describe("the privacy notice", () => {
     expect(layout.lastIndexOf("</Stack.Protected>", screen)).toBeGreaterThan(layout.lastIndexOf("<Stack.Protected", screen));
   });
 
+  it("is one body in two frames, so the copy read before consent is the copy Ayarlar shows", () => {
+    for (const file of ["src/app/privacy.tsx", "src/ui/legal-notice.tsx"]) expect(read(file), file).toContain("<LegalNoticeBody");
+    expect(read("src/app/privacy.tsx")).not.toContain("tr.legal.");
+  });
+
   it("holds sign-up until the notice is accepted at its end, and says why on the form", () => {
     const signIn = read("src/app/(auth)/sign-in.tsx");
     expect(signIn).toContain("tr.legal.signUpNotice");
-    expect(signIn).toMatch(/mode !== "signUp" \|\| consented/);
-    expect(read("src/app/privacy.tsx")).toMatch(/legal\.accept\b/);
+    expect(signIn).toContain("<LegalConsentControl");
+    // Consent belongs to the attempt: the form holds it, and a mode switch drops it.
+    expect(signIn).toMatch(/useState\(false\)[\s\S]*consented/);
+    expect(read("src/auth/session.ts")).not.toMatch(/consented/);
+    const notice = read("src/ui/legal-notice.tsx");
+    expect(notice.indexOf("tr.legal.consentLabel")).toBeGreaterThan(notice.indexOf("<LegalNoticeBody />"));
     expect(tr.legal.signUpNotice).toMatch(/hesap oluşturduğunda/i);
+  });
+
+  it("letters the Article 11 rights as the statute does", () => {
+    expect(read("src/ui/legal-notice.tsx")).toContain('["a", "b", "c", "ç", "d", "e", "f", "g"]');
+    expect(tr.legal.rights).toHaveLength(8);
   });
 
   /**

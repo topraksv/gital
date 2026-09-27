@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as Linking from "expo-linking";
+import AlertCircle from "lucide-react-native/icons/circle-alert";
+import CheckCircle2 from "lucide-react-native/icons/circle-check";
+import KeyRound from "lucide-react-native/icons/key-round";
+import type { LucideIcon } from "lucide-react-native";
 
 import { isValidNewPassword, useSession } from "../../auth/session";
 import { tr } from "../../i18n/tr";
-import { Body, Button, Card, FieldError, Notice, Screen, TextField } from "../../ui/components";
-import { spacing, type, useTheme } from "../../ui/theme";
+import { Body, Button, Notice, Screen, TextField } from "../../ui/components";
+import { alpha, authHero, circle, spacing, type, useTheme } from "../../ui/theme";
 
 type State = "checking" | "ready" | "expired" | "invalid" | "offline" | "done";
 
@@ -77,71 +81,91 @@ export default function ResetPasswordScreen() {
     );
   }
 
+  if (state !== "ready") {
+    const [title, body] = ENDED[state];
+    const success = state === "done";
+    return (
+      <Screen width="focus">
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md }}>
+          <ResultMark tone={success ? "success" : "error"} icon={success ? CheckCircle2 : AlertCircle} />
+          <Text accessibilityRole="header" aria-level={1} style={[type.heading, { color: palette.text, textAlign: "center" }]}>{title}</Text>
+          <Body muted style={{ textAlign: "center", marginBottom: spacing.sm }}>{body}</Body>
+          {state === "offline" ? (
+            <Button
+              label={tr.common.retry}
+              onPress={() => {
+                setState("checking");
+                setAttempt((n) => n + 1);
+              }}
+            />
+          ) : (
+            <Button label={success ? tr.auth.signIn : tr.auth.requestNewLink} onPress={leave} />
+          )}
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen width="focus">
-      <View style={{ paddingTop: spacing.xl }}>
-        <Card>
-          <Text accessibilityRole="header" aria-level={1} style={[type.heading, { color: palette.text, marginBottom: spacing.xs }]}>
-            {state === "ready" ? tr.auth.resetTitle : ENDED[state][0]}
-          </Text>
-          <Body muted>{state === "ready" ? tr.auth.resetSubtitle : ENDED[state][1]}</Body>
-          {state === "ready" ? (
-            <>
-              <TextField
-                value={password}
-                onChangeText={(value) => {
-                  setPassword(value);
-                  setError(null);
-                }}
-                accessibilityLabel={tr.auth.newPassword}
-                accessibilityHint={tr.auth.passwordHint}
-                placeholder={tr.auth.newPassword}
-                autoCapitalize="none"
-                secureTextEntry
-                autoComplete="new-password"
-                textContentType="newPassword"
-                style={{ marginTop: spacing.lg }}
-              />
-              {password !== "" && !isValidNewPassword(password) ? <FieldError text={tr.auth.passwordHint} /> : null}
-              <TextField
-                value={again}
-                onChangeText={(value) => {
-                  setAgain(value);
-                  setError(null);
-                }}
-                accessibilityLabel={tr.auth.confirmNewPassword}
-                placeholder={tr.auth.confirmNewPassword}
-                autoCapitalize="none"
-                secureTextEntry
-                autoComplete="new-password"
-                textContentType="newPassword"
-                returnKeyType="go"
-                onSubmitEditing={() => void save()}
-                style={{ marginTop: spacing.sm }}
-              />
-              {again !== "" && again !== password ? <FieldError text={tr.auth.passwordsMismatch} /> : null}
-              {error ? <Notice tone="error" text={error} /> : null}
-              <View style={{ marginTop: spacing.lg }}>
-                <Button label={tr.auth.resetSave} onPress={() => void save()} disabled={!valid} />
-              </View>
-            </>
-          ) : (
-            <View style={{ marginTop: spacing.lg }}>
-              {state === "offline" ? (
-                <Button
-                  label={tr.common.retry}
-                  onPress={() => {
-                    setState("checking");
-                    setAttempt((n) => n + 1);
-                  }}
-                />
-              ) : (
-                <Button label={state === "done" ? tr.auth.openApp : tr.auth.backToSignIn} onPress={leave} />
-              )}
-            </View>
-          )}
-        </Card>
+      <View style={{ paddingVertical: spacing.xxl }}>
+        <View style={{ marginBottom: spacing.lg }}>
+          <ResultMark tone="primary" icon={KeyRound} />
+        </View>
+        <Text accessibilityRole="header" aria-level={1} style={[type.heading, { color: palette.text, marginBottom: spacing.xs }]}>{tr.auth.resetTitle}</Text>
+        <Body muted style={{ marginBottom: spacing.lg }}>{tr.auth.resetSubtitle}</Body>
+        <TextField
+          label={tr.auth.newPassword}
+          value={password}
+          onChangeText={(value) => {
+            setPassword(value);
+            setError(null);
+          }}
+          secure
+          autoCapitalize="none"
+          autoComplete="new-password"
+          textContentType="newPassword"
+          error={password !== "" && !isValidNewPassword(password) ? tr.auth.passwordHint : null}
+          style={{ marginBottom: spacing.md }}
+        />
+        <TextField
+          label={tr.auth.confirmNewPassword}
+          value={again}
+          onChangeText={(value) => {
+            setAgain(value);
+            setError(null);
+          }}
+          secure
+          autoCapitalize="none"
+          autoComplete="new-password"
+          textContentType="newPassword"
+          returnKeyType="go"
+          onSubmitEditing={() => void save()}
+          error={again !== "" && again !== password ? tr.auth.passwordsMismatch : null}
+          style={{ marginBottom: spacing.md }}
+        />
+        {error ? <Notice tone="error" text={error} /> : null}
+        <Button label={tr.auth.resetSave} loading={busy} onPress={() => void save()} disabled={!valid} />
       </View>
     </Screen>
+  );
+}
+
+/** Helix's round mark over the page's heading, tinted by what it says. */
+function ResultMark({ tone, icon: Icon }: { tone: "primary" | "success" | "error"; icon: LucideIcon }) {
+  const { palette } = useTheme();
+  return (
+    <View
+      style={{
+        width: authHero.resultMark,
+        height: authHero.resultMark,
+        borderRadius: circle(authHero.resultMark),
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: palette[tone] + alpha.noticeTint,
+      }}
+    >
+      <Icon accessible={false} size={authHero.resultIcon} color={palette[tone]} />
+    </View>
   );
 }

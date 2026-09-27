@@ -63,6 +63,8 @@ interface PromptRequest {
   title: string;
   message: string;
   placeholder: string;
+  /** Helix's rotating examples (`placeholders.ts`), in place of a fixed hint. */
+  examples?: readonly string[];
   confirmLabel: string;
   initialValue: string;
   maxLength: number | undefined;
@@ -81,7 +83,7 @@ let promptId = 0;
 export function appPrompt(
   title: string,
   message: string,
-  opts: { confirmLabel: string; placeholder?: string; initialValue?: string; maxLength?: number; multiline?: boolean; kind?: PromptKind },
+  opts: { confirmLabel: string; placeholder?: string; examples?: readonly string[]; initialValue?: string; maxLength?: number; multiline?: boolean; kind?: PromptKind },
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const request: PromptRequest = {
@@ -89,6 +91,7 @@ export function appPrompt(
       title,
       message,
       placeholder: opts.placeholder ?? "",
+      examples: opts.examples,
       confirmLabel: opts.confirmLabel,
       initialValue: opts.initialValue ?? "",
       maxLength: opts.maxLength,
@@ -236,6 +239,7 @@ function PromptBody({ request, onClose }: { request: PromptRequest; onClose: (va
         accessibilityLabel={request.title}
         accessibilityHint={request.message}
         placeholder={request.placeholder}
+        examples={request.examples}
         autoFocus
         // A rename opens on the whole name selected, so typing replaces it.
         selectTextOnFocus={request.initialValue !== ""}

@@ -2,18 +2,20 @@ import { useRef, useState } from "react";
 import { Animated, Easing, Platform, Text, View } from "react-native";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Minus from "lucide-react-native/icons/minus";
+import Plus from "lucide-react-native/icons/plus";
 import Refrigerator from "lucide-react-native/icons/refrigerator";
 
 import { useMovedAisles, usePantry } from "../../data/hooks";
-import { finishPantryItem, setExpiry, setStock, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
+import { finishPantryItem, setExpiry, setStock, stockPantry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
 import { listSections } from "../../domain/catalogue";
 import { todayISO } from "../../domain/dates";
+import { ENTRY_MAX, parseEntry } from "../../domain/items";
 import { expiryOf } from "../../domain/pantry";
 import { tr } from "../../i18n/tr";
 import { useModalAccessibility } from "../../ui/accessibility";
 import { QuantityFace, useCalculator } from "../../ui/calculator";
 import { DateField } from "../../ui/calendar";
-import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SectionHeader, SlideUp, cardEdge, itemDetail, RowOpen } from "../../ui/components";
+import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SectionHeader, SlideUp, cardEdge, itemDetail, RowOpen, TextField } from "../../ui/components";
 import { Actions, DialogShell, appError } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { isReducedMotion } from "../../ui/motion";
@@ -49,6 +51,7 @@ export default function Pantry() {
 
   return (
     <Screen title={tr.tabs.pantry} width="workspace">
+      <PantryAdd />
       {pantry.status === "error" ? (
         <ReadFailed queries={[pantry]} />
       ) : pantry.updatedAt != null ? (
@@ -77,6 +80,43 @@ export default function Pantry() {
         </ArrivalScope>
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * What is already at home, typed in as a list's entry is (SPEC 12.11): "2 kg
+ * un, tuz" is two products. Enter adds and keeps the keyboard up, as there.
+ */
+function PantryAdd() {
+  const [text, setText] = useState("");
+  const add = async () => {
+    const entries = parseEntry(text);
+    if (entries.length === 0) return;
+    setText("");
+    try {
+      await stockPantry(entries);
+      selectionTap();
+    } catch {
+      // Only into a field left empty: what was typed since is not overwritten.
+      setText((current) => (current === "" ? text : current));
+      void appError(tr.errors.saveFailed);
+    }
+  };
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
+      <TextField
+        value={text}
+        onChangeText={setText}
+        onSubmitEditing={() => void add()}
+        blurOnSubmit={false}
+        returnKeyType="done"
+        accessibilityLabel={tr.pantry.addLabel}
+        examples={tr.placeholders.pantryAdd}
+        maxLength={ENTRY_MAX}
+        style={{ flex: 1 }}
+      />
+      <IconButton icon={Plus} label={tr.pantry.add} tone="primary" onPress={() => void add()} />
+    </View>
   );
 }
 

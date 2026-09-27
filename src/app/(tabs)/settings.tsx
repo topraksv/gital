@@ -1,17 +1,14 @@
 import { useEffect, useState } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
+import Bell from "lucide-react-native/icons/bell";
 import BookOpen from "lucide-react-native/icons/book-open";
-import CloudAlert from "lucide-react-native/icons/cloud-alert";
-import Eraser from "lucide-react-native/icons/eraser";
+import CloudOff from "lucide-react-native/icons/cloud-off";
+import CloudUpload from "lucide-react-native/icons/cloud-upload";
 import KeyRound from "lucide-react-native/icons/key-round";
 import LogOut from "lucide-react-native/icons/log-out";
-import Mail from "lucide-react-native/icons/mail";
 import MessageSquare from "lucide-react-native/icons/message-square";
 import ShieldCheck from "lucide-react-native/icons/shield-check";
-import RefreshCw from "lucide-react-native/icons/refresh-cw";
-import Snowflake from "lucide-react-native/icons/snowflake";
-import Trash from "lucide-react-native/icons/trash";
 import Check from "lucide-react-native/icons/check";
 import Monitor from "lucide-react-native/icons/monitor";
 import Moon from "lucide-react-native/icons/moon";
@@ -25,11 +22,11 @@ import { disableReminders, enableReminders, remindersAvailable, replanReminders 
 import { syncNow } from "../../sync/engine";
 import { useSyncStatus } from "../../sync/status";
 import { isSupabaseConfigured } from "../../sync/supabase";
-import { Body, Button, Card, ChoiceTile, Notice, Screen, SectionHeader, Toggle, rowsOf } from "../../ui/components";
-import { appConfirm, appError, appPrompt } from "../../ui/dialog";
+import { Body, Button, Card, ChoiceTile, ListRow, Screen, SectionHeader, ToggleRow, rowsOf } from "../../ui/components";
+import { appConfirm, appError } from "../../ui/dialog";
 import { TourModal } from "../../ui/tour";
-import { shouldPairTiles } from "../../ui/responsive";
-import { alpha, appearanceTile, borderWidth, circle, controlSize, PALETTES, radius, spacing, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
+import { shouldPairTiles, shouldStackListActions } from "../../ui/responsive";
+import { alpha, appearanceTile, borderWidth, circle, controlSize, density, PALETTES, radius, spacing, type, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
 import { radioGroupKeys } from "../../ui/keys";
 import { leaveAccount, setAppearance } from "../_layout";
 
@@ -45,7 +42,11 @@ const FAMILIES: readonly [PaletteId, string, string][] = [
   ["forest", tr.settings.paletteForest, tr.settings.paletteForestDesc],
 ];
 
-/** Helix's appearance card, ported as it stands (`docs/UI.md` section 1). */
+/**
+ * Helix's settings hub (`docs/UI.md` section 1): cards of rows, each a mark,
+ * a name, a line under it and what it does at the trailing edge. What changes
+ * the account lives a row away, on Hesap Güvenliği, as Helix's does.
+ */
 export default function SettingsScreen() {
   const { palette, scheme, paletteId, preference } = useTheme();
   const { width } = useWindowDimensions();
@@ -53,19 +54,7 @@ export default function SettingsScreen() {
   const [touring, setTouring] = useState(false);
   return (
     <Screen title={tr.tabs.settings} width="workspace">
-      {isSupabaseConfigured ? (
-        <>
-          <SectionHeader>{tr.account.title}</SectionHeader>
-          <Card>
-            <Account />
-          </Card>
-          <SectionHeader>{tr.sync.title}</SectionHeader>
-          <Card>
-            <Sync />
-          </Card>
-        </>
-      ) : null}
-      <SectionHeader>{tr.settings.appSection}</SectionHeader>
+      <SectionHeader flush>{tr.settings.appSection}</SectionHeader>
       <Card>
         <Body style={{ marginBottom: spacing.sm }}>{tr.settings.theme}</Body>
         <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.settings.theme} style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg }}>
@@ -95,128 +84,90 @@ export default function SettingsScreen() {
             />
           ))}
         </View>
+        {/* Helix keeps what only a phone can do off the web page rather than
+            explaining there why it is missing. */}
+        {remindersAvailable ? <Reminders /> : null}
       </Card>
-      <SectionHeader>{tr.reminders.title}</SectionHeader>
-      <Card>{remindersAvailable ? <Reminders /> : <Body muted>{tr.reminders.phoneOnly}</Body>}</Card>
-      <SectionHeader>{tr.settings.helpSection}</SectionHeader>
-      <Card>
-        <Body muted style={{ marginBottom: spacing.md }}>{tr.tour.replayHint}</Body>
-        <Button label={tr.tour.replay} icon={BookOpen} variant="ghost" onPress={() => setTouring(true)} />
-        <Body muted style={{ marginVertical: spacing.md }}>{tr.feedback.hint}</Body>
-        <Button label={tr.feedback.open} icon={MessageSquare} variant="ghost" onPress={() => router.push("/feedback")} />
-        <Body muted style={{ marginVertical: spacing.md }}>{tr.legal.openHint}</Body>
-        <Button label={tr.legal.open} icon={ShieldCheck} variant="ghost" onPress={() => router.push("/privacy")} />
+      {isSupabaseConfigured ? (
+        <>
+          <SectionHeader>{tr.settings.syncSection}</SectionHeader>
+          <Sync />
+        </>
+      ) : null}
+      <Card rows>
+        <ListRow icon={BookOpen} title={tr.tour.replay} subtitle={tr.tour.replayDesc} chevron onPress={() => setTouring(true)} />
+        <ListRow icon={ShieldCheck} title={tr.legal.title} subtitle={tr.legal.subtitle} chevron onPress={() => router.push("/privacy")} />
       </Card>
+      {isSupabaseConfigured ? (
+        <>
+          <SectionHeader>{tr.account.section}</SectionHeader>
+          <Card rows>
+            <ListRow icon={KeyRound} title={tr.account.security} subtitle={tr.account.securityDesc} chevron onPress={() => router.push("/account-security")} />
+          </Card>
+          <Card rows>
+            <ListRow icon={LogOut} title={tr.account.signOut} subtitle={tr.account.signOutDescription} chevron onPress={() => void signOut()} />
+          </Card>
+        </>
+      ) : null}
+      {/* Last: the one row here that changes nothing, and a person looking for
+          it is looking for the bottom of the page. */}
+      <SectionHeader>{tr.feedback.title}</SectionHeader>
+      <Card rows>
+        <ListRow icon={MessageSquare} title={tr.feedback.title} subtitle={tr.feedback.settingsDesc} chevron onPress={() => router.push("/feedback")} />
+      </Card>
+      <Body muted style={{ fontSize: type.small.fontSize, textAlign: "center", marginTop: spacing.md }}>{tr.settings.footer}</Body>
       {touring ? <TourModal onClose={() => setTouring(false)} /> : null}
     </Screen>
   );
 }
 
-/**
- * The account (SPEC 9.1): who is signed in, and every change to it. Each one
- * asks for the password first, through the brake on repeated failures; the
- * two that end the account here speak through dialogs, which outlive this
- * screen once the guard has swapped it for sign-in.
- */
-function Account() {
-  const { email, previousLoginAt, verifyPassword, changeEmail, changePassword, freezeAccount, deleteAccount } = useSession();
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "error" | "success"; text: string } | null>(null);
-
-  const run = (work: () => Promise<{ tone: "error" | "success"; text: string } | null>) => async () => {
-    setBusy(true);
-    setNotice(null);
-    try {
-      const outcome = await work();
-      if (outcome) setNotice(outcome);
-    } catch {
-      setNotice({ tone: "error", text: tr.auth.errGeneric });
-    } finally {
-      setBusy(false);
-    }
-  };
-  const confirmed = async (body: string): Promise<{ ok: true; password: string } | { ok: false; refused: string } | null> => {
-    const password = await appPrompt(tr.account.confirmPasswordTitle, body, { confirmLabel: tr.common.done, kind: "password" });
-    if (password == null) return null;
-    const refused = await verifyPassword(password);
-    return refused ? { ok: false, refused } : { ok: true, password };
-  };
-  const failed = (text: string) => ({ tone: "error", text }) as const;
-
-  const newEmail = run(async () => {
-    const next = await appPrompt(tr.account.changeEmail, tr.account.newEmail, { confirmLabel: tr.common.save, kind: "email" });
-    if (next == null) return null;
-    const check = await confirmed(tr.account.confirmPasswordBody);
-    if (!check) return null;
-    if (!check.ok) return failed(check.refused);
-    const refused = await changeEmail(next);
-    return refused ? failed(refused) : { tone: "success", text: tr.account.emailChangeSent };
-  });
-  const newPassword = run(async () => {
-    const check = await confirmed(tr.account.confirmPasswordBody);
-    if (!check) return null;
-    if (!check.ok) return failed(check.refused);
-    const next = await appPrompt(tr.account.changePassword, tr.account.newPasswordBody, { confirmLabel: tr.common.save, kind: "new-password" });
-    if (next == null) return null;
-    const refused = await changePassword(check.password, next);
-    return refused ? failed(refused) : { tone: "success", text: tr.account.passwordChanged };
-  });
-  const leave = run(async () => {
-    await leaveAccount();
-    return null;
-  });
-  const freeze = run(async () => {
-    if (!(await appConfirm(tr.account.freezeTitle, tr.account.freezeBody, tr.account.freezeConfirm))) return null;
-    const check = await confirmed(tr.account.freezePasswordBody);
-    if (!check) return null;
-    const refused = check.ok ? await freezeAccount() : check.refused;
-    if (refused) await appError(refused);
-    return null;
-  });
-  const remove = run(async () => {
-    if (!(await appConfirm(tr.account.deleteTitle, tr.account.deleteBody, tr.account.deleteConfirm))) return null;
-    const check = await confirmed(tr.account.deletePasswordBody);
-    if (!check) return null;
-    const refused = check.ok ? await deleteAccount() : check.refused;
-    if (refused) await appError(refused);
-    return null;
-  });
-
-  return (
-    <View style={{ gap: spacing.sm }}>
-      {email ? <Body>{tr.account.signedInAs(email)}</Body> : null}
-      {previousLoginAt ? <Body muted>{tr.account.previousLogin(previousLoginAt)}</Body> : null}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm }}>
-        <Button label={tr.account.changeEmail} icon={Mail} variant="ghost" disabled={busy} onPress={() => void newEmail()} />
-        <Button label={tr.account.changePassword} icon={KeyRound} variant="ghost" disabled={busy} onPress={() => void newPassword()} />
-        <Button label={tr.account.signOut} icon={LogOut} variant="ghost" disabled={busy} onPress={() => void leave()} />
-        <Button label={tr.dataReset.title} icon={Eraser} variant="ghost" disabled={busy} onPress={() => router.push("/data-reset")} />
-        <Button label={tr.account.freeze} icon={Snowflake} variant="ghost" disabled={busy} onPress={() => void freeze()} />
-        <Button label={tr.account.delete} icon={Trash} variant="ghost" disabled={busy} onPress={() => void remove()} />
-      </View>
-      {notice ? <Notice {...notice} /> : null}
-    </View>
-  );
+/** Helix asks before signing out, and the layout asks again only if something would be lost. */
+async function signOut() {
+  if (await appConfirm(tr.account.signOutTitle, tr.account.signOutDescription, tr.account.signOut)) await leaveAccount();
 }
 
 /**
- * Sync as Helix shows it (SPEC 10.3): its state, when it last finished, and a
- * button to run it now. What the server refused opens on a screen of its own,
- * since nothing is lost and nothing here is urgent.
+ * Sync as Helix shows it (SPEC 10.3): one row with its state, when it last
+ * finished and a button to run it now, and a row to what the server refused,
+ * which opens on a screen of its own since nothing is lost and nothing is urgent.
  */
 function Sync() {
+  const { palette } = useTheme();
   const userId = useSession((s) => s.userId);
   const { state, lastSyncAt, error } = useSyncStatus();
+  const { width } = useWindowDimensions();
+  // Idle before a first sync has finished is not "synced": a fresh sign-in or
+  // an offline device would read green for a copy that never left it.
+  const never = state === "idle" && !lastSyncAt;
+  const tone = never ? palette.textSecondary : state === "idle" ? palette.success : state === "error" ? palette.error : palette.warning;
+  const said = never ? tr.sync.never : tr.sync[state];
   return (
-    <View style={{ gap: spacing.sm }}>
-      {state === "error" ? <Notice tone="error" text={error ?? tr.sync.errGeneric} /> : <Body>{tr.sync[state]}</Body>}
-      <Body muted>{lastSyncAt ? tr.sync.lastSync(lastSyncAt) : tr.sync.never}</Body>
-      {state === "attention" ? <Body muted>{tr.sync.errQuarantined}</Body> : null}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm }}>
-        <Button label={tr.sync.now} icon={RefreshCw} variant="ghost" disabled={!userId || state === "syncing"} onPress={() => userId && void syncNow(userId)} />
-        {state === "attention" ? <Button label={tr.sync.issues} icon={CloudAlert} variant="ghost" onPress={() => router.push("/sync-issues")} /> : null}
-      </View>
-    </View>
+    <Card rows>
+      <ListRow
+        icon={CloudUpload}
+        iconColor={tone}
+        title={tr.sync.title}
+        subtitle={lastSyncAt ? tr.common.joined(said, tr.sync.lastSync(lastSyncAt)) : said}
+        stackRight={shouldStackListActions(width)}
+        right={
+          <Button
+            label={tr.sync.now}
+            variant="secondary"
+            size="sm"
+            loading={state === "syncing"}
+            disabled={!userId || state === "syncing"}
+            onPress={() => userId && void syncNow(userId)}
+          />
+        }
+      />
+      {state === "error" ? (
+        <Text accessibilityRole="alert" style={[type.small, { color: palette.errorText, marginTop: spacing.xs }]}>{error ?? tr.sync.errGeneric}</Text>
+      ) : null}
+      <Body muted style={{ fontSize: type.small.fontSize, marginTop: spacing.xs, marginBottom: density.list.cardPadding }}>{tr.settings.syncExplain}</Body>
+      {state === "attention" ? (
+        <ListRow icon={CloudOff} title={tr.sync.issues} subtitle={tr.sync.errQuarantined} chevron onPress={() => router.push("/sync-issues")} />
+      ) : null}
+    </Card>
   );
 }
 
@@ -257,9 +208,8 @@ function Reminders() {
   };
   const days = [[null, tr.reminders.noDay, tr.reminders.noDay] as const, ...tr.reminders.weekdays];
   return (
-    <View style={{ gap: spacing.sm }}>
-      <Body muted>{tr.reminders.hint}</Body>
-      <Toggle value={on} onValueChange={turn} label={tr.reminders.title} />
+    <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+      <ToggleRow icon={Bell} title={tr.reminders.title} subtitle={tr.reminders.hint} value={on} onValueChange={turn} />
       {on ? (
         <>
           <Body>{tr.reminders.day}</Body>

@@ -185,7 +185,7 @@ vi.mock("../../src/sync/supabase", () => {
   };
 });
 
-const { LOCAL_USER_ID, SIGN_OUT_PENDING_CHANGES, useSession } = await import("../../src/auth/session");
+const { LOCAL_USER_ID, SIGN_OUT_PENDING_CHANGES, isEmail, useSession } = await import("../../src/auth/session");
 const { HOSTED_RECOVERY_PAGE } = await import("../../src/auth/recovery");
 const { VERIFY_COOLDOWN_MS, VERIFY_MAX_FAILURES } = await import("../../src/auth/verification-brake");
 const { createList, readLists } = await import("../../src/data/lists");
@@ -382,6 +382,13 @@ describe("opening the app", () => {
     await vi.waitFor(() => expect(count("lists")).toBe(0));
     expect(session().userId).toBeNull();
     for (const key of [OWNER, LAST_USER, LAST_EMAIL]) expect(device.stored.has(key)).toBe(false);
+  });
+});
+
+describe("an address a form will send", () => {
+  it("is anything with a name, an @ and a dotted domain, spaces around it forgiven", () => {
+    expect(isEmail(" ayse@ev.com ")).toBe(true);
+    for (const typed of ["", "ayse", "ayse@", "ayse@ev", "@ev.com"]) expect(isEmail(typed), typed).toBe(false);
   });
 });
 

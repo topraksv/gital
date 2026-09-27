@@ -92,7 +92,7 @@ export default function FeedbackScreen() {
         multiline
         maxLength={FEEDBACK_MESSAGE_MAX}
         accessibilityLabel={tr.feedback.messageLabel}
-        placeholder={tr.feedback.placeholder}
+        examples={tr.placeholders.feedback}
       />
       {attempted && rejection ? <FieldError text={tr.feedback.rejected[rejection](FEEDBACK_MESSAGE_MIN, message.trim().length)} /> : null}
       <SectionHeader>{tr.feedback.imageTitle}</SectionHeader>

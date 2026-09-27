@@ -5,7 +5,7 @@
  * unspent and is redeemed on save.
  */
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -194,5 +194,26 @@ describe("the server's account settings", () => {
     expect(sql).toMatch(/delete from auth\.users where id = auth\.uid\(\);/);
     expect(sql).toMatch(/revoke all on function public\.delete_own_account\(\) from public, anon, authenticated, service_role;/);
     expect(sql.match(/^grant .*$/gm)).toEqual(["grant execute on function public.delete_own_account() to authenticated;"]);
+  });
+});
+
+// On web the key-value store is `localStorage`, which any script on the origin
+// reads. CodeQL flags its writer because the id and address `signInWithPassword`
+// returns land there; session material stays in supabase-js. Helix dismissed
+// the same alert and pinned the boundary with this sweep, so it is asserted
+// rather than re-argued.
+describe("the device's key-value store", () => {
+  it("holds only named, non-secret keys", () => {
+    const src = join(process.cwd(), "src");
+    const sources = readdirSync(src, { recursive: true }).map(String).filter((name) => /\.tsx?$/.test(name)).map((name) => join(src, name));
+    const keys = sources.flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(/kv\.set\(\s*([^,]+),/g)].map((match) => match[1]!.trim()),
+    );
+    // An empty sweep would pass everything below.
+    expect(keys.length).toBeGreaterThanOrEqual(10);
+    for (const key of keys) {
+      expect(key).not.toMatch(/token|password|secret|credential|jwt|session/i);
+      expect(key).toMatch(/^("gital\.[\w.-]+"|[A-Z][A-Z0-9_]*_KEY|(APPEARANCE_)?KEYS\.\w+)$/);
+    }
   });
 });

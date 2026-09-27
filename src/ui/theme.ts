@@ -414,10 +414,10 @@ export const maxFontScale = { measuredBox: 2 } as const;
  * `selected` is a chosen tile's ring: constant weight, so choosing never
  * re-wraps the row. `outline` edges the appearance card's miniatures.
  */
-export const borderWidth = { outline: 1, selected: 2 } as const;
+export const borderWidth = { outline: 1, control: 1.5, selected: 2 } as const;
 
 /** Alpha channels appended to a palette hex, so a softened edge or tint is written once. */
-export const alpha = { edge: "70", tileEdge: "80", controlEdge: "90", selectedTint: "14", inverseTint: "18" } as const;
+export const alpha = { edge: "70", tileEdge: "80", controlEdge: "90", selectedTint: "14", inverseTint: "18", doneEdge: "66", noticeTint: "16" } as const;
 
 export const stateOpacity = { pressed: 0.85 } as const;
 
@@ -435,8 +435,12 @@ export const font = {
 // Static faces carry one weight each, so a role sets fontFamily and never
 // fontWeight, which iOS would synthesise into a second face.
 export const type = {
+  /** Helix's greeting size: the sign-in's welcome on a wide window. */
+  display: { fontSize: 40, fontFamily: font.serif, letterSpacing: -0.8 },
   title: { fontSize: 26, fontFamily: font.serif, letterSpacing: -0.2 },
-  heading: { fontSize: 18, fontFamily: font.semibold },
+  heading: { fontSize: 18, fontFamily: font.semibold, letterSpacing: -0.2 },
+  /** A field's name above it, Helix's `Label`. */
+  label: { fontSize: 13, fontFamily: font.medium },
   sectionTitle: { fontSize: 16, fontFamily: font.semibold, letterSpacing: -0.2 },
   field: { fontSize: 16, fontFamily: font.regular },
   body: { fontSize: 15, fontFamily: font.regular },
@@ -455,6 +459,8 @@ export const proseLeading = 1.5;
 export const themeShadow = {
   card: (palette: Palette) => ({ boxShadow: `0 8px 24px ${palette.shadow}` } as const),
   overlay: (palette: Palette) => ({ boxShadow: `0 16px 40px ${palette.shadowStrong}` } as const),
+  /** The switch's thumb, Helix's: it reads as a lens on the track rather than a flat dot. */
+  toggleThumb: (palette: Palette) => ({ boxShadow: `0 1px 3px ${palette.shadowStrong}` } as const),
 } as const;
 
 /** The floating tab bar, measured from Helix's `tab-bar.tsx`. */
@@ -627,6 +633,47 @@ export const dialog = {
   dragAway: 96,
   keyboardGap: 140,
   keyboardGapShare: 0.22,
+} as const;
+
+/** Helix's notice sheet and consent box (`src/ui/legal-notice.tsx`), measured there. */
+export const legalNotice = {
+  maxWidth: 560,
+  /** The text scrolls inside a bounded surface, so the close control never leaves a phone's screen. */
+  sheetHeightShare: 0.88,
+  boxHeightShare: 0.86,
+  marker: 18,
+  box: 20,
+  acceptBox: 22,
+  boxIcon: 14,
+  boxStroke: 3,
+  closeIcon: 20,
+  chevron: 16,
+} as const;
+
+/** Helix's sign-in greeting and its three-step picture, measured on `(auth)/sign-in.tsx`. */
+export const authHero = {
+  mark: 40,
+  markWide: 48,
+  titleLine: 33,
+  titleLineWide: 45,
+  /** The phone's title: Helix's section title grown by 1.3. */
+  titleScale: 1.3,
+  bodyMaxWidth: 470,
+  bodyLine: 22,
+  art: { height: 132, heightWide: 286 },
+  bigBlob: { compact: { width: 180, height: 180, top: -105, right: -65 }, wide: { width: 320, height: 320, top: -175, right: -120 }, opacity: 0.68 },
+  smallBlob: { compact: { width: 95, height: 95, bottom: -55, left: -25 }, wide: { width: 170, height: 170, bottom: -90, left: -45 }, opacity: 0.72 },
+  node: 46,
+  nodeIcon: 21,
+  nodeStroke: 1.8,
+  /** The joining line, a hair below the node's centre as Helix draws it. */
+  link: { flex: 0.52, top: 23 },
+  bars: [0.72, 0.48, 0.86],
+  bar: { height: 6, dot: 7 },
+  noteIcon: 14,
+  /** The reset page's round mark over its heading, and the glyph in it. */
+  resultMark: 56,
+  resultIcon: 28,
 } as const;
 
 export const undoBar = { mark: 26, markIcon: 15, actionIcon: 14 } as const;

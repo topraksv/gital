@@ -54,3 +54,19 @@ test("a first list is made, written on, ticked and kept", async ({ page }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(failures).toEqual([]);
 });
+
+test("what is already at home goes into the pantry by hand, and stays after a reload", async ({ page }) => {
+  const failures = await watchFailures(page);
+  await page.goto("/gital/pantry");
+  const tour = page.getByRole("button", { name: "Geç" });
+  if (await tour.isVisible().catch(() => false)) await tour.click();
+
+  await page.getByRole("textbox", { name: "Kilere ürün ekle" }).fill("2 kg un, tuz");
+  await page.getByRole("button", { name: "Ekle", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Un, 2 kg" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tuz, 1 adet" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Un, 2 kg" })).toBeVisible();
+  expect(failures).toEqual([]);
+});

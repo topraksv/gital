@@ -30,7 +30,7 @@ export default function Lists() {
 
   const create = async () => {
     const name = await appPrompt(tr.lists.createTitle, tr.lists.createMessage, {
-      placeholder: tr.lists.namePlaceholder,
+      examples: tr.placeholders.listName,
       confirmLabel: tr.lists.createConfirm,
       maxLength: NAME_MAX,
     });

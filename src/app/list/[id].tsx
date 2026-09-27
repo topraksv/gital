@@ -381,7 +381,7 @@ function QuickAdd({
           blurOnSubmit={false}
           returnKeyType="done"
           accessibilityLabel={tr.items.addLabel}
-          placeholder={tr.items.addPlaceholder}
+          examples={tr.placeholders.itemAdd}
           maxLength={ENTRY_MAX}
           style={{ flex: 1 }}
         />

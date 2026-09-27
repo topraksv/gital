@@ -1,7 +1,7 @@
 /**
  * Helix's device-local key-value store: SecureStore on native, localStorage on
  * web. Preferences only — never a credential, since any script on the web
- * origin can read localStorage.
+ * origin can read localStorage. `tests/auth/auth.test.ts` holds every key to that.
  *
  * Best-effort on web by contract: a browser that blocks site data throws on
  * the property access itself and a full one on the write, and a refused write

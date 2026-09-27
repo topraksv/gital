@@ -63,6 +63,22 @@ export async function readPantry(): Promise<PantryItem[]> {
 }
 
 /**
+ * A product's pantry row brought back to life, or made: one per folded name.
+ * `listId` given is where it now comes from; left out, an existing row keeps
+ * the list its last shop came from.
+ */
+async function pantryItemRows(name: string, change: { listId?: string }): Promise<{ pantryItemId: string; rows: RowWrite[] }> {
+  const pantryItemId = await deterministicId(naturalKeys.pantryItem(foldName(name)));
+  const there = await findRow("pantry_items", pantryItemId);
+  return {
+    pantryItemId,
+    rows: there
+      ? editRow("pantry_items", there, { ...change, deletedAt: null })
+      : [{ table: "pantry_items", row: { id: pantryItemId, name, listId: change.listId ?? null, deletedAt: null } }],
+  };
+}
+
+/**
  * What a shop's bought items bring home (SPEC 12.5): an arrival each, in the
  * pantry row of its product, which now comes from this list. Written in the
  * finish's own transaction.
@@ -73,12 +89,9 @@ export async function arrivalRows(
 ): Promise<RowWrite[]> {
   const writes: RowWrite[] = [];
   for (const item of bought) {
-    const pantryItemId = await deterministicId(naturalKeys.pantryItem(foldName(item.name)));
-    const there = await findRow("pantry_items", pantryItemId);
+    const { pantryItemId, rows } = await pantryItemRows(item.name, { listId });
     writes.push(
-      ...(there
-        ? editRow("pantry_items", there, { listId, deletedAt: null })
-        : [{ table: "pantry_items" as const, row: { id: pantryItemId, name: item.name, listId, deletedAt: null } }]),
+      ...rows,
       {
         table: "pantry_moves",
         row: { id: await deterministicId(naturalKeys.arrival(item.id)), pantryItemId, ...quantityOrOne(item), deletedAt: null, tombstoneVersion: 0 },
@@ -86,6 +99,29 @@ export async function arrivalRows(
     );
   }
   return writes;
+}
+
+/**
+ * What was at home before Gital was (SPEC 12.11): typed in as a list's entry
+ * is, each an arrival no shop brought. A product's row keeps the list its
+ * last shop came from, so finishing it still goes back there.
+ */
+export async function stockPantry(entries: readonly Entry[]): Promise<void> {
+  await writeRows(async () => {
+    const writes: RowWrite[] = [];
+    const made = new Map<string, string>();
+    for (const entry of entries) {
+      let pantryItemId = made.get(foldName(entry.name));
+      if (!pantryItemId) {
+        const item = await pantryItemRows(entry.name, {});
+        pantryItemId = item.pantryItemId;
+        made.set(foldName(entry.name), pantryItemId);
+        writes.push(...item.rows);
+      }
+      writes.push({ table: "pantry_moves", row: { id: uuidv7(), pantryItemId, ...quantityOrOne(entry) } });
+    }
+    return writes;
+  });
 }
 
 /** A bought row as an arrival reads it. */

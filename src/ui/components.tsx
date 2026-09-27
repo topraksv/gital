@@ -7,6 +7,7 @@
 
 import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Image,
   Platform,
@@ -17,6 +18,7 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type PressableStateCallbackType,
   type StyleProp,
   type TextInputProps,
   type TextStyle,
@@ -24,9 +26,13 @@ import {
 } from "react-native";
 import { useRouter, useScrollToTop, useSegments, type Href } from "expo-router";
 import Check from "lucide-react-native/icons/check";
+import AlertCircle from "lucide-react-native/icons/circle-alert";
+import CheckCircle2 from "lucide-react-native/icons/circle-check";
 import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
 import DatabaseZap from "lucide-react-native/icons/database-zap";
+import Eye from "lucide-react-native/icons/eye";
+import EyeOff from "lucide-react-native/icons/eye-off";
 import Minus from "lucide-react-native/icons/minus";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,6 +50,7 @@ import { LIST_PICTURES } from "./list-look";
 import { PRODUCT_IMAGES } from "./product-pictures";
 import { useReducedMotion, useSpringTo } from "./motion";
 import { navigateBack } from "./navigation";
+import { useRotatingPlaceholder } from "./placeholders";
 import { shouldUseWideGutter } from "./responsive";
 import { Press } from "./press";
 import {
@@ -70,6 +77,7 @@ import {
   sectionMark,
   spacing,
   stateOpacity,
+  themeShadow,
   tileRadius,
   toggleSize,
   type,
@@ -240,8 +248,10 @@ export function Screen({
         ) : null}
         {/* No title yet — a pushed screen before its record has loaded — is
             no heading, or a screen reader announces an empty one. */}
+        {/* One height whether or not the title carries controls, so the five
+            tabs' titles sit on one line as the bar switches between them. */}
         {title != null ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg, minHeight: controlSize.minimumTarget }}>
             <Text
               accessibilityRole="header"
               aria-level={1}
@@ -269,13 +279,135 @@ export function cardEdge(palette: Palette): ViewStyle {
   };
 }
 
-export function Card({ children }: { children: ReactNode }) {
+/**
+ * `rows` is Helix's: the children are `ListRow`s, which carry the vertical
+ * padding inside their own pressables, so a lit row reaches the card's top and
+ * bottom edge instead of stopping short of the box it lives in.
+ */
+export function Card({ children, rows = false }: { children: ReactNode; rows?: boolean }) {
   const { palette } = useTheme();
   return (
-    <View style={{ ...cardEdge(palette), backgroundColor: palette.surface, marginBottom: spacing.md, overflow: "hidden" }}>
+    <View
+      style={{
+        ...cardEdge(palette),
+        paddingHorizontal: density.list.cardPadding,
+        paddingVertical: rows ? 0 : density.list.cardPadding,
+        backgroundColor: palette.surface,
+        marginBottom: spacing.md,
+        overflow: "hidden",
+      }}
+    >
       {children}
     </View>
   );
+}
+
+/**
+ * Helix's card heading: its mark in a soft square, a name, and a line on what
+ * the card does, over the card's own controls.
+ */
+export function PanelHeader({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description?: string }) {
+  const { palette } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md, marginBottom: spacing.md }}>
+      <View
+        accessible={false}
+        style={{
+          width: PANEL_MARK,
+          height: PANEL_MARK,
+          borderRadius: radius.sm,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: palette.primarySoft,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: palette.primary + alpha.edge,
+        }}
+      >
+        <Icon accessible={false} size={iconSize.control} color={palette.accentText} strokeWidth={iconStroke.regular} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text accessibilityRole="header" aria-level={2} style={[type.body, { color: palette.textStrong, fontFamily: font.semibold }]}>
+          {title}
+        </Text>
+        {description ? <Text style={[type.small, { color: palette.textSecondary, marginTop: offset.tight }]}>{description}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+/** Helix's 36-point mark beside a card's heading. */
+const PANEL_MARK = controlSize.compact;
+
+/** Helix's hairline between rows; `flush` inside a `rows` card, where the rows carry the air. */
+export function Divider({ flush = false }: { flush?: boolean }) {
+  const { palette } = useTheme();
+  return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.border, marginVertical: flush ? 0 : spacing.sm }} />;
+}
+
+/**
+ * Helix's settings row: a mark, a name, one line under it, and what it does at
+ * the trailing edge — a chevron to open, a switch, a button. Inside a `rows`
+ * card the pressed fill bleeds to the card's sides as Helix's does.
+ */
+export function ListRow({
+  icon: Icon,
+  iconColor,
+  title,
+  subtitle,
+  right,
+  chevron = false,
+  stackRight = false,
+  onPress,
+}: {
+  icon?: LucideIcon;
+  iconColor?: string;
+  title: string;
+  subtitle?: string;
+  right?: ReactNode;
+  chevron?: boolean;
+  /** A wide control, a button, goes under the words on a phone rather than squeezing them (`shouldStackListActions`). */
+  stackRight?: boolean;
+  onPress?: () => void;
+}) {
+  const { palette } = useTheme();
+  const content = (
+    <View style={{ paddingVertical: spacing.md - 2 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+        {Icon ? <Icon accessible={false} size={iconSize.control} color={iconColor ?? palette.accentText} strokeWidth={iconStroke.regular} /> : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[type.body, { color: palette.text, fontFamily: font.medium }]}>{title}</Text>
+          {subtitle ? <Text style={[type.small, { color: palette.textSecondary, marginTop: offset.hair }]}>{subtitle}</Text> : null}
+        </View>
+        {stackRight ? null : right}
+        {chevron ? <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} /> : null}
+      </View>
+      {stackRight ? <View style={{ marginTop: spacing.sm, marginLeft: Icon ? iconSize.control + spacing.md : 0, alignItems: "flex-end" }}>{right}</View> : null}
+    </View>
+  );
+  if (!onPress) return content;
+  const bleed = density.list.cardPadding - spacing.xs;
+  return (
+    <Press
+      accessibilityRole="button"
+      accessibilityLabel={tr.common.withDetail(title, subtitle ?? "")}
+      onPress={onPress}
+      style={(state) => ({ marginHorizontal: -bleed, paddingHorizontal: bleed, borderRadius: radius.sm, ...interactionSurface(palette, state) })}
+    >
+      {content}
+    </Press>
+  );
+}
+
+/** A switch in a settings row, Helix's pairing: the row names it, the switch is the control. */
+export function ToggleRow({ icon, title, subtitle, value, onValueChange, disabled }: {
+  icon?: LucideIcon;
+  title: string;
+  subtitle?: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
+  return <ListRow icon={icon} title={title} subtitle={subtitle} right={<Toggle label={title} value={value} onValueChange={onValueChange} disabled={disabled} />} />;
 }
 
 /** How a tile is dressed: a list's own colour and picture, when it has them (SPEC 1.8). */
@@ -490,41 +622,38 @@ export function RowTick({ checked, label, onToggle, disabled = false }: { checke
 }
 
 /**
- * Helix's switch: the track fills with the brand colour and the thumb slides
- * across on the shared spring. Custom rather than React Native's, whose web
- * and Android faces differ from iOS and from this palette. On carries a tick
- * and off a dash, so the state never rests on colour alone. The fill fades in
- * over a still track rather than tweening its colour, which keeps the spring
- * on the native driver. Unlike Helix's, it draws its label and the whole row
- * is the control, so a screen reader meets one element rather than a label
- * and then the same name again.
+ * Helix's switch, measured from its `fields.tsx`: the track fills with the
+ * brand as the thumb springs across, on carries a tick and off a dash so the
+ * state never rests on colour alone, and the thumb is a lens with a hairline
+ * and a shadow. It is only the control: the row beside it names it
+ * (`ToggleRow`), and the label here is what a screen reader hears.
  */
-export function Toggle({ value, onValueChange, label }: { value: boolean; onValueChange: (value: boolean) => void; label: string }) {
+export function Toggle({ value, onValueChange, label, disabled = false }: { value: boolean; onValueChange: (value: boolean) => void; label: string; disabled?: boolean }) {
   const { palette } = useTheme();
   const [progress] = useState(() => new Animated.Value(value ? 1 : 0));
   useSpringTo(progress, value ? 1 : 0);
   const thumb = toggleSize.height - toggleSize.padding * 2;
   const flip = () => {
+    if (disabled) return;
     selectionTap();
     onValueChange(!value);
   };
+  const lit = value && !disabled;
   return (
     <Press
       accessibilityRole="switch"
       accessibilityLabel={label}
       aria-checked={value}
-      accessibilityState={{ checked: value }}
+      accessibilityState={{ checked: value, disabled }}
+      disabled={disabled}
       onPress={flip}
       {...webKeys({ " ": flip }, { repeats: false })}
       style={({ pressed }) => ({
         minHeight: controlSize.minimumTarget,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: spacing.sm,
-        opacity: pressed ? stateOpacity.pressed : 1,
+        justifyContent: "center",
+        opacity: pressed && !disabled ? stateOpacity.pressed : 1,
       })}
     >
-      <Text style={[type.body, { color: palette.text, flex: 1 }]}>{label}</Text>
       <View
         style={{
           width: toggleSize.width,
@@ -536,30 +665,28 @@ export function Toggle({ value, onValueChange, label }: { value: boolean; onValu
           justifyContent: "center",
           backgroundColor: palette.surfaceAlt,
           borderWidth: borderWidth.outline,
-          borderColor: value ? palette.primaryStrong : palette.controlBorder,
+          borderColor: lit ? palette.primaryStrong : palette.controlBorder,
         }}
       >
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.primary, opacity: progress }]} />
-        {/* The mark sits on the side the thumb has left. */}
+        {/* The fill fades over a still track rather than tweening its colour,
+            which keeps the spring on the native driver. */}
+        {disabled ? null : <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.primary, opacity: progress }]} />}
         <View
           pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            { paddingHorizontal: toggleSize.glyphInset, justifyContent: "center", alignItems: value ? "flex-start" : "flex-end" },
-          ]}
+          style={[StyleSheet.absoluteFill, { paddingHorizontal: toggleSize.glyphInset, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
         >
-          {value ? (
-            <Check accessible={false} size={toggleSize.glyph} color={palette.onPrimary} strokeWidth={iconStroke.mark} />
-          ) : (
-            <Minus accessible={false} size={toggleSize.glyph} color={palette.textSecondary} strokeWidth={iconStroke.mark} />
-          )}
+          <Check accessible={false} size={toggleSize.glyph} color={lit ? palette.onPrimary : "transparent"} strokeWidth={iconStroke.mark} />
+          <Minus accessible={false} size={toggleSize.glyph} color={!value && !disabled ? palette.textSecondary : "transparent"} strokeWidth={iconStroke.mark} />
         </View>
         <Animated.View
           style={{
             width: thumb,
             height: thumb,
             borderRadius: circle(thumb),
-            backgroundColor: value ? palette.onPrimary : palette.textSecondary,
+            backgroundColor: disabled || !value ? palette.textSecondary : palette.onPrimary,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: palette.border,
+            ...themeShadow.toggleThumb(palette),
             transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, toggleSize.width - toggleSize.height] }) }],
           }}
         />
@@ -669,32 +796,105 @@ export function ProgressBar({ value }: { value: number }) {
 }
 
 /**
- * The app's text field: one fill, edge, padding and type for the prompt, the
- * item panel and the quick-add field. A caller's `style` places it.
+ * A field's trailing button, Helix's `fieldAccessoryPressStyle`: the whole
+ * 44-point column at the right edge, so the web gets the target `hitSlop`
+ * would not give it. The password's eye and the price's calculator share it.
  */
-export function TextField({ style, ...props }: TextInputProps & { ref?: Ref<TextInput> }) {
+export function fieldAccessoryStyle(palette: Palette, state: PressableStateCallbackType): ViewStyle {
+  return {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: controlSize.minimumTarget,
+    alignItems: "center",
+    justifyContent: "center",
+    borderTopRightRadius: radius.sm,
+    borderBottomRightRadius: radius.sm,
+    ...interactionSurface(palette, state),
+  };
+}
+
+function PasswordEye({ hidden, onPress }: { hidden: boolean; onPress: () => void }) {
   const { palette } = useTheme();
+  const Icon = hidden ? Eye : EyeOff;
   return (
+    <Press
+      accessibilityRole="button"
+      accessibilityLabel={hidden ? tr.a11y.showPassword : tr.a11y.hidePassword}
+      onPress={onPress}
+      style={(state) => fieldAccessoryStyle(palette, state)}
+    >
+      <Icon accessible={false} size={iconSize.compact} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
+    </Press>
+  );
+}
+
+function fieldStyle(palette: Palette, { focused, invalid, secure, editable }: { focused: boolean; invalid: boolean; secure: boolean; editable: boolean }): TextStyle {
+  return {
+    minHeight: controlSize.regular,
+    borderWidth: focused || invalid ? borderWidth.control : StyleSheet.hairlineWidth,
+    borderColor: invalid ? palette.error : focused ? palette.focus : palette.controlBorder,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingRight: secure ? controlSize.minimumTarget + spacing.xs : spacing.md,
+    paddingVertical: spacing.sm + offset.tight,
+    color: editable ? palette.text : palette.textSecondary,
+    backgroundColor: palette.surface,
+    fontFamily: font.regular,
+    fontSize: type.field.fontSize,
+  };
+}
+
+/**
+ * Helix's field: an optional name above it, the surface fill with a hairline
+ * that thickens to the focus colour, an error under it read out as it
+ * appears, and an eye on a password. `examples` is Helix's rotating
+ * placeholder (`placeholders.ts`), shown while the field is empty. A caller's
+ * `style` places the input.
+ */
+export function TextField({
+  style,
+  label,
+  error,
+  secure = false,
+  examples,
+  ...props
+}: TextInputProps & { ref?: Ref<TextInput>; label?: string; error?: string | null; secure?: boolean; examples?: readonly string[] }) {
+  const { palette } = useTheme();
+  const [focused, setFocused] = useState(false);
+  const [hidden, setHidden] = useState(true);
+  const wrapped = label != null || error != null || secure;
+  const sample = useRotatingPlaceholder(examples ?? [], examples != null && !props.value);
+  const input = (
     <TextInput
       placeholderTextColor={palette.textSecondary}
       autoCapitalize="sentences"
       {...props}
-      style={[
-        {
-          minHeight: controlSize.regular,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: palette.border,
-          borderRadius: radius.sm,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm + offset.tight,
-          color: palette.text,
-          backgroundColor: palette.surfaceAlt,
-          fontFamily: font.regular,
-          fontSize: type.field.fontSize,
-        },
-        style,
-      ]}
+      placeholder={examples ? sample : props.placeholder}
+      accessibilityLabel={props.accessibilityLabel ?? label}
+      secureTextEntry={secure ? hidden : props.secureTextEntry}
+      onFocus={(event) => {
+        setFocused(true);
+        props.onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        setFocused(false);
+        props.onBlur?.(event);
+      }}
+      style={[fieldStyle(palette, { focused, invalid: !!error, secure, editable: props.editable !== false }), wrapped ? null : style]}
     />
+  );
+  if (!wrapped) return input;
+  return (
+    <View style={style as StyleProp<ViewStyle>}>
+      {label ? <Text style={[type.label, { color: palette.textSecondary, marginBottom: spacing.xs + offset.tight }]}>{label}</Text> : null}
+      <View>
+        {input}
+        {secure ? <PasswordEye hidden={hidden} onPress={() => setHidden(!hidden)} /> : null}
+      </View>
+      {error ? <FieldError text={error} /> : null}
+    </View>
   );
 }
 
@@ -726,16 +926,24 @@ export function FieldError({ text }: { text: string }) {
 }
 
 /** What a form's last attempt answered, read out as it appears. */
+/**
+ * Helix's notice: a tinted box with its mark, so an answer reads as one and
+ * not as another paragraph. An error is announced at once, a success politely.
+ */
 export function Notice({ tone, text }: { tone: "error" | "success"; text: string }) {
   const { palette } = useTheme();
+  const Icon = tone === "success" ? CheckCircle2 : AlertCircle;
   return (
-    <Text
-      accessibilityRole={tone === "error" ? "alert" : undefined}
-      accessibilityLiveRegion={tone === "error" ? "assertive" : "polite"}
-      style={[type.body, { color: tone === "error" ? palette.errorText : palette.successText, marginTop: spacing.md }]}
-    >
-      {text}
-    </Text>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: palette[tone] + alpha.noticeTint, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md }}>
+      <Icon accessible={false} size={iconSize.control} color={palette[tone]} />
+      <Text
+        accessibilityRole={tone === "error" ? "alert" : undefined}
+        accessibilityLiveRegion={tone === "error" ? "assertive" : "polite"}
+        style={[type.label, { color: tone === "error" ? palette.errorText : palette.successText, flex: 1 }]}
+      >
+        {text}
+      </Text>
+    </View>
   );
 }
 
@@ -895,38 +1103,45 @@ function BackButton({ fallback }: { fallback: Href }) {
   );
 }
 
+function buttonColors(palette: Palette, variant: "primary" | "secondary" | "ghost", quiet: boolean): { background: string | undefined; foreground: string } {
+  if (quiet) return { background: variant === "ghost" ? undefined : palette.surfaceAlt, foreground: palette.textSecondary };
+  if (variant === "primary") return { background: palette.primary, foreground: palette.onPrimary };
+  if (variant === "secondary") return { background: palette.surfaceAlt, foreground: palette.text };
+  return { background: undefined, foreground: palette.accentText };
+}
+
 /**
- * Helix's button, in the two variants Gital draws: `primary` for the one
- * action a surface is for, `ghost` for the way out beside it.
+ * Helix's button: `primary` for the one action a surface is for, `secondary`
+ * for an action beside something else (a row's "Şimdi Güncelle"), `ghost` for
+ * the way out. `loading` holds the button while its work runs.
  */
 export function Button({
   label,
   onPress,
   variant = "primary",
   disabled = false,
+  loading = false,
   icon: Icon,
   size = "md",
 }: {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost";
   disabled?: boolean;
+  loading?: boolean;
   icon?: LucideIcon;
   size?: "md" | "sm";
 }) {
   const { palette } = useTheme();
   const small = size === "sm";
-  const colors = disabled
-    ? { background: variant === "ghost" ? undefined : palette.surfaceAlt, foreground: palette.textSecondary }
-    : variant === "primary"
-      ? { background: palette.primary, foreground: palette.onPrimary }
-      : { background: undefined, foreground: palette.accentText };
+  const quiet = disabled && !loading;
+  const colors = buttonColors(palette, variant, quiet);
   return (
     <Press
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
+      disabled={disabled || loading}
       onPress={onPress}
       style={(state) => ({
         ...interactionSurface(palette, state, { base: colors.background, enabled: !disabled }),
@@ -940,9 +1155,12 @@ export function Button({
         gap: spacing.sm,
         alignItems: "center",
         justifyContent: "center",
+        borderWidth: variant === "secondary" && !quiet ? borderWidth.control : 0,
+        borderColor: palette.controlBorder,
       })}
     >
-      {Icon ? (
+      {loading ? <ActivityIndicator accessible={false} size="small" color={colors.foreground} /> : null}
+      {Icon && !loading ? (
         <Icon accessible={false} size={small ? iconSize.compact : iconSize.control} color={colors.foreground} strokeWidth={iconStroke.regular} />
       ) : null}
       <Text style={[small ? type.buttonCompact : type.button, { color: colors.foreground, textAlign: "center", flexShrink: 1 }]}>

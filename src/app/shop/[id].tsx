@@ -95,7 +95,7 @@ function EditTotal({ shop }: { shop: Shop }) {
             value={total}
             onChangeText={setTotal}
             label={tr.history.total}
-            placeholder={tr.history.totalPlaceholder}
+            examples={tr.placeholders.shopTotal}
             returnKeyType="done"
             onSubmitEditing={save}
             style={{ marginTop: spacing.lg }}

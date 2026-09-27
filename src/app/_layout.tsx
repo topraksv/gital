@@ -254,6 +254,7 @@ function Routes({ background }: { background: string }) {
             <Stack.Screen name="collection/[id]" />
             <Stack.Screen name="sync-issues" />
             <Stack.Screen name="data-reset" />
+            <Stack.Screen name="account-security" />
             <Stack.Screen name="invite" />
             <Stack.Screen name="feedback" />
           </Stack.Protected>
@@ -408,7 +409,7 @@ function ClipboardLinkOffer() {
       }
       const typed = await appPrompt(tr.clipboard.title, offer.url ? tr.clipboard.message : tr.clipboard.pasteMessage, {
         confirmLabel: tr.clipboard.add,
-        placeholder: tr.wishes.linkPlaceholder,
+        examples: tr.placeholders.link,
         initialValue: offer.url ?? "",
         maxLength: LINK_MAX,
       });

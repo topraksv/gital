@@ -23,7 +23,7 @@ vi.mock("expo-crypto", () => ({
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { finishShop, reopenShop } = await import("../../src/data/shops");
 const { createList, deleteList, editList } = await import("../../src/data/lists");
-const { finishPantryItem, readLasted, readPantry, setExpiry, setStock, takeSome, undoFinish } = await import("../../src/data/pantry");
+const { finishPantryItem, readLasted, readPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { migratedDatabase } = await import("../helpers");
 
@@ -102,6 +102,32 @@ describe("a finished shop", () => {
       { table_name: "pantry_items", n: 1 },
       { table_name: "pantry_moves", n: 1 },
     ]);
+  });
+});
+
+describe("stockPantry", () => {
+  it("puts what is already at home in the pantry by hand, one piece where no quantity was given", async () => {
+    await stockPantry(parseEntry("2 kg un, tuz"));
+    expect(await stock()).toEqual([
+      { name: "Tuz", quantityMilli: 1000, unit: "adet" },
+      { name: "Un", quantityMilli: 2000, unit: "kg" },
+    ]);
+  });
+
+  it("adds to what a shop brought, and finishing it later still returns it to that shop's list", async () => {
+    await shop(market, "süt");
+    await stockPantry(parseEntry("2 süt"));
+    expect(await stock()).toEqual([{ name: "Süt", quantityMilli: 3000, unit: "adet" }]);
+    const finished = await finishPantryItem(await idOf("Süt"));
+    expect(finished.listName).toBe("Market");
+  });
+
+  it("brings back a product that was finished, on no list when none brought it", async () => {
+    await stockPantry(parseEntry("pirinç"));
+    const finished = await finishPantryItem(await idOf("Pirinç"));
+    expect(finished.listName).toBeNull();
+    await stockPantry(parseEntry("pirinç"));
+    expect(await stock()).toEqual([{ name: "Pirinç", quantityMilli: 1000, unit: "adet" }]);
   });
 });
 

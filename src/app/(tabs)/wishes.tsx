@@ -20,7 +20,7 @@ export default function Wishes() {
 
   const create = async () => {
     const name = await appPrompt(tr.wishes.createTitle, tr.wishes.createMessage, {
-      placeholder: tr.wishes.namePlaceholder,
+      examples: tr.placeholders.collectionName,
       confirmLabel: tr.lists.createConfirm,
       maxLength: NAME_MAX,
     });

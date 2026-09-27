@@ -217,3 +217,14 @@ cannot be released.
 - A password-reset link keeps working after a reload or a mail app's link
   check, and lasts five minutes; account e-mails and feedback all come from
   one Gital sender.
+- Sign-in, sign-up and the password reset are Helix's screens: a greeting
+  beside the form on a wide screen, labelled fields that say what is wrong,
+  and the privacy notice opened over sign-up, accepted at its end, without
+  losing what was typed.
+- Ayarlar is laid out as Helix's, in sections of card rows; the account's
+  e-mail, password, data reset, freezing and deletion moved to their own
+  Hesap ve Güvenlik screen.
+- Every switch sits in a row that names it, and empty fields show examples
+  that change every few seconds.
+- Kiler takes what is already at home, typed in as a list's items are.
+- Every tab's title sits at the same height.

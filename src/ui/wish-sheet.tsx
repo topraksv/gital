@@ -95,7 +95,7 @@ export function WishSheet({
         maxLength={NOTE_MAX}
         onChangeText={setNote}
         accessibilityLabel={tr.wishes.noteLabel}
-        placeholder={tr.wishes.notePlaceholder}
+        examples={tr.placeholders.wishNote}
         {...submits}
         style={{ marginTop: spacing.sm }}
       />
@@ -127,7 +127,7 @@ export function WishSheet({
         value={estimate}
         onChangeText={setEstimate}
         label={tr.wishes.estimateLabel}
-        placeholder={tr.wishes.estimatePlaceholder}
+        examples={tr.placeholders.estimate}
         {...submits}
         style={{ marginTop: spacing.lg }}
       />
@@ -169,7 +169,7 @@ export function WishSheet({
             autoCapitalize="none"
             keyboardType="url"
             accessibilityLabel={tr.wishes.linkAdd}
-            placeholder={tr.wishes.linkPlaceholder}
+            examples={tr.placeholders.link}
             maxLength={LINK_MAX}
             style={{ flex: 1 }}
           />

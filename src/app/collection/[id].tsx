@@ -181,7 +181,7 @@ function AddWish({ listId }: { listId: string }) {
         returnKeyType="done"
         autoCapitalize="none"
         accessibilityLabel={tr.wishes.addLabel}
-        placeholder={tr.wishes.addPlaceholder}
+        examples={tr.placeholders.wishAdd}
         maxLength={LINK_MAX}
         style={{ flex: 1 }}
       />

@@ -35,6 +35,11 @@ export const LOCAL_USER_ID = "local";
 /** The server's `minimum_password_length`, checked before asking so the form can say it. */
 export const PASSWORD_MIN = 8;
 
+/** Helix's shape check: enough to catch a slip, and the server decides the rest. */
+export function isEmail(email: string): boolean {
+  return /.+@.+\..+/.test(email.trim());
+}
+
 export function isValidNewPassword(password: string): boolean {
   return [...password].length >= PASSWORD_MIN;
 }
@@ -176,8 +181,6 @@ interface SessionStore {
   previousLoginAt: string | null;
   /** This device is freezing the account, and signs out next: the gate stays shut. */
   isFreezing: boolean;
-  /** The privacy notice was accepted at its end, which sign-up waits for. */
-  consented: boolean;
   bootstrap: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (email: string, password: string) => Promise<SignUpResult>;
@@ -202,7 +205,6 @@ export const useSession = create<SessionStore>((set, get) => ({
   ready: false,
   previousLoginAt: null,
   isFreezing: false,
-  consented: false,
 
   bootstrap: async () => {
     const supabase = getSupabase();

@@ -13,7 +13,7 @@ import { LIST_COLORS, LIST_ICONS, type ListColor, type ListIcon, type ListLook }
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
-import { Body, Button, TextField, Tile, Toggle, radioChoice, rowsOf } from "./components";
+import { Body, Button, TextField, Tile, ToggleRow, radioChoice, rowsOf } from "./components";
 import { Actions, DialogShell } from "./dialog";
 import { borderWidth, circle, iconSize, iconStroke, listSheet, spacing, tileRadius, useTheme } from "./theme";
 import { Press } from "./press";
@@ -78,7 +78,7 @@ export function ListSheet({
       </View>
       {pantry != null ? (
         <View style={{ marginTop: spacing.lg }}>
-          <Toggle value={pantry} onValueChange={setPantry} label={tr.lists.pantry} />
+          <ToggleRow value={pantry} onValueChange={setPantry} title={tr.lists.pantry} />
         </View>
       ) : null}
       <Actions>
