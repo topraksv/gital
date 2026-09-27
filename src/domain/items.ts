@@ -277,6 +277,22 @@ export interface KnownProduct {
   times: number;
 }
 
+/**
+ * Named rows counted by product, one per folded name. `rows` come latest
+ * first, so a product keeps the spelling it was last written in, and the
+ * list stays in the order `suggestProducts` settles a tie by.
+ */
+export function knownFrom(rows: readonly { name: string; times: number }[]): KnownProduct[] {
+  const known = new Map<string, KnownProduct>();
+  for (const row of rows) {
+    const key = foldName(row.name);
+    const held = known.get(key);
+    if (held) held.times += row.times;
+    else known.set(key, { key, name: row.name, times: row.times });
+  }
+  return [...known.values()];
+}
+
 /** One letter would fill the row with half the pantry. */
 const SUGGEST_FROM = 2;
 
@@ -348,7 +364,7 @@ function nearlyBegins(word: string, typed: string): boolean {
  * the list holds is left out unless a quantity is typed, which the merge (2.5)
  * gives it; without one, a tap on it would do nothing.
  */
-export function suggestProducts(known: readonly KnownProduct[], typed: TypedProduct, listed: readonly Entry[]): KnownProduct[] {
+export function suggestProducts(known: readonly KnownProduct[], typed: TypedProduct, listed: readonly { name: string }[]): KnownProduct[] {
   const onList = new Set(typed.quantity.quantityMilli == null ? listed.map((entry) => foldName(entry.name)) : []);
   const forgives = typed.key.length >= TYPO_FROM;
   const rank = ({ key }: KnownProduct): number => {

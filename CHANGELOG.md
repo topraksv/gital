@@ -235,3 +235,7 @@ cannot be released.
 - Ayarlar decides whether the screen stays awake while shopping.
 - The add field and its buttons are the same height on every screen, and a
   product down to one shows no − in Kiler.
+- On a narrow screen the sync button stays beside its row instead of
+  dropping under it.
+- Kiler and İstekler suggest as a list does while something is typed:
+  products for Kiler, the wishes named before for İstekler.

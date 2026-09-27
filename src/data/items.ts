@@ -18,7 +18,7 @@ import {
   type RowsWritten,
 } from "../db/mutations";
 import { items, lists, photos } from "../db/schema";
-import { bareEntry, foldName, itemNameFrom, noteFrom, type Entry, type ItemChange, type KnownProduct, type ListedEntry } from "../domain/items";
+import { bareEntry, foldName, itemNameFrom, knownFrom, noteFrom, type Entry, type ItemChange, type KnownProduct, type ListedEntry } from "../domain/items";
 import { isPrice, type Bought } from "../domain/money";
 import { photoColumn, type PhotoChange } from "./photos";
 
@@ -94,16 +94,7 @@ export async function readKnownProducts(): Promise<KnownProduct[]> {
     .groupBy(product)
     // One entry writes its items with one stamp; the name keeps their order fixed.
     .orderBy(desc(max(items.updatedAt)), asc(items.name));
-  const known = new Map<string, KnownProduct>();
-  // The latest first, so a product keeps the spelling it was last written in,
-  // and the list stays in the order `suggestProducts` settles a tie by.
-  for (const row of rows) {
-    const key = foldName(row.name);
-    const held = known.get(key);
-    if (held) held.times += row.times;
-    else known.set(key, { key, name: row.name, times: row.times });
-  }
-  return [...known.values()];
+  return knownFrom(rows);
 }
 
 /**

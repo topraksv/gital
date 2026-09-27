@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Text, View } from "react-native";
+import { useRef, useState } from "react";
+import { Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import Gift from "lucide-react-native/icons/gift";
 import Pencil from "lucide-react-native/icons/pencil";
@@ -21,6 +21,7 @@ import { RowMotion } from "../../ui/list-motion";
 import { useCountUp } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
 import { density, font, itemRow, motion, offset, spacing, type, useTheme } from "../../ui/theme";
+import { WishSuggestions } from "../../ui/suggestions";
 import { showUndo } from "../../ui/undo";
 import { WishSheet } from "../../ui/wish-sheet";
 
@@ -114,7 +115,7 @@ export default function CollectionScreen() {
       ) : collection && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
           <EditorsOnly viewer={viewer} fallback={<Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.viewOnly}</Body>}>
-            <AddWish listId={collection.id} />
+            <AddWish listId={collection.id} open={wishes.data.filter((wish) => wish.boughtAt == null)} />
           </EditorsOnly>
           {collection.openTotalMinor == null ? null : <OpenTotal totalMinor={collection.openTotalMinor} />}
           {wishes.data.length === 0 ? (
@@ -157,10 +158,10 @@ function OpenTotal({ totalMinor }: { totalMinor: number }) {
 }
 
 /** A name or a pasted link; a link becomes a wish named after its shop (SPEC 7.1). */
-function AddWish({ listId }: { listId: string }) {
+function AddWish({ listId, open }: { listId: string; open: readonly { name: string }[] }) {
   const [text, setText] = useState("");
-  const add = async () => {
-    const typed = text;
+  const field = useRef<TextInput>(null);
+  const add = async (typed = text) => {
     if (typed.trim() === "") return;
     setText("");
     try {
@@ -172,20 +173,34 @@ function AddWish({ listId }: { listId: string }) {
     }
   };
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
-      <TextField
-        value={text}
-        onChangeText={setText}
-        onSubmitEditing={add}
-        blurOnSubmit={false}
-        returnKeyType="done"
-        autoCapitalize="none"
-        accessibilityLabel={tr.wishes.addLabel}
-        examples={tr.placeholders.wishAdd}
-        maxLength={LINK_MAX}
-        style={{ flex: 1 }}
-      />
-      <IconButton icon={Plus} label={tr.wishes.add} tone="primary" field onPress={add} />
+    <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <TextField
+          ref={field}
+          value={text}
+          onChangeText={setText}
+          onSubmitEditing={() => void add()}
+          blurOnSubmit={false}
+          returnKeyType="done"
+          autoCapitalize="none"
+          accessibilityLabel={tr.wishes.addLabel}
+          examples={tr.placeholders.wishAdd}
+          maxLength={LINK_MAX}
+          style={{ flex: 1 }}
+        />
+        <IconButton icon={Plus} label={tr.wishes.add} tone="primary" field onPress={() => void add()} />
+      </View>
+      {text ? (
+        <WishSuggestions
+          text={text}
+          listed={open}
+          onPick={(entries) => {
+            // A wish is one name, never split at a comma: the chip's is the one added.
+            void add(entries.at(-1)!.name);
+            field.current?.focus();
+          }}
+        />
+      ) : null}
     </View>
   );
 }

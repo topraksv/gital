@@ -27,7 +27,7 @@ import { setStayAwakeAllowed, useStayAwakeAllowed } from "../../ui/stay-awake";
 import { Body, Button, Card, ChoiceTile, ListRow, Screen, SectionHeader, ToggleRow, rowsOf } from "../../ui/components";
 import { appConfirm, appError } from "../../ui/dialog";
 import { TourModal } from "../../ui/tour";
-import { shouldPairTiles, shouldStackListActions } from "../../ui/responsive";
+import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, borderWidth, circle, controlSize, density, PALETTES, radius, spacing, type, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
 import { radioGroupKeys } from "../../ui/keys";
 import { leaveAccount, setAppearance } from "../_layout";
@@ -145,7 +145,6 @@ function Sync() {
   const { palette } = useTheme();
   const userId = useSession((s) => s.userId);
   const { state, lastSyncAt, error } = useSyncStatus();
-  const { width } = useWindowDimensions();
   // Idle before a first sync has finished is not "synced": a fresh sign-in or
   // an offline device would read green for a copy that never left it.
   const never = state === "idle" && !lastSyncAt;
@@ -158,7 +157,6 @@ function Sync() {
         iconColor={tone}
         title={tr.sync.title}
         subtitle={lastSyncAt ? tr.common.joined(said, tr.sync.lastSync(lastSyncAt)) : said}
-        stackRight={shouldStackListActions(width)}
         right={
           <Button
             label={tr.sync.now}

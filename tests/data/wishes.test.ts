@@ -15,7 +15,7 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-const { addWish, deleteWish, readCollections, readDueWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
+const { addWish, deleteWish, readCollections, readDueWishes, readKnownWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { readPhoto } = await import("../../src/data/photos");
 const { migratedDatabase } = await import("../helpers");
@@ -95,6 +95,28 @@ describe("addWish", () => {
     await expect(addWish(await createList("Market"), "Kettle")).rejects.toThrow();
     await deleteList(collection);
     await expect(addWish(collection, "Kettle")).rejects.toThrow();
+  });
+});
+
+describe("readKnownWishes", () => {
+  // The add field's suggestions (SPEC 2.4 on İstekler, the owner asked
+  // 2026-09-27): every wish named before, in any live collection, however
+  // it is spelt, the latest spelling kept and counted once per wish.
+  it("offers each name once, the latest first, and leaves out a deleted wish or collection", async () => {
+    await addWish(collection, "Kahve makinesi");
+    later(1000);
+    await addWish(collection, "kahve  makinesi");
+    later(2000);
+    await addWish(collection, "Kulaklık");
+    const gone = await addWish(collection, "Masa lambası");
+    await deleteWish(gone);
+    const other = await createList("Eski", "wish");
+    await addWish(other, "Bisiklet");
+    await deleteList(other);
+    expect(await readKnownWishes()).toEqual([
+      { key: "kulaklik", name: "Kulaklık", times: 1 },
+      { key: "kahve makinesi", name: "Kahve makinesi", times: 2 },
+    ]);
   });
 });
 

@@ -12,7 +12,7 @@ import { readProducts } from "./products";
 import { readSets } from "./sets";
 import { frozenFrom, readSettings } from "./settings";
 import { readPricedSince, readPurchases, readShops } from "./shops";
-import { readCollections, readWishes } from "./wishes";
+import { readCollections, readKnownWishes, readWishes } from "./wishes";
 
 // A list's screen and its people panel watch its members: the role decides what the screen offers.
 export function useMembers(listId: string) {
@@ -72,6 +72,13 @@ const knownStore = liveStore(readKnownProducts, ["items", "lists"]);
 
 export function useKnownProducts() {
   return useSyncExternalStore(knownStore.subscribe, knownStore.getSnapshot, knownStore.getSnapshot);
+}
+
+// İstekler's own, watched the same way: a wish is not a product.
+const knownWishesStore = liveStore(readKnownWishes, ["wishes", "lists"]);
+
+export function useKnownWishes() {
+  return useSyncExternalStore(knownWishesStore.subscribe, knownWishesStore.getSnapshot, knownWishesStore.getSnapshot);
 }
 
 // Mounted with the item panel, and gone with it.

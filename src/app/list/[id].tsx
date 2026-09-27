@@ -13,14 +13,14 @@ import ScanBarcode from "lucide-react-native/icons/scan-barcode";
 import Share from "lucide-react-native/icons/share";
 
 
-import { useItems, useKnownProducts, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
+import { useItems, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
 import { addEntries, addScanned, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { markSeen, rowPeople, type Member, type RowPeople } from "../../data/members";
 import { readPantry } from "../../data/pantry";
 import { finishShop, reopenShop } from "../../data/shops";
-import { catalogueNamed, listSections, nearMiss, withCatalogue, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
-import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, pickEntries, suggestProducts, typedProduct, type Entry } from "../../domain/items";
+import { catalogueNamed, listSections, nearMiss, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
+import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, type Entry } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
 import { atHome } from "../../domain/pantry";
@@ -44,6 +44,7 @@ import { navigateBack } from "../../ui/navigation";
 import { density, motion, spacing, themeShadow, type, useTheme } from "../../ui/theme";
 import { useStayAwake } from "../../ui/stay-awake";
 import { showNotice, showUndo } from "../../ui/undo";
+import { ProductSuggestions } from "../../ui/suggestions";
 
 export default function ListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -413,9 +414,9 @@ function QuickAdd({
       {/* Mounted while anything is typed rather than while a product is, so
           the products are read once an entry, not again after every comma. */}
       {text ? (
-        <Suggestions
+        <ProductSuggestions
           text={text}
-          items={items}
+          listed={items}
           onPick={(entries) => {
             void add(entries);
             // A pressed chip takes the web's focus; the phone's field never lost it.
@@ -461,35 +462,6 @@ function ScanButton({ listId }: { listId: string }) {
       () => appError(tr.barcode.failed),
     );
   return <IconButton icon={ScanBarcode} label={tr.barcode.scan} field onPress={() => void scan()} />;
-}
-
-/**
- * What the household had before, then the catalogue, that begins with what is
- * typed or nearly does (SPEC 2.4, 2.13).
- * It offers and never takes: the field keeps its text and its focus until a
- * chip is pressed (`docs/UI.md` section 5).
- */
-function Suggestions({ text, items, onPick }: { text: string; items: readonly Item[]; onPick: (entries: Entry[]) => void }) {
-  const known = useKnownProducts();
-  const typed = typedProduct(text);
-  const picks = typed ? suggestProducts(withCatalogue(known.data), typed, items) : [];
-  if (!typed || picks.length === 0) return null;
-  return (
-    <SlideUp distance={motion.travel.rise}>
-      <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-        {picks.map((product) => (
-          <IconButton
-            key={product.key}
-            icon={Plus}
-            text={product.name}
-            label={tr.items.suggestion(product.name)}
-            tone="primary"
-            onPress={() => onPick(pickEntries(typed, product.name))}
-          />
-        ))}
-      </ScrollView>
-    </SlideUp>
-  );
 }
 
 /**

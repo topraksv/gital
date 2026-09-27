@@ -60,13 +60,6 @@ export function shouldPresentAsSheet(viewportWidth: number): boolean {
   return viewportWidth < SHEET_WIDTH;
 }
 
-/** Below this a row's button goes under its words, Helix's. */
-const NARROW_ACTION_STACK_WIDTH = 430;
-
-export function shouldStackListActions(viewportWidth: number): boolean {
-  return viewportWidth < NARROW_ACTION_STACK_WIDTH;
-}
-
 /** Where the sign-in's greeting and its form stand side by side, Helix's. */
 const SPLIT_AUTH_HERO_WIDTH = 820;
 

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Animated, Easing, Platform, Text, View } from "react-native";
+import { Animated, Easing, Platform, Text, View, type TextInput } from "react-native";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
@@ -20,6 +20,7 @@ import { Actions, DialogShell, appError } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { isReducedMotion } from "../../ui/motion";
 import { flightTo, landTab, tabCentre } from "../../ui/tab-landing";
+import { ProductSuggestions } from "../../ui/suggestions";
 import { showUndo } from "../../ui/undo";
 import { density, motion, spacing, type, useTheme } from "../../ui/theme";
 
@@ -89,8 +90,8 @@ export default function Pantry() {
  */
 function PantryAdd() {
   const [text, setText] = useState("");
-  const add = async () => {
-    const entries = parseEntry(text);
+  const field = useRef<TextInput>(null);
+  const add = async (entries = parseEntry(text)) => {
     if (entries.length === 0) return;
     setText("");
     try {
@@ -103,19 +104,33 @@ function PantryAdd() {
     }
   };
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
-      <TextField
-        value={text}
-        onChangeText={setText}
-        onSubmitEditing={() => void add()}
-        blurOnSubmit={false}
-        returnKeyType="done"
-        accessibilityLabel={tr.pantry.addLabel}
-        examples={tr.placeholders.pantryAdd}
-        maxLength={ENTRY_MAX}
-        style={{ flex: 1 }}
-      />
-      <IconButton icon={Plus} label={tr.pantry.add} tone="primary" field onPress={() => void add()} />
+    <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <TextField
+          ref={field}
+          value={text}
+          onChangeText={setText}
+          onSubmitEditing={() => void add()}
+          blurOnSubmit={false}
+          returnKeyType="done"
+          accessibilityLabel={tr.pantry.addLabel}
+          examples={tr.placeholders.pantryAdd}
+          maxLength={ENTRY_MAX}
+          style={{ flex: 1 }}
+        />
+        <IconButton icon={Plus} label={tr.pantry.add} tone="primary" field onPress={() => void add()} />
+      </View>
+      {text ? (
+        <ProductSuggestions
+          text={text}
+          // What is at home is still offered: a chip for it is another arrival.
+          listed={[]}
+          onPick={(entries) => {
+            void add(entries);
+            field.current?.focus();
+          }}
+        />
+      ) : null}
     </View>
   );
 }

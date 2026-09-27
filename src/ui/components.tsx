@@ -356,7 +356,6 @@ export function ListRow({
   subtitle,
   right,
   chevron = false,
-  stackRight = false,
   onPress,
 }: {
   icon?: LucideIcon;
@@ -365,8 +364,6 @@ export function ListRow({
   subtitle?: string;
   right?: ReactNode;
   chevron?: boolean;
-  /** A wide control, a button, goes under the words on a phone rather than squeezing them (`shouldStackListActions`). */
-  stackRight?: boolean;
   onPress?: () => void;
 }) {
   const { palette } = useTheme();
@@ -378,10 +375,9 @@ export function ListRow({
           <Text style={[type.body, { color: palette.text, fontFamily: font.medium }]}>{title}</Text>
           {subtitle ? <Text style={[type.small, { color: palette.textSecondary, marginTop: offset.hair }]}>{subtitle}</Text> : null}
         </View>
-        {stackRight ? null : right}
+        {right}
         {chevron ? <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} /> : null}
       </View>
-      {stackRight ? <View style={{ marginTop: spacing.sm, marginLeft: Icon ? iconSize.control + spacing.md : 0, alignItems: "flex-end" }}>{right}</View> : null}
     </View>
   );
   if (!onPress) return content;

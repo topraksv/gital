@@ -66,6 +66,11 @@ test("what is already at home goes into the pantry by hand, and stays after a re
   await expect(page.getByRole("button", { name: "Un, 2 kg" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Tuz, 1 adet" })).toBeVisible();
 
+  // The list's suggestions, here too (the owner asked 2026-09-27).
+  await page.getByRole("textbox", { name: "Kilere ürün ekle" }).fill("pey");
+  await page.getByRole("button", { name: "Beyaz peynir ürününü ekle" }).click();
+  await expect(page.getByRole("button", { name: "Beyaz peynir, 1 adet" })).toBeVisible();
+
   await page.reload();
   await expect(page.getByRole("button", { name: "Un, 2 kg" })).toBeVisible();
   expect(failures).toEqual([]);

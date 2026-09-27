@@ -1,12 +1,12 @@
 /** The wish collections, their wishes, and what İstekler can do to one (SPEC 7). */
 
-import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deleteRow, editRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { lists, photos, wishLinks, wishes } from "../db/schema";
 import { isISODate, type ISODate } from "../domain/dates";
-import { itemNameFrom, noteFrom } from "../domain/items";
+import { itemNameFrom, knownFrom, noteFrom, type KnownProduct } from "../domain/items";
 import { lookOf, type ListLook } from "../domain/lists";
 import { isPrice } from "../domain/money";
 import { photoColumn, type PhotoChange } from "./photos";
@@ -89,6 +89,21 @@ export async function readDueWishes(): Promise<{ name: string; dueOn: ISODate; b
     .innerJoin(lists, and(eq(lists.id, wishes.listId), isNull(lists.deletedAt)))
     .where(and(isNull(wishes.deletedAt), isNotNull(wishes.dueOn)));
   return rows.flatMap(({ name, dueOn, boughtAt }) => (dueOn != null && isISODate(dueOn) ? [{ name, dueOn, boughtAt }] : []));
+}
+
+/**
+ * Every wish named before, in a live collection, for the add field's
+ * suggestions, shaped as the list's products are so one ranking serves both.
+ */
+export async function readKnownWishes(): Promise<KnownProduct[]> {
+  const rows = await getDb()
+    .select({ name: wishes.name, times: count() })
+    .from(wishes)
+    .innerJoin(lists, and(eq(lists.id, wishes.listId), isNull(lists.deletedAt)))
+    .where(isNull(wishes.deletedAt))
+    .groupBy(wishes.name)
+    .orderBy(desc(max(wishes.updatedAt)), asc(wishes.name));
+  return knownFrom(rows);
 }
 
 export async function readWishes(listId: string): Promise<Wish[]> {
