@@ -5,23 +5,28 @@ import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import DatabaseZap from "lucide-react-native/icons/database-zap";
+import LockOpen from "lucide-react-native/icons/lock-open";
+import LogOut from "lucide-react-native/icons/log-out";
+import Snowflake from "lucide-react-native/icons/snowflake";
 
-import { useSession } from "../auth/session";
+import { SIGN_OUT_PENDING_CHANGES, useSession } from "../auth/session";
 import { migrateDb } from "../db/migrate";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
+import { useAccountFrozen } from "../data/hooks";
 import { createList } from "../data/lists";
+import { setAccountFrozen } from "../data/settings";
 import { addWish, readCollections } from "../data/wishes";
 import { LINK_MAX, linkFrom } from "../domain/wishes";
 import { clipboardOffer } from "../services/clipboard-link";
 import { remindersAvailable, replanReminders } from "../services/reminders";
 import { syncNow } from "../sync/engine";
 import { Button, EmptyState } from "../ui/components";
-import { appError, appPrompt, DialogHost, PromptHost } from "../ui/dialog";
+import { appConfirm, appError, appPrompt, DialogHost, PromptHost } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
 import { KeyboardSafeRoot } from "../ui/keyboard-safe";
 import { GestureRoot } from "../ui/list-motion";
-import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
+import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, spacing, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
 import { CelebrationHost } from "../ui/celebration";
 import { clearUndo, UndoSnackbar } from "../ui/undo";
@@ -206,6 +211,9 @@ function WebTitle() {
 function Routes({ background }: { background: string }) {
   const ready = useSession((s) => s.ready);
   const userId = useSession((s) => s.userId);
+  const freezing = useSession((s) => s.isFreezing);
+  const signedIn = userId != null;
+  const frozen = useAccountFrozen(signedIn && !RECOVERY_PAGE);
   useEffect(() => {
     if (RECOVERY_PAGE) return;
     // A launch that cannot decide opens on sign-in rather than on nothing.
@@ -213,31 +221,91 @@ function Routes({ background }: { background: string }) {
   }, []);
   // Helix's bug: an undo offered to one account ran against the next one's lists.
   useEffect(() => clearUndo(), [userId]);
-  if (!ready && !RECOVERY_PAGE) return null;
-  const signedIn = userId != null;
+  if ((!ready || (signedIn && frozen == null)) && !RECOVERY_PAGE) return null;
+  // The device that freezes signs out; its own freezing is not a lock.
+  const locked = frozen === true && !freezing;
   return (
     <>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: background } }}>
-        <Stack.Protected guard={signedIn}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="list/[id]" />
-          <Stack.Screen name="shop/[id]" />
-          <Stack.Screen name="collection/[id]" />
-          <Stack.Screen name="sync-issues" />
-        </Stack.Protected>
-        <Stack.Protected guard={!signedIn}>
-          <Stack.Screen name="(auth)/sign-in" />
-        </Stack.Protected>
-        <Stack.Screen name="(auth)/reset-password" />
-      </Stack>
+      {locked ? (
+        <FrozenGate />
+      ) : (
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: background } }}>
+          <Stack.Protected guard={signedIn}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="list/[id]" />
+            <Stack.Screen name="shop/[id]" />
+            <Stack.Screen name="collection/[id]" />
+            <Stack.Screen name="sync-issues" />
+            <Stack.Screen name="data-reset" />
+          </Stack.Protected>
+          <Stack.Protected guard={!signedIn}>
+            <Stack.Screen name="(auth)/sign-in" />
+          </Stack.Protected>
+          <Stack.Screen name="(auth)/reset-password" />
+        </Stack>
+      )}
       {signedIn ? (
         <>
+          {/* Kept while locked: the reopening may come from another device. */}
           <SyncRunner userId={userId} />
           <ReminderPlanner />
-          <ClipboardLinkOffer />
+          {locked ? null : <ClipboardLinkOffer />}
         </>
       ) : null}
     </>
+  );
+}
+
+/** Sign out, asking first when a change would be left unsent. */
+export async function leaveAccount(): Promise<void> {
+  const { signOut } = useSession.getState();
+  let refused = await signOut();
+  if (refused === SIGN_OUT_PENDING_CHANGES) {
+    if (!(await appConfirm(tr.account.signOutTitle, SIGN_OUT_PENDING_CHANGES, tr.account.signOutAnyway))) return;
+    refused = await signOut({ force: true });
+  }
+  if (refused) await appError(refused);
+}
+
+/**
+ * What a frozen account shows on every device it holds (SPEC 9.1), in place
+ * of the app: Helix's lock, reopened with the password rather than a
+ * fingerprint, since the web has none and the password is what Gital asks for
+ * everywhere else.
+ */
+function FrozenGate() {
+  const [busy, setBusy] = useState(false);
+  const act = (work: () => Promise<void>) => async () => {
+    setBusy(true);
+    try {
+      await work();
+    } catch {
+      await appError(tr.auth.errGeneric);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const reopen = act(async () => {
+    const password = await appPrompt(tr.account.confirmPasswordTitle, tr.account.reopenPasswordBody, { confirmLabel: tr.common.done, kind: "password" });
+    if (password == null) return;
+    const refused = await useSession.getState().verifyPassword(password);
+    if (refused) await appError(refused);
+    else await setAccountFrozen(false);
+  });
+  return (
+    <View style={{ flex: 1 }}>
+      <EmptyState
+        icon={Snowflake}
+        title={tr.account.frozenTitle}
+        hint={tr.account.frozenBody}
+        action={
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm }}>
+            <Button label={tr.account.reopen} icon={LockOpen} disabled={busy} onPress={() => void reopen()} />
+            <Button label={tr.account.signOut} icon={LogOut} variant="ghost" disabled={busy} onPress={() => void act(leaveAccount)()} />
+          </View>
+        }
+      />
+    </View>
   );
 }
 

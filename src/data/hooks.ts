@@ -9,6 +9,7 @@ import { liveStore } from "./live-query";
 import { readLasted, readPantry } from "./pantry";
 import { readProducts } from "./products";
 import { readSets } from "./sets";
+import { frozenFrom, readSettings } from "./settings";
 import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readWishes } from "./wishes";
 
@@ -111,4 +112,17 @@ const setsStore = liveStore(readSets, ["sets", "set_items"]);
 
 export function useSets() {
   return useSyncExternalStore(setsStore.subscribe, setsStore.getSnapshot, setsStore.getSnapshot);
+}
+
+const settingsStore = liveStore(readSettings, ["settings"]);
+const unwatched = () => () => {};
+
+/**
+ * Whether the account is frozen (SPEC 9.1); watched only while signed in, since
+ * the reset page opens no database. Unwatched is unknown: the store keeps the
+ * last account's answer until the unsubscribe that follows its sign-out.
+ */
+export function useAccountFrozen(watching: boolean): boolean | null {
+  const snapshot = useSyncExternalStore(watching ? settingsStore.subscribe : unwatched, settingsStore.getSnapshot, settingsStore.getSnapshot);
+  return watching ? frozenFrom(snapshot) : null;
 }

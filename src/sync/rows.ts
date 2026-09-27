@@ -11,7 +11,7 @@ import { SYNCED_TABLES, type SyncedTableName } from "../db/schema";
 import { isUuidShaped } from "./merge-policy";
 
 /** Keyed by the person as well as the id on the server (`00000000000003_sync.sql`). */
-export const PERSONAL_TABLES: ReadonlySet<SyncedTableName> = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves"]);
+export const PERSONAL_TABLES: ReadonlySet<SyncedTableName> = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
 
 interface Column {
   kind: "text" | "integer" | "boolean";

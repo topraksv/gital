@@ -58,6 +58,13 @@ vi.mock("../../src/db/client", async () => {
   const { sqliteClientMock } = await import("../helpers");
   return sqliteClientMock(() => harness.db!);
 });
+vi.mock("expo-crypto", async () => {
+  const { createHash } = await import("node:crypto");
+  return {
+    CryptoDigestAlgorithm: { SHA256: "SHA256" },
+    digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
+  };
+});
 vi.mock("../../src/services/kv", () => {
   const reach = (key: string) => {
     if ([...device.failing].some((prefix) => key.startsWith(prefix))) throw new Error("keychain locked");
@@ -75,13 +82,24 @@ vi.mock("../../src/services/kv", () => {
   };
 });
 vi.mock("../../src/services/reminders", () => ({ cancelReminders: async () => void device.cancelled++ }));
-const sync = vi.hoisted(() => ({ calls: [] as string[], flushSends: false, purgeFails: false }));
+const sync = vi.hoisted(() => ({
+  calls: [] as string[],
+  flushSends: false,
+  purgeFails: false,
+  /** What a flush that sends took from the outbox. */
+  sent: [] as Record<string, unknown>[],
+  onFlush: null as (() => void) | null,
+}));
 vi.mock("../../src/sync/engine", () => ({
   startSyncSession: (userId: string) => void sync.calls.push(`start:${userId}`),
   stopSyncSession: async () => void sync.calls.push("stop"),
   flushOutbox: async () => {
     sync.calls.push("flush");
-    if (sync.flushSends) harness.db!.exec("DELETE FROM outbox");
+    sync.onFlush?.();
+    if (!sync.flushSends) return;
+    const waiting = harness.db!.prepare("SELECT payload FROM outbox ORDER BY id").all() as { payload: string }[];
+    sync.sent.push(...waiting.map(({ payload }) => JSON.parse(payload) as Record<string, unknown>));
+    harness.db!.exec("DELETE FROM outbox");
   },
 }));
 vi.mock("../../src/sync/photos", () => ({
@@ -167,6 +185,7 @@ const { HOSTED_RECOVERY_PAGE } = await import("../../src/auth/recovery");
 const { VERIFY_COOLDOWN_MS, VERIFY_MAX_FAILURES } = await import("../../src/auth/verification-brake");
 const { createList, readLists } = await import("../../src/data/lists");
 const { photoColumn } = await import("../../src/data/photos");
+const { frozenFrom, isFrozen, readSettings, setAccountFrozen } = await import("../../src/data/settings");
 const { tr } = await import("../../src/i18n/tr");
 const { migratedDatabase } = await import("../helpers");
 
@@ -191,7 +210,7 @@ beforeEach(() => {
   device.readFailsOnce.clear();
   device.cancelled = 0;
   Object.assign(cloud, { configured: true, users: [A, B], session: null, sessionError: null, rpcError: null, updateError: null, signUpError: null, resetError: null, setSessionError: null, signUpSession: true, throws: false, calls: [] });
-  Object.assign(sync, { calls: [], flushSends: false, purgeFails: false });
+  Object.assign(sync, { calls: [], flushSends: false, purgeFails: false, sent: [], onFlush: null });
   useSession.setState({ userId: null, email: null, ready: false, previousLoginAt: null });
 });
 
@@ -219,7 +238,8 @@ describe("whose lists the device holds", () => {
 
     sent();
     expect(await session().signIn(B.email, B.password)).toBeNull();
-    expect([count("lists"), count("photos"), count("outbox")]).toEqual([0, 0, 0]);
+    expect([count("lists"), count("photos")]).toEqual([0, 0]);
+    expect(count("outbox"), "B's own sign-in, and nothing of A's").toBe(1);
     expect(device.stored.get(OWNER)).toBe(B.id);
     expect(device.cancelled).toBe(1);
   });
@@ -408,9 +428,10 @@ describe("signing out", () => {
     await session().signIn(A.email, A.password);
     await createList("Market");
     harness.db!.exec("CREATE TRIGGER stuck BEFORE DELETE ON lists BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END");
+    const waiting = count("outbox");
     expect(await session().signOut({ force: true })).toBe(tr.auth.errWorkspaceReset);
     expect(session().userId).toBe(A.id);
-    expect([count("lists"), count("outbox")]).toEqual([1, 1]);
+    expect([count("lists"), count("outbox")]).toEqual([1, waiting]);
     expect(cloud.calls).toEqual([]);
     expect(sync.calls.at(-1), "still signed in, so still syncing").toBe(`start:${A.id}`);
 
@@ -423,8 +444,89 @@ describe("signing out", () => {
 
   it("signs out without asking when nothing is waiting", async () => {
     await session().signIn(A.email, A.password);
+    sent();
     expect(await session().signOut()).toBeNull();
     expect(session().userId).toBeNull();
+  });
+});
+
+describe("freezing the account", () => {
+  const frozenSent = () => sync.sent.filter((payload) => payload.key === "account_frozen").map((payload) => payload.value);
+
+  it("locks nothing until the device knows, and opens the app on a read that failed", () => {
+    const frozen = [{ key: "account_frozen", value: "true" }];
+    expect(frozenFrom({ data: [], status: "loading", updatedAt: undefined })).toBeNull();
+    expect(frozenFrom({ data: frozen, status: "ready", updatedAt: new Date() })).toBe(true);
+    expect(frozenFrom({ data: [{ key: "account_frozen", value: "false" }], status: "stale", updatedAt: new Date() })).toBe(false);
+    expect(frozenFrom({ data: [], status: "error", updatedAt: undefined })).toBe(false);
+  });
+
+  it("sends the freeze with everything else, then signs out", async () => {
+    await session().signIn(A.email, A.password);
+    await createList("Market");
+    sync.flushSends = true;
+    expect(await session().freezeAccount()).toBeNull();
+    expect(frozenSent().at(-1)).toBe("true");
+    expect(session()).toMatchObject({ userId: null, isFreezing: false });
+    expect(count("lists")).toBe(0);
+  });
+
+  it("freezes nothing, and keeps the account open, when what waits cannot be sent", async () => {
+    await session().signIn(A.email, A.password);
+    await createList("Market");
+    expect(await session().freezeAccount()).toBe(tr.account.freezeSyncFailed);
+    expect(session()).toMatchObject({ userId: A.id, isFreezing: false });
+    expect(isFrozen(await readSettings())).toBe(false);
+    expect(count("lists")).toBe(1);
+  });
+
+  it("puts the flag back when the device cannot be emptied, and says why", async () => {
+    await session().signIn(A.email, A.password);
+    sync.flushSends = true;
+    harness.db!.exec("CREATE TRIGGER stuck BEFORE DELETE ON lists BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END");
+    await createList("Market");
+    sent();
+    expect(await session().freezeAccount()).toBe(tr.auth.errWorkspaceReset);
+    expect(isFrozen(await readSettings())).toBe(false);
+  });
+
+  it("puts the flag back when the sign-out fails outright", async () => {
+    await session().signIn(A.email, A.password);
+    sync.onFlush = () => {
+      throw new Error("Failed to fetch");
+    };
+    expect(await session().freezeAccount()).toBe(tr.account.freezeSyncFailed);
+    expect(session()).toMatchObject({ userId: A.id, isFreezing: false });
+    expect(isFrozen(await readSettings())).toBe(false);
+  });
+
+  it("says so when the flag cannot be put back, since every launch here opens on the lock", async () => {
+    await session().signIn(A.email, A.password);
+    await createList("Market");
+    sync.onFlush = () => harness.db!.exec("CREATE TRIGGER stuck BEFORE UPDATE ON settings BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END");
+    expect(await session().freezeAccount()).toBe(tr.account.freezeRollbackFailed);
+    expect(isFrozen(await readSettings())).toBe(true);
+  });
+
+  it("has nothing to freeze while signed out", async () => {
+    expect(await session().freezeAccount()).toBe(tr.auth.errNotConfigured);
+  });
+
+  it("holds the gate back on this device while it freezes", async () => {
+    await session().signIn(A.email, A.password);
+    sync.flushSends = true;
+    let freezing: boolean | undefined;
+    sync.onFlush = () => (freezing = session().isFreezing);
+    await session().freezeAccount();
+    expect(freezing).toBe(true);
+  });
+
+  it("is reopened by signing in, which is the password check", async () => {
+    await session().signIn(A.email, A.password);
+    await setAccountFrozen(true);
+    useSession.setState({ userId: null });
+    await session().signIn(A.email, A.password);
+    expect(isFrozen(await readSettings())).toBe(false);
   });
 });
 

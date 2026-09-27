@@ -34,4 +34,6 @@ export const naturalKeys = {
   pantryItem: (foldedName: string) => `pantry:${foldedName}`,
   /** What a bought item brought home, so a shop seen twice adds it once (SPEC 12.9). */
   arrival: (boughtItemId: string) => `arrival:${boughtItemId}`,
+  /** One row per setting, so two devices writing it meet one row. The server keys it by person too. */
+  setting: (key: string) => `setting:${key}`,
 };

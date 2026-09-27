@@ -1,12 +1,12 @@
 -- What sync's tables let one account do to another's rows, asserted
--- (migration 3). Helix's harness: fixtures as postgres, every assertion as
+-- (migrations 3 and 4). Helix's harness: fixtures as postgres, every assertion as
 -- the role a request would carry, and a rollback at the end.
 begin;
 
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(43);
+select extensions.plan(46);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -35,15 +35,15 @@ insert into auth.users (
 select is(
   (select count(*) from pg_policies
     where schemaname = 'public'
-      and tablename = any (array['lists','shops','items','wishes','wish_links','products','sets','set_items','pantry_items','pantry_moves'])
+      and tablename = any (array['lists','shops','items','wishes','wish_links','products','sets','set_items','pantry_items','pantry_moves','settings'])
       and roles = array['authenticated']::name[]),
-  30::bigint,
-  'ten synced tables, each with select, insert and update policies for authenticated'
+  33::bigint,
+  'eleven synced tables, each with select, insert and update policies for authenticated'
 );
 select is(
   (select count(*) from information_schema.role_table_grants
     where table_schema = 'public'
-      and table_name = any (array['lists','shops','items','wishes','wish_links','products','sets','set_items','pantry_items','pantry_moves'])
+      and table_name = any (array['lists','shops','items','wishes','wish_links','products','sets','set_items','pantry_items','pantry_moves','settings'])
       and (grantee = 'anon' or (grantee = 'authenticated' and privilege_type not in ('SELECT','INSERT','UPDATE')))),
   0::bigint,
   'anon holds nothing, and a signed-in request cannot delete'
@@ -51,7 +51,7 @@ select is(
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity
-      and c.relname = any (array['lists','shops','items','wishes','wish_links','products','sets','set_items','pantry_items','pantry_moves'])),
+      and c.relname = any (array['lists','shops','items','wishes','wish_links','products','sets','set_items','pantry_items','pantry_moves','settings'])),
   0::bigint,
   'every synced table has row-level security on'
 );
@@ -96,6 +96,11 @@ select is(
   '42501',
   'A cannot write a product into B''s name'
 );
+select lives_ok(
+  $$insert into public.settings (user_id, id, key, value) values
+    ('10000000-0000-4000-8000-000000000001', 'b4000000-0000-8000-8000-00000000000b', 'account_frozen', 'true')$$,
+  'A freezes its account'
+);
 select is(
   pg_temp.exec_sqlstate($$delete from public.items where id = 'a1000000-0000-7000-8000-00000000000a'$$),
   '42501',
@@ -138,7 +143,7 @@ select is(
 );
 select is(
   (select count(*) from public.sync_cursors()),
-  10::bigint,
+  11::bigint,
   'the probe names every synced table'
 );
 
@@ -151,6 +156,7 @@ select is((select count(*) from public.lists), 0::bigint, 'B sees no list of A''
 select is((select count(*) from public.items), 0::bigint, 'B sees no item of A''s');
 select is((select count(*) from public.shops), 0::bigint, 'B sees no shop of A''s');
 select is((select count(*) from public.products), 0::bigint, 'B sees no product of A''s');
+select is((select count(*) from public.settings), 0::bigint, 'B sees no setting of A''s');
 select ok(not public.can_read_list('a0000000-0000-7000-8000-00000000000a'), 'B cannot read A''s list');
 select ok(not public.can_write_list('a0000000-0000-7000-8000-00000000000a'), 'B cannot write A''s list');
 select is(
@@ -231,6 +237,7 @@ set local role postgres;
 select is((select count(*) from public.lists where owner_id = '10000000-0000-4000-8000-000000000001'), 0::bigint, 'A''s lists went with it');
 select is((select count(*) from public.items where list_id = 'a0000000-0000-7000-8000-00000000000a'), 0::bigint, 'and what was on them');
 select is((select count(*) from public.products where user_id = '10000000-0000-4000-8000-000000000001'), 0::bigint, 'and its products');
+select is((select count(*) from public.settings where user_id = '10000000-0000-4000-8000-000000000001'), 0::bigint, 'and its settings');
 select is((select count(*) from public.products where user_id = '20000000-0000-4000-8000-000000000002'), 1::bigint, 'B''s product stays');
 
 select * from extensions.finish();

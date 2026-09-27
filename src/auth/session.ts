@@ -16,6 +16,7 @@ import { create } from "zustand";
 import { Platform } from "react-native";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { setAccountFrozen } from "../data/settings";
 import { pendingOutboxCount, resetLocalWorkspace } from "../db/mutations";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
@@ -171,6 +172,8 @@ interface SessionStore {
   ready: boolean;
   /** The sign-in before this session's, for the account screen. */
   previousLoginAt: string | null;
+  /** This device is freezing the account, and signs out next: the gate stays shut. */
+  isFreezing: boolean;
   bootstrap: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (email: string, password: string) => Promise<SignUpResult>;
@@ -181,6 +184,8 @@ interface SessionStore {
   /** Empties the device. Refuses with `SIGN_OUT_PENDING_CHANGES` while a change is unsent, unless `force`. */
   signOut: (options?: { force?: boolean }) => Promise<string | null>;
   deleteAccount: () => Promise<string | null>;
+  /** Lock the account on every device until a sign-in; frozen only once the server has it. */
+  freezeAccount: () => Promise<string | null>;
   /** Confirm the password before a delete or a credential change; a run of failures pauses it. */
   verifyPassword: (password: string) => Promise<string | null>;
   changeEmail: (newEmail: string) => Promise<string | null>;
@@ -192,6 +197,7 @@ export const useSession = create<SessionStore>((set, get) => ({
   email: null,
   ready: false,
   previousLoginAt: null,
+  isFreezing: false,
 
   bootstrap: async () => {
     const supabase = getSupabase();
@@ -242,6 +248,9 @@ export const useSession = create<SessionStore>((set, get) => ({
     const refused = await claim(supabase, data.user, email);
     if (refused) return refused;
     const previousLoginAt = await recordSuccessfulLogin(kv, data.user.id, data.user.last_sign_in_at ?? new Date().toISOString()).catch(absent);
+    // Signing in is the password check, so it reopens a frozen account: a
+    // write newer than the freeze, which the gate on every device follows.
+    await setAccountFrozen(false).catch(ignore);
     startSyncSession(data.user.id);
     set({ userId: data.user.id, email: data.user.email ?? email, previousLoginAt });
     return null;
@@ -317,6 +326,24 @@ export const useSession = create<SessionStore>((set, get) => ({
     await endAuthSession(supabase, "local");
     await forgetAccount();
     return null;
+  },
+
+  freezeAccount: async () => {
+    const userId = get().userId;
+    if (!getSupabase() || !userId) return tr.auth.errNotConfigured;
+    set({ isFreezing: true });
+    try {
+      // The sign-out sends everything first and refuses while anything is
+      // unsent, so its success is the proof that the freeze reached the server.
+      await setAccountFrozen(true);
+      const refused = await get().signOut().catch(() => tr.account.freezeSyncFailed);
+      if (!refused) return null;
+      // Helix's lesson: a failure after the flag must put it back, or every launch opens on the gate.
+      if (!(await setAccountFrozen(false).then(() => true, () => false))) return tr.account.freezeRollbackFailed;
+      return refused === SIGN_OUT_PENDING_CHANGES ? tr.account.freezeSyncFailed : refused;
+    } finally {
+      set({ isFreezing: false });
+    }
   },
 
   deleteAccount: async () => {

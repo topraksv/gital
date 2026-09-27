@@ -192,6 +192,17 @@ export const pantryMoves = sqliteTable(
 );
 
 /**
+ * What follows the person to every device, Helix's key and JSON value: today
+ * whether the account is frozen (SPEC 9.1). The id comes from the key
+ * (`src/db/ids.ts`), so two devices writing one setting meet one row.
+ */
+export const settings = sqliteTable("settings", {
+  ...syncColumns,
+  key: text("key").notNull(),
+  value: text("value").notNull(),
+});
+
+/**
  * Local only: a photo's bytes, as JPEG data URIs. A row names it by id; the
  * bytes never ride the outbox, because the decision of 2026-09-23 puts them
  * in Storage, beside the row rather than in it. A photo is never edited — a
@@ -248,6 +259,6 @@ export const syncState = sqliteTable("sync_state", {
 });
 
 /** Parents before children, the order a push sends them in: the server checks an item's list. */
-export const SYNCED_TABLES = { lists, shops, items, wishes, wish_links: wishLinks, products, sets, set_items: setItems, pantry_items: pantryItems, pantry_moves: pantryMoves } as const;
+export const SYNCED_TABLES = { lists, shops, items, wishes, wish_links: wishLinks, products, sets, set_items: setItems, pantry_items: pantryItems, pantry_moves: pantryMoves, settings } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;

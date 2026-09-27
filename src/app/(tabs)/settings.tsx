@@ -3,17 +3,19 @@ import { View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import BookOpen from "lucide-react-native/icons/book-open";
 import CloudAlert from "lucide-react-native/icons/cloud-alert";
+import Eraser from "lucide-react-native/icons/eraser";
 import KeyRound from "lucide-react-native/icons/key-round";
 import LogOut from "lucide-react-native/icons/log-out";
 import Mail from "lucide-react-native/icons/mail";
 import RefreshCw from "lucide-react-native/icons/refresh-cw";
+import Snowflake from "lucide-react-native/icons/snowflake";
 import Trash from "lucide-react-native/icons/trash";
 import Check from "lucide-react-native/icons/check";
 import Monitor from "lucide-react-native/icons/monitor";
 import Moon from "lucide-react-native/icons/moon";
 import Sun from "lucide-react-native/icons/sun";
 
-import { SIGN_OUT_PENDING_CHANGES, useSession } from "../../auth/session";
+import { useSession } from "../../auth/session";
 import type { ShoppingDay } from "../../domain/reminders";
 import { tr } from "../../i18n/tr";
 import { readReminderPreferences, saveShoppingDay, type ReminderPreferences } from "../../services/reminder-preferences";
@@ -27,7 +29,7 @@ import { TourModal } from "../../ui/tour";
 import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, borderWidth, circle, controlSize, PALETTES, radius, spacing, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
 import { radioGroupKeys } from "../../ui/keys";
-import { setAppearance } from "../_layout";
+import { leaveAccount, setAppearance } from "../_layout";
 
 const THEMES: readonly [ThemePreference, string][] = [
   ["system", tr.settings.themeSystem],
@@ -111,7 +113,7 @@ export default function SettingsScreen() {
  * screen once the guard has swapped it for sign-in.
  */
 function Account() {
-  const { email, previousLoginAt, verifyPassword, changeEmail, changePassword, signOut, deleteAccount } = useSession();
+  const { email, previousLoginAt, verifyPassword, changeEmail, changePassword, freezeAccount, deleteAccount } = useSession();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
@@ -154,11 +156,14 @@ function Account() {
     return refused ? failed(refused) : { tone: "success", text: tr.account.passwordChanged };
   });
   const leave = run(async () => {
-    let refused = await signOut();
-    if (refused === SIGN_OUT_PENDING_CHANGES) {
-      if (!(await appConfirm(tr.account.signOutTitle, SIGN_OUT_PENDING_CHANGES, tr.account.signOutAnyway))) return null;
-      refused = await signOut({ force: true });
-    }
+    await leaveAccount();
+    return null;
+  });
+  const freeze = run(async () => {
+    if (!(await appConfirm(tr.account.freezeTitle, tr.account.freezeBody, tr.account.freezeConfirm))) return null;
+    const check = await confirmed(tr.account.freezePasswordBody);
+    if (!check) return null;
+    const refused = check.ok ? await freezeAccount() : check.refused;
     if (refused) await appError(refused);
     return null;
   });
@@ -179,6 +184,8 @@ function Account() {
         <Button label={tr.account.changeEmail} icon={Mail} variant="ghost" disabled={busy} onPress={() => void newEmail()} />
         <Button label={tr.account.changePassword} icon={KeyRound} variant="ghost" disabled={busy} onPress={() => void newPassword()} />
         <Button label={tr.account.signOut} icon={LogOut} variant="ghost" disabled={busy} onPress={() => void leave()} />
+        <Button label={tr.dataReset.title} icon={Eraser} variant="ghost" disabled={busy} onPress={() => router.push("/data-reset")} />
+        <Button label={tr.account.freeze} icon={Snowflake} variant="ghost" disabled={busy} onPress={() => void freeze()} />
         <Button label={tr.account.delete} icon={Trash} variant="ghost" disabled={busy} onPress={() => void remove()} />
       </View>
       {notice ? <Notice {...notice} /> : null}

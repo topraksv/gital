@@ -189,3 +189,6 @@ cannot be released.
   runs it now; a record the server refused waits on its own screen, still on
   the device. Signing out sends what is waiting first, and deleting the
   account removes its photos too.
+- Ayarlar freezes the account, which locks every other device until the
+  password reopens it, and resets chosen parts of the data — lists, history,
+  wishes, products, sets, the pantry — on every device, after the password.

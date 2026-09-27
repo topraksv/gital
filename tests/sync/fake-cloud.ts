@@ -14,9 +14,9 @@ type Row = Record<string, unknown>;
 type Failure = { message: string; code?: string; status?: number };
 type Reply = { data: unknown; error: Failure | null };
 
-const PERSONAL = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves"]);
+const PERSONAL = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
 const LIST_CHILDREN = new Set(["shops", "items", "wishes", "wish_links"]);
-export const TABLES = ["lists", "shops", "items", "wishes", "wish_links", "products", "sets", "set_items", "pantry_items", "pantry_moves"];
+export const TABLES = ["lists", "shops", "items", "wishes", "wish_links", "products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"];
 const PHOTO_OBJECT = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(full|thumb)\.jpg$/;
 
 /** Microseconds since the epoch, as Postgres keeps a timestamptz. */

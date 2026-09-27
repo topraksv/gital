@@ -31,6 +31,7 @@ const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry } = await import("../../src/data/pantry");
 const { finishShop } = await import("../../src/data/shops");
 const { readPhoto } = await import("../../src/data/photos");
+const { isFrozen, readSettings, setAccountFrozen } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
 const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
@@ -91,6 +92,24 @@ describe("two devices of one person", () => {
       expect(await readProducts()).toMatchObject([{ name: "süt", starred: true }]);
       expect(useSyncStatus.getState()).toMatchObject({ state: "idle", error: null });
       expect(useSyncStatus.getState().lastSyncAt).not.toBeNull();
+    });
+  });
+
+  it("carries a frozen account to the person's other device, and its reopening back", async () => {
+    await on("A", async () => {
+      await setAccountFrozen(true);
+      await sync();
+    });
+    expect(cloud.rows("settings").map((row) => row.user_id), "a setting is the person's own").toEqual([USER]);
+    await on("B", async () => {
+      await sync();
+      expect(isFrozen(await readSettings())).toBe(true);
+      await setAccountFrozen(false);
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      expect(isFrozen(await readSettings())).toBe(false);
     });
   });
 

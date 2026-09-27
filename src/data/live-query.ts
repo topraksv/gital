@@ -10,7 +10,7 @@ import type { SyncedTableName } from "../db/schema";
 
 type LiveQueryStatus = "loading" | "refreshing" | "ready" | "stale" | "error";
 
-interface LiveResult<T> {
+export interface LiveResult<T> {
   data: T[];
   status: LiveQueryStatus;
   /** The failed attempt, while a retry is pending; `null` once one succeeds. */
