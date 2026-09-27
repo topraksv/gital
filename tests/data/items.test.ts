@@ -65,9 +65,9 @@ describe("addItems", () => {
     const ids = await addItems(listId, "2 kg domates, 1,5 lt süt ve ekmek");
     expect(ids).toHaveLength(3);
     expect(await readItems(listId)).toEqual([
-      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
-      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
-      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
+      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
+      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
+      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
     ]);
     expect(outboxCount()).toBe(3);
   });
@@ -254,8 +254,8 @@ describe("updateItem", () => {
     await toggleChecked(ayran!);
     await updateItem(sut!, as("ayran"));
     expect(await readItems(listId)).toEqual([
-      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
-      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null },
+      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
+      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
     ]);
     expect(stored(sut!).deleted_at).not.toBeNull();
   });
@@ -535,7 +535,7 @@ describe("a photo", () => {
     expect(await readItems(listId)).toMatchObject([{ photo: shot("a").thumb }]);
     later(1000);
     const removed = await updateItem(sut!, { ...as("Süt"), photo: null });
-    expect(await readItems(listId)).toMatchObject([{ photoId: null, photo: null }]);
+    expect(await readItems(listId)).toMatchObject([{ photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) }]);
     await undoSave(removed.written, listId);
     expect(await readItems(listId)).toMatchObject([{ photo: shot("a").thumb }]);
   });

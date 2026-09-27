@@ -4,7 +4,8 @@ import Plus from "lucide-react-native/icons/plus";
 import UserPlus from "lucide-react-native/icons/user-plus";
 import ShoppingBasket from "lucide-react-native/icons/shopping-basket";
 
-import { useLists } from "../../data/hooks";
+import { useSession } from "../../auth/session";
+import { useFresh, useLists } from "../../data/hooks";
 import { createList } from "../../data/lists";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
@@ -18,6 +19,7 @@ import { density, motion } from "../../ui/theme";
 export default function Lists() {
   const lists = useLists();
   const router = useRouter();
+  const fresh = new Map(useFresh(useSession((s) => s.userId) ?? "").data.map((row) => [row.listId, row.count]));
 
   const create = async () => {
     const name = await appPrompt(tr.lists.createTitle, tr.lists.createMessage, {
@@ -70,6 +72,7 @@ export default function Lists() {
                     look={list}
                     title={list.name}
                     detail={tr.lists.summary(list.total, list.inBasket)}
+                    badge={fresh.has(list.id) ? tr.sharing.freshCount(fresh.get(list.id)!) : null}
                     accessory={list.total > 0 ? <ProgressRing value={list.inBasket / list.total} /> : null}
                     hint={tr.lists.openHint}
                     onOpen={() => router.push({ pathname: "/list/[id]", params: { id: list.id } })}

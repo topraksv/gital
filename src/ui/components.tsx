@@ -321,10 +321,21 @@ export function Tile({ id, name, size, color, icon, picture, photo, round = fals
   );
 }
 
-type DetailPart = { text: string; tone?: "errorText" | "warningText" };
+type DetailPart = { text: string; tone?: "errorText" | "warningText" | "accentText" };
 
-/** `extra` is a part only one screen draws, after the quantity: a pantry row's expiry (SPEC 12.3). */
-export type ShownItem = ItemChange & { checkedAt: string | null; extra?: DetailPart; photoId?: string | null; photo?: string | null };
+/**
+ * `extra` is a part only one screen draws, after the quantity: a pantry row's
+ * expiry (SPEC 12.3). A shared list's row says first whether it is new to this
+ * person (SPEC 1.9) and last who added and ticked it (SPEC 1.5).
+ */
+export type ShownItem = ItemChange & {
+  checkedAt: string | null;
+  extra?: DetailPart;
+  photoId?: string | null;
+  photo?: string | null;
+  fresh?: boolean;
+  people?: string | null;
+};
 
 /**
  * An item's second line: whether it is urgent while it is still to buy, and
@@ -334,6 +345,7 @@ export type ShownItem = ItemChange & { checkedAt: string | null; extra?: DetailP
  */
 function detailOf(item: ShownItem): DetailPart[] {
   const parts: DetailPart[] = [
+    { text: item.fresh ? tr.sharing.fresh : "", tone: "accentText" },
     { text: item.urgent && item.checkedAt == null ? tr.items.urgent : "", tone: "errorText" },
     { text: item.notFound ? tr.items.notFound : "", tone: "warningText" },
     { text: item.boughtInstead ? tr.items.instead(item.boughtInstead) : "" },
@@ -341,6 +353,7 @@ function detailOf(item: ShownItem): DetailPart[] {
     { text: formatQuantity(item) },
     item.extra ?? { text: "" },
     { text: item.note ?? "" },
+    { text: item.people ?? "" },
   ];
   return parts.filter((part) => part.text);
 }
@@ -568,10 +581,13 @@ export function LinkCard({
   detail,
   figure,
   accessory,
+  badge,
   hint,
   onOpen,
 }: {
   figure?: string;
+  /** Beside the title, in the accent: what is new on a shared list (SPEC 1.9). */
+  badge?: string | null;
   /** Drawn before the chevron: a list's ring of its shop so far. */
   accessory?: ReactNode;
   look?: TileLook;
@@ -586,7 +602,7 @@ export function LinkCard({
   return (
     <Press
       accessibilityRole="button"
-      accessibilityLabel={tr.common.withDetail(title, tr.common.withDetail(detail, figure ?? ""))}
+      accessibilityLabel={tr.common.withDetail(title, tr.common.withDetail(badge ?? "", tr.common.withDetail(detail, figure ?? "")))}
       accessibilityHint={hint}
       onPress={onOpen}
       style={(state) => ({
@@ -601,6 +617,16 @@ export function LinkCard({
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold, flex: 1 }]}>{title}</Text>
+          {badge ? (
+            <Text
+              style={[
+                type.small,
+                { color: palette.accentText, backgroundColor: palette.primarySoft, fontFamily: font.semibold, paddingHorizontal: spacing.sm, borderRadius: radius.full, alignSelf: "center" },
+              ]}
+            >
+              {badge}
+            </Text>
+          ) : null}
           {figure ? <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold }]}>{figure}</Text> : null}
         </View>
         <Text style={[type.small, { color: palette.textSecondary }]}>{detail}</Text>

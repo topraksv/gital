@@ -33,7 +33,7 @@ const { finishShop } = await import("../../src/data/shops");
 const { readPhoto } = await import("../../src/data/photos");
 const { isFrozen, memberNameOf, readSettings, setAccountFrozen, setMemberName } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
-const { leaveList, readMembers, removeMember, roleOf, setMemberRole } = await import("../../src/data/members");
+const { leaveList, markSeen, readFresh, readMembers, removeMember, roleOf, rowPeople, setMemberRole } = await import("../../src/data/members");
 const { acceptInvite, createInvite, inviteFromPage, inviteLink, inviteTokenFrom } = await import("../../src/sync/sharing");
 const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
@@ -452,6 +452,50 @@ describe("two people sharing a list", () => {
     await on("C", async () => {
       await sync();
       expect(roleOf(await readMembers(listId), OTHER)).toBe("viewer");
+    });
+  });
+
+  it("marks what the other person added since the last look as new, counts it on the card, and lets it go once seen", async () => {
+    const listId = await sharedMarket();
+    await on("A", async () => {
+      await sync();
+      // Before a first look nothing is new: joining brings a whole list, none of it news.
+      expect(await readFresh(USER)).toEqual([]);
+      await markSeen(listId, USER);
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      await add(listId, "yağ");
+      await toggleChecked((await readItems(listId)).find((item) => item.name === "süt")!.id);
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      expect(await readFresh(USER)).toEqual([{ listId, count: 1 }]);
+      const members = await readMembers(listId);
+      const people = Object.fromEntries((await readItems(listId)).map((item) => [item.name, rowPeople(item, members, USER)]));
+      expect(people).toEqual({
+        yağ: { fresh: true, added: "D", checked: null },
+        süt: { fresh: false, added: "Ö", checked: "D" },
+        elma: { fresh: false, added: "Ö", checked: null },
+      });
+      await markSeen(listId, USER);
+      expect(await readFresh(USER)).toEqual([]);
+      expect(rowPeople((await readItems(listId)).find((item) => item.name === "yağ")!, await readMembers(listId), USER).fresh).toBe(false);
+      await sync();
+    });
+    await on("C", async () => {
+      // What the person added is never new to them, what came before a first look is not news,
+      // and a list nobody shares shows nobody.
+      expect(await readFresh(OTHER)).toEqual([]);
+      const elma = (await readItems(listId)).find((item) => item.name === "elma")!;
+      expect(rowPeople(elma, await readMembers(listId), OTHER)).toEqual({ fresh: false, added: "Ö", checked: null });
+      const kendi = (await readLists()).find((list) => list.name === "Kendi")!.id;
+      await add(kendi, "un");
+      expect(rowPeople((await readItems(kendi))[0]!, await readMembers(kendi), OTHER)).toEqual({ fresh: false, added: null, checked: null });
+      await markSeen(kendi, OTHER);
+      expect(await pendingOutboxCount()).toBe(1);
     });
   });
 

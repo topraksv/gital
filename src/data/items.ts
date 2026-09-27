@@ -28,6 +28,10 @@ export interface Item extends ItemChange {
   photoId: string | null;
   /** The photo's thumbnail, or `null` with none on this device. */
   photo: string | null;
+  /** Who added and ticked it, and when it was added (SPEC 1.5, 1.9). */
+  addedBy: string | null;
+  checkedBy: string | null;
+  createdAt: string;
 }
 
 /** The item panel's save: what an item holds, and what happens to its photo. */
@@ -52,6 +56,9 @@ function readItemsWhere(where: SQL | undefined): Promise<Item[]> {
       checkedAt: items.checkedAt,
       photoId: items.photoId,
       photo: photos.thumb,
+      addedBy: items.addedBy,
+      checkedBy: items.checkedBy,
+      createdAt: items.createdAt,
     })
     .from(items)
     .leftJoin(photos, eq(photos.id, items.photoId))

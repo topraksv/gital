@@ -5,7 +5,7 @@ import type { Aisle } from "../domain/catalogue";
 import { foldName } from "../domain/items";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
-import { readMembers } from "./members";
+import { readFresh, readMembers } from "./members";
 import { liveStore } from "./live-query";
 import { readLasted, readPantry } from "./pantry";
 import { readProducts } from "./products";
@@ -17,6 +17,12 @@ import { readCollections, readWishes } from "./wishes";
 // A list's screen and its people panel watch its members: the role decides what the screen offers.
 export function useMembers(listId: string) {
   const store = useMemo(() => liveStore(() => readMembers(listId), ["list_members"]), [listId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+// Listeler's count of what is new on each shared list (SPEC 1.9), for the person signed in.
+export function useFresh(userId: string) {
+  const store = useMemo(() => liveStore(() => readFresh(userId), ["items", "list_members"]), [userId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 

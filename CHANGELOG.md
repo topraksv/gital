@@ -199,3 +199,6 @@ cannot be released.
   for the owner an invitation as a link and a QR code, a role changed or a
   person removed. Anyone else leaves instead of deleting, and a viewer only
   reads. Listeler and İstekler join by a pasted link or a scanned code.
+- A shared list marks what someone else added since the last look as new,
+  and counts it on its card; each row names who added and who bought it by
+  their initials.

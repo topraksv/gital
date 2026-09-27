@@ -16,6 +16,7 @@ import Share from "lucide-react-native/icons/share";
 import { useItems, useKnownProducts, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
 import { addEntries, addScanned, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
+import { markSeen, rowPeople, type Member, type RowPeople } from "../../data/members";
 import { readPantry } from "../../data/pantry";
 import { finishShop, reopenShop } from "../../data/shops";
 import { catalogueNamed, listSections, nearMiss, withCatalogue, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
@@ -54,6 +55,7 @@ export default function ListScreen() {
   const moved = useMovedAisles();
   const { members, userId, role, viewer } = useShare(id);
   const queries = [lists, items, purchases, members];
+  useSeenOnLeave(id, userId, items.data, members.data);
   // The list this screen is deleting, held so its title stays while the screen
   // animates away, and so nothing on it can be pressed a second time.
   const [leaving, setLeaving] = useState<ListSummary | null>(null);
@@ -170,11 +172,12 @@ export default function ListScreen() {
     <RowMotion key={item.id}>
       <SlideUp distance={motion.travel.bar}>
         {viewer ? (
-          <ItemRow item={item} onOpen={() => undefined} onToggle={() => undefined} readOnly />
+          <ItemRow item={item} people={rowPeople(item, members.data, userId)} onOpen={() => undefined} onToggle={() => undefined} readOnly />
         ) : (
           <RowSwipe checked={item.checkedAt != null} onTick={() => toggle(item)} onDelete={() => removeItem(item)}>
             <ItemRow
               item={item}
+              people={rowPeople(item, members.data, userId)}
               onOpen={() => setEditing(item)}
               onToggle={() => {
                 selectionTap();
@@ -275,6 +278,26 @@ export default function ListScreen() {
         />
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * Leaving a shared list, what was new on it has been seen (SPEC 1.9). Written
+ * only when something was, or the person had never looked, so an ordinary
+ * visit sends nothing.
+ */
+function useSeenOnLeave(listId: string, userId: string, items: readonly Item[], members: readonly Member[]) {
+  const mine = members.find((member) => member.userId === userId);
+  const due = mine != null && (mine.seenAt == null || items.some((item) => rowPeople(item, members, userId).fresh));
+  const latest = useRef(due);
+  useEffect(() => {
+    latest.current = due;
+  });
+  useEffect(
+    () => () => {
+      if (latest.current) void markSeen(listId, userId).catch(() => {});
+    },
+    [listId, userId],
   );
 }
 
@@ -517,8 +540,11 @@ function ItemRow({
   grip,
   lifted = false,
   readOnly = false,
+  people,
 }: {
   item: Item;
+  /** On a shared list: whether it is new here, and who added and ticked it (SPEC 1.5, 1.9). */
+  people?: RowPeople;
   onOpen: () => void;
   onToggle: () => void;
   /** While the list is sorted, the grip takes the circle's place: a tick mid-sort would move the row away. */
@@ -530,6 +556,7 @@ function ItemRow({
   const checked = item.checkedAt != null;
   // What an entry can merge into a row; a tick moves the row, which says enough.
   const flash = useValueFlash(`${item.quantityMilli}|${item.unit}|${item.note}|${item.urgent}`);
+  const shown = people ? { ...item, fresh: people.fresh, people: tr.sharing.by(people.added, people.checked) } : item;
   return (
     <View
       style={{
@@ -542,8 +569,8 @@ function ItemRow({
       }}
     >
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: palette.primarySoft, opacity: flash }]} />
-      <RowOpen label={tr.common.withDetail(item.name, itemDetail(item))} hint={tr.items.openHint} onPress={onOpen} disabled={readOnly}>
-        <ItemLabel item={item} struck={checked} />
+      <RowOpen label={tr.common.withDetail(item.name, itemDetail(shown))} hint={tr.items.openHint} onPress={onOpen} disabled={readOnly}>
+        <ItemLabel item={shown} struck={checked} />
       </RowOpen>
       {grip ?? <RowTick checked={checked} label={item.name} onToggle={onToggle} disabled={readOnly} />}
     </View>

@@ -437,6 +437,11 @@ export const tr = {
     errInvite: "Bu davet geçersiz: kullanılmış, süresi dolmuş ya da liste silinmiş olabilir.",
     errGeneric: "Davet şu an işlenemedi. Biraz sonra tekrar dene.",
     open: (name: string) => `${name} kişileri`,
+    fresh: "Yeni",
+    freshCount: (count: number) => `${count} yeni`,
+    /** Initials, as a row shows them (SPEC 1.5). */
+    by: (added: string | null, checked: string | null) =>
+      [added ? `${added} ekledi` : "", checked ? `${checked} aldı` : ""].filter(Boolean).join(", "),
     title: "Kişiler",
     roles: { owner: "Sahibi", editor: "Düzenleyebilir", viewer: "Yalnız görür" },
     you: (name: string) => `${name} (sen)`,
