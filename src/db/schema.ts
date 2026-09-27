@@ -42,6 +42,30 @@ export const lists = sqliteTable("lists", {
   pantry: integer("pantry", { mode: "boolean" }).notNull().default(true),
 });
 
+export const MEMBER_ROLES = ["owner", "editor", "viewer"] as const;
+export type MemberRole = (typeof MEMBER_ROLES)[number];
+
+/**
+ * Who is in a shared list (SPEC 1.2, 1.4, 1.9). Only the server makes a row —
+ * an invitation accepted, or the owner's own when they first invite — so its
+ * id is the server's. The device writes back only its person's `seen_at` and,
+ * for the owner, another member's role or removal.
+ */
+export const listMembers = sqliteTable(
+  "list_members",
+  {
+    ...syncColumns,
+    listId: text("list_id").notNull(),
+    userId: text("user_id").notNull(),
+    role: text("role", { enum: MEMBER_ROLES }).notNull(),
+    /** What the others see, and the initials a row shows (SPEC 1.5). */
+    name: text("name").notNull().default(""),
+    /** When this member last opened the list; what arrived after it is new to them (SPEC 1.9). */
+    seenAt: text("seen_at"),
+  },
+  (t) => [index("idx_list_members_list_id").on(t.listId)],
+);
+
 /**
  * A thing to buy on one list. Its id comes from the list and the folded name
  * (`src/db/ids.ts`), so the same product added twice is one row (SPEC 2.5).
@@ -69,6 +93,9 @@ export const items = sqliteTable(
     shopId: text("shop_id"),
     /** A photo taken of it (SPEC 8.2), in `photos`. */
     photoId: text("photo_id"),
+    /** Who put it on the list, and who ticked it (SPEC 1.5); the write layer stamps both. */
+    addedBy: text("added_by"),
+    checkedBy: text("checked_by"),
   },
   // The list's open items are `shop_id IS NULL`, and history grows under them.
   (t) => [index("idx_items_list_id_shop_id").on(t.listId, t.shopId), index("idx_items_shop_id").on(t.shopId)],
@@ -259,6 +286,6 @@ export const syncState = sqliteTable("sync_state", {
 });
 
 /** Parents before children, the order a push sends them in: the server checks an item's list. */
-export const SYNCED_TABLES = { lists, shops, items, wishes, wish_links: wishLinks, products, sets, set_items: setItems, pantry_items: pantryItems, pantry_moves: pantryMoves, settings } as const;
+export const SYNCED_TABLES = { lists, list_members: listMembers, shops, items, wishes, wish_links: wishLinks, products, sets, set_items: setItems, pantry_items: pantryItems, pantry_moves: pantryMoves, settings } as const;
 
 export type SyncedTableName = keyof typeof SYNCED_TABLES;

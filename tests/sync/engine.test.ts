@@ -33,6 +33,8 @@ const { finishShop } = await import("../../src/data/shops");
 const { readPhoto } = await import("../../src/data/photos");
 const { isFrozen, readSettings, setAccountFrozen } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
+const { leaveList, readMembers, removeMember, setMemberRole } = await import("../../src/data/members");
+const { acceptInvite, createInvite, inviteLink, inviteTokenFrom } = await import("../../src/sync/sharing");
 const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
 const { purgeOwnPhotos } = await import("../../src/sync/photos");
@@ -44,12 +46,15 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 
 let cloud: FakeCloud;
-let devices: { A: DatabaseSync; B: DatabaseSync };
+let devices: { A: DatabaseSync; B: DatabaseSync; C: DatabaseSync; D: DatabaseSync };
+/** A and B are one person's two devices; C and D another person's. */
+const OWNER_OF = { A: USER, B: USER, C: OTHER, D: OTHER } as const;
 
 /** Work on one device, its sync session open for the length of it, as the app holds one while signed in. */
 async function on<T>(device: keyof typeof devices, work: () => Promise<T>): Promise<T> {
   harness.db = devices[device];
-  startSyncSession(USER);
+  cloud.user = signedIn = OWNER_OF[device];
+  startSyncSession(signedIn);
   try {
     return await work();
   } finally {
@@ -57,7 +62,8 @@ async function on<T>(device: keyof typeof devices, work: () => Promise<T>): Prom
   }
 }
 
-const sync = () => syncNow(USER);
+let signedIn = USER;
+const sync = () => syncNow(signedIn);
 const add = (listId: string, ...names: string[]) => addEntries(listId, names.map((name) => ({ name, quantityMilli: null, unit: null })));
 const names = async (listId: string) => (await readItems(listId)).map((item) => item.name).sort();
 const serverRow = (table: string, id: string) => cloud.rows(table).find((row) => row.id === id);
@@ -68,7 +74,7 @@ beforeEach(() => {
   cloud = new FakeCloud();
   cloud.user = USER;
   harness.cloud = cloud;
-  devices = { A: migratedDatabase(), B: migratedDatabase() };
+  devices = { A: migratedDatabase(), B: migratedDatabase(), C: migratedDatabase(), D: migratedDatabase() };
   useSyncStatus.getState().set({ state: "idle", error: null, lastSyncAt: null });
 });
 
@@ -272,6 +278,179 @@ describe("two devices of one person", () => {
       await sync();
     });
     expect(cloud.requests).toEqual(["rpc sync_cursors"]);
+  });
+});
+
+describe("two people sharing a list", () => {
+  /** A's list with two things on it, and C's own, synced before any invitation, so C's cursors are past A's rows. */
+  async function sharedMarket(role: "editor" | "viewer" = "editor"): Promise<string> {
+    const listId = await on("A", async () => {
+      const id = await createList("Market");
+      await add(id, "süt", "elma");
+      await sync();
+      return id;
+    });
+    await on("C", async () => {
+      await createList("Kendi");
+      await sync();
+    });
+    const token = await on("A", async () => {
+      const made = await createInvite(listId, role, "Ömer");
+      if ("refused" in made) throw new Error(made.refused);
+      return made.token;
+    });
+    await on("C", async () => {
+      expect(await acceptInvite(token, "Deniz")).toEqual({ listId });
+      await sync();
+    });
+    return listId;
+  }
+
+  it("brings a shared list, and everything already on it, to the person who joins", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      expect((await readLists()).map((list) => list.name).sort()).toEqual(["Kendi", "Market"]);
+      expect(await names(listId)).toEqual(["elma", "süt"]);
+      expect((await readMembers(listId)).map((member) => [member.name, member.role])).toEqual([["Ömer", "owner"], ["Deniz", "editor"]]);
+    });
+  });
+
+  it("carries a tick from one person's phone to the other's, with whose it was", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      await toggleChecked((await readItems(listId)).find((item) => item.name === "süt")!.id);
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      const milk = (await readItems(listId)).find((item) => item.name === "süt")!;
+      expect(milk.checkedAt).not.toBeNull();
+      expect(serverRow("items", milk.id)?.checked_by).toBe(OTHER);
+    });
+  });
+
+  it("lets the list go from the device of a member the owner removed, with what it had queued for it", async () => {
+    const listId = await sharedMarket();
+    await on("A", async () => {
+      await sync();
+      await removeMember((await readMembers(listId)).find((member) => member.userId === OTHER)!.id);
+      await sync();
+    });
+    await on("C", async () => {
+      await add(listId, "yağ");
+      await sync();
+      expect((await readLists()).map((list) => list.name)).toEqual(["Kendi"]);
+      expect(await readItems(listId)).toEqual([]);
+      expect(await pendingOutboxCount()).toBe(0);
+      expect(await readDeadLetters(), "a list it cannot reach leaves nothing to retry").toEqual([]);
+    });
+  });
+
+  it("lets the list go from the device of a member who leaves, and tells the owner", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      await leaveList(listId, OTHER);
+      await sync();
+      expect((await readLists()).map((list) => list.name)).toEqual(["Kendi"]);
+    });
+    await on("A", async () => {
+      await sync();
+      expect((await readMembers(listId)).map((member) => member.role)).toEqual(["owner"]);
+    });
+  });
+
+  it("fetches a joined list on the joiner's other device too", async () => {
+    const listId = await on("A", async () => {
+      const id = await createList("Market");
+      await add(id, "süt", "elma");
+      await sync();
+      return id;
+    });
+    // Its cursors past A's rows before the invitation, as a device in use would be.
+    await on("D", async () => {
+      await add(await createList("Ev"), "su");
+      await sync();
+    });
+    const made = await on("A", () => createInvite(listId, "editor", "Ömer"));
+    await on("C", async () => {
+      await acceptInvite("token" in made ? made.token : "", "Deniz");
+      await sync();
+    });
+    await on("D", async () => {
+      await sync();
+      expect((await readLists()).map((list) => list.name).sort()).toEqual(["Ev", "Market"]);
+      expect(await names(listId)).toEqual(["elma", "süt"]);
+    });
+  });
+
+  it("fetches the list again when a member who left is invited back", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      await leaveList(listId, OTHER);
+      await sync();
+    });
+    const token = await on("A", async () => {
+      const made = await createInvite(listId, "viewer", "Ömer");
+      return "token" in made ? made.token : "";
+    });
+    await on("C", async () => {
+      expect(await acceptInvite(token, "Deniz")).toEqual({ listId });
+      await sync();
+      expect(await names(listId)).toEqual(["elma", "süt"]);
+      expect((await readMembers(listId)).find((member) => member.userId === OTHER)?.role).toBe("viewer");
+    });
+  });
+
+  it("lets the owner make a viewer an editor, whose writes then land", async () => {
+    const listId = await sharedMarket("viewer");
+    await on("A", async () => {
+      await sync();
+      await setMemberRole((await readMembers(listId)).find((member) => member.userId === OTHER)!.id, "editor");
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      await add(listId, "yağ");
+      await sync();
+      expect(await readDeadLetters()).toEqual([]);
+    });
+    expect(cloud.rows("items").map((row) => row.name)).toContain("yağ");
+  });
+
+  it("leaves nothing to do for a list the person never joined", async () => {
+    await on("A", async () => {
+      const listId = await createList("Market");
+      await leaveList(listId, USER);
+      expect(await pendingOutboxCount()).toBe(1);
+    });
+  });
+
+  it("reads a link, or its bare token, and nothing else", () => {
+    const token = "a".repeat(64);
+    expect(inviteTokenFrom(` ${inviteLink(token)} `)).toBe(token);
+    expect(inviteTokenFrom(token)).toBe(token);
+    expect(inviteTokenFrom("https://example.com/gital/invite#" + token)).toBeNull();
+    expect(inviteTokenFrom("a".repeat(63))).toBeNull();
+  });
+
+  it("says why an invitation could not be made", async () => {
+    const listId = await on("A", () => createList("Market"));
+    await on("A", async () => {
+      await sync();
+      cloud.failures.push({ message: "TypeError: Failed to fetch" }, { message: "boom", code: "XX000" });
+      expect(await createInvite(listId, "editor", "Ömer")).toEqual({ refused: tr.sync.errNetwork });
+      expect(await createInvite(listId, "editor", "Ömer")).toEqual({ refused: tr.sharing.errGeneric });
+    });
+    harness.cloud = { client: () => null };
+    expect(await acceptInvite("a".repeat(64), "Deniz")).toEqual({ refused: tr.auth.errNotConfigured });
+  });
+
+  it("refuses an invitation that is spent, and one that only the owner could make", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      expect(await createInvite(listId, "editor", "Deniz")).toEqual({ refused: tr.sharing.errNotOwner });
+      expect(await acceptInvite("0".repeat(64), "Deniz")).toEqual({ refused: tr.sharing.errInvite });
+    });
   });
 });
 

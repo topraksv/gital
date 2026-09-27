@@ -192,3 +192,6 @@ cannot be released.
 - Ayarlar freezes the account, which locks every other device until the
   password reopens it, and resets chosen parts of the data — lists, history,
   wishes, products, sets, the pantry — on every device, after the password.
+- The server side of sharing a list: members with a role, invitations good
+  once for a week, and who added and who ticked each row. A device that joins
+  fetches the whole list; one that leaves, or is removed, lets it go.

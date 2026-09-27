@@ -10,12 +10,14 @@
  * refuses is sent row by row, so one bad row waits aside instead of stopping
  * every other; a row this device made afresh over a delete it never saw is
  * added again rather than lost; the pull reaches back a few seconds past its
- * cursor; and photos travel beside the rows, before the row that names one.
+ * cursor; photos travel beside the rows, before the row that names one; and
+ * a list shared with this person is fetched whole when they join it and
+ * dropped from the device when they leave it (`docs/ARCHITECTURE.md`, sharing).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSqliteAsync, withTransaction } from "../db/client";
-import { fromDbShape, nowIso, onLocalWrite, writeRows, type RowWrite } from "../db/mutations";
+import { fromDbShape, nowIso, onLocalWrite, setActor, writeRows, type RowWrite } from "../db/mutations";
 import { SYNCED_TABLES, type SyncedTableName } from "../db/schema";
 import { tr } from "../i18n/tr";
 import {
@@ -291,13 +293,15 @@ async function localMergeState(
   return state;
 }
 
-async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullCursor, userId: string, token: SessionEpochToken): Promise<void> {
+/** One table from `from` on, or with `list` one list's rows from the beginning, which moves no cursor. */
+async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullCursor, userId: string, token: SessionEpochToken, list?: string): Promise<void> {
   const sqlite = await getSqliteAsync();
   let cursor = from;
   let first = true;
   for (;;) {
     assertActive(token);
-    const query = supabase.from(table).select("*").order("updated_at", { ascending: true }).order("id", { ascending: true }).limit(PULL_PAGE);
+    let query = supabase.from(table).select("*").order("updated_at", { ascending: true }).order("id", { ascending: true }).limit(PULL_PAGE);
+    if (list) query = query.eq(table === "lists" ? "id" : "list_id", list);
     const page = first
       ? query.gte("updated_at", new Date(Date.parse(cursor.ts) - PULL_OVERLAP_MS).toISOString())
       : query.or(`updated_at.gt.${cursor.ts},and(updated_at.eq.${cursor.ts},id.gt.${cursor.id})`);
@@ -326,6 +330,7 @@ async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullC
       }
       const last = remotes.at(-1)!;
       cursor = { ts: String(last.updated_at), id: String(last.id) };
+      if (list) return;
       await sqlite.runAsync(
         `INSERT INTO sync_state (table_name, last_pulled_at) VALUES (?, ?) ON CONFLICT(table_name) DO UPDATE SET last_pulled_at = excluded.last_pulled_at`,
         [table, formatPullCursor(cursor)],
@@ -350,6 +355,56 @@ async function pullAll(supabase: Supabase, userId: string, token: SessionEpochTo
   }
 }
 
+/** The tables a list's membership opens, with the column that names the list. */
+const LIST_SCOPED: readonly (readonly [SyncedTableName, string])[] = [
+  ["lists", "id"],
+  ["list_members", "list_id"],
+  ["shops", "list_id"],
+  ["items", "list_id"],
+  ["wishes", "list_id"],
+  ["wish_links", "list_id"],
+];
+const FETCHED = "list:";
+
+/**
+ * Joining and leaving (SPEC 1.2). A list shared with this person has rows
+ * older than every cursor here, so a membership seen for the first time
+ * fetches its list whole, once per device. A membership ended — left, or
+ * removed by the owner — drops the list from the device, with whatever was
+ * still to send for it, since the server will take none of it.
+ */
+async function followMemberships(supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
+  const sqlite = await getSqliteAsync();
+  const mine = await sqlite.getAllAsync<{ list_id: string; deleted_at: string | null }>(
+    "SELECT list_id, deleted_at FROM list_members WHERE user_id = ? AND role <> 'owner'",
+    [userId],
+  );
+  const fetched = new Set(
+    (await sqlite.getAllAsync<{ table_name: string }>("SELECT table_name FROM sync_state WHERE table_name LIKE ?", [`${FETCHED}%`])).map((row) => row.table_name),
+  );
+  for (const { list_id: list, deleted_at: left } of mine) {
+    assertActive(token);
+    if (left) {
+      await forgetList(sqlite, list);
+    } else if (!fetched.has(FETCHED + list)) {
+      for (const [table] of LIST_SCOPED) await pullTable(supabase, table, parsePullCursor(null), userId, token, list);
+      await sqlite.runAsync("INSERT OR REPLACE INTO sync_state (table_name, last_pulled_at) VALUES (?, ?)", [FETCHED + list, nowIso()]);
+    }
+  }
+}
+
+async function forgetList(sqlite: LocalDatabase, list: string): Promise<void> {
+  await withTransaction(async () => {
+    for (const [table, column] of LIST_SCOPED) {
+      await sqlite.runAsync(`DELETE FROM ${table} WHERE ${column} = ?`, [list]);
+      for (const queue of ["outbox", "sync_dead_letters"]) {
+        await sqlite.runAsync(`DELETE FROM ${queue} WHERE table_name = ? AND json_extract(payload, '$.${column}') = ?`, [table, list]);
+      }
+    }
+    await sqlite.runAsync("DELETE FROM sync_state WHERE table_name = ?", [FETCHED + list]);
+  });
+}
+
 async function deadLetterCount(): Promise<number> {
   const sqlite = await getSqliteAsync();
   return (await sqlite.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM sync_dead_letters"))!.n;
@@ -372,6 +427,7 @@ async function runSync(userId: string, token: SessionEpochToken, allowRefresh: b
     await assertSessionIs(supabase, userId);
     await pushOutbox(supabase, userId, token);
     await pullAll(supabase, userId, token);
+    await followMemberships(supabase, userId, token);
     await fetchMissingPhotos(supabase, token.signal);
     assertActive(token);
     const state = completedSyncState(await deadLetterCount());
@@ -417,6 +473,7 @@ async function runSync(userId: string, token: SessionEpochToken, allowRefresh: b
 /** Open sync for the signed-in account; only `src/auth/session.ts` calls it. */
 export function startSyncSession(userId: string): void {
   sessionEpoch.start(userId);
+  setActor(userId);
   changeProbeUnavailable = false;
   clearScheduledSync();
 }
@@ -424,6 +481,7 @@ export function startSyncSession(userId: string): void {
 /** End the session's sync and wait until its run has let go of the database. */
 export async function stopSyncSession(): Promise<void> {
   sessionEpoch.stop();
+  setActor(null);
   clearScheduledSync();
   await Promise.allSettled([inFlight]);
 }

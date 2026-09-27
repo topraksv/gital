@@ -3,8 +3,9 @@
  * PostgREST calls it makes, the two RPCs, Storage and the session. It keeps
  * what `supabase/migrations/00000000000003_sync.sql` decides — the server's
  * clock in microseconds, one `now()` per statement, the delete generation,
- * who may read and write which row, a personal row keyed by its person, and a
- * statement that fails whole — so the engine is tested against the rules it
+ * who may read and write which row, a personal row keyed by its person, a
+ * list's members and their invitations (migration 5), and a statement that
+ * fails whole — so the engine is tested against the rules it
  * will meet, and `supabase/tests/sync_rls.sql` proves the real server keeps
  * the same ones.
  */
@@ -16,7 +17,7 @@ type Reply = { data: unknown; error: Failure | null };
 
 const PERSONAL = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
 const LIST_CHILDREN = new Set(["shops", "items", "wishes", "wish_links"]);
-export const TABLES = ["lists", "shops", "items", "wishes", "wish_links", "products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"];
+export const TABLES = ["lists", "list_members", "shops", "items", "wishes", "wish_links", "products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"];
 const PHOTO_OBJECT = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(full|thumb)\.jpg$/;
 
 /** Microseconds since the epoch, as Postgres keeps a timestamptz. */
@@ -61,15 +62,53 @@ export class FakeCloud {
     return PERSONAL.has(table) ? `${String(row.user_id)}|${String(row.id)}` : String(row.id);
   }
 
+  private readonly invites = new Map<string, { list: string; role: string }>();
+
+  private isOwner(list: unknown, uid: string): boolean {
+    return this.tables.get("lists")!.get(String(list))?.owner_id === uid;
+  }
+
+  private membership(list: unknown, uid: string): Row | undefined {
+    return this.rows("list_members").find((row) => row.list_id === list && row.user_id === uid && row.deleted_at == null);
+  }
+
+  private canRead(list: unknown, uid: string): boolean {
+    return this.isOwner(list, uid) || this.membership(list, uid) != null;
+  }
+
+  private canWrite(list: unknown, uid: string): boolean {
+    return this.isOwner(list, uid) || this.membership(list, uid)?.role === "editor";
+  }
+
   private visible(table: string, row: Row, uid: string): boolean {
-    if (table === "lists") return row.owner_id === uid;
-    if (LIST_CHILDREN.has(table)) return this.tables.get("lists")!.get(String(row.list_id))?.owner_id === uid;
+    if (table === "lists") return this.canRead(row.id, uid);
+    if (table === "list_members") return row.user_id === uid || this.canRead(row.list_id, uid);
+    if (LIST_CHILDREN.has(table)) return this.canRead(row.list_id, uid);
     return row.user_id === uid;
   }
 
-  private writable(table: string, row: Row, uid: string): boolean {
-    if (table === "lists") return row.owner_id === uid;
-    return this.visible(table, row, uid);
+  private writable(table: string, row: Row, uid: string, old: Row | undefined): boolean {
+    if (table === "lists") return old ? this.canWrite(old.id, uid) : row.owner_id === uid;
+    if (table === "list_members") return old != null && (old.user_id === uid || this.isOwner(old.list_id, uid));
+    if (LIST_CHILDREN.has(table)) return this.canWrite(row.list_id, uid);
+    return row.user_id === uid;
+  }
+
+  /** The triggers `keep_list_owner` and `guard_list_member`: what a write may not change. */
+  private guard(table: string, next: Row, old: Row, uid: string): void {
+    const keepDelete = () => Object.assign(next, { deleted_at: old.deleted_at, tombstone_version: old.tombstone_version });
+    if (table === "lists") {
+      next.owner_id = old.owner_id;
+      if (old.owner_id !== uid) keepDelete();
+    }
+    if (table !== "list_members") return;
+    Object.assign(next, { list_id: old.list_id, user_id: old.user_id });
+    if (old.role === "owner") {
+      next.role = "owner";
+      keepDelete();
+    } else if (!this.isOwner(old.list_id, uid)) next.role = old.role;
+    if (old.deleted_at != null) keepDelete();
+    if (old.user_id !== uid) Object.assign(next, { name: old.name, seen_at: old.seen_at });
   }
 
   /** What `rows` holds on the server now, whoever it belongs to. */
@@ -98,10 +137,10 @@ export class FakeCloud {
       const key = this.keyOf(table, row);
       const old = staged.get(key);
       const refused = { data: null, error: { message: `new row violates row-level security policy for table "${table}"`, code: "42501" } };
-      if (old && !this.writable(table, old, uid)) return refused;
+      if (old && !this.writable(table, old, uid, old)) return refused;
       let next: Row = { ...old, ...row };
-      if (table === "lists" && old) next.owner_id = old.owner_id;
-      if (!this.writable(table, next, uid)) return refused;
+      if (old) this.guard(table, next, old, uid);
+      if (!this.writable(table, next, uid, old)) return refused;
       if (typeof next.name === "string" && ([...next.name].length < 1 || [...next.name].length > 200)) {
         return { data: null, error: { message: `new row for relation "${table}" violates check constraint`, code: "23514" } };
       }
@@ -133,11 +172,11 @@ export class FakeCloud {
     return { data: answer, error: null };
   }
 
-  private select(table: string, filter: { after?: { us: number; id: string }; from?: number; limit: number }): Reply {
+  private select(table: string, filter: { after?: { us: number; id: string }; from?: number; limit: number; eq?: [string, string] }): Reply {
     const uid = this.user;
     if (!uid) return { data: null, error: { message: "permission denied for table " + table, code: "42501" } };
     const sorted = this.rows(table)
-      .filter((row) => this.visible(table, row, uid))
+      .filter((row) => this.visible(table, row, uid) && (!filter.eq || row[filter.eq[0]] === filter.eq[1]))
       .map((row) => ({ row, us: micros(String(row.updated_at)) }))
       .filter(({ row, us }) =>
         filter.after
@@ -147,9 +186,39 @@ export class FakeCloud {
     return { data: sorted.slice(0, filter.limit).map(({ row }) => row), error: null };
   }
 
-  private rpc(name: string): Reply {
+  /** A row a statement writes as the server, past every policy. */
+  private serverWrite(table: string, row: Row): void {
+    const at = timestamptz(this.now());
+    const stored = { created_at: at, deleted_at: null, tombstone_version: 0, ...row, updated_at: at };
+    this.tables.get(table)!.set(this.keyOf(table, stored), stored);
+  }
+
+  private rpc(name: string, args: Record<string, unknown> = {}): Reply {
     const uid = this.user;
     if (!uid) return { data: null, error: { message: "permission denied for function " + name, code: "42501" } };
+    const invalid = (message: string) => ({ data: null, error: { message, code: "22023" } });
+    if (name === "create_list_invite") {
+      const list = String(args.list);
+      if (args.invite_role !== "editor" && args.invite_role !== "viewer") return invalid("invalid role");
+      if (!this.isOwner(list, uid) || this.tables.get("lists")!.get(list)?.deleted_at != null) {
+        return { data: null, error: { message: "not the owner of this list", code: "42501" } };
+      }
+      if (!this.rows("list_members").some((row) => row.list_id === list && row.user_id === uid)) {
+        this.serverWrite("list_members", { id: crypto.randomUUID(), list_id: list, user_id: uid, role: "owner", name: args.owner_name ?? "", seen_at: null });
+      }
+      const token = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
+      this.invites.set(token, { list, role: String(args.invite_role) });
+      return { data: token, error: null };
+    }
+    if (name === "accept_list_invite") {
+      const invite = this.invites.get(String(args.token));
+      this.invites.delete(String(args.token));
+      if (!invite) return invalid("invite not found");
+      if (this.isOwner(invite.list, uid)) return { data: invite.list, error: null };
+      const held = this.rows("list_members").find((row) => row.list_id === invite.list && row.user_id === uid);
+      this.serverWrite("list_members", { ...held, id: held?.id ?? crypto.randomUUID(), list_id: invite.list, user_id: uid, role: invite.role, name: args.member_name ?? "", seen_at: held?.seen_at ?? null, deleted_at: null });
+      return { data: invite.list, error: null };
+    }
     if (name === "own_photo_objects") {
       return { data: [...this.objects].filter(([, object]) => object.owner === uid).map(([path]) => path), error: null };
     }
@@ -193,7 +262,7 @@ export class FakeCloud {
     const from = (table: string) => {
       let upserting: Row[] | null = null;
       let conflict: string | undefined;
-      const filter: { after?: { us: number; id: string }; from?: number; limit: number } = { limit: 1000 };
+      const filter: { after?: { us: number; id: string }; from?: number; limit: number; eq?: [string, string] } = { limit: 1000 };
       const builder = {
         upsert(rows: Row[], options: { onConflict?: string }) {
           upserting = rows;
@@ -202,6 +271,10 @@ export class FakeCloud {
         },
         select: () => builder,
         order: () => builder,
+        eq(column: string, value: string) {
+          filter.eq = [column, value];
+          return builder;
+        },
         limit(count: number) {
           filter.limit = count;
           return builder;
@@ -229,9 +302,9 @@ export class FakeCloud {
     };
     return {
       from,
-      rpc(name: string) {
+      rpc(name: string, args?: Record<string, unknown>) {
         // Lazy, as PostgREST's builder is: nothing is asked until it is awaited.
-        const call = (signal?: AbortSignal) => cloud.answer(`rpc ${name}`, signal, () => cloud.rpc(name));
+        const call = (signal?: AbortSignal) => cloud.answer(`rpc ${name}`, signal, () => cloud.rpc(name, args));
         return { abortSignal: call, then: (resolve: (reply: Reply) => unknown, reject: (error: unknown) => unknown) => call().then(resolve, reject) };
       },
       auth: {

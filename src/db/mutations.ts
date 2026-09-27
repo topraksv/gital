@@ -87,9 +87,30 @@ function upsertSql(table: SyncedTableName, dbRow: Record<string, unknown>): { sq
   };
 }
 
-type ExistingRow = { deleted_at: string | null; tombstone_version: number };
+type ExistingRow = { deleted_at: string | null; tombstone_version: number } & Record<string, unknown>;
 
 let localWriteListener: (() => void) | null = null;
+let actor: string | null = null;
+
+/** Who writes from this device: the signed-in person, set by sync with its session. */
+export function setActor(userId: string | null): void {
+  actor = userId;
+}
+
+/**
+ * Who added a row and who ticked it (SPEC 1.5), stamped here rather than by
+ * each of the many writes that add or tick, so none can forget. A live row
+ * keeps both through an edit; a new or revived one keeps what it carries —
+ * a finished shop's copy, an undo — and is otherwise the writer's. A tick
+ * made now is the writer's, and taking it back leaves nobody.
+ */
+function stampActors(row: Record<string, unknown>, existing: ExistingRow | null): Record<string, unknown> {
+  const live = existing != null && existing.deleted_at == null;
+  const checkedAt = "checkedAt" in row ? row.checkedAt : (existing?.checked_at ?? null);
+  let checkedBy: unknown = null;
+  if (checkedAt != null) checkedBy = !live ? (row.checkedBy ?? actor) : existing.checked_at != null ? existing.checked_by : actor;
+  return { ...row, addedBy: live ? existing.added_by : (row.addedBy ?? actor), checkedBy };
+}
 
 /** Told after every write that queued something; sync sets it, since this layer may not import sync. */
 export function onLocalWrite(listener: () => void): void {
@@ -110,17 +131,14 @@ export async function writeRows(writes: readonly RowWrite[] | (() => Promise<rea
       queued += 1;
       const id = row.id;
       if (typeof id !== "string" || id === "") throw new Error(`Write row id is invalid in ${table}`);
-      const existing = await sqlite.getFirstAsync<ExistingRow>(
-        `SELECT deleted_at, tombstone_version FROM ${table} WHERE id = ?`,
-        [id],
-      );
+      const existing = await sqlite.getFirstAsync<ExistingRow>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
       const timestamp = nowIso();
       const deletedAt = "deletedAt" in row ? ((row.deletedAt as string | null | undefined) ?? null) : (existing?.deleted_at ?? null);
       const requestedVersion = Number.isSafeInteger(row.tombstoneVersion) && Number(row.tombstoneVersion) >= 0
         ? Number(row.tombstoneVersion)
         : 0;
       const dbRow = toDbShape(table, {
-        ...row,
+        ...("addedBy" in getTableColumns(SYNCED_TABLES[table]) ? stampActors(row, existing) : row),
         createdAt: row.createdAt ?? timestamp,
         updatedAt: timestamp,
         deletedAt,

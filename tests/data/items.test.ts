@@ -30,6 +30,7 @@ const { finishShop, readShops } = await import("../../src/data/shops");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { readPhoto } = await import("../../src/data/photos");
+const { setActor } = await import("../../src/db/mutations");
 const { migratedDatabase } = await import("../helpers");
 
 function outboxCount(): number {
@@ -587,6 +588,45 @@ describe("deleteItem and restoreItem", () => {
     await addItems(listId, "süt");
     await expect(restoreItem(snapshot!)).rejects.toThrow(/changed since/);
     expect(await names(listId)).toEqual(["Süt"]);
+  });
+});
+
+describe("who added and who ticked (SPEC 1.5)", () => {
+  const DENIZ = "d0000000-0000-4000-8000-00000000000d";
+  const OMER = "e0000000-0000-4000-8000-00000000000e";
+  afterEach(() => setActor(null));
+
+  it("stamps the person who adds and the person who ticks, and keeps them through an edit", async () => {
+    setActor(DENIZ);
+    const [sut] = await addItems(listId, "süt");
+    setActor(OMER);
+    await updateItem(sut!, { ...as("süt"), note: "Pınar" });
+    expect(stored(sut!).added_by, "an edit is not an addition").toBe(DENIZ);
+    await toggleChecked(sut!);
+    expect(stored(sut!)).toMatchObject({ added_by: DENIZ, checked_by: OMER });
+    setActor(DENIZ);
+    await updateItem(sut!, { ...as("süt"), note: "Sek" });
+    expect(stored(sut!).checked_by, "nor is an edit of a ticked item a tick").toBe(OMER);
+    await toggleChecked(sut!);
+    expect(stored(sut!).checked_by, "untaken, nobody bought it").toBeNull();
+  });
+
+  it("gives an item added again after a delete to whoever added it again", async () => {
+    setActor(DENIZ);
+    const [sut] = await addItems(listId, "süt");
+    await deleteItem(sut!);
+    setActor(OMER);
+    await addItems(listId, "süt");
+    expect(stored(sut!).added_by).toBe(OMER);
+  });
+
+  it("keeps who bought each thing when someone else finishes the shop", async () => {
+    setActor(DENIZ);
+    const [sut] = await addItems(listId, "süt");
+    await toggleChecked(sut!);
+    setActor(OMER);
+    await finishShop(listId);
+    expect(harness.db!.prepare("SELECT added_by, checked_by FROM items WHERE shop_id IS NOT NULL").get()).toEqual({ added_by: DENIZ, checked_by: DENIZ });
   });
 });
 

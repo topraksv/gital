@@ -1,5 +1,5 @@
 -- What sync's tables let one account do to another's rows, asserted
--- (migrations 3 and 4). Helix's harness: fixtures as postgres, every assertion as
+-- (migrations 3 to 5). Helix's harness: fixtures as postgres, every assertion as
 -- the role a request would carry, and a rollback at the end.
 begin;
 
@@ -143,7 +143,7 @@ select is(
 );
 select is(
   (select count(*) from public.sync_cursors()),
-  11::bigint,
+  12::bigint,
   'the probe names every synced table'
 );
 

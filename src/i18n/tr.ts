@@ -432,6 +432,11 @@ export const tr = {
     /** Said only once a send has been tried: what it names exists nowhere else. */
     signOutPending: "Bazı değişikliklerin henüz gönderilemedi. Şimdi çıkış yaparsan bu cihazdan silinirler ve geri getirilemezler.",
   },
+  sharing: {
+    errNotOwner: "Bu listeye yalnız sahibi davet gönderebilir.",
+    errInvite: "Bu davet geçersiz: kullanılmış, süresi dolmuş ya da liste silinmiş olabilir.",
+    errGeneric: "Davet şu an işlenemedi. Biraz sonra tekrar dene.",
+  },
   sync: {
     title: "Eşitleme",
     now: "Şimdi Eşitle",

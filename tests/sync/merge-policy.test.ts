@@ -150,7 +150,7 @@ describe("a row crossing to the server and back", () => {
   };
 
   it("sends a list's row as it is, its booleans as booleans", () => {
-    expect(toServerRow("items", item, USER)).toEqual({ ...item, urgent: true, not_found: false });
+    expect(toServerRow("items", item, USER)).toEqual({ ...item, urgent: true, not_found: false, added_by: null, checked_by: null });
   });
 
   it("puts the person into a personal row's key", () => {
