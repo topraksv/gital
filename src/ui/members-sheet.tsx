@@ -17,7 +17,7 @@ import Trash from "lucide-react-native/icons/trash";
 import UserMinus from "lucide-react-native/icons/user-minus";
 import Users from "lucide-react-native/icons/users";
 
-import { useMembers } from "../data/hooks";
+import { useMembers, useSettings } from "../data/hooks";
 import { leaveList, removeMember, roleOf, setMemberRole, type Member } from "../data/members";
 import type { MemberRole } from "../db/schema";
 import { memberNameOf, readSettings, setMemberName } from "../data/settings";
@@ -26,10 +26,10 @@ import { tr } from "../i18n/tr";
 import { shareText } from "../services/share";
 import { setShopping, useShoppers } from "../sync/live";
 import { syncNow } from "../sync/engine";
-import { createInvite, inviteLink, type InviteRole } from "../sync/sharing";
+import { inviteLink, inviteToList, type InviteRole } from "../sync/sharing";
 import { useSession } from "../auth/session";
 import { useModalAccessibility } from "./accessibility";
-import { Body, Button, ChoiceTile, IconButton, SectionHeader, Tile } from "./components";
+import { Body, Button, ChoiceTile, IconButton, Notice, SectionHeader, TextField, Tile } from "./components";
 import { radioGroupKeys } from "./keys";
 import { Actions, DialogShell, appConfirm, appError, appPrompt } from "./dialog";
 import { selectionTap } from "./haptics";
@@ -185,29 +185,33 @@ function MemberRow({ member, me, manage }: { member: Member; me: boolean; manage
 }
 
 /**
- * One link for one person, made on the server. The list is sent first: one
- * made a moment ago may still be only on this device, and the server invites
- * to nothing it does not hold.
+ * One link for one person, made on the server. Everything it asks or answers
+ * stays inside the sheet: a prompt or an alert opened over this modal did not
+ * show in Expo Go, and the button seemed to do nothing. The list is sent only
+ * when the server says it does not hold it yet.
  */
 function Invite({ list }: { list: { id: string; name: string } }) {
   const { palette } = useTheme();
   const userId = useSession((s) => s.userId);
+  const known = memberNameOf(useSettings().data);
+  const [typed, setTyped] = useState("");
   const [role, setRole] = useState<InviteRole>("editor");
   const [link, setLink] = useState<string | null>(null);
+  const [refused, setRefused] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const name = known ?? typed.trim();
 
   const create = async () => {
     setBusy(true);
+    setRefused(null);
     try {
-      const name = await memberName();
-      if (name == null) return;
-      if (userId) await syncNow(userId).catch(() => false);
-      const made = await createInvite(list.id, role, name);
-      if ("refused" in made) return void appError(made.refused);
+      if (!known) await setMemberName(name);
+      const made = await inviteToList(list.id, role, name, () => (userId ? syncNow(userId) : Promise.resolve()));
+      if ("refused" in made) return setRefused(made.refused);
       selectionTap();
       setLink(inviteLink(made.token));
     } catch {
-      void appError(tr.sharing.errGeneric);
+      setRefused(tr.sharing.errGeneric);
     } finally {
       setBusy(false);
     }
@@ -242,6 +246,10 @@ function Invite({ list }: { list: { id: string; name: string } }) {
         ))}
       </View>
       <Body muted>{tr.sharing.inviteHint}</Body>
+      {known ? null : (
+        <TextField label={tr.sharing.nameTitle} value={typed} onChangeText={setTyped} maxLength={NAME_MAX} examples={tr.placeholders.memberName} />
+      )}
+      {refused ? <Notice tone="error" text={refused} /> : null}
       {link ? (
         <View style={{ gap: spacing.sm }}>
           <Text selectable numberOfLines={1} ellipsizeMode="middle" style={[type.small, { color: palette.textSecondary, backgroundColor: palette.surfaceAlt, borderRadius: radius.sm, padding: spacing.md }]}>
@@ -250,7 +258,7 @@ function Invite({ list }: { list: { id: string; name: string } }) {
           <Button label={tr.sharing.inviteShare} icon={Share2} onPress={() => share(link)} />
         </View>
       ) : (
-        <Button label={tr.sharing.inviteCreate} icon={Link} loading={busy} disabled={busy} onPress={create} />
+        <Button label={tr.sharing.inviteCreate} icon={Link} loading={busy} disabled={busy || name === ""} onPress={create} />
       )}
     </View>
   );

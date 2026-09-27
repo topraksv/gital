@@ -37,7 +37,7 @@ const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/d
 const { leaveList, markSeen, readFresh, readMembers, readSharedLists, removeMember, roleOf, rowPeople, setMemberRole } = await import(
   "../../src/data/members"
 );
-const { acceptInvite, createInvite, inviteFromPage, inviteLink, inviteTokenFrom } = await import("../../src/sync/sharing");
+const { acceptInvite, createInvite, inviteFromPage, inviteLink, inviteToList, inviteTokenFrom } = await import("../../src/sync/sharing");
 const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
 const { purgeOwnPhotos } = await import("../../src/sync/photos");
@@ -308,6 +308,19 @@ describe("two people sharing a list", () => {
     });
     return listId;
   }
+
+  it("invites at once to a list the server holds, and sends a list made a moment ago first", async () => {
+    await on("A", async () => {
+      const sent = vi.fn(sync);
+      const synced = await createList("Market");
+      await sync();
+      expect(await inviteToList(synced, "editor", "Ömer", sent)).toHaveProperty("token");
+      expect(sent).not.toHaveBeenCalled();
+      const fresh = await createList("Ev");
+      expect(await inviteToList(fresh, "editor", "Ömer", sent)).toHaveProperty("token");
+      expect(sent).toHaveBeenCalledTimes(1);
+    });
+  });
 
   it("brings a shared list, and everything already on it, to the person who joins", async () => {
     const listId = await sharedMarket();

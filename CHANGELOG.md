@@ -8,6 +8,12 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.2.1
+
+### Patch Changes
+
+- "Davet Bağlantısı Oluştur" bazen hiçbir şey göstermiyordu: adın ve olası hata artık panelin içinde soruluyor ve yazılıyor, bağlantı eşitlemeyi beklemeden geliyor.
+
 ## 1.2.0
 
 ### Minor Changes

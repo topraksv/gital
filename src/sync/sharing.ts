@@ -49,6 +49,18 @@ export async function createInvite(listId: string, role: InviteRole, ownerName: 
   return "data" in answer ? { token: answer.data } : answer;
 }
 
+/**
+ * The owner's link, sending the list first only when the server does not hold
+ * it yet. Syncing before every invite made the button wait on a whole sync,
+ * photos included, and on a slow line it looked like it did nothing.
+ */
+export async function inviteToList(listId: string, role: InviteRole, ownerName: string, sendList: () => Promise<unknown>): Promise<{ token: string } | Refused> {
+  const first = await createInvite(listId, role, ownerName);
+  if (!("refused" in first) || first.refused !== tr.sharing.errNotOwner) return first;
+  await sendList();
+  return createInvite(listId, role, ownerName);
+}
+
 /** Join by a link; the list arrives with the next sync. */
 export async function acceptInvite(token: string, name: string): Promise<{ listId: string } | Refused> {
   const answer = await call<string>("accept_list_invite", { token, member_name: name });
