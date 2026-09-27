@@ -723,7 +723,8 @@ export const tr = {
     signOutDescription: "Bu cihazdaki oturum kapanır; hesabın ve buluttaki listelerin korunur.",
     freezeSignatureDescription: "Hesabın geçici olarak askıya alınır; listelerin korunur ve tekrar girişte yeniden açılır.",
     deleteSignatureDescription: "Hesabın, listelerin, geçmişin ve isteklerin geri döndürülemeyecek şekilde silinir.",
-    previousLogin: (iso: string) => `Önceki giriş: ${dateTimeLabel(iso)}`,
+    previousLogin: (iso: string, device?: string | null, here = false) =>
+      [`Önceki giriş: ${dateTimeLabel(iso)}`, device, here ? "bu cihaz" : null].filter(Boolean).join(" · "),
     changeEmail: "E-postayı Değiştir",
     newEmail: "Yeni e-posta",
     emailChangeSent: "Onay bağlantısını hem eski hem yeni adresine gönderdik. İkisini de onaylayınca yeni adres geçerli olur.",

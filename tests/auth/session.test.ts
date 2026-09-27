@@ -191,6 +191,9 @@ const { VERIFY_COOLDOWN_MS, VERIFY_MAX_FAILURES } = await import("../../src/auth
 const { createList, readLists } = await import("../../src/data/lists");
 const { photoColumn } = await import("../../src/data/photos");
 const { frozenFrom, isFrozen, readSettings, setAccountFrozen } = await import("../../src/data/settings");
+const { deviceId } = await import("../../src/auth/login-history");
+const { lastLogin } = await import("../../src/domain/logins");
+const { kv: harnessKv } = await import("../../src/services/kv");
 const { tr } = await import("../../src/i18n/tr");
 const { migratedDatabase } = await import("../helpers");
 
@@ -244,7 +247,7 @@ describe("whose lists the device holds", () => {
     sent();
     expect(await session().signIn(B.email, B.password)).toBeNull();
     expect([count("lists"), count("photos")]).toEqual([0, 0]);
-    expect(count("outbox"), "B's own sign-in, and nothing of A's").toBe(1);
+    expect(count("outbox"), "B's own sign-in, its flag and its device, and nothing of A's").toBe(2);
     expect(device.stored.get(OWNER)).toBe(B.id);
     expect(device.cancelled).toBe(1);
   });
@@ -280,6 +283,18 @@ describe("whose lists the device holds", () => {
     cloud.sessionError = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
     await session().bootstrap();
     expect(session()).toMatchObject({ ready: true, userId: null });
+  });
+
+  it("writes this device's sign-in to the account, with the one before it", async () => {
+    await session().signIn(A.email, A.password);
+    const first = session().previousLoginAt;
+    useSession.setState({ userId: null });
+    await session().signIn(A.email, A.password);
+    const device = await deviceId(harnessKv);
+    const [row] = (await readSettings()).filter(({ key }) => key === `login.${device}`);
+    expect(JSON.parse(row!.value)).toMatchObject({ previous: expect.any(String), device: "iPhone" });
+    expect(lastLogin(await readSettings(), device)).toMatchObject({ here: true, at: JSON.parse(row!.value).previous });
+    expect(first).toBeNull();
   });
 
   it("names a wrong password in Turkish", async () => {

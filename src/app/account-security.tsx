@@ -5,7 +5,7 @@
  * its own card, as Helix's does, rather than in a dialog after the fact.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Redirect, router } from "expo-router";
 import Eraser from "lucide-react-native/icons/eraser";
 import KeyRound from "lucide-react-native/icons/key-round";
@@ -14,8 +14,12 @@ import RotateCcw from "lucide-react-native/icons/rotate-ccw";
 import Snowflake from "lucide-react-native/icons/snowflake";
 import Trash from "lucide-react-native/icons/trash";
 
+import { deviceId } from "../auth/login-history";
 import { isEmail, isValidNewPassword, useSession } from "../auth/session";
+import { useSettings } from "../data/hooks";
+import { lastLogin } from "../domain/logins";
 import { tr } from "../i18n/tr";
+import { kv } from "../services/kv";
 import { isSupabaseConfigured } from "../sync/supabase";
 import { Body, Button, Card, Divider, ListRow, PanelHeader, Screen, TextField } from "../ui/components";
 import { appConfirm, appError, appPrompt } from "../ui/dialog";
@@ -36,6 +40,12 @@ function CloudAccountSecurity() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState<"email" | "password" | "reset" | "freeze" | "delete" | null>(null);
+  const settings = useSettings();
+  const [device, setDevice] = useState<string | null>(null);
+  useEffect(() => void deviceId(kv).then(setDevice, () => {}), []);
+  // Every device's own row, once synced; until then, this device's memory.
+  const last = device ? lastLogin(settings.data, device) : null;
+  const previous = last ? tr.account.previousLogin(last.at, last.device, last.here) : previousLoginAt ? tr.account.previousLogin(previousLoginAt) : null;
 
   /** One change at a time, and a refusal said where it happened. */
   const run = (which: NonNullable<typeof busy>, work: () => Promise<void>) => async () => {
@@ -98,7 +108,7 @@ function CloudAccountSecurity() {
 
   return (
     <Screen title={tr.account.security} back="/settings">
-      {previousLoginAt ? <Body muted style={{ marginBottom: spacing.md }}>{tr.account.previousLogin(previousLoginAt)}</Body> : null}
+      {previous ? <Body muted style={{ marginBottom: spacing.md }}>{previous}</Body> : null}
       <Card>
         <PanelHeader icon={Mail} title={tr.account.changeEmail} description={tr.account.changeEmailSectionHint} />
         {email ? <Body muted style={{ marginBottom: spacing.md }}>{tr.account.currentEmail(email)}</Body> : null}

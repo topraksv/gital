@@ -143,6 +143,10 @@ export function useSets() {
 const settingsStore = liveStore(readSettings, ["settings"]);
 const unwatched = () => () => {};
 
+export function useSettings() {
+  return useSyncExternalStore(settingsStore.subscribe, settingsStore.getSnapshot, settingsStore.getSnapshot);
+}
+
 /**
  * Whether the account is frozen (SPEC 9.1); watched only while signed in, since
  * the reset page opens no database. Unwatched is unknown: the store keeps the

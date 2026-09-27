@@ -1,5 +1,7 @@
 /** The sign-in before this one, kept on the device for the account screen (Helix's). */
 
+import { uuidv7 } from "uuidv7";
+
 export interface LoginHistoryStorage {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
@@ -53,4 +55,18 @@ export async function seedCurrentLogin(
 /** Cold-starting an existing session does not advance login history. */
 export function loadPreviousLogin(storage: LoginHistoryStorage, userId: string): Promise<string | null> {
   return storage.get(previousKey(userId));
+}
+
+const DEVICE_KEY = "gital.device.id";
+
+/**
+ * This install's own id, made once and kept across sign-outs: the key of the
+ * one sign-in row each device writes to the account (`src/domain/logins.ts`).
+ */
+export async function deviceId(storage: LoginHistoryStorage): Promise<string> {
+  const known = await storage.get(DEVICE_KEY);
+  if (known) return known;
+  const made = uuidv7();
+  await storage.set(DEVICE_KEY, made);
+  return made;
 }

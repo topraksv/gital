@@ -6,6 +6,7 @@
     "src/domain/feedback.ts": 95.65,
     "src/domain/items.ts": 83.08,
     "src/domain/lists.ts": 100,
+    "src/domain/logins.ts": 94.25,
     "src/domain/money.ts": 95.49,
     "src/domain/names.ts": 96.67,
     "src/domain/pantry.ts": 91.94,

@@ -16,7 +16,7 @@ import { create } from "zustand";
 import { Platform } from "react-native";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { setAccountFrozen } from "../data/settings";
+import { recordDeviceLogin, setAccountFrozen } from "../data/settings";
 import { pendingOutboxCount, resetLocalWorkspace } from "../db/mutations";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
@@ -25,7 +25,8 @@ import { flushOutbox, startSyncSession, stopSyncSession } from "../sync/engine";
 import { purgeOwnPhotos } from "../sync/photos";
 import { createRecoveryClient, getSupabase, subscribeSupabaseAuthEvents } from "../sync/supabase";
 import { friendlyAuthError } from "./auth-errors";
-import { loadPreviousLogin, recordSuccessfulLogin, seedCurrentLogin, startLoginHistory } from "./login-history";
+import { deviceName } from "../domain/logins";
+import { deviceId, loadPreviousLogin, recordSuccessfulLogin, seedCurrentLogin, startLoginHistory } from "./login-history";
 import { HOSTED_RECOVERY_PAGE, parseRecoveryLink, recoveryPage, recoveryRedirect } from "./recovery";
 import { IDLE_BRAKE, isVerificationBlocked, recordVerificationFailure, recordVerificationSuccess } from "./verification-brake";
 
@@ -71,6 +72,19 @@ const absent = () => null;
 
 /** Auth could not be reached, which is not the same as Auth saying no. */
 const unreachable = (error: { name?: string } | null) => error?.name === "AuthRetryableFetchError";
+
+/** This device's row among the account's sign-ins; a store that refuses it costs the line, never the session. */
+async function recordThisDevice(at: string, previous: string | null): Promise<void> {
+  const device = deviceName({
+    os: Platform.OS,
+    isPad: Platform.OS === "ios" && Platform.isPad,
+    model: (Platform.constants as { Model?: string } | undefined)?.Model,
+    agent: globalThis.navigator?.userAgent,
+  });
+  await deviceId(kv)
+    .then((id) => recordDeviceLogin(id, { at, previous, device }))
+    .catch(ignore);
+}
 
 function webPage(): { origin: string; baseUrl: string } | null {
   return Platform.OS === "web" && globalThis.location ? { origin: globalThis.location.origin, baseUrl: process.env.EXPO_BASE_URL ?? "" } : null;
@@ -272,10 +286,12 @@ export const useSession = create<SessionStore>((set, get) => ({
       if (error) return friendlyAuthError(error.message);
       const refused = await claim(supabase, data.user, email);
       if (refused) return refused;
-      const previousLoginAt = await recordSuccessfulLogin(kv, data.user.id, data.user.last_sign_in_at ?? new Date().toISOString()).catch(absent);
+      const at = data.user.last_sign_in_at ?? new Date().toISOString();
+      const previousLoginAt = await recordSuccessfulLogin(kv, data.user.id, at).catch(absent);
       // Signing in is the password check, so it reopens a frozen account: a
       // write newer than the freeze, which the gate on every device follows.
       await setAccountFrozen(false).catch(ignore);
+      await recordThisDevice(at, previousLoginAt);
       startSyncSession(data.user.id);
       set({ userId: data.user.id, email: data.user.email ?? email, previousLoginAt });
       return null;
@@ -292,7 +308,9 @@ export const useSession = create<SessionStore>((set, get) => ({
     if (!data.session) return { status: "confirmation-required" };
     const refused = await claim(supabase, data.user, email);
     if (refused) return { status: "error", message: refused };
-    await startLoginHistory(kv, data.user.id, new Date().toISOString()).catch(ignore);
+    const at = new Date().toISOString();
+    await startLoginHistory(kv, data.user.id, at).catch(ignore);
+    await recordThisDevice(at, null);
     startSyncSession(data.user.id);
     set({ userId: data.user.id, email: data.user.email ?? email, previousLoginAt: null });
     return { status: "signed-in" };

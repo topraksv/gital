@@ -1,8 +1,8 @@
 /**
  * What follows the person to every device (`docs/ARCHITECTURE.md`, "Tables"),
  * Helix's key and JSON value: whether the account is frozen (SPEC 9.1), which
- * is why a frozen account locks every device, and the name a shared list's
- * other members see (SPEC 1.4).
+ * is why a frozen account locks every device, the name a shared list's
+ * other members see (SPEC 1.4), and each device's last sign-in (SPEC 9.4).
  */
 
 import { isNull } from "drizzle-orm";
@@ -10,6 +10,7 @@ import { getDb } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, findRow, writeRows } from "../db/mutations";
 import { settings } from "../db/schema";
+import { LOGIN_KEY_PREFIX, type DeviceLogin } from "../domain/logins";
 import { nameFrom } from "../domain/names";
 import type { LiveResult } from "./live-query";
 
@@ -60,3 +61,5 @@ export async function setMemberName(input: string): Promise<void> {
   if (name == null) throw new Error("A member needs a name");
   return writeSetting(MEMBER_NAME, name);
 }
+
+export const recordDeviceLogin = (device: string, login: DeviceLogin) => writeSetting(LOGIN_KEY_PREFIX + device, login);
