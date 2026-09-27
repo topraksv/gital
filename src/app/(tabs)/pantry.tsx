@@ -232,8 +232,9 @@ function PantryAdd({ held }: { held: readonly PantryItem[] }) {
           maxLength={ENTRY_MAX}
           style={{ flex: 1 }}
         />
-        <IconButton icon={Plus} label={tr.pantry.add} tone="primary" field onPress={() => void add()} />
+        {/* The list's order, so the two fields read as one (the owner asked 2026-09-27). */}
         <IconButton icon={LayoutGrid} label={tr.catalogue.open} field onPress={() => setBrowsing(true)} />
+        <IconButton icon={Plus} label={tr.pantry.add} tone="primary" field onPress={() => void add()} />
       </View>
       {browsing ? (
         <CatalogueSheet

@@ -8,6 +8,28 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.1.0
+
+### Minor Changes
+
+- Biten bir alışverişin fişinin fotoğrafı, Geçmiş'teki sayfasından çekilip ya da seçilip saklanıyor; listenin her üyesi görüyor.
+- Giriş, çıkış, hesap dondurma ve silme sürerken Helix'teki gibi, işlemin adını ve kendi rengini taşıyan, nefes alan bir bekleme ekranı gösteriliyor.
+- Hesap ve Güvenlik'teki "Önceki giriş" satırı hangi cihazdan girildiğini de söylüyor ("iPhone · Safari", "bu cihaz"); hesabın bütün cihazları sayılıyor.
+- Gital'in kendi logosu var: alevler içinde hızla giden bir market arabası; uygulama simgesi, web simgeleri ve giriş ekranında alevleri kıpırdayan hâli.
+- Yeni bir liste adına göre resmini kendisi seçiyor: "Pazar" sebze, "Eczane" eczane; listenin panelinden yine değiştirilebiliyor.
+- İstek koleksiyonu açık istekleri önceliğe, en ucuza ya da en pahalıya göre sıralıyor.
+- Kiler bir liste gibi kullanılıyor: sürükleyerek sıralanıyor, mesajdan yapıştırılıyor, katalogdan ya da bir setten dolduruluyor, metin olarak paylaşılıyor ve bir ürün listeye gitmeden panelinden çıkarılabiliyor.
+- Kiler ve İstekler de yazarken öneri veriyor: Kiler'de ürünler, İstekler'de daha önce yazılan istekler.
+- Alışverişte ekranın açık kalıp kalmayacağı Ayarlar'dan seçiliyor.
+
+### Patch Changes
+
+- Paylaşım güncellemesinden sonra açılan liste sunucuya ulaşmıyordu ve davet "yalnız sahip gönderebilir" diyordu; artık liste gidiyor ve davet bağlantısı çalışıyor.
+- Davet tek bir bağlantı: tamamı görünüyor ve listeden paylaşılıyor.
+- Ekleme alanı ve düğmeleri her ekranda aynı yükseklikte; Kiler'de bir tane kalan üründe − görünmüyor.
+- Dar ekranda Eşitle düğmesi satırının altına kaymıyor, yanında kalıyor.
+- Kiler'in katalog düğmesi listedeki gibi + düğmesinin önünde; set düğmesi hangi seti eklediğini söylüyor.
+
 ## 1.0.0
 
 ### Minor Changes

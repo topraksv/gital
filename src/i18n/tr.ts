@@ -276,7 +276,7 @@ export const tr = {
     makeTitle: "Yeni set",
     makeMessage: (count: number) => `Listede alınacak ${count} ürün sete girer.`,
     empty: "Listedeki alınacakları set olarak sakla; tek dokunuşla her listeye eklenir.",
-    add: (name: string) => `${name} setini listeye ekle`,
+    add: (name: string) => `${name} setindekileri ekle`,
     added: (name: string, count: number) => `${name}: ${count} ürün eklendi`,
     delete: (name: string) => `${name} setini sil`,
   },
