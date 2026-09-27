@@ -71,6 +71,11 @@ export function atHome<T extends { name: string }>(pantry: readonly T[], added: 
   return pantry.filter((item) => keys.has(foldName(item.name)));
 }
 
+/** Whether − has a step to take: at one piece, or one step, there is only finishing it (the owner, 2026-09-27). */
+export function leavesSome(stock: Stock): boolean {
+  return (stepQuantity(stock, -1)?.quantityMilli ?? 0) > 0;
+}
+
 /** The move one press of − makes: down to the unit's step below, or all of it when that is nothing (12.8). */
 export function lessOf(stock: Stock): Stock {
   const next = stepQuantity(stock, -1);

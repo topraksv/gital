@@ -1,7 +1,7 @@
 /**
  * Who a list or a wish collection is shared with (SPEC 1.2, 1.4, 7.8): its
  * people, and for the owner each one's role, their removal, and a new
- * invitation as a link and a QR code. Anyone else only reads who is in it;
+ * invitation as a link. Anyone else only reads who is in it;
  * leaving is the screen's, where deleting is for the owner.
  */
 
@@ -25,6 +25,7 @@ import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { shareText } from "../services/share";
 import { setShopping, useShoppers } from "../sync/live";
+import { syncNow } from "../sync/engine";
 import { createInvite, inviteLink, type InviteRole } from "../sync/sharing";
 import { useSession } from "../auth/session";
 import { useModalAccessibility } from "./accessibility";
@@ -33,11 +34,8 @@ import { radioGroupKeys } from "./keys";
 import { Actions, DialogShell, appConfirm, appError, appPrompt } from "./dialog";
 import { selectionTap } from "./haptics";
 import { navigateBack } from "./navigation";
-import { controlSize, itemRow, qrCode, spacing, type, useTheme } from "./theme";
+import { controlSize, itemRow, radius, spacing, type, useTheme } from "./theme";
 import { showNotice } from "./undo";
-
-type QrCode = typeof import("./qr-code").default;
-const loadQr = () => import("./qr-code").then((module) => module.default);
 
 /** The name the others see, asked for the first time it is needed and then kept on every device. */
 export async function memberName(): Promise<string | null> {
@@ -186,29 +184,24 @@ function MemberRow({ member, me, manage }: { member: Member; me: boolean; manage
   );
 }
 
-/** One link for one person, made on the server; the QR code is the same link for a phone beside this one. */
+/**
+ * One link for one person, made on the server. The list is sent first: one
+ * made a moment ago may still be only on this device, and the server invites
+ * to nothing it does not hold.
+ */
 function Invite({ list }: { list: { id: string; name: string } }) {
+  const { palette } = useTheme();
+  const userId = useSession((s) => s.userId);
   const [role, setRole] = useState<InviteRole>("editor");
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [Qr, setQr] = useState<QrCode | null>(null);
-  useEffect(() => {
-    if (!link) return;
-    let live = true;
-    loadQr().then(
-      (component) => live && setQr(() => component),
-      () => {},
-    );
-    return () => {
-      live = false;
-    };
-  }, [link]);
 
   const create = async () => {
     setBusy(true);
     try {
       const name = await memberName();
       if (name == null) return;
+      if (userId) await syncNow(userId).catch(() => false);
       const made = await createInvite(list.id, role, name);
       if ("refused" in made) return void appError(made.refused);
       selectionTap();
@@ -250,12 +243,14 @@ function Invite({ list }: { list: { id: string; name: string } }) {
       </View>
       <Body muted>{tr.sharing.inviteHint}</Body>
       {link ? (
-        <View style={{ alignItems: "center", gap: spacing.md }}>
-          {Qr ? <Qr text={link} label={tr.sharing.qr} /> : <View style={{ width: qrCode.size, height: qrCode.size }} />}
+        <View style={{ gap: spacing.sm }}>
+          <Text selectable numberOfLines={1} ellipsizeMode="middle" style={[type.small, { color: palette.textSecondary, backgroundColor: palette.surfaceAlt, borderRadius: radius.sm, padding: spacing.md }]}>
+            {link}
+          </Text>
           <Button label={tr.sharing.inviteShare} icon={Share2} onPress={() => share(link)} />
         </View>
       ) : (
-        <Button label={tr.sharing.inviteCreate} icon={Link} disabled={busy} onPress={create} />
+        <Button label={tr.sharing.inviteCreate} icon={Link} loading={busy} disabled={busy} onPress={create} />
       )}
     </View>
   );

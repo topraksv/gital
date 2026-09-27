@@ -10,7 +10,7 @@ import { finishPantryItem, setExpiry, setStock, stockPantry, takeSome, undoFinis
 import { listSections } from "../../domain/catalogue";
 import { todayISO } from "../../domain/dates";
 import { ENTRY_MAX, parseEntry } from "../../domain/items";
-import { expiryOf } from "../../domain/pantry";
+import { expiryOf, leavesSome } from "../../domain/pantry";
 import { tr } from "../../i18n/tr";
 import { useModalAccessibility } from "../../ui/accessibility";
 import { QuantityFace, useCalculator } from "../../ui/calculator";
@@ -115,7 +115,7 @@ function PantryAdd() {
         maxLength={ENTRY_MAX}
         style={{ flex: 1 }}
       />
-      <IconButton icon={Plus} label={tr.pantry.add} tone="primary" onPress={() => void add()} />
+      <IconButton icon={Plus} label={tr.pantry.add} tone="primary" field onPress={() => void add()} />
     </View>
   );
 }
@@ -204,7 +204,7 @@ function PantryRow({
         <ItemLabel item={shown} />
       </RowOpen>
       <View style={{ flexDirection: "row", paddingRight: spacing.sm }}>
-        <IconButton icon={Minus} label={tr.pantry.less(item.name)} onPress={onLess} />
+        {leavesSome(item) ? <IconButton icon={Minus} label={tr.pantry.less(item.name)} onPress={onLess} /> : null}
         <IconButton icon={ListPlus} label={tr.pantry.finish(item.name)} tone="primary" onPress={finish} />
       </View>
       {open ? <PantrySheet item={item} onCount={onCount} onClose={() => setOpen(false)} /> : null}

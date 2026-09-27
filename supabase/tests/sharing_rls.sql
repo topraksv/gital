@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(42);
+select extensions.plan(43);
 
 create function pg_temp.exec_sqlstate(command text)
 returns text
@@ -78,6 +78,14 @@ set local role authenticated;
 select pg_temp.act_as('10000000-0000-4000-8000-000000000001');
 insert into public.lists (id, name) values ('a0000000-0000-7000-8000-00000000000a', 'Market');
 insert into public.items (id, list_id, name) values ('a1000000-0000-7000-8000-00000000000a', 'a0000000-0000-7000-8000-00000000000a', 'süt');
+-- What a device's push of a new list is: PostgREST's upsert, returning the
+-- row, which the select policy must pass in the statement that inserts it.
+select is(
+  pg_temp.exec_sqlstate($$insert into public.lists (id, name) values ('a0000000-0000-7000-8000-00000000000c', 'Pazar')
+    on conflict (id) do update set name = excluded.name returning id$$),
+  null,
+  'a device pushes a new list as PostgREST does: an upsert that returns its row'
+);
 
 select pg_temp.act_as('20000000-0000-4000-8000-000000000002');
 select is((select count(*) from public.items), 0::bigint, 'B sees nothing of A''s list before an invitation');

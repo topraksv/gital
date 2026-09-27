@@ -8,9 +8,8 @@
 import { Platform } from "react-native";
 import { Camera, CameraView, type BarcodeType } from "expo-camera";
 
-// The codes on what a grocery sells; a QR code on a packet is an advert, and
-// one is read only when an invitation is looked for (SPEC 1.4).
-const CODES: Record<"product" | "invite", BarcodeType[]> = { product: ["ean13", "ean8", "upc_a", "upc_e"], invite: ["qr"] };
+// The codes on what a grocery sells, and nothing else: any other square on a packet is an advert.
+const PRODUCT_CODES: BarcodeType[] = ["ean13", "ean8", "upc_a", "upc_e"];
 
 /** Without Google Play services, or before iOS 16, there is no scanner and no button. */
 export const canScan = CameraView.isModernBarcodeScannerAvailable;
@@ -26,8 +25,8 @@ export function onScanned(read: (code: string) => void): () => void {
 }
 
 /** `false` when the camera was refused. Google's scanner needs no permission; VisionKit's does. */
-export async function launchScanner(looking: "product" | "invite" = "product"): Promise<boolean> {
+export async function launchScanner(): Promise<boolean> {
   if (Platform.OS === "ios" && !(await Camera.requestCameraPermissionsAsync()).granted) return false;
-  await CameraView.launchScanner({ barcodeTypes: CODES[looking] });
+  await CameraView.launchScanner({ barcodeTypes: PRODUCT_CODES });
   return true;
 }

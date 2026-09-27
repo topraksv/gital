@@ -13,6 +13,7 @@ import Check from "lucide-react-native/icons/check";
 import Monitor from "lucide-react-native/icons/monitor";
 import Moon from "lucide-react-native/icons/moon";
 import Sun from "lucide-react-native/icons/sun";
+import SunMedium from "lucide-react-native/icons/sun-medium";
 
 import { useSession } from "../../auth/session";
 import type { ShoppingDay } from "../../domain/reminders";
@@ -22,6 +23,7 @@ import { disableReminders, enableReminders, remindersAvailable, replanReminders 
 import { syncNow } from "../../sync/engine";
 import { useSyncStatus } from "../../sync/status";
 import { isSupabaseConfigured } from "../../sync/supabase";
+import { setStayAwakeAllowed, useStayAwakeAllowed } from "../../ui/stay-awake";
 import { Body, Button, Card, ChoiceTile, ListRow, Screen, SectionHeader, ToggleRow, rowsOf } from "../../ui/components";
 import { appConfirm, appError } from "../../ui/dialog";
 import { TourModal } from "../../ui/tour";
@@ -88,6 +90,9 @@ export default function SettingsScreen() {
             explaining there why it is missing. */}
         {remindersAvailable ? <Reminders /> : null}
       </Card>
+      <Card rows>
+        <StayAwakeRow />
+      </Card>
       {isSupabaseConfigured ? (
         <>
           <SectionHeader>{tr.settings.syncSection}</SectionHeader>
@@ -119,6 +124,11 @@ export default function SettingsScreen() {
       {touring ? <TourModal onClose={() => setTouring(false)} /> : null}
     </Screen>
   );
+}
+
+function StayAwakeRow() {
+  const on = useStayAwakeAllowed();
+  return <ToggleRow icon={SunMedium} title={tr.settings.stayAwake} subtitle={tr.settings.stayAwakeHint} value={on} onValueChange={setStayAwakeAllowed} />;
 }
 
 /** Helix asks before signing out, and the layout asks again only if something would be lost. */

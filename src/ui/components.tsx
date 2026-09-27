@@ -1185,10 +1185,13 @@ export function IconButton({
   tone = "default",
   disabled = false,
   on,
+  field = false,
 }: {
   icon: LucideIcon;
   label: string;
   text?: string;
+  /** Beside a text field: the chip is the field's own height, so the two line up top and bottom. */
+  field?: boolean;
   onPress: () => void;
   tone?: "default" | "danger" | "primary";
   disabled?: boolean;
@@ -1213,8 +1216,8 @@ export function IconButton({
         <View
           {...FOCUS_BOX}
           style={{
-            width: text ? undefined : controlSize.compact,
-            height: controlSize.compact,
+            width: text ? undefined : field ? controlSize.regular : controlSize.compact,
+            height: field ? controlSize.regular : controlSize.compact,
             paddingHorizontal: text ? spacing.md : undefined,
             flexDirection: "row",
             gap: spacing.xs,

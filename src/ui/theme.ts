@@ -601,13 +601,6 @@ export const photoPreview = { height: 220 } as const;
 /** A screenshot on a report (SPEC 13.1): enough to tell one from another. `edge` is what is sent, where print must read. */
 export const screenshot = { thumb: 84, edge: 1600 } as const;
 
-/**
- * An invitation's QR code (SPEC 1.4): dark on white in every theme, since a
- * scanner reads the light margin as the code's edge, and wide enough that a
- * phone held a hand away resolves each of its ~45 cells.
- */
-export const qrCode = { size: 200, light: "#FFFFFF", dark: "#000000" } as const;
-
 export const progressBar = { height: 6 } as const;
 
 /**

@@ -386,8 +386,8 @@ function QuickAdd({
           style={{ flex: 1 }}
         />
         {canScan ? <ScanButton listId={listId} /> : null}
-        <IconButton icon={LayoutGrid} label={tr.catalogue.open} onPress={() => setBrowsing(true)} />
-        <IconButton icon={Plus} label={tr.items.add} tone="primary" onPress={() => add(parseEntry(text))} />
+        <IconButton icon={LayoutGrid} label={tr.catalogue.open} field onPress={() => setBrowsing(true)} />
+        <IconButton icon={Plus} label={tr.items.add} tone="primary" field onPress={() => add(parseEntry(text))} />
       </View>
       {asking ? (
         <SlideUp distance={motion.travel.rise}>
@@ -460,7 +460,7 @@ function ScanButton({ listId }: { listId: string }) {
       },
       () => appError(tr.barcode.failed),
     );
-  return <IconButton icon={ScanBarcode} label={tr.barcode.scan} onPress={() => void scan()} />;
+  return <IconButton icon={ScanBarcode} label={tr.barcode.scan} field onPress={() => void scan()} />;
 }
 
 /**

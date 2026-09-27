@@ -228,3 +228,10 @@ cannot be released.
   that change every few seconds.
 - Kiler takes what is already at home, typed in as a list's items are.
 - Every tab's title sits at the same height.
+- A list made after the sharing update reaches the server again; before, it
+  stayed on its phone, and inviting someone to it said only the owner could.
+- An invitation is a link, shown in full and shared from the list; the QR
+  code is gone.
+- Ayarlar decides whether the screen stays awake while shopping.
+- The add field and its buttons are the same height on every screen, and a
+  product down to one shows no − in Kiler.

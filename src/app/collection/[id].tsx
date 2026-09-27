@@ -185,7 +185,7 @@ function AddWish({ listId }: { listId: string }) {
         maxLength={LINK_MAX}
         style={{ flex: 1 }}
       />
-      <IconButton icon={Plus} label={tr.wishes.add} tone="primary" onPress={add} />
+      <IconButton icon={Plus} label={tr.wishes.add} tone="primary" field onPress={add} />
     </View>
   );
 }

@@ -42,11 +42,6 @@ describe("launchScanner", () => {
     expect(await launchScanner()).toBe(true);
     expect(phone.launched).toHaveLength(2);
   });
-
-  it("scans an invitation's QR code when asked for one", async () => {
-    expect(await launchScanner("invite")).toBe(true);
-    expect(phone.launched).toEqual([{ barcodeTypes: ["qr"] }]);
-  });
 });
 
 describe("onScanned", () => {

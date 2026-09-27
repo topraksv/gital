@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { atHome, expiryOf, lastedOf, lessOf, stockOf, type Stock } from "../../src/domain/pantry";
+import { atHome, expiryOf, lastedOf, leavesSome, lessOf, stockOf, type Stock } from "../../src/domain/pantry";
 
 const of = (quantity: number, unit: Stock["unit"]): Stock => ({ quantityMilli: quantity * 1000, unit });
 
@@ -43,6 +43,15 @@ describe("lessOf", () => {
   it("takes all of it when a step would leave nothing", () => {
     expect(lessOf(of(1, "adet"))).toEqual(of(-1, "adet"));
     expect(lessOf(of(0.3, "kg"))).toEqual(of(-0.3, "kg"));
+  });
+});
+
+describe("leavesSome", () => {
+  it("is true only when one press of − would leave something at home", () => {
+    expect(leavesSome(of(3, "adet"))).toBe(true);
+    expect(leavesSome(of(1.3, "kg"))).toBe(true);
+    expect(leavesSome(of(1, "adet"))).toBe(false);
+    expect(leavesSome(of(0.3, "kg"))).toBe(false);
   });
 });
 

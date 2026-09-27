@@ -11,8 +11,12 @@ const keepAwake = vi.hoisted(() => ({
   deactivateKeepAwake: vi.fn(async (_tag: string) => {}),
 }));
 vi.mock("expo-keep-awake", () => keepAwake);
+const stored = vi.hoisted(() => new Map<string, string>([["gital.stayAwake", "false"]]));
+vi.mock("../../src/services/kv", () => ({
+  kv: { get: async (key: string) => stored.get(key) ?? null, set: async (key: string, value: string) => void stored.set(key, value) },
+}));
 
-import { stayAwake } from "../../src/ui/stay-awake";
+import { setStayAwakeAllowed, stayAwake, useStayAwakeAllowed } from "../../src/ui/stay-awake";
 
 class FakeDocument extends EventTarget {
   visibilityState: "visible" | "hidden" = "visible";
@@ -72,5 +76,21 @@ describe("stayAwake", () => {
     const release = stayAwake();
     expect(keepAwake.activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
     expect(release).not.toThrow();
+  });
+});
+
+// Ayarlar's switch (the owner asked 2026-09-27): kept on the device, read back
+// on the next start, and changed at once for every screen holding the hook.
+describe("the stay-awake setting", () => {
+  it("reads a switch turned off on an earlier start, and keeps a new choice", async () => {
+    await settle();
+    const { createElement } = await import("react");
+    // react-dom ships no types here, and one call does not earn @types/react-dom.
+    const { renderToString } = (await import("react-dom/server" as string)) as { renderToString: (element: unknown) => string };
+    const Probe = () => String(useStayAwakeAllowed());
+    expect(renderToString(createElement(Probe))).toBe("false");
+    setStayAwakeAllowed(true);
+    expect(renderToString(createElement(Probe))).toBe("true");
+    expect(stored.get("gital.stayAwake")).toBe("true");
   });
 });

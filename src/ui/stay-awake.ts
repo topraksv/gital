@@ -6,8 +6,9 @@
  * browser refused throws on its release.
  */
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
+import { kv } from "../services/kv";
 
 const TAG = "gital.shopping";
 
@@ -27,7 +28,38 @@ export function stayAwake(): () => void {
   };
 }
 
-/** Keeps the screen on for as long as `on` holds. */
+/**
+ * Whether a shop keeps the screen on at all, Ayarlar's switch (the owner asked
+ * 2026-09-27). On by default, as 3.3 shipped; kept on this device, since
+ * whether a screen may sleep is the phone's business, not the account's.
+ */
+const PREFERENCE_KEY = "gital.stayAwake";
+let allowed = true;
+const listeners = new Set<() => void>();
+void kv.get(PREFERENCE_KEY).then((stored) => {
+  if (stored !== "false") return;
+  allowed = false;
+  listeners.forEach((listener) => listener());
+});
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function useStayAwakeAllowed(): boolean {
+  return useSyncExternalStore(subscribe, () => allowed, () => allowed);
+}
+
+export function setStayAwakeAllowed(on: boolean): void {
+  allowed = on;
+  listeners.forEach((listener) => listener());
+  void kv.set(PREFERENCE_KEY, String(on));
+}
+
+/** Keeps the screen on for as long as `on` holds, and Ayarlar allows it. */
 export function useStayAwake(on: boolean): void {
-  useEffect(() => (on ? stayAwake() : undefined), [on]);
+  const allowedHere = useStayAwakeAllowed();
+  const hold = on && allowedHere;
+  useEffect(() => (hold ? stayAwake() : undefined), [hold]);
 }
