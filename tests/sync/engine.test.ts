@@ -31,10 +31,10 @@ const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry } = await import("../../src/data/pantry");
 const { finishShop } = await import("../../src/data/shops");
 const { readPhoto } = await import("../../src/data/photos");
-const { isFrozen, readSettings, setAccountFrozen } = await import("../../src/data/settings");
+const { isFrozen, memberNameOf, readSettings, setAccountFrozen, setMemberName } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
-const { leaveList, readMembers, removeMember, setMemberRole } = await import("../../src/data/members");
-const { acceptInvite, createInvite, inviteLink, inviteTokenFrom } = await import("../../src/sync/sharing");
+const { leaveList, readMembers, removeMember, roleOf, setMemberRole } = await import("../../src/data/members");
+const { acceptInvite, createInvite, inviteFromPage, inviteLink, inviteTokenFrom } = await import("../../src/sync/sharing");
 const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
 const { purgeOwnPhotos } = await import("../../src/sync/photos");
@@ -431,6 +431,43 @@ describe("two people sharing a list", () => {
     expect(inviteTokenFrom(token)).toBe(token);
     expect(inviteTokenFrom("https://example.com/gital/invite#" + token)).toBeNull();
     expect(inviteTokenFrom("a".repeat(63))).toBeNull();
+  });
+
+  it("keeps the token a web invitation opened with, and only on its page", () => {
+    const token = "b".repeat(64);
+    expect(inviteFromPage({ pathname: "/gital/invite", hash: `#${token}` })).toBe(token);
+    expect(inviteFromPage({ pathname: "/gital/invite/", hash: `#${token}` })).toBe(token);
+    expect(inviteFromPage({ pathname: "/gital/", hash: `#${token}` })).toBeNull();
+    expect(inviteFromPage({ pathname: "/gital/invite", hash: "#nope" })).toBeNull();
+    expect(inviteFromPage(undefined)).toBeNull();
+  });
+
+  it("knows each person's part in a list: the owner's until someone else's row says otherwise", async () => {
+    const listId = await sharedMarket("viewer");
+    await on("A", async () => {
+      expect(roleOf([], USER)).toBe("owner");
+      await sync();
+      expect(roleOf(await readMembers(listId), USER)).toBe("owner");
+    });
+    await on("C", async () => {
+      await sync();
+      expect(roleOf(await readMembers(listId), OTHER)).toBe("viewer");
+    });
+  });
+
+  it("remembers the name the other members see, on every device", async () => {
+    await on("A", async () => {
+      expect(memberNameOf(await readSettings())).toBeNull();
+      await setMemberName("  Ömer  ");
+      await setMemberName("Ömer T.");
+      expect(memberNameOf(await readSettings())).toBe("Ömer T.");
+      await sync();
+    });
+    await on("B", async () => {
+      await sync();
+      expect(memberNameOf(await readSettings())).toBe("Ömer T.");
+    });
+    await expect(setMemberName("   ")).rejects.toThrow();
   });
 
   it("says why an invitation could not be made", async () => {

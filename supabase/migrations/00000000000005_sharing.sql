@@ -113,6 +113,22 @@ alter table public.list_members enable row level security;
 -- A person always sees their own rows, so a device learns it was removed.
 create policy list_members_select on public.list_members for select to authenticated
   using (user_id = (select auth.uid()) or public.can_read_list(list_id));
+-- A device's push is PostgREST's upsert, and Postgres asks INSERT's privilege
+-- and INSERT's policy of every upsert, even one that only updates. So the
+-- insert is granted and its policy admits only a row the server already
+-- holds: the upsert becomes the update below, and nobody writes a member in.
+create or replace function public.is_member_row(member uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.list_members m where m.id = member);
+$$;
+
+create policy list_members_insert on public.list_members for insert to authenticated
+  with check (public.is_member_row(id));
 create policy list_members_update on public.list_members for update to authenticated
   using (user_id = (select auth.uid()) or public.is_list_owner(list_id))
   with check (user_id = (select auth.uid()) or public.is_list_owner(list_id));
@@ -161,7 +177,7 @@ create index list_members_user on public.list_members (user_id);
 create index list_members_pull on public.list_members (updated_at, id);
 
 revoke all on table public.list_members from anon, authenticated;
-grant select, update on table public.list_members to authenticated;
+grant select, insert, update on table public.list_members to authenticated;
 grant all on table public.list_members to service_role;
 
 -- ---------------------------------------------------------------------------
@@ -275,6 +291,8 @@ as $$
 $$;
 
 revoke all on function public.is_list_owner(uuid) from public, anon;
+revoke all on function public.is_member_row(uuid) from public, anon;
+grant execute on function public.is_member_row(uuid) to authenticated;
 revoke all on function public.guard_list_member() from public, anon, authenticated;
 revoke all on function public.create_list_invite(uuid, text, text) from public, anon;
 revoke all on function public.accept_list_invite(text, text) from public, anon;

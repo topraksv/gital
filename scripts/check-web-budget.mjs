@@ -15,14 +15,15 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// Measured 2026-09-27 on sync (SPEC 10): entry 2_087_436, all JS 2_257_176,
-// export 3_964_633; pictures 324_522 on the catalogue. Sync's own modules are
-// about 18 KB of the 27 KB added, with no library; the export's other 20 KB is
-// the new page. `docs/HEALTH.md` traces the growth.
+// Measured 2026-09-27 on sharing's screens (SPEC 1.4): entry 2_125_819, all
+// JS 2_308_758, export 4_056_693; pictures 324_522 on the catalogue. The QR
+// encoder is a chunk of its own (13 KB), loaded with the first invitation; the
+// entry's 23 KB is the people panel, the invitation page and their strings,
+// with no library. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 2_108_400,
-  totalJs: 2_279_800,
-  totalExport: 4_004_300,
+  entryJs: 2_147_000,
+  totalJs: 2_331_700,
+  totalExport: 4_097_200,
   pictures: 328_000,
 };
 

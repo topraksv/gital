@@ -2,6 +2,7 @@ import { View } from "react-native";
 import { useRouter } from "expo-router";
 import Gift from "lucide-react-native/icons/gift";
 import Plus from "lucide-react-native/icons/plus";
+import UserPlus from "lucide-react-native/icons/user-plus";
 
 import { useCollections } from "../../data/hooks";
 import { createList } from "../../data/lists";
@@ -37,7 +38,14 @@ export default function Wishes() {
     <Screen
       title={tr.tabs.wishes}
       width="workspace"
-      actions={answered ? <IconButton icon={Plus} label={tr.wishes.create} tone="primary" onPress={create} /> : null}
+      actions={
+        answered ? (
+          <>
+            <IconButton icon={UserPlus} label={tr.sharing.join} onPress={() => router.push("/invite")} />
+            <IconButton icon={Plus} label={tr.wishes.create} tone="primary" onPress={create} />
+          </>
+        ) : null
+      }
     >
       {collections.status === "error" ? (
         <ReadFailed queries={[collections]} />

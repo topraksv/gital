@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(31);
+select extensions.plan(35);
 
 create function pg_temp.exec_sqlstate(command text)
 returns text
@@ -14,6 +14,24 @@ language plpgsql
 as $$
 begin
   execute command;
+  return null;
+exception when others then
+  return sqlstate;
+end $$;
+
+-- What a device's push is: PostgREST's upsert of the whole row, on its id.
+create function pg_temp.push_member(member uuid, gone boolean, new_role text)
+returns text
+language plpgsql
+as $$
+begin
+  insert into public.list_members (id, list_id, user_id, role, name, deleted_at, tombstone_version)
+  select m.id, m.list_id, m.user_id, new_role, m.name,
+         case when gone then now() end, m.tombstone_version + (gone)::int
+    from public.list_members m where m.id = member
+  on conflict (id) do update set
+    role = excluded.role, name = excluded.name,
+    deleted_at = excluded.deleted_at, tombstone_version = excluded.tombstone_version;
   return null;
 exception when others then
   return sqlstate;
@@ -44,9 +62,9 @@ insert into auth.users (
 select is(
   (select count(*) from information_schema.role_table_grants
     where table_schema = 'public' and table_name = 'list_members'
-      and (grantee = 'anon' or (grantee = 'authenticated' and privilege_type not in ('SELECT','UPDATE')))),
+      and (grantee = 'anon' or (grantee = 'authenticated' and privilege_type not in ('SELECT','INSERT','UPDATE')))),
   0::bigint,
-  'a signed-in request only reads and updates members; nobody inserts one directly'
+  'a signed-in request reads members and updates them, through an upsert''s insert'
 );
 select is(
   (select count(*) from information_schema.role_table_grants
@@ -127,6 +145,12 @@ select is(
   'nor touch the owner''s row'
 );
 
+select is(
+  pg_temp.exec_sqlstate($$insert into public.list_members (list_id, user_id, role) values ('a0000000-0000-7000-8000-00000000000a', '30000000-0000-4000-8000-000000000003', 'editor')$$),
+  '42501',
+  'a member writes nobody new into the list'
+);
+
 -- C joins as a viewer; the link B used is spent.
 select pg_temp.act_as('30000000-0000-4000-8000-000000000003');
 select is(
@@ -152,8 +176,14 @@ select is(
   'and changes nothing'
 );
 
--- The owner removes C, and C cannot come back by itself.
+-- The owner changes C's role and removes C, as a device sends it; C cannot come back by itself.
 select pg_temp.act_as('10000000-0000-4000-8000-000000000001');
+select is(
+  pg_temp.push_member((select id from public.list_members where user_id = '30000000-0000-4000-8000-000000000003'), false, 'editor'),
+  null,
+  'the owner''s device changes a role by its push'
+);
+select is((select role from public.list_members where user_id = '30000000-0000-4000-8000-000000000003'), 'editor', 'and the role is changed');
 update public.list_members set deleted_at = now(), tombstone_version = 1 where user_id = '30000000-0000-4000-8000-000000000003';
 update public.list_members set deleted_at = now(), tombstone_version = 1 where user_id = '10000000-0000-4000-8000-000000000001';
 select is(
@@ -171,9 +201,13 @@ select isnt(
 update public.list_members set deleted_at = null where user_id = '30000000-0000-4000-8000-000000000003';
 select is((select count(*) from public.items), 0::bigint, 'and cannot undo it');
 
--- B leaves.
+-- B leaves, as the device sends it.
 select pg_temp.act_as('20000000-0000-4000-8000-000000000002');
-update public.list_members set deleted_at = now(), tombstone_version = 1 where user_id = '20000000-0000-4000-8000-000000000002';
+select is(
+  pg_temp.push_member((select id from public.list_members where user_id = '20000000-0000-4000-8000-000000000002'), true, 'editor'),
+  null,
+  'a member''s device leaves by its push'
+);
 select is((select count(*) from public.lists), 0::bigint, 'a member who leaves reads the list no more');
 
 -- An invitation past its week opens nothing.

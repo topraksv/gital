@@ -5,6 +5,7 @@ import type { Aisle } from "../domain/catalogue";
 import { foldName } from "../domain/items";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
+import { readMembers } from "./members";
 import { liveStore } from "./live-query";
 import { readLasted, readPantry } from "./pantry";
 import { readProducts } from "./products";
@@ -12,6 +13,12 @@ import { readSets } from "./sets";
 import { frozenFrom, readSettings } from "./settings";
 import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readWishes } from "./wishes";
+
+// A list's screen and its people panel watch its members: the role decides what the screen offers.
+export function useMembers(listId: string) {
+  const store = useMemo(() => liveStore(() => readMembers(listId), ["list_members"]), [listId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
 
 // Items, because each card counts what is on its list.
 const listsStore = liveStore(readLists, ["lists", "items"]);

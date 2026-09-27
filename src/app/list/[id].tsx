@@ -11,7 +11,7 @@ import LayoutGrid from "lucide-react-native/icons/layout-grid";
 import Plus from "lucide-react-native/icons/plus";
 import ScanBarcode from "lucide-react-native/icons/scan-barcode";
 import Share from "lucide-react-native/icons/share";
-import Trash from "lucide-react-native/icons/trash";
+
 
 import { useItems, useKnownProducts, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
 import { addEntries, addScanned, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
@@ -28,7 +28,7 @@ import { tr } from "../../i18n/tr";
 import { lookUpBarcode, type ScannedProduct } from "../../services/barcode";
 import { canScan, launchScanner, onScanned } from "../../services/barcode-scan";
 import { shareText } from "../../services/share";
-import { ArrivalScope, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, cardEdge, RowOpen, RowTick } from "../../ui/components";
+import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { celebrate, hideCelebration } from "../../ui/celebration";
@@ -36,6 +36,7 @@ import { DraggableList, ReorderGrip } from "../../ui/draggable-list";
 import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import { ListSheet } from "../../ui/list-sheet";
+import { EditorsOnly, PeopleActions, useShare } from "../../ui/members-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
@@ -51,7 +52,8 @@ export default function ListScreen() {
   // Read with the items, so an offer is drawn with the screen and does not rise into it.
   const purchases = usePurchases(id);
   const moved = useMovedAisles();
-  const queries = [lists, items, purchases];
+  const { members, userId, role, viewer } = useShare(id);
+  const queries = [lists, items, purchases, members];
   // The list this screen is deleting, held so its title stays while the screen
   // animates away, and so nothing on it can be pressed a second time.
   const [leaving, setLeaving] = useState<ListSummary | null>(null);
@@ -167,16 +169,20 @@ export default function ListScreen() {
   const row = (item: Item) => (
     <RowMotion key={item.id}>
       <SlideUp distance={motion.travel.bar}>
-        <RowSwipe checked={item.checkedAt != null} onTick={() => toggle(item)} onDelete={() => removeItem(item)}>
-          <ItemRow
-            item={item}
-            onOpen={() => setEditing(item)}
-            onToggle={() => {
-              selectionTap();
-              void toggle(item);
-            }}
-          />
-        </RowSwipe>
+        {viewer ? (
+          <ItemRow item={item} onOpen={() => undefined} onToggle={() => undefined} readOnly />
+        ) : (
+          <RowSwipe checked={item.checkedAt != null} onTick={() => toggle(item)} onDelete={() => removeItem(item)}>
+            <ItemRow
+              item={item}
+              onOpen={() => setEditing(item)}
+              onToggle={() => {
+                selectionTap();
+                void toggle(item);
+              }}
+            />
+          </RowSwipe>
+        )}
       </SlideUp>
     </RowMotion>
   );
@@ -190,11 +196,16 @@ export default function ListScreen() {
       actions={
         list && !leaving ? (
           <>
-            <SortToggle sorting={sorting} canSort={open.length > 1} onChange={setSorting} />
-            <IconButton icon={ClipboardPaste} label={tr.items.paste(list.name)} onPress={() => paste(list)} />
+            <EditorsOnly viewer={viewer}>
+              <SortToggle sorting={sorting} canSort={open.length > 1} onChange={setSorting} />
+              <IconButton icon={ClipboardPaste} label={tr.items.paste(list.name)} onPress={() => paste(list)} />
+            </EditorsOnly>
             <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={open.length === 0} onPress={() => share(list)} />
-            <EditList list={list} />
-            <IconButton icon={Trash} label={tr.lists.delete(list.name)} tone="danger" onPress={() => remove(list)} />
+            <PeopleActions list={list} userId={userId} role={role} back="/" deleteLabel={tr.lists.delete(list.name)} onDelete={() => remove(list)}>
+              <EditorsOnly viewer={viewer}>
+                <EditList list={list} />
+              </EditorsOnly>
+            </PeopleActions>
           </>
         ) : null
       }
@@ -203,7 +214,9 @@ export default function ListScreen() {
         <ReadFailed queries={queries} />
       ) : list && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
-          <QuickAdd listId={list.id} items={items.data} purchases={purchases.data} onRemove={removeItem} />
+          <EditorsOnly viewer={viewer} fallback={<Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.viewOnly}</Body>}>
+            <QuickAdd listId={list.id} items={items.data} purchases={purchases.data} onRemove={removeItem} />
+          </EditorsOnly>
           {items.data.length === 0 ? (
             <EmptyState icon={ListPlus} title={tr.items.emptyTitle} hint={tr.items.emptyHint} />
           ) : (
@@ -236,9 +249,11 @@ export default function ListScreen() {
                   basket.length > 0 ? (
                     <RowMotion key="finish">
                       <SlideUp distance={motion.travel.bar}>
-                        <View style={{ marginTop: spacing.md }}>
-                          <Button label={tr.items.finish} icon={CheckCheck} onPress={finish} />
-                        </View>
+                        <EditorsOnly viewer={viewer}>
+                          <View style={{ marginTop: spacing.md }}>
+                            <Button label={tr.items.finish} icon={CheckCheck} onPress={finish} />
+                          </View>
+                        </EditorsOnly>
                       </SlideUp>
                     </RowMotion>
                   ) : null,
@@ -501,6 +516,7 @@ function ItemRow({
   onToggle,
   grip,
   lifted = false,
+  readOnly = false,
 }: {
   item: Item;
   onOpen: () => void;
@@ -508,6 +524,7 @@ function ItemRow({
   /** While the list is sorted, the grip takes the circle's place: a tick mid-sort would move the row away. */
   grip?: ReactNode;
   lifted?: boolean;
+  readOnly?: boolean;
 }) {
   const { palette } = useTheme();
   const checked = item.checkedAt != null;
@@ -525,10 +542,10 @@ function ItemRow({
       }}
     >
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: palette.primarySoft, opacity: flash }]} />
-      <RowOpen label={tr.common.withDetail(item.name, itemDetail(item))} hint={tr.items.openHint} onPress={onOpen}>
+      <RowOpen label={tr.common.withDetail(item.name, itemDetail(item))} hint={tr.items.openHint} onPress={onOpen} disabled={readOnly}>
         <ItemLabel item={item} struck={checked} />
       </RowOpen>
-      {grip ?? <RowTick checked={checked} label={item.name} onToggle={onToggle} />}
+      {grip ?? <RowTick checked={checked} label={item.name} onToggle={onToggle} disabled={readOnly} />}
     </View>
   );
 }

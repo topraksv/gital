@@ -4,7 +4,6 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import Gift from "lucide-react-native/icons/gift";
 import Pencil from "lucide-react-native/icons/pencil";
 import Plus from "lucide-react-native/icons/plus";
-import Trash from "lucide-react-native/icons/trash";
 
 import { useCollections, useWishes } from "../../data/hooks";
 import { deleteList, editList, restoreList } from "../../data/lists";
@@ -13,10 +12,11 @@ import type { ListLook } from "../../domain/lists";
 import { LINK_MAX, leadOf, shopOf, type Wish } from "../../domain/wishes";
 import { formatMinor } from "../../domain/money";
 import { tr } from "../../i18n/tr";
-import { ArrivalScope, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, TextField, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
+import { ArrivalScope, Body, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, TextField, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { ListSheet } from "../../ui/list-sheet";
+import { EditorsOnly, PeopleActions, useShare } from "../../ui/members-sheet";
 import { RowMotion } from "../../ui/list-motion";
 import { useCountUp } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
@@ -30,6 +30,9 @@ export default function CollectionScreen() {
   const router = useRouter();
   const collections = useCollections();
   const wishes = useWishes(id);
+  // A collection is shared as a list is (SPEC 7.8).
+  const { members, userId, role, viewer } = useShare(id);
+  const queries = [collections, wishes, members];
   const [leaving, setLeaving] = useState<Collection | null>(null);
   const [editing, setEditing] = useState<Wish | null>(null);
   const collection = leaving ?? collections.data.find((candidate) => candidate.id === id);
@@ -84,7 +87,7 @@ export default function CollectionScreen() {
   const row = (wish: Wish) => (
     <RowMotion key={wish.id}>
       <SlideUp distance={motion.travel.bar}>
-        <WishRow wish={wish} onOpen={() => setEditing(wish)} onToggle={() => toggle(wish)} />
+        <WishRow wish={wish} onOpen={() => setEditing(wish)} onToggle={() => toggle(wish)} readOnly={viewer} />
       </SlideUp>
     </RowMotion>
   );
@@ -97,17 +100,22 @@ export default function CollectionScreen() {
       actions={
         collection && !leaving ? (
           <>
-            <EditCollection collection={collection} />
-            <IconButton icon={Trash} label={tr.wishes.delete(collection.name)} tone="danger" onPress={() => remove(collection)} />
+            <PeopleActions list={collection} userId={userId} role={role} back="/wishes" deleteLabel={tr.wishes.delete(collection.name)} onDelete={() => remove(collection)}>
+              <EditorsOnly viewer={viewer}>
+                <EditCollection collection={collection} />
+              </EditorsOnly>
+            </PeopleActions>
           </>
         ) : null
       }
     >
-      {collections.status === "error" || wishes.status === "error" ? (
-        <ReadFailed queries={[collections, wishes]} />
-      ) : collection && wishes.updatedAt != null ? (
+      {queries.some((query) => query.status === "error") ? (
+        <ReadFailed queries={queries} />
+      ) : collection && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
-          <AddWish listId={collection.id} />
+          <EditorsOnly viewer={viewer} fallback={<Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.viewOnly}</Body>}>
+            <AddWish listId={collection.id} />
+          </EditorsOnly>
           {collection.openTotalMinor == null ? null : <OpenTotal totalMinor={collection.openTotalMinor} />}
           {wishes.data.length === 0 ? (
             <EmptyState icon={Gift} title={tr.wishes.itemsEmptyTitle} hint={tr.wishes.itemsEmptyHint} />
@@ -194,13 +202,13 @@ function detailOf(wish: Wish): { text: string; wanted?: boolean }[] {
   return parts;
 }
 
-function WishRow({ wish, onOpen, onToggle }: { wish: Wish; onOpen: () => void; onToggle: () => void }) {
+function WishRow({ wish, onOpen, onToggle, readOnly }: { wish: Wish; onOpen: () => void; onToggle: () => void; readOnly: boolean }) {
   const { palette } = useTheme();
   const done = wish.boughtAt != null;
   const parts = detailOf(wish);
   return (
     <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
-      <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={tr.wishes.openWishHint} onPress={onOpen}>
+      <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={tr.wishes.openWishHint} onPress={onOpen} disabled={readOnly}>
         <Tile id={wish.id} name={wish.name} photo={wish.photo} size={itemRow.tile} />
         <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
           <Text
@@ -223,7 +231,7 @@ function WishRow({ wish, onOpen, onToggle }: { wish: Wish; onOpen: () => void; o
           ) : null}
         </View>
       </RowOpen>
-      <RowTick checked={done} label={tr.common.withDetail(wish.name, tr.wishes.bought)} onToggle={onToggle} />
+      <RowTick checked={done} label={tr.common.withDetail(wish.name, tr.wishes.bought)} onToggle={onToggle} disabled={readOnly} />
     </View>
   );
 }

@@ -26,6 +26,11 @@ export function readMembers(listId: string): Promise<Member[]> {
     .orderBy(desc(sql`${listMembers.role} = 'owner'`), asc(listMembers.createdAt), asc(listMembers.id));
 }
 
+/** A list nobody else is in has no rows yet, and is its maker's. */
+export function roleOf(members: readonly Member[], userId: string): MemberRole {
+  return members.find((member) => member.userId === userId)?.role ?? "owner";
+}
+
 async function editMember(id: string, patch: Record<string, unknown>): Promise<void> {
   await writeRows(async () => editRow("list_members", await readLiveRow("list_members", id), patch));
 }

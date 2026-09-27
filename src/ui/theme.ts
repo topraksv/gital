@@ -592,6 +592,13 @@ export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25
 /** A photo in a panel (SPEC 8.2): about a third of a phone's height, whatever its proportions. */
 export const photoPreview = { height: 220 } as const;
 
+/**
+ * An invitation's QR code (SPEC 1.4): dark on white in every theme, since a
+ * scanner reads the light margin as the code's edge, and wide enough that a
+ * phone held a hand away resolves each of its ~45 cells.
+ */
+export const qrCode = { size: 200, light: "#FFFFFF", dark: "#000000" } as const;
+
 export const progressBar = { height: 6 } as const;
 
 /**

@@ -421,13 +421,16 @@ export function CheckMark({ checked }: { checked: boolean }) {
  * (`src/ui/press.tsx`); it takes the card's left corners, so a press fill and
  * the focus ring follow them rather than being cut.
  */
-export function RowOpen({ label, hint, onPress, children }: { label: string; hint: string; onPress: () => void; children: ReactNode }) {
+// `disabled` is a viewer's row on a shared list (SPEC 1.4): read, never changed.
+export function RowOpen({ label, hint, onPress, disabled = false, children }: { label: string; hint: string; onPress: () => void; disabled?: boolean; children: ReactNode }) {
   const { palette } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={hint}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={(state) => ({
         flex: 1,
@@ -447,16 +450,17 @@ export function RowOpen({ label, hint, onPress, children }: { label: string; hin
 }
 
 /** A row card's tick at its trailing edge, a checkbox that Space presses on the web. */
-export function RowTick({ checked, label, onToggle }: { checked: boolean; label: string; onToggle: () => void }) {
+export function RowTick({ checked, label, onToggle, disabled = false }: { checked: boolean; label: string; onToggle: () => void; disabled?: boolean }) {
   const { palette } = useTheme();
   return (
     <Pressable
       accessibilityRole="checkbox"
       aria-checked={checked}
-      accessibilityState={{ checked }}
+      accessibilityState={{ checked, disabled }}
       accessibilityLabel={label}
+      disabled={disabled}
       onPress={onToggle}
-      {...webKeys({ " ": onToggle }, { repeats: false })}
+      {...(disabled ? null : webKeys({ " ": onToggle }, { repeats: false }))}
       style={(state) => ({
         minWidth: controlSize.minimumTarget,
         paddingHorizontal: spacing.md,

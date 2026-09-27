@@ -1,6 +1,7 @@
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 import Plus from "lucide-react-native/icons/plus";
+import UserPlus from "lucide-react-native/icons/user-plus";
 import ShoppingBasket from "lucide-react-native/icons/shopping-basket";
 
 import { useLists } from "../../data/hooks";
@@ -40,7 +41,14 @@ export default function Lists() {
     <Screen
       title={tr.tabs.lists}
       width="workspace"
-      actions={answered ? <IconButton icon={Plus} label={tr.lists.create} tone="primary" onPress={create} /> : null}
+      actions={
+        answered ? (
+          <>
+            <IconButton icon={UserPlus} label={tr.sharing.join} onPress={() => router.push("/invite")} />
+            <IconButton icon={Plus} label={tr.lists.create} tone="primary" onPress={create} />
+          </>
+        ) : null
+      }
     >
       {lists.status === "error" ? (
         <ReadFailed queries={[lists]} />

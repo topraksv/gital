@@ -10,6 +10,6 @@ export function onScanned(_read: (code: string) => void): () => void {
   return () => {};
 }
 
-export async function launchScanner(): Promise<boolean> {
+export async function launchScanner(_looking?: "product" | "invite"): Promise<boolean> {
   return false;
 }

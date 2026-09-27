@@ -195,3 +195,7 @@ cannot be released.
 - The server side of sharing a list: members with a role, invitations good
   once for a week, and who added and who ticked each row. A device that joins
   fetches the whole list; one that leaves, or is removed, lets it go.
+- Kişiler on a list and a wish collection: who is in it and their role, and
+  for the owner an invitation as a link and a QR code, a role changed or a
+  person removed. Anyone else leaves instead of deleting, and a viewer only
+  reads. Listeler and İstekler join by a pasted link or a scanned code.

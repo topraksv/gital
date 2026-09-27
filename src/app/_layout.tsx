@@ -21,6 +21,7 @@ import { LINK_MAX, linkFrom } from "../domain/wishes";
 import { clipboardOffer } from "../services/clipboard-link";
 import { remindersAvailable, replanReminders } from "../services/reminders";
 import { syncNow } from "../sync/engine";
+import { inviteFromPage, inviteTokenFrom } from "../sync/sharing";
 import { Button, EmptyState } from "../ui/components";
 import { appConfirm, appError, appPrompt, DialogHost, PromptHost } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
@@ -44,6 +45,13 @@ const IBMPlexSerif_600SemiBold = require("../../assets/fonts/IBMPlexSerif_600Sem
  */
 const RECOVERY_PAGE = Platform.OS === "web" && typeof location !== "undefined" && /\/reset-password\/?$/.test(location.pathname);
 const DATABASE_AT_START = RECOVERY_PAGE ? "ready" : "opening";
+
+/**
+ * A web invitation opened signed out: signing in sends the page to the tabs
+ * and the fragment with it, so the token is read here, once, and the
+ * invitation reopened after (SPEC 1.4).
+ */
+let heldInvite = Platform.OS === "web" && typeof location !== "undefined" ? inviteFromPage(location) : null;
 
 /** Fonts are cosmetic: a slow web fetch must not hold the app on a blank screen. */
 const FONT_GRACE_MS = 2500;
@@ -221,6 +229,13 @@ function Routes({ background }: { background: string }) {
   }, []);
   // Helix's bug: an undo offered to one account ran against the next one's lists.
   useEffect(() => clearUndo(), [userId]);
+  useEffect(() => {
+    if (!signedIn || !heldInvite) return;
+    const token = heldInvite;
+    heldInvite = null;
+    // Signed in already, the invitation page opened with its own fragment.
+    if (!/\/invite\/?$/.test(location.pathname)) router.push({ pathname: "/invite", params: { token } });
+  }, [signedIn]);
   if ((!ready || (signedIn && frozen == null)) && !RECOVERY_PAGE) return null;
   // The device that freezes signs out; its own freezing is not a lock.
   const locked = frozen === true && !freezing;
@@ -237,6 +252,7 @@ function Routes({ background }: { background: string }) {
             <Stack.Screen name="collection/[id]" />
             <Stack.Screen name="sync-issues" />
             <Stack.Screen name="data-reset" />
+            <Stack.Screen name="invite" />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="(auth)/sign-in" />
@@ -360,6 +376,13 @@ function ClipboardLinkOffer() {
     void (async () => {
       const offer = await clipboardOffer();
       if (!offer) return;
+      const token = offer.url ? inviteTokenFrom(offer.url) : null;
+      if (token) {
+        if (await appConfirm(tr.sharing.clipboardTitle, tr.sharing.clipboardMessage, tr.sharing.clipboardOpen)) {
+          router.push({ pathname: "/invite", params: { token } });
+        }
+        return;
+      }
       const typed = await appPrompt(tr.clipboard.title, offer.url ? tr.clipboard.message : tr.clipboard.pasteMessage, {
         confirmLabel: tr.clipboard.add,
         placeholder: tr.wishes.linkPlaceholder,

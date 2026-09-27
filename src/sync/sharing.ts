@@ -15,6 +15,14 @@ const TOKEN = /^[0-9a-f]{64}$/;
 
 export const inviteLink = (token: string) => `${INVITE_PAGE}#${token}`;
 
+/**
+ * The token a web invitation opened with, read once at launch: signing in
+ * first sends the page elsewhere and the fragment with it.
+ */
+export function inviteFromPage(page: { pathname: string; hash: string } | undefined): string | null {
+  return page && /\/invite\/?$/.test(page.pathname) ? inviteTokenFrom(page.hash.slice(1)) : null;
+}
+
 /** The token in a pasted or scanned link, or in the bare token itself. */
 export function inviteTokenFrom(text: string): string | null {
   const trimmed = text.trim();
