@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(50);
+select extensions.plan(51);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -227,6 +227,8 @@ select is(
 );
 select ok(public.can_see_photo('f0000000-0000-7000-8000-00000000000f'), 'A can see the photo its item names');
 select ok(not public.can_see_photo('f1000000-0000-7000-8000-00000000000f'), 'no row names the other photo');
+update public.shops set photo_id = 'f1000000-0000-7000-8000-00000000000f' where id = 'a2000000-0000-7000-8000-00000000000a';
+select ok(public.can_see_photo('f1000000-0000-7000-8000-00000000000f'), 'a shop naming it as its receipt makes it seen');
 select is(public.photo_of_object('f0000000-0000-7000-8000-00000000000f/thumb.jpg'), 'f0000000-0000-7000-8000-00000000000f'::uuid, 'a thumbnail''s name gives its photo');
 select is(public.photo_of_object('../f0000000-0000-7000-8000-00000000000f/full.jpg'), null::uuid, 'a path that climbs gives none');
 

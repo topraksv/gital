@@ -1,0 +1,1 @@
+ALTER TABLE `shops` ADD `photo_id` text;

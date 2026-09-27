@@ -8,13 +8,14 @@ import { and, asc, count, desc, eq, gte, isNotNull, isNull, sum } from "drizzle-
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, fromDbShape, nowIso, readLiveRow, actingUser, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
-import { items, lists, shops } from "../db/schema";
+import { items, lists, photos, shops } from "../db/schema";
 import { foldName } from "../domain/items";
 import { isPrice } from "../domain/money";
 import { lookOf, type ListLook } from "../domain/lists";
 import type { Purchase } from "../domain/restock";
 import { openItemId } from "./items";
 import { arrivalRows, arrivalsOf, boughtEntry } from "./pantry";
+import { photoColumn, type NewPhoto } from "./photos";
 
 /** A shop wears its list's colour and picture (SPEC 1.8). */
 export interface Shop extends Omit<ListLook, "name"> {
@@ -28,6 +29,9 @@ export interface Shop extends Omit<ListLook, "name"> {
    * else what its priced items add up to; `null` when neither, which is not ₺0.
    */
   spentMinor: number | null;
+  /** The receipt's photo, and its thumbnail once it has reached this device. */
+  receiptId: string | null;
+  receipt: string | null;
 }
 
 /** What this list's shops bought, the latest first: the rhythm 2.7's suggestion reads. */
@@ -52,12 +56,15 @@ export async function readShops(): Promise<Shop[]> {
       finishedAt: shops.finishedAt,
       bought: count(items.id),
       totalMinor: shops.totalMinor,
+      receiptId: shops.photoId,
+      receipt: photos.thumb,
       // SUM is NULL over no prices, as `spentOn` is; the mapping skips NULL.
       summedMinor: sum(items.priceMinor).mapWith(Number),
     })
     .from(shops)
     .innerJoin(lists, and(eq(lists.id, shops.listId), isNull(lists.deletedAt)))
     .leftJoin(items, and(eq(items.shopId, shops.id), isNull(items.deletedAt)))
+    .leftJoin(photos, eq(photos.id, shops.photoId))
     .where(isNull(shops.deletedAt))
     .groupBy(shops.id)
     .orderBy(desc(shops.finishedAt), desc(shops.id));
@@ -82,6 +89,15 @@ export async function setShopTotal(shopId: string, totalMinor: number | null): P
     const shop = await readLiveRow("shops", shopId);
     await readLiveRow("lists", String(shop.list_id));
     return editRow("shops", shop, { totalMinor });
+  });
+}
+
+/** The receipt's photo on a finished shop, or with `null` taken off. */
+export async function setShopReceipt(shopId: string, change: NewPhoto | null): Promise<void> {
+  await writeRows(async () => {
+    const shop = await readLiveRow("shops", shopId);
+    await readLiveRow("lists", String(shop.list_id));
+    return editRow("shops", shop, await photoColumn(change));
   });
 }
 

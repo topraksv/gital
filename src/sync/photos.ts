@@ -18,8 +18,12 @@ const SIZES = [
   ["thumb", "thumb"],
 ] as const;
 
-/** The photos a live item or wish names. */
-const NAMED = "SELECT photo_id FROM items WHERE deleted_at IS NULL UNION SELECT photo_id FROM wishes WHERE deleted_at IS NULL";
+/** The photos a live item, wish or shop's receipt names. */
+const NAMED = [
+  "SELECT photo_id FROM items WHERE deleted_at IS NULL",
+  "SELECT photo_id FROM wishes WHERE deleted_at IS NULL",
+  "SELECT photo_id FROM shops WHERE deleted_at IS NULL",
+].join(" UNION ");
 
 /** Photos Storage answered for with no file, not asked again until the next launch. */
 const unavailable = new Set<string>();

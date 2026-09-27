@@ -6,11 +6,12 @@ import ReceiptTurkishLira from "lucide-react-native/icons/receipt-turkish-lira";
 
 import { useShopItems, useShops } from "../../data/hooks";
 import { addEntries, type Item } from "../../data/items";
-import { setShopTotal, type Shop } from "../../data/shops";
+import { setShopReceipt, setShopTotal, type Shop } from "../../data/shops";
 import { formatMinorInput, readPrice } from "../../domain/money";
 import { tr } from "../../i18n/tr";
 import { ArrivalScope, Button, CheckMark, IconButton, ItemLabel, ReadFailed, Screen, SlideUp, cardEdge } from "../../ui/components";
 import { PriceField } from "../../ui/calculator";
+import { PhotoField } from "../../ui/photo-field";
 import { Actions, DialogShell, appError } from "../../ui/dialog";
 import { useModalAccessibility } from "../../ui/accessibility";
 import { selectionTap } from "../../ui/haptics";
@@ -58,6 +59,17 @@ export default function ShopScreen() {
               </SlideUp>
             ))}
           </View>
+          {/* Written as it is chosen: a receipt has no panel whose save could wait for it. */}
+          <PhotoField
+            title={tr.history.receipt}
+            name={tr.history.receiptOf(shop.listName)}
+            photoId={shop.receiptId}
+            thumb={shop.receipt}
+            value={undefined}
+            onChange={(change) => {
+              if (change !== undefined) setShopReceipt(shop.id, change).catch(() => appError(tr.errors.saveFailed));
+            }}
+          />
         </ArrivalScope>
       ) : null}
     </Screen>

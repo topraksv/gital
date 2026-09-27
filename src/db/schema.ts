@@ -115,6 +115,8 @@ export const shops = sqliteTable(
     finishedAt: text("finished_at").notNull(),
     /** The receipt's total in kuruş, typed over the sum of its prices; `null` is that sum (SPEC 3.8). */
     totalMinor: integer("total_minor"),
+    /** The receipt's photo (the owner asked 2026-09-27), in `photos`. */
+    photoId: text("photo_id"),
   },
   (t) => [index("idx_shops_list_id").on(t.listId)],
 );

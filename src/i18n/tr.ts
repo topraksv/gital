@@ -321,6 +321,8 @@ export const tr = {
     deleteWish: (name: string) => `${name} isteğini sil`,
   },
   history: {
+    receipt: "Fiş",
+    receiptOf: (list: string) => `${list} alışverişinin fişi`,
     emptyTitle: "Henüz biten alışveriş yok",
     emptyHint: "Sepete attıklarını “Alışverişi Bitir” ile buraya taşı. Her birini tek dokunuşla listesine geri ekleyebilirsin.",
     /** A shop's card and the line above what it bought; the count never parts from its noun. */

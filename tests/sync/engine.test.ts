@@ -29,7 +29,7 @@ const { addEntries, addScanned, deleteItem, readItems, toggleChecked } = await i
 const { createList, editList, readLists } = await import("../../src/data/lists");
 const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry } = await import("../../src/data/pantry");
-const { finishShop, readShops, reopenShop } = await import("../../src/data/shops");
+const { finishShop, readShops, reopenShop, setShopReceipt } = await import("../../src/data/shops");
 const { countDataReset, resetData } = await import("../../src/data/reset");
 const { readPhoto } = await import("../../src/data/photos");
 const { isFrozen, memberNameOf, readSettings, setAccountFrozen, setMemberName } = await import("../../src/data/settings");
@@ -963,6 +963,25 @@ describe("photos", () => {
       expect(cloud.rows("items")).toEqual([]);
       expect(await sync()).toBe(true);
       expect(cloud.rows("items")).toHaveLength(1);
+    });
+  });
+
+  it("sends a shop's receipt before the shop, and the other device fetches it", async () => {
+    const { shopId, photoId } = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await toggleChecked(item!);
+      await finishShop(id);
+      const [shop] = await readShops();
+      await setShopReceipt(shop!.id, { data: JPEG, thumb: JPEG });
+      await sync();
+      return { shopId: shop!.id, photoId: (await readShops())[0]!.receiptId! };
+    });
+    expect(cloud.requests.lastIndexOf(`upload ${photoId}/full.jpg`)).toBeLessThan(cloud.requests.lastIndexOf("upsert shops"));
+
+    await on("B", async () => {
+      await sync();
+      expect(await readPhoto(photoId), `${shopId}'s receipt arrives`).toBe(JPEG);
     });
   });
 

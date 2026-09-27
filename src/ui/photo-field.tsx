@@ -36,12 +36,14 @@ function useStored(photoId: string | null | undefined, thumb: string | null | un
 }
 
 export function PhotoField({
+  title = tr.photos.title,
   name,
   photoId,
   thumb,
   value,
   onChange,
 }: {
+  title?: string;
   name: string;
   /** Optional, as a `ShownItem`'s are. */
   photoId?: string | null;
@@ -66,7 +68,7 @@ export function PhotoField({
       );
   return (
     <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
-      <Body>{tr.photos.title}</Body>
+      <Body>{title}</Body>
       {shown ? (
         <Image
           source={{ uri: shown }}

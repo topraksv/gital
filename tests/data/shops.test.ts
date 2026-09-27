@@ -25,7 +25,8 @@ const { addEntries, deleteItem, readItems, readShopItems, toggleChecked, updateI
 const { parseEntry } = await import("../../src/domain/items");
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
-const { finishShop, readPricedSince, readPurchases, readShops, reopenShop, setShopTotal } = await import("../../src/data/shops");
+const { finishShop, readPricedSince, readPurchases, readShops, reopenShop, setShopReceipt, setShopTotal } = await import("../../src/data/shops");
+const { readPhoto } = await import("../../src/data/photos");
 const { createList, deleteList, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { migratedDatabase } = await import("../helpers");
@@ -86,7 +87,7 @@ describe("finishShop", () => {
       { name: "Süt", quantityMilli: 2000, checkedAt: T0.toISOString() },
     ]);
     expect(await readShops()).toEqual([
-      { id: shop!.id, listId, listName: "Market", color: null, icon: "cart", finishedAt: new Date(T0.getTime() + 60_000).toISOString(), bought: 2, spentMinor: null },
+      { id: shop!.id, listId, listName: "Market", color: null, icon: "cart", finishedAt: new Date(T0.getTime() + 60_000).toISOString(), bought: 2, spentMinor: null, receiptId: null, receipt: null },
     ]);
   });
 
@@ -264,6 +265,30 @@ describe("a shop's total corrected to the receipt", () => {
     for (const total of [-1, 0.5, Number.NaN]) await expect(setShopTotal(shopId, total), String(total)).rejects.toThrow();
     await reopenShop(shopId);
     await expect(setShopTotal(shopId, 100)).rejects.toThrow();
+  });
+});
+
+// The receipt's photo on a finished shop (the owner asked 2026-09-27).
+describe("a shop's receipt", () => {
+  const shot = { data: "data:image/jpeg;base64,full", thumb: "data:image/jpeg;base64,thumb" };
+
+  it("is kept on the shop, shown by its thumbnail, opened full, and taken off again", async () => {
+    await shopFor("süt", ["Süt"]);
+    const shopId = await finish();
+    await setShopReceipt(shopId, shot);
+    const [shop] = await readShops();
+    expect(shop).toMatchObject({ receipt: shot.thumb });
+    expect(await readPhoto(shop!.receiptId!)).toBe(shot.data);
+    await setShopReceipt(shopId, null);
+    expect(await readShops()).toMatchObject([{ receiptId: null, receipt: null }]);
+  });
+
+  it("refuses what the app did not encode, and a shop that is gone", async () => {
+    await shopFor("süt", ["Süt"]);
+    const shopId = await finish();
+    await expect(setShopReceipt(shopId, { data: "https://x/y.jpg", thumb: "x" })).rejects.toThrow();
+    await reopenShop(shopId);
+    await expect(setShopReceipt(shopId, shot)).rejects.toThrow();
   });
 });
 
