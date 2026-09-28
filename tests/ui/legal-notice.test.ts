@@ -107,3 +107,50 @@ describe("the privacy notice", () => {
     expect(tr.legal.contactBody(tr.legal.contactEmail)).toMatch(/Kişisel Verileri Koruma Kurulu/);
   });
 });
+
+/**
+ * Apple's declaration (Helix's test of the same name) and the KVKK notice are
+ * one set of facts in two files, the pair that drifts: a new collection lands
+ * in one and the other becomes a false statement.
+ */
+describe("the privacy manifest", () => {
+  const manifest = JSON.parse(read("app.json")).expo.ios.privacyManifests;
+
+  it("declares no tracking, as an app with no analytics", () => {
+    expect(manifest.NSPrivacyTracking).toBe(false);
+    expect(manifest.NSPrivacyTrackingDomains).toEqual([]);
+  });
+
+  it("marks every collected type as linked, never tracking, for the app's own use", () => {
+    // Every synced row carries the account id, so "not linked" would be false.
+    for (const entry of manifest.NSPrivacyCollectedDataTypes) {
+      expect(entry.NSPrivacyCollectedDataTypeLinked, entry.NSPrivacyCollectedDataType).toBe(true);
+      expect(entry.NSPrivacyCollectedDataTypeTracking, entry.NSPrivacyCollectedDataType).toBe(false);
+      expect(entry.NSPrivacyCollectedDataTypePurposes).toEqual(["NSPrivacyCollectedDataTypePurposeAppFunctionality"]);
+    }
+  });
+
+  it("declares the same collection the notice describes", () => {
+    const declared = new Set<string>(manifest.NSPrivacyCollectedDataTypes.map((e: { NSPrivacyCollectedDataType: string }) => e.NSPrivacyCollectedDataType));
+    const notice = tr.legal.collected.join(" ");
+    for (const [type, described] of [
+      ["NSPrivacyCollectedDataTypeEmailAddress", /E-posta adresiniz/],
+      ["NSPrivacyCollectedDataTypeName", /görünen adınız/],
+      ["NSPrivacyCollectedDataTypeOtherUserContent", /Alışveriş verisi/],
+      ["NSPrivacyCollectedDataTypePhotosorVideos", /fotoğraflar/],
+      ["NSPrivacyCollectedDataTypeCustomerSupport", /[Gg]eri bildirim/],
+    ] as const) {
+      expect(declared.has(type), `${type} must be declared to Apple`).toBe(true);
+      expect(notice, `${type} must also be described in the notice`).toMatch(described);
+    }
+    expect(declared.size, "a type declared to Apple and not in Turkish would slip past the rows above").toBe(5);
+  });
+
+  it("declares only the required-reason API the app's own binary drives", () => {
+    // The bundled libraries that touch these APIs ship their own manifests;
+    // SQLite stats the database file and `expo-sqlite` carries none (Helix).
+    expect(manifest.NSPrivacyAccessedAPITypes).toEqual([
+      { NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryFileTimestamp", NSPrivacyAccessedAPITypeReasons: ["C617.1"] },
+    ]);
+  });
+});
