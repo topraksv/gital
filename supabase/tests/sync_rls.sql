@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(51);
+select extensions.plan(52);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -157,8 +157,8 @@ select is((select count(*) from public.items), 0::bigint, 'B sees no item of A''
 select is((select count(*) from public.shops), 0::bigint, 'B sees no shop of A''s');
 select is((select count(*) from public.products), 0::bigint, 'B sees no product of A''s');
 select is((select count(*) from public.settings), 0::bigint, 'B sees no setting of A''s');
-select ok(not public.can_read_list('a0000000-0000-7000-8000-00000000000a'), 'B cannot read A''s list');
-select ok(not public.can_write_list('a0000000-0000-7000-8000-00000000000a'), 'B cannot write A''s list');
+select ok(not private.can_read_list('a0000000-0000-7000-8000-00000000000a'), 'B cannot read A''s list');
+select ok(not private.can_write_list('a0000000-0000-7000-8000-00000000000a'), 'B cannot write A''s list');
 select is(
   pg_temp.exec_sqlstate($$insert into public.items (id, list_id, name) values
     ('b2000000-0000-7000-8000-00000000000b', 'a0000000-0000-7000-8000-00000000000a', 'ekmek')$$),
@@ -256,6 +256,16 @@ select is((select count(*) from public.items where list_id = 'a0000000-0000-7000
 select is((select count(*) from public.products where user_id = '10000000-0000-4000-8000-000000000001'), 0::bigint, 'and its products');
 select is((select count(*) from public.settings where user_id = '10000000-0000-4000-8000-000000000001'), 0::bigint, 'and its settings');
 select is((select count(*) from public.products where user_id = '20000000-0000-4000-8000-000000000002'), 1::bigint, 'B''s product stays');
+
+-- Migration 11: the helpers RLS calls sit outside the API schema, so no
+-- request can call them by RPC to probe which lists exist.
+select is(
+  (select array_agg(proname::text order by proname) from pg_proc
+    where pronamespace = 'public'::regnamespace
+      and proname in ('can_read_list', 'can_write_list', 'is_list_owner', 'is_member_row')),
+  null,
+  'no RLS helper is callable through the API'
+);
 
 select * from extensions.finish();
 rollback;
