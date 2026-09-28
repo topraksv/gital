@@ -601,17 +601,21 @@ export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25
 export const photoPreview = { height: 220 } as const;
 
 /**
- * Gital's mark, the cart in flight: its ink tinted by the theme, its flames
- * flickering (`src/ui/brand.tsx`). `aspect` is the drawing's own width over
- * its height.
+ * The mark drawing itself (`src/ui/brand.tsx`), on the brand kit's timeline:
+ * the G is traced, then its leaf opens from the stem, swinging in by `leafTurn`
+ * degrees. Milliseconds from the first frame.
  */
 export const brandMark = {
-  aspect: 1.78,
-  flicker: 520,
-  flameScale: [0.92, 1.04],
-  flameOpacity: [0.8, 1],
-  flameDrift: -2,
-  rattle: -1.5,
+  draw: 900,
+  leafAt: 900,
+  leaf: 220,
+  leafTurn: 8,
+  /** The kit's own inks; only the G follows the palette. */
+  weave: "#C98D4C",
+  weaveShade: "#B87C40",
+  leafInk: "#8B9583",
+  /** What a mask shows through. */
+  reveal: "#FFFFFF",
 } as const;
 
 /**

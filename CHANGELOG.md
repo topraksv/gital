@@ -8,6 +8,14 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.3.0
+
+### Minor Changes
+
+- Yeni Gital işareti: sepet örgülü, yapraklı G. Uygulama simgesi, açılış ekranı, web simgeleri ve e-postalar bu işaretle geliyor.
+- Giriş ekranında işaret kendini çiziyor; "hareketi azalt" açıksa sabit duruyor.
+- Gital bağlantısı bir mesaja yapıştırılınca kendi kartıyla görünüyor.
+
 ## 1.2.3
 
 ### Patch Changes

@@ -1,55 +1,91 @@
 /**
- * Gital's mark, Helix's `BrandMark` with the motion the owner asked for
- * (2026-09-27, "alevli hareket eden market sepeti"): one drawing split in two
- * layers, so the flames flicker behind a cart that rattles on. The ink is a
- * mask tinted by the theme, so one picture serves light and dark. Decoration:
- * hidden from assistive technology on a wrapper, since an image drops the
- * props that would hide it. Reduced motion holds it still.
+ * Gital's mark, the woven G with its leaf, drawn as vectors so it is sharp at
+ * any size and can draw itself: the brand kit's timeline (2026-09-28) traces
+ * the G under a widening mask, then opens the leaf from its stem. Once the
+ * intro ends the mask is dropped, so the resting mark is the kit's exact
+ * drawing. The G takes the palette's accent, as the kit's petrol and servi
+ * marks do. Decoration: hidden from assistive technology on a wrapper, since
+ * an SVG drops the props that would hide it. Reduced motion draws it at rest.
  */
 
-import { useEffect, useState } from "react";
-import { Animated, Easing, Platform, View } from "react-native";
+import { useEffect, useId, useState } from "react";
+import { Easing, View } from "react-native";
+import Svg, { ClipPath, Defs, G, Mask, Path } from "react-native-svg";
 
+import { ASPECT, G as G_SHAPE, G_DRAW, G_DRAW_LENGTH, G_DRAW_WIDTH, LEAF, LEAF_PIVOT, LEAF_TRANSFORM, VIEW_BOX, WEAVE_DARK, WEAVE_LIGHT, WEAVE_OUTLINE } from "./brand-art";
 import { useReducedMotion } from "./motion";
-import { brandMark, useTheme } from "./theme";
+import { brandMark, PALETTES, useTheme } from "./theme";
 
-const INK = require("../../assets/brand/cart-ink.webp");
-const FLAMES = require("../../assets/brand/cart-flames.webp");
+const easeOut = Easing.bezier(0, 0, 0.58, 1);
+
+/**
+ * Milliseconds into the intro, or null once it is over. React state rather
+ * than an animated value: a mask's stroke is not a prop the native driver can
+ * reach, and a second of re-renders on one small tree costs nothing.
+ */
+function useIntro(duration: number): number | null {
+  const reducedMotion = useReducedMotion();
+  const [elapsed, setElapsed] = useState<number | null>(0);
+  useEffect(() => {
+    if (reducedMotion) return;
+    const start = Date.now();
+    let frame = 0;
+    const tick = () => {
+      const now = Date.now() - start;
+      if (now >= duration) return setElapsed(null);
+      setElapsed(now);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [reducedMotion, duration]);
+  return reducedMotion ? null : elapsed;
+}
 
 export function BrandMark({ height }: { height: number }) {
-  const { palette } = useTheme();
-  const reducedMotion = useReducedMotion();
-  const [flicker] = useState(() => new Animated.Value(1));
-  useEffect(() => {
-    if (reducedMotion) return void flicker.setValue(1);
-    const step = (toValue: number, share: number) =>
-      Animated.timing(flicker, { toValue, duration: brandMark.flicker * share, easing: Easing.inOut(Easing.sin), useNativeDriver: Platform.OS !== "web" });
-    // Uneven steps, so the fire never beats like a metronome.
-    const loop = Animated.loop(Animated.sequence([step(0, 1), step(0.7, 0.6), step(0.2, 0.5), step(1, 0.9)]));
-    loop.start();
-    return () => loop.stop();
-  }, [reducedMotion, flicker]);
-  const width = Math.round(height * brandMark.aspect);
-  const size = { position: "absolute" as const, width, height };
-  const between = (range: readonly [number, number]) => flicker.interpolate({ inputRange: [0, 1], outputRange: [...range] });
+  const { paletteId } = useTheme();
+  const elapsed = useIntro(brandMark.leafAt + brandMark.leaf);
+  // `useId` answers with colons, which a `url(#…)` reference cannot hold.
+  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const progress = (start: number, duration: number) => (elapsed === null ? 1 : easeOut(Math.min(1, Math.max(0, (elapsed - start) / duration))));
+  const drawn = progress(0, brandMark.draw);
+  const leaf = progress(brandMark.leafAt, brandMark.leaf);
+  const [x, y] = LEAF_PIVOT;
+  const width = Math.round(height * ASPECT);
   return (
     <View aria-hidden accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={{ width, height }}>
-      <Animated.Image
-        source={FLAMES}
-        resizeMode="contain"
-        style={{
-          ...size,
-          opacity: between(brandMark.flameOpacity),
-          // Grown from the cart, where the fire starts, not from its tip.
-          transformOrigin: "right",
-          transform: [{ translateX: between([brandMark.flameDrift, 0]) }, { scaleX: between(brandMark.flameScale) }],
-        }}
-      />
-      <Animated.Image
-        source={INK}
-        resizeMode="contain"
-        style={{ ...size, tintColor: palette.textStrong, transform: [{ translateY: between([0, brandMark.rattle]) }] }}
-      />
+      <Svg width={width} height={height} viewBox={VIEW_BOX}>
+        <Defs>
+          <ClipPath id={`${id}c`}>
+            <Path d={G_SHAPE} />
+          </ClipPath>
+          {elapsed !== null && (
+            <Mask id={`${id}m`}>
+              <Path
+                d={G_DRAW}
+                fill="none"
+                stroke={brandMark.reveal}
+                strokeWidth={G_DRAW_WIDTH}
+                strokeLinejoin="round"
+                strokeDasharray={[G_DRAW_LENGTH, G_DRAW_LENGTH]}
+                strokeDashoffset={G_DRAW_LENGTH * (1 - drawn)}
+              />
+            </Mask>
+          )}
+        </Defs>
+        <G mask={elapsed === null ? undefined : `url(#${id}m)`}>
+          <Path d={G_SHAPE} fill={PALETTES[paletteId].light.primary} fillRule="evenodd" />
+          <G clipPath={`url(#${id}c)`}>
+            <Path d={WEAVE_LIGHT} fill={brandMark.weave} stroke={brandMark.weave} strokeWidth={WEAVE_OUTLINE} strokeLinejoin="round" />
+            <Path d={WEAVE_DARK} fill={brandMark.weaveShade} stroke={brandMark.weaveShade} strokeWidth={WEAVE_OUTLINE} strokeLinejoin="round" />
+          </G>
+        </G>
+        {leaf > 0 && (
+          <G transform={`translate(${x} ${y}) rotate(${-brandMark.leafTurn * (1 - leaf)}) scale(${leaf}) translate(${-x} ${-y})`}>
+            <Path d={LEAF} fill={brandMark.leafInk} fillRule="evenodd" transform={LEAF_TRANSFORM} />
+          </G>
+        )}
+      </Svg>
     </View>
   );
 }

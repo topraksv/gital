@@ -30,6 +30,12 @@ const REGISTER_WORKER = [
 
 const { light, dark } = PALETTES[DEFAULT_PALETTE_ID];
 
+// Where the export is published, and the card a pasted link becomes: Helix's,
+// served from `public/` because Expo renames what it copies from `assets/`.
+// JPEG, since the card is flat colour and a crawler is its only reader.
+const SITE_URL = "https://topraksv.github.io/gital/";
+const OG_IMAGE = "og-cover.jpg";
+
 /**
  * The web shell. The export is one static document for every visitor, so it
  * cannot know the stored palette or the system's scheme; the script paints the
@@ -49,6 +55,17 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="referrer" content="no-referrer" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
         <title>{tr.meta.title}</title>
+        <meta name="description" content={tr.meta.social} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Gital" />
+        <meta property="og:locale" content="tr_TR" />
+        <meta property="og:title" content={tr.meta.title} />
+        <meta property="og:description" content={tr.meta.social} />
+        <meta property="og:url" content={SITE_URL} />
+        <meta property="og:image" content={`${SITE_URL}${OG_IMAGE}`} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
         {/* Installing to the home screen (SPEC 11.4). The browser's chrome
             takes the default palette's ground per scheme on the first paint;
             the root layout then writes the chosen palette's over both. */}

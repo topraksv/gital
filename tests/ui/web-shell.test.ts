@@ -31,7 +31,13 @@ describe("the installed web app", () => {
   });
 
   it("has the icons it declares, at the sizes it declares", () => {
-    expect(manifest.icons.map((icon: { sizes: string }) => icon.sizes)).toEqual(["192x192", "512x512"]);
+    // The maskable one is its own drawing, with the mark inside the safe zone
+    // a launcher's mask never cuts; the plain ones would lose the leaf to it.
+    expect(manifest.icons.map((icon: { sizes: string; purpose: string }) => `${icon.sizes} ${icon.purpose}`)).toEqual([
+      "192x192 any",
+      "512x512 any",
+      "512x512 maskable",
+    ]);
     for (const icon of manifest.icons) {
       expect(icon.src.startsWith(base), icon.src).toBe(true);
       expect(pngSize(`public/${icon.src.slice(base.length)}`)).toBe(icon.sizes);
@@ -44,6 +50,16 @@ describe("the installed web app", () => {
     expect(shell).toContain(`register("${base}sw.js",{scope:"${base}"})`);
     expect(shell).toContain(`href="${base}manifest.webmanifest"`);
     expect(read("public/sw.js")).toContain(`const SHELL = "${base}index.html";`);
+  });
+
+  it("gives a pasted link the brand's card, served under the base by the name it is published as", () => {
+    const shell = read("src/app/+html.tsx");
+    expect(shell).toContain(`const SITE_URL = "https://topraksv.github.io${base}";`);
+    expect(shell).toContain(`const OG_IMAGE = "og-cover.jpg";`);
+    const card = readFileSync(join(root, "public/og-cover.jpg"));
+    // JPEG's SOF0 marker carries height then width.
+    const sof = card.indexOf(Buffer.from([0xff, 0xc0]));
+    expect(`${card.readUInt16BE(sof + 7)}x${card.readUInt16BE(sof + 5)}`).toBe("1200x630");
   });
 });
 

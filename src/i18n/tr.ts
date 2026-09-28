@@ -34,7 +34,7 @@ function basketProgress(done: number, total: number): string {
 
 export const tr = {
   /** The browser tab, the search result and a shared link's headline: what Gital is for, not its name alone (Helix's reasoning). */
-  meta: { title: "Gital · Ne eksik?" },
+  meta: { title: "Gital · Ne eksik?", social: "Evin alışveriş listesi, hafızası ve istekleri tek yerde." },
   /**
    * Helix's rotating examples (`src/ui/placeholders.ts`): each pool is written
    * WITHOUT a prefix, and `example` adds the one "Ör." the app uses, so no

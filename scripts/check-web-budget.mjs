@@ -20,12 +20,14 @@ import { join, relative } from "node:path";
 // each of the export's pages; pictures 324_522 on the catalogue, then
 // 341_284 with the brand mark's two layers (16_762, 2026-09-27). The Realtime
 // transport is a chunk of its own (67 KB), loaded only by someone sharing a
-// list. `docs/HEALTH.md` traces the growth.
+// list. 2026-09-28, the brand kit: the export 4_337_449, grown by the social
+// card, the maskable icon, the mail's mark and the card's tags on every page.
+// `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
   entryJs: 2_249_600,
   totalJs: 2_479_600,
-  totalExport: 4_321_400,
-  pictures: 344_700,
+  totalExport: 4_380_800,
+  pictures: 328_000,
 };
 
 // Pictures are WebP and nothing else is (SPEC 14.1), so they are weighed apart:
