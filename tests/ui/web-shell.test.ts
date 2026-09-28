@@ -63,12 +63,37 @@ describe("the installed web app", () => {
   });
 });
 
-/** The worker's own `prunable`, run outside a browser: nothing else in it runs on load. */
-function workerPrunable(): (paths: string[]) => string[] {
+/** The worker's own functions, run outside a browser: nothing else in it runs on load. */
+function worker(): Record<string, unknown> {
   const context: Record<string, unknown> = { self: { addEventListener: () => {} } };
   runInNewContext(read("public/sw.js"), context);
-  return context.prunable as (paths: string[]) => string[];
+  return context;
 }
+const workerPrunable = () => worker().prunable as (paths: string[]) => string[];
+
+describe("the web database", () => {
+  // Helix shares the topraksv.github.io origin, and expo-sqlite's pool locks
+  // every file in its folder: in one folder, whichever app opened first locked
+  // the other out (reproduced 2026-09-28 with both exports on one origin).
+  it("lives in a folder of Gital's own, not the one Helix's pool locks", () => {
+    expect(JSON.parse(read("package.json")).scripts.postinstall).toBe("node scripts/patch-dependencies.mjs");
+    const worker = read("node_modules/expo-sqlite/web/worker.ts");
+    expect(worker).toContain("const VFS_NAME_PERSISTENT = 'gital-sqlite';");
+  });
+});
+
+describe("the offline worker's cache-first rule", () => {
+  // A file whose name never changes, served cache-first, is the first copy
+  // forever: the old mark's favicon outlived the new one's deploy (2026-09-28).
+  it("serves from the cache first only what a build names by its content", () => {
+    const hashed = worker().hashed as (path: string) => boolean;
+    expect(hashed(`${base}_expo/static/js/web/entry-0f1e2d3c4b5a69788796a5b4c3d2e1f0.js`)).toBe(true);
+    expect(hashed(`${base}assets/assets/fonts/Inter_600SemiBold.01a8a409ba37ab3934865fbb212fb2c9.ttf`)).toBe(true);
+    for (const path of ["favicon.ico", "icons/icon-192.png", "icons/email-mark.png", "manifest.webmanifest", "og-cover.jpg"]) {
+      expect(hashed(`${base}${path}`), path).toBe(false);
+    }
+  });
+});
 
 describe("the offline worker's prune", () => {
   const code = (n: number) => Array.from({ length: n }, (_, i) => `${base}_expo/static/js/web/entry-${i}.js`);

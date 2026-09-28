@@ -7,13 +7,17 @@
  *   - Navigations (HTML): network-first, fall back to the cached shell only
  *     when offline. Online always gets the freshly deployed HTML, so OTA-style
  *     Pages deploys land immediately.
- *   - Same-origin static assets (JS/CSS/fonts/images): cache-first. Expo
- *     content-hashes these filenames, so a new build has new names — the cache
- *     can't shadow an update.
+ *   - Same-origin files Expo names by their content (`hashed`): cache-first.
+ *     A new build has new names, so the cache can't shadow an update.
+ *   - Every other same-origin file (favicon, icons, manifest, social card):
+ *     network-first, the cache only offline. Their names never change, so
+ *     cache-first kept the first copy forever — the old mark's favicon outlived
+ *     the new one's deploy (2026-09-28).
  *   - Cross-origin (Supabase, a product page's picture): never intercepted or cached.
  */
 // Bump the version when the strategy changes; `activate` drops every other cache.
-const CACHE = "gital-v1";
+// v2 drops the icons v1 cached for good.
+const CACHE = "gital-v2";
 // Absolute so the offline fallback matches regardless of the navigated path
 // (a relative "./index.html" resolved against the request, not the shell).
 const SHELL = "/gital/index.html";
@@ -25,6 +29,11 @@ const SHELL = "/gital/index.html";
 const CODE_CAP = 120;
 const MEDIA_CAP = 400;
 const MEDIA = /\.(webp|png|jpe?g|svg|ttf|otf|woff2?)$/i;
+
+/** A path a build names by its content, which can be served from the cache without asking. */
+function hashed(path) {
+  return path.includes("/_expo/static/") || /\.[0-9a-f]{32}\.[a-z0-9]+$/i.test(path);
+}
 
 /** The cached paths to drop: each kind whole, once it passes its own cap. */
 function prunable(paths) {
@@ -84,6 +93,21 @@ self.addEventListener("fetch", (event) => {
             new Response("<!doctype html><meta charset=utf-8><title>Gital</title>", { headers: { "Content-Type": "text/html" } })
           );
         }),
+    );
+    return;
+  }
+
+  if (!hashed(url.pathname)) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(async () => (await caches.match(req)) || Response.error()),
     );
     return;
   }

@@ -26,6 +26,8 @@ export const CI_EXECUTED_SCRIPTS = [
   "scripts/check-mutation-ratchet.mjs",
   "scripts/export-e2e-web.mjs",
   "scripts/check-published.mjs",
+  // Run by `npm ci` as `postinstall`: it rewrites what every gate builds.
+  "scripts/patch-dependencies.mjs",
   "scripts/check-web-budget.mjs",
   "scripts/classify-changes.mjs",
   // Started by `playwright.config.ts`, not by a `run:`.
