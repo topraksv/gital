@@ -114,6 +114,7 @@ export function DialogShell({
   message,
   titleRef,
   onDismiss,
+  dirty,
   lead,
   action,
   children,
@@ -126,6 +127,8 @@ export function DialogShell({
   lead?: ReactNode;
   titleRef: RefObject<View | null>;
   onDismiss: () => void;
+  /** A panel holding an unsaved draft: its `onDismiss` asks first, so a drag springs home rather than leaving. */
+  dirty?: boolean;
   children: ReactNode;
 }) {
   const { palette } = useTheme();
@@ -135,7 +138,7 @@ export function DialogShell({
   const asSheet = shouldPresentAsSheet(width);
   // A sheet goes down by its handle and title, not by its body, whose own
   // fields and lists take a vertical drag first.
-  const { dragY, panHandlers } = useDragAway(dialog.dragAway, height, onDismiss);
+  const { dragY, panHandlers } = useDragAway(dialog.dragAway, height, onDismiss, dirty);
   const surface = [
     {
       backgroundColor: palette.surface,

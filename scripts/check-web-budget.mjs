@@ -22,10 +22,12 @@ import { join, relative } from "node:path";
 // transport is a chunk of its own (67 KB), loaded only by someone sharing a
 // list. 2026-09-28, the brand kit: the export 4_337_449, grown by the social
 // card, the maskable icon, the mail's mark and the card's tags on every page.
+// 2026-09-28, the error screen and the draft guard: all JS 2_484_430, entry
+// 2_246_164, 5_986 bytes of Gital's own code and no new library.
 // `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 2_249_600,
-  totalJs: 2_479_600,
+  entryJs: 2_268_700,
+  totalJs: 2_509_300,
   totalExport: 4_380_800,
   pictures: 328_000,
 };

@@ -96,6 +96,15 @@ export const tr = {
     undoFailed: "Geri alınamadı. Lütfen tekrar dene.",
     shareFailed: "Paylaşılamadı. Lütfen tekrar dene.",
     openFailed: "Açılamadı. İnternete bağlanıp tekrar dene.",
+    /** Helix's words for a screen that threw while drawing. */
+    appCrashed: "Beklenmeyen bir sorun oluştu.",
+    appCrashedHint: "Gital bu ekranı gösteremedi. Yeniden dene; sorun sürerse uygulamayı kapatıp aç.",
+  },
+  /** Helix's `forms`: leaving a form with a draft that was not saved. */
+  forms: {
+    discardTitle: "Kaydedilmemiş değişiklikler var",
+    discardBody: "Şimdi çıkarsan yaptığın değişiklikler kaybolacak.",
+    discardAction: "Değişiklikleri sil",
   },
   tabs: {
     lists: "Listeler",

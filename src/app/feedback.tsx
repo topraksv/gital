@@ -17,6 +17,7 @@ import { FEEDBACK_CATEGORIES, FEEDBACK_MESSAGE_MAX, FEEDBACK_MESSAGE_MIN, MAX_FE
 import { tr } from "../i18n/tr";
 import { sendFeedback, type FeedbackResult } from "../services/feedback";
 import { Body, Button, ChoiceTile, FieldError, IconButton, Notice, Screen, SectionHeader, TextField, rowsOf } from "../ui/components";
+import { useDirtyExitGuard } from "../ui/dirty-exit";
 import { radioGroupKeys } from "../ui/keys";
 import { navigateBack } from "../ui/navigation";
 import { controlSize, radius, screenshot, spacing, useTheme } from "../ui/theme";
@@ -42,6 +43,7 @@ export default function FeedbackScreen() {
   const [attempted, setAttempted] = useState(false);
   const rejection = feedbackMessageRejection(message);
   const full = images.length >= MAX_FEEDBACK_IMAGES;
+  const { allowExit } = useDirtyExitGuard(message.trim() !== "" || images.length > 0 || category !== "functional");
 
   const pick = async () => {
     setRefusal(null);
@@ -62,7 +64,7 @@ export default function FeedbackScreen() {
     setBusy(false);
     if (result !== "sent") return setRefusal(REFUSED[result]);
     showNotice(tr.feedback.sent);
-    navigateBack(router, "/settings");
+    allowExit(() => navigateBack(router, "/settings"));
   };
 
   return (

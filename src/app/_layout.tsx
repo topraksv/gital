@@ -32,6 +32,7 @@ import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, spacing, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
 import { CelebrationHost } from "../ui/celebration";
+import { ErrorBoundary } from "../ui/error-boundary";
 import { OperationWait } from "../ui/operation-wait";
 import { PageReaderHost, readLinkPages } from "../ui/page-reader";
 import { clearUndo, UndoSnackbar } from "../ui/undo";
@@ -185,7 +186,9 @@ export default function RootLayout() {
                 />
               </View>
             ) : (
-              <Routes background={theme.palette.background} />
+              <ErrorBoundary>
+                <Routes background={theme.palette.background} />
+              </ErrorBoundary>
             )}
             <StatusBar style={scheme === "dark" ? "light" : "dark"} />
             <CelebrationHost />

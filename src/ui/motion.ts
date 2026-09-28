@@ -157,7 +157,8 @@ const DRAG_CLAIM = 6;
  * Past `distance`, or on a flick, it leaves by `travel` and `onGone` runs; short
  * of it, it springs home. Downward only, since up is where it came from.
  */
-export function useDragAway(distance: number, travel: number, onGone: () => void): { dragY: Animated.Value; panHandlers: GestureResponderHandlers } {
+/** `held`: a surface that asks before it goes (a dirty draft) springs home and asks, rather than leaving off-screen. */
+export function useDragAway(distance: number, travel: number, onGone: () => void, held = false): { dragY: Animated.Value; panHandlers: GestureResponderHandlers } {
   const [dragY] = useState(() => new Animated.Value(0));
   // A new responder drops the gesture in flight, so it is rebuilt only when
   // an argument changes. A drag re-renders nothing, so a caller's inline
@@ -175,11 +176,15 @@ export function useDragAway(distance: number, travel: number, onGone: () => void
       onPanResponderTerminationRequest: () => false,
       onPanResponderRelease: (_event, gesture) => {
         if (gesture.dy <= distance && gesture.vy <= FLICK_VELOCITY) return springHome();
+        if (held) {
+          springHome();
+          return onGone();
+        }
         if (isReducedMotion()) return onGone();
         Animated.timing(dragY, { toValue: travel, duration: motion.feedback, useNativeDriver: Platform.OS !== "web" }).start(onGone);
       },
       onPanResponderTerminate: springHome,
     });
-  }, [dragY, distance, travel, onGone]);
+  }, [dragY, distance, travel, onGone, held]);
   return { dragY, panHandlers };
 }

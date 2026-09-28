@@ -17,6 +17,7 @@ import { Body, Button, TextField, Tile, ToggleRow, radioChoice, rowsOf } from ".
 import { Actions, DialogShell } from "./dialog";
 import { borderWidth, circle, iconSize, iconStroke, listSheet, spacing, tileRadius, useTheme } from "./theme";
 import { Press } from "./press";
+import { confirmDiscard, useDraftDirty } from "./dirty-exit";
 import { radioGroupKeys } from "./keys";
 
 // The ring and a gap as wide as it, inside the cell.
@@ -39,9 +40,11 @@ export function ListSheet({
   const [pantry, setPantry] = useState(list.pantry);
   const ready = name.trim() !== "";
   const save = () => ready && onSave({ name, color, icon, pantry });
+  const dirty = useDraftDirty(JSON.stringify({ name, color, icon, pantry }));
+  const close = () => confirmDiscard(dirty, onClose);
 
   return (
-    <DialogShell title={list.name} titleRef={titleRef} onDismiss={onClose}>
+    <DialogShell title={list.name} titleRef={titleRef} onDismiss={close} dirty={dirty}>
       <TextField
         value={name}
         maxLength={NAME_MAX}
@@ -82,7 +85,7 @@ export function ListSheet({
         </View>
       ) : null}
       <Actions>
-        <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={onClose} />
+        <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={close} />
         <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
       </Actions>
     </DialogShell>

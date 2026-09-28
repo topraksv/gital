@@ -28,6 +28,7 @@ import { AisleChip } from "./catalogue-sheet";
 import { PriceLine } from "./charts";
 import { Body, Button, ChoiceTile, IconButton, TextField, ToggleRow, rowsOf, type ShownItem } from "./components";
 import { Actions, DialogShell, appError } from "./dialog";
+import { confirmDiscard, useDraftDirty } from "./dirty-exit";
 import { selectionTap } from "./haptics";
 import { controlSize, itemPanel, spacing, type, useTheme } from "./theme";
 import { radioGroupKeys } from "./keys";
@@ -101,6 +102,9 @@ export function ItemSheet({
     );
   };
   const submits = { returnKeyType: "done", onSubmitEditing: save } as const;
+  // The star is not here: it is written the moment it is pressed.
+  const dirty = useDraftDirty(JSON.stringify({ aisle, name, note, quantity, urgent, notFound, instead, price, photo: photo !== undefined, destination, keep }));
+  const close = () => confirmDiscard(dirty, onClose);
   const step = (next: typeof less) => {
     if (!next) return;
     selectionTap();
@@ -111,7 +115,8 @@ export function ItemSheet({
     <DialogShell
       title={item.name}
       titleRef={titleRef}
-      onDismiss={onClose}
+      onDismiss={close}
+      dirty={dirty}
       action={<IconButton icon={Star} label={tr.items.favourite} on={starred} onPress={star} />}
     >
       <TextField
@@ -205,7 +210,7 @@ export function ItemSheet({
           <View style={{ flex: 1, alignItems: "flex-start" }}>
             <IconButton icon={Trash} label={tr.items.delete(item.name)} tone="danger" onPress={onDelete} />
           </View>
-          <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={onClose} />
+          <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={close} />
           <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
         </Actions>
       </PanelPart>

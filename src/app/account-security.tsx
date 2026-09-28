@@ -23,6 +23,7 @@ import { kv } from "../services/kv";
 import { isSupabaseConfigured } from "../sync/supabase";
 import { Body, Button, Card, Divider, ListRow, PanelHeader, Screen, TextField } from "../ui/components";
 import { appConfirm, appError, appPrompt } from "../ui/dialog";
+import { useDirtyExitGuard } from "../ui/dirty-exit";
 import { spacing, type, useTheme } from "../ui/theme";
 import { showNotice } from "../ui/undo";
 
@@ -40,6 +41,8 @@ function CloudAccountSecurity() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState<"email" | "password" | "reset" | "freeze" | "delete" | null>(null);
+  // A save clears its fields, so only a draft still typed asks before leaving.
+  useDirtyExitGuard([newEmail, emailPassword, currentPassword, newPassword].some(Boolean));
   const settings = useSettings();
   const [device, setDevice] = useState<string | null>(null);
   useEffect(() => void deviceId(kv).then(setDevice, () => {}), []);

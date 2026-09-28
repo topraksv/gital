@@ -24,6 +24,7 @@ import { DateField } from "./calendar";
 import { PriceField } from "./calculator";
 import { Body, Button, ChoiceTile, IconButton, TextField, cardEdge } from "./components";
 import { Actions, DialogShell } from "./dialog";
+import { confirmDiscard, useDraftDirty } from "./dirty-exit";
 import { selectionTap } from "./haptics";
 import { PhotoField } from "./photo-field";
 import { controlSize, font, spacing, type, useTheme } from "./theme";
@@ -77,6 +78,8 @@ export function WishSheet({
       photo,
     });
   const submits = { returnKeyType: "done", onSubmitEditing: save } as const;
+  const dirty = useDraftDirty(JSON.stringify({ name, note, priority, estimate, links, typedLink, photo: photo !== undefined, dueOn }));
+  const close = () => confirmDiscard(dirty, onClose);
 
   const addLink = () => {
     const url = linkFrom(typedLink);
@@ -88,7 +91,7 @@ export function WishSheet({
   };
 
   return (
-    <DialogShell title={wish.name} titleRef={titleRef} onDismiss={onClose}>
+    <DialogShell title={wish.name} titleRef={titleRef} onDismiss={close} dirty={dirty}>
       <TextField value={name} maxLength={NAME_MAX} onChangeText={setName} accessibilityLabel={tr.wishes.nameLabel} {...submits} style={{ marginTop: spacing.lg }} />
       <TextField
         value={note}
@@ -185,7 +188,7 @@ export function WishSheet({
         <View style={{ flex: 1, alignItems: "flex-start" }}>
           <IconButton icon={Trash} label={tr.wishes.deleteWish(wish.name)} tone="danger" onPress={onDelete} />
         </View>
-        <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={onClose} />
+        <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={close} />
         <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
       </Actions>
     </DialogShell>
