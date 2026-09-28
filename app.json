@@ -10,6 +10,9 @@
     "ios": {
       "bundleIdentifier": "com.toprak.gital",
       "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "privacyManifests": {
         "NSPrivacyTracking": false,
         "NSPrivacyTrackingDomains": [],

@@ -296,8 +296,8 @@ jobs:
       # with that version.
       - name: Install the pinned EAS CLI without the credential
         env:
-          npm_config_before: "2026-09-17"
-        run: npx --yes --ignore-scripts eas-cli@24.7.0 --version
+          npm_config_before: "2026-09-25"
+        run: npx --yes --ignore-scripts eas-cli@24.8.0 --version
       - name: Publish the Expo Go preview update
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -308,6 +308,6 @@ jobs:
             exit 1
           fi
           version=$(node -p "require('./app.json').expo.version")
-          npx --yes=false eas-cli@24.7.0 update --branch preview --environment preview --platform all --message "$version $GITHUB_SHA" --clear-cache --non-interactive --json > "$RUNNER_TEMP/eas-update.json"
+          npx --yes=false eas-cli@24.8.0 update --branch preview --environment preview --platform all --message "$version $GITHUB_SHA" --clear-cache --non-interactive --json > "$RUNNER_TEMP/eas-update.json"
       - name: Verify and record the published update
         run: node scripts/check-published.mjs ota "$RUNNER_TEMP/eas-update.json"

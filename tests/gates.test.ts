@@ -174,6 +174,23 @@ describe("check-published", () => {
     expect(new Set(used)).toEqual(new Set([wanted]));
   });
 
+  // `sdkVersion` is right for Expo Go only: it does not move when the native
+  // project does, so an update sent to a store binary could land on one that
+  // cannot run it. With no `updates.url` and no channel, expo-updates is off in
+  // a store build and it runs the bundle it shipped with (Expo SDK 57 docs), so
+  // the two share a repository safely. Giving a store build updates means
+  // `fingerprint` first, and this test fails until then.
+  it("builds a TestFlight binary that no Expo Go update can reach", () => {
+    const eas = JSON.parse(readFileSync(join(root, "eas.json"), "utf8"));
+    const app = JSON.parse(readFileSync(join(root, "app.json"), "utf8")).expo;
+    expect(eas.build.production).toMatchObject({ autoIncrement: true });
+    expect(eas.cli.appVersionSource).toBe("remote");
+    expect(Object.values(eas.build).filter((profile) => "channel" in (profile as object))).toEqual([]);
+    expect(app.updates).toBeUndefined();
+    expect(app.runtimeVersion).toEqual({ policy: "sdkVersion" });
+    expect(app.ios.config.usesNonExemptEncryption).toBe(false);
+  });
+
   it("reads the version of the object that carries the app's slug", () => {
     const bundle = String.raw`x={\"name\":\"lib\",\"version\":\"9.9.9\"};y="{\"name\":\"Gital\",\"slug\":\"gital\",\"version\":\"1.2.0\"}"`;
     expect(appVersionOf(bundle, "gital")).toBe("1.2.0");
