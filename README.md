@@ -14,7 +14,7 @@
 together in the aisle, a memory of what was bought before, a pantry, and a wish
 list fed by links and photos. iOS, Android and the web from one codebase.*
 
-<a href="https://topraksv.github.io/gital/"><img alt="Gital'i aç" src="https://img.shields.io/badge/Gital'i_aç-A55335?style=for-the-badge&logo=expo&logoColor=white"></a>
+<a href="https://topraksv.github.io/gital/"><img alt="Gital'ı aç" src="https://img.shields.io/badge/Gital'ı_aç-A55335?style=for-the-badge&logo=expo&logoColor=white"></a>
 
 [![ci](https://github.com/topraksv/gital/actions/workflows/ci.yml/badge.svg)](https://github.com/topraksv/gital/actions/workflows/ci.yml)
 [![sürüm](https://img.shields.io/github/v/release/topraksv/gital?label=s%C3%BCr%C3%BCm&color=A55335)](https://github.com/topraksv/gital/releases)
@@ -78,7 +78,7 @@ değil.
 <br>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/m-signin-dark.png">
-  <img src="assets/screenshots/m-signin-light.png" alt="Giriş: Gital'in işareti, Yaz · Al · Hatırla şeridi ve giriş formu" width="300">
+  <img src="assets/screenshots/m-signin-light.png" alt="Giriş: Gital'ın işareti, Yaz · Al · Hatırla şeridi ve giriş formu" width="300">
 </picture>
 </details>
 

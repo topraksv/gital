@@ -8,6 +8,13 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.2.3
+
+### Patch Changes
+
+- Uygulamanın adı Türkçe ekleri doğru alıyor: "Gital'a hoş geldin", "Gital'da", "Gital'ın".
+- Kayıt onayı ve e-posta değişikliği e-postaları, şifre yenilemedeki gibi Gital'ın kendi tasarımıyla gidiyor.
+
 ## 1.2.2
 
 ### Patch Changes
@@ -34,7 +41,7 @@ bölümü olmayan sürüm yayımlanamaz.
 - Biten bir alışverişin fişinin fotoğrafı, Geçmiş'teki sayfasından çekilip ya da seçilip saklanıyor; listenin her üyesi görüyor.
 - Giriş, çıkış, hesap dondurma ve silme sürerken Helix'teki gibi, işlemin adını ve kendi rengini taşıyan, nefes alan bir bekleme ekranı gösteriliyor.
 - Hesap ve Güvenlik'teki "Önceki giriş" satırı hangi cihazdan girildiğini de söylüyor ("iPhone · Safari", "bu cihaz"); hesabın bütün cihazları sayılıyor.
-- Gital'in kendi logosu var: alevler içinde hızla giden bir market arabası; uygulama simgesi, web simgeleri ve giriş ekranında alevleri kıpırdayan hâli.
+- Gital'ın kendi logosu var: alevler içinde hızla giden bir market arabası; uygulama simgesi, web simgeleri ve giriş ekranında alevleri kıpırdayan hâli.
 - Yeni bir liste adına göre resmini kendisi seçiyor: "Pazar" sebze, "Eczane" eczane; listenin panelinden yine değiştirilebiliyor.
 - İstek koleksiyonu açık istekleri önceliğe, en ucuza ya da en pahalıya göre sıralıyor.
 - Kiler bir liste gibi kullanılıyor: sürükleyerek sıralanıyor, mesajdan yapıştırılıyor, katalogdan ya da bir setten dolduruluyor, metin olarak paylaşılıyor ve bir ürün listeye gitmeden panelinden çıkarılabiliyor.

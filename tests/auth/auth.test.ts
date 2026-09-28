@@ -190,6 +190,20 @@ describe("the server's account settings", () => {
     expect(template).not.toMatch(/Helix/);
   });
 
+  // A confirmation and an e-mail change are confirmed by Auth's verify GET
+  // itself, whichever browser makes it; there is nothing for the app to redeem.
+  it.each([
+    ["confirmation", "{{ .Email }}"],
+    ["email_change", "{{ .NewEmail }}"],
+  ])("mails a %s link through Auth's own verify link, in Gital's own words", (kind, address) => {
+    expect(config).toMatch(new RegExp(`\\[auth\\.email\\.template\\.${kind}\\][\\s\\S]*?^content_path = "\\./supabase/templates/${kind}\\.html"$`, "m"));
+    const template = readFileSync(join(import.meta.dirname, `../../supabase/templates/${kind}.html`), "utf8");
+    expect(template).toContain('href="{{ .ConfirmationURL }}"');
+    expect(template).toContain(address);
+    expect(template).not.toContain("{{ .TokenHash }}");
+    expect(template).not.toMatch(/Helix|Gital'(e|i|in|de|den|le)\b/);
+  });
+
   it("lets a signed-in account delete itself and nothing else", () => {
     const sql = readFileSync(join(import.meta.dirname, "../../supabase/migrations/00000000000002_delete_own_account.sql"), "utf8");
     expect(sql).toMatch(/function public\.delete_own_account\(\)\s+returns void/);

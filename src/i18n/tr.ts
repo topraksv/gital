@@ -193,7 +193,7 @@ export const tr = {
       `${name} ürününü ekle, genelde ${everyDays === 1 ? "her gün" : `${everyDays} günde bir`} alınıyor`,
     paste: (list: string) => `${list} listesine metinden ekle`,
     pasteTitle: "Metinden ekle",
-    pasteMessage: "Bir listeyi yapıştır: her satır ya da virgül bir ürün. Gital’den paylaşılan bir listenin notları ve acilleri de gelir.",
+    pasteMessage: "Bir listeyi yapıştır: her satır ya da virgül bir ürün. Gital’dan paylaşılan bir listenin notları ve acilleri de gelir.",
     pastePlaceholder: "• 2 kg domates\n• süt (Pınar olsun)",
     pasted: (count: number) => `${count} ürün listeye eklendi`,
     pastedNothing: "Eklenecek yeni ürün yok",
@@ -217,7 +217,7 @@ export const tr = {
     library: "Galeriden seç",
     remove: "Fotoğrafı kaldır",
     of: (name: string) => `${name} fotoğrafı`,
-    denied: "Kamera izni verilmedi. Telefonun ayarlarından Gital'e kamera izni verebilirsin.",
+    denied: "Kamera izni verilmedi. Telefonun ayarlarından Gital'a kamera izni verebilirsin.",
     failed: "Fotoğraf alınamadı. Lütfen tekrar dene.",
   },
   calc: {
@@ -414,7 +414,7 @@ export const tr = {
   },
   auth: {
     /** The one greeting over all three forms, so the card does not move between them (Helix's). */
-    welcomeTitle: "Gital'e hoş geldin",
+    welcomeTitle: "Gital'a hoş geldin",
     welcomeBody: "Evin alışveriş listeleri, aldıklarının hafızası ve isteklerin tek yerde.",
     signInTitle: "Hesabına giriş yap",
     signInSubtitle: "E-posta adresin ve şifrenle listelerine gir.",
@@ -487,14 +487,14 @@ export const tr = {
     updated: "Son güncelleme: 27 Eylül 2026",
     controllerName: "Ömer Toprak Şavlı",
     contactEmail: "topraksavli@hotmail.com",
-    intro: "Bu metin, 6698 sayılı Kişisel Verilerin Korunması Kanunu'nun 10. maddesi uyarınca hazırlanmıştır. Gital'i kullandığınızda hangi kişisel verilerinizin, hangi amaçla ve hangi hukuki sebeple işlendiğini, kimlere aktarıldığını, ne kadar saklandığını ve Kanunun size tanıdığı hakları açıklar.",
+    intro: "Bu metin, 6698 sayılı Kişisel Verilerin Korunması Kanunu'nun 10. maddesi uyarınca hazırlanmıştır. Gital'ı kullandığınızda hangi kişisel verilerinizin, hangi amaçla ve hangi hukuki sebeple işlendiğini, kimlere aktarıldığını, ne kadar saklandığını ve Kanunun size tanıdığı hakları açıklar.",
 
     controllerTitle: "1. Veri sorumlusunun kimliği",
     controllerBody: (name: string, email: string) =>
-      `Veri sorumlusu, Gital'i geliştiren gerçek kişi ${name}'dir. Gital bir şirket bünyesinde yürütülmemektedir; bu nedenle veri sorumlusu temsilcisi bulunmamaktadır. Her türlü talep ve başvurunuz için: ${email}`,
+      `Veri sorumlusu, Gital'ı geliştiren gerçek kişi ${name}'dir. Gital bir şirket bünyesinde yürütülmemektedir; bu nedenle veri sorumlusu temsilcisi bulunmamaktadır. Her türlü talep ve başvurunuz için: ${email}`,
 
     collectedTitle: "2. İşlenen kişisel verileriniz",
-    collectedIntro: "Aşağıdakiler dışında hiçbir kişisel veri işlenmez. Gital'de reklam, analitik, davranış takibi veya hata kaydı toplayan hiçbir bileşen yoktur.",
+    collectedIntro: "Aşağıdakiler dışında hiçbir kişisel veri işlenmez. Gital'da reklam, analitik, davranış takibi veya hata kaydı toplayan hiçbir bileşen yoktur.",
     collected: [
       "**Kimlik ve iletişim verisi:** E-posta adresiniz ve şifrenizin doğrulama özeti; şifrenin kendisi hiçbir yerde saklanmaz. Gital hesapsız kullanılamadığı için bu veri her kullanıcı için oluşur.",
       "**Alışveriş verisi:** Listeleriniz ve üzerlerindeki ürünler, notlar, miktarlar ve fiyatlar; bitirdiğiniz alışverişler, kileriniz, ürün hafızanız, setleriniz, istekleriniz ve bağlantıları. Bunlar sizin girdiğiniz verilerdir.",
@@ -517,13 +517,13 @@ export const tr = {
     transfers: [
       "**Supabase** — barındırma Amazon Web Services, **Frankfurt / Almanya**. Hesap açtığınızda ve her eşitlemede. Aktarılan veri: kimlik ve iletişim, alışveriş, görsel ve paylaşım verisi. Hesap doğrulama ve şifre yenileme e-postalarını Supabase tetikler; e-postaların kendisi Gmail üzerinden gönderilir. Verilerinizin asıl bulunduğu yer burasıdır.",
       "**Paylaştığınız kişiler** — bir listeyi paylaştığınızda o listenin satırları, fotoğrafları, adınız ve kimin neyi eklediği o listenin üyelerine görünür. Kileriniz, hafızanız ve setleriniz kimseye görünmez.",
-      "**Google (Gmail)** — Amerika Birleşik Devletleri. Gital'in e-postalarını gönderen servistir. Şifre yenileme, e-posta doğrulama ve e-posta değişikliği iletilerinde aktarılan veri: e-posta adresiniz ve iletideki tek kullanımlık bağlantı. Geri bildirim gönderdiğinizde aktarılan veri: mesajınız, kategori, ekran görüntüleriniz, size dönülebilmesi için e-posta adresiniz, cihazınızın platformu ve uygulama sürümü.",
+      "**Google (Gmail)** — Amerika Birleşik Devletleri. Gital'ın e-postalarını gönderen servistir. Şifre yenileme, e-posta doğrulama ve e-posta değişikliği iletilerinde aktarılan veri: e-posta adresiniz ve iletideki tek kullanımlık bağlantı. Geri bildirim gönderdiğinizde aktarılan veri: mesajınız, kategori, ekran görüntüleriniz, size dönülebilmesi için e-posta adresiniz, cihazınızın platformu ve uygulama sürümü.",
       "**Open Food Facts** — Fransa. Yalnız telefonda bir barkod okuttuğunuzda. Aktarılan veri: barkod numarası ve bağlantı bilgisi; hesabınız ve listeleriniz gönderilmez.",
       "**Bağlantısını eklediğiniz mağaza** — Trendyol, Hepsiburada, Amazon ya da başka bir site. Yalnız telefonda, bir isteğe bağlantı eklediğinizde: ürünün adı, resmi ve fiyatı için telefon o sayfayı sizin yerinize, görünmeden açar. Mağaza, sayfayı tarayıcınızda açmışsınız gibi bağlantı bilgisini (IP adresi, tarayıcı bilgisi) görür; hesabınız ve listeleriniz gönderilmez.",
       "**GitHub Pages** — Amerika Birleşik Devletleri. Web sürümünü, bir davet ya da şifre yenileme sayfasını açtığınızda. Aktarılan veri: bağlantı bilgisi (IP adresi, tarayıcı bilgisi).",
       "**Expo (Expo Go)** — Amerika Birleşik Devletleri. Telefonda uygulama açılırken güncelleme sorulduğunda. Aktarılan veri: güncelleme sorgusu ve bağlantı bilgisi.",
     ],
-    transferNote: "Türkiye dışına yapılan bu aktarımlar KVKK m. 9 hükümlerine tabidir. Gital hesap açmadan kullanılamadığı için bu aktarımların dışında kalmanın yolu, hesap oluşturmamanızdır. Kayıtlarınız ve fotoğraflarınız yalnız Supabase'e ve paylaştığınız kişilere; Gital'in gönderdiği e-postalar ve geri bildiriminiz yalnız Google'a (Gmail) gider. Open Food Facts'e, mağazalara, GitHub Pages'e ve Expo'ya kayıtlarınız gitmez; yalnız bağlantı bilginiz, okuttuğunuz barkod ve açılan sayfanın adresi.",
+    transferNote: "Türkiye dışına yapılan bu aktarımlar KVKK m. 9 hükümlerine tabidir. Gital hesap açmadan kullanılamadığı için bu aktarımların dışında kalmanın yolu, hesap oluşturmamanızdır. Kayıtlarınız ve fotoğraflarınız yalnız Supabase'e ve paylaştığınız kişilere; Gital'ın gönderdiği e-postalar ve geri bildiriminiz yalnız Google'a (Gmail) gider. Open Food Facts'e, mağazalara, GitHub Pages'e ve Expo'ya kayıtlarınız gitmez; yalnız bağlantı bilginiz, okuttuğunuz barkod ve açılan sayfanın adresi.",
 
     retentionTitle: "6. Saklama ve imha",
     retention: [
@@ -642,7 +642,7 @@ export const tr = {
     inviteHint: "Bir bağlantı bir kişi içindir: bir kez ve 7 gün geçerli.",
     inviteShare: "Bağlantıyı Paylaş",
     inviteCopied: "Davet bağlantısı kopyalandı",
-    inviteText: (name: string, link: string) => `Gital'de "${name}" listesine katıl: ${link}`,
+    inviteText: (name: string, link: string) => `Gital'da "${name}" listesine katıl: ${link}`,
     nameTitle: "Adın",
     nameMessage: "Paylaştığın kişiler seni bu adla görür.",
     leave: (name: string) => `${name} listesinden ayrıl`,
@@ -801,13 +801,13 @@ export const tr = {
     unknown: "Bu barkodu tanımadım. Adını yaz, listene ekleyeyim; fotoğrafını ürüne dokunup ekleyebilirsin.",
     offline: "Ürünü arayamadım, bağlantı yok gibi. Adını yaz, listene ekleyeyim.",
     add: "Listeye ekle",
-    denied: "Kamera izni verilmedi. Telefonun ayarlarından Gital'e kamera izni verebilirsin.",
+    denied: "Kamera izni verilmedi. Telefonun ayarlarından Gital'a kamera izni verebilirsin.",
     failed: "Barkod okuyucu açılamadı.",
   },
   reminders: {
     title: "Hatırlatıcılar",
     hint: "Alışveriş gününde, kilerdeki bir tarih yaklaşınca ve bir ürün bitmiş olabilecekken telefonuna bildirim gelir.",
-    denied: "Bildirim izni verilmedi. Telefonun ayarlarından Gital'e bildirim izni verebilirsin.",
+    denied: "Bildirim izni verilmedi. Telefonun ayarlarından Gital'a bildirim izni verebilirsin.",
     day: "Alışveriş günü",
     noDay: "Yok",
     /** From Monday, as a Turkish week starts; each with `Date.getDay`'s number. */

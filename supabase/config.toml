@@ -260,6 +260,16 @@ otp_expiry = 300
 subject = "🔑 Gital şifre yenileme bağlantın"
 content_path = "./supabase/templates/recovery.html"
 
+# Unlike the reset link, these go through Auth's verify endpoint: that GET is
+# what confirms the address, whichever browser makes it.
+[auth.email.template.confirmation]
+subject = "✉️ Gital hesabını onayla"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.email_change]
+subject = "📧 Gital e-posta adresi değişikliği"
+content_path = "./supabase/templates/email_change.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true
