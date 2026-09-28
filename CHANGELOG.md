@@ -8,6 +8,13 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.2.2
+
+### Patch Changes
+
+- Bir alana dokununca klavye alanın altında açılıyor, Helix'teki gibi; yazdığın alanı artık kapatmıyor.
+- Onay e-postası gönderilemediğinde kayıt "İşlem tamamlanamadı" yerine e-postanın gönderilemediğini söylüyor.
+
 ## 1.2.1
 
 ### Patch Changes

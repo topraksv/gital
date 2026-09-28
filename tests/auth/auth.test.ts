@@ -64,6 +64,9 @@ describe("Auth's errors, in Turkish", () => {
     expect(friendlyAuthError("Email not confirmed")).toBe(tr.auth.errEmailNotConfirmed);
     expect(friendlyAuthError("Email address not authorized")).toBe(tr.auth.errEmailDelivery);
     expect(friendlyAuthError("Error sending recovery email")).toBe(tr.auth.errEmailDelivery);
+    // What Auth answers a sign-up when its SMTP refuses, measured on the live project 2026-09-28.
+    expect(friendlyAuthError("Error sending confirmation email")).toBe(tr.auth.errEmailDelivery);
+    expect(friendlyAuthError("Error sending email change email")).toBe(tr.auth.errEmailDelivery);
     expect(friendlyAuthError("Unable to validate email address: invalid format")).toBe(tr.auth.errInvalidEmail);
   });
 
