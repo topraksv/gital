@@ -25,7 +25,7 @@ vi.mock("expo-crypto", () => ({
 }));
 vi.mock("../../src/sync/supabase", () => ({ getSupabase: () => harness.cloud.client() }));
 
-const { addEntries, addScanned, deleteItem, readItems, toggleChecked } = await import("../../src/data/items");
+const { addEntries, addScanned, deleteItem, readItems, restoreItem, toggleChecked } = await import("../../src/data/items");
 const { createList, editList, readLists } = await import("../../src/data/lists");
 const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry } = await import("../../src/data/pantry");
@@ -657,6 +657,48 @@ describe("what the server will not take", () => {
       expect(await pendingOutboxCount()).toBe(0);
       expect(await readDeadLetters(), "named as the person wrote it").toMatchObject([{ tableName: "lists", reason: "refused", subject: "x".repeat(201) }]);
       expect(useSyncStatus.getState()).toMatchObject({ state: "attention", error: null });
+    });
+  });
+
+  it("sends a delete taken back, or made twice, before either reached the server", async () => {
+    await on("A", async () => {
+      const listId = await createList("Market");
+      const [undone, twice] = await add(listId, "süt", "elma");
+      await sync();
+      // Only the newest event of a row is sent, so the server never sees the
+      // generation these moved through; measured refused on 2026-09-30.
+      await restoreItem((await deleteItem(undone!))!);
+      await restoreItem((await deleteItem(twice!))!);
+      await deleteItem(twice!);
+      expect(await sync()).toBe(true);
+      expect(await readDeadLetters()).toEqual([]);
+      expect(serverRow("items", undone!)).toMatchObject({ deleted_at: null, tombstone_version: 0 });
+      expect(serverRow("items", twice!)).toMatchObject({ tombstone_version: 1 });
+      expect(serverRow("items", twice!)?.deleted_at).not.toBeNull();
+      expect(await names(listId)).toEqual(["süt"]);
+
+      // The device is back at the server's generation, so its next write is taken at once.
+      const before = cloud.requests.length;
+      await toggleChecked(undone!);
+      await sync();
+      expect(cloud.requests.slice(before).filter((request) => request === "upsert items"), "no refusal to work around").toHaveLength(1);
+      expect(serverRow("items", undone!)?.checked_at).not.toBeNull();
+    });
+  });
+
+  it("keeps the row queued when the server cannot be asked which generation it holds", async () => {
+    await on("A", async () => {
+      const [id] = await add(await createList("Market"), "süt");
+      await sync();
+      await restoreItem((await deleteItem(id!))!);
+      const release = cloud.hold("upsert items");
+      const running = sync();
+      await vi.waitFor(() => expect(cloud.requests.at(-1)).toBe("upsert items"));
+      cloud.failures.push({ message: "Failed to fetch" });
+      release();
+      expect(await running, "the network, not a refusal").toBe(false);
+      expect(await readDeadLetters()).toEqual([]);
+      expect(await pendingOutboxCount()).not.toBe(0);
     });
   });
 

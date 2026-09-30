@@ -88,6 +88,28 @@ function isRefusal(error: { code?: string; message: string }): boolean {
   return /^2[23]/.test(error.code ?? "") || (error.code === "42501" && /row-level security/i.test(error.message));
 }
 
+/**
+ * A delete taken back, or made twice, before any of it was sent leaves the row
+ * generations ahead of the server, which takes one step at a time and only the
+ * newest event is sent. Nobody else saw those steps, so the row goes again at
+ * the generation the server holds, and its answer brings the device back to it.
+ * Asked by what the server holds, not by the refusal's words: ahead is the only
+ * way the trigger refuses a generation, and a message can be reworded.
+ * Measured 2026-09-30: such rows waited aside for good, and Helix's engine
+ * has the same hole.
+ */
+async function atServerGeneration(
+  supabase: Supabase,
+  table: SyncedTableName,
+  row: Record<string, unknown>,
+  token: SessionEpochToken,
+): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase.from(table).select("tombstone_version").eq("id", String(row.id)).limit(1).abortSignal(token.signal);
+  if (error) throw new Error(`push ${table}: ${error.message}`);
+  const held = (data as { tombstone_version: number }[] | null)?.[0];
+  return held && held.tombstone_version < Number(row.tombstone_version) ? { ...row, tombstone_version: held.tombstone_version } : null;
+}
+
 function* chunks<T>(values: readonly T[]): Generator<T[]> {
   for (let at = 0; at < values.length; at += ID_CHUNK) yield values.slice(at, at + ID_CHUNK);
 }
@@ -177,7 +199,11 @@ async function sendRows(
   if (!isRefusal(error)) throw new Error(`push ${table}: ${error.message}`);
   for (const [at, row] of rows.entries()) {
     assertActive(token);
-    const one = rows.length === 1 ? { data: null, error } : await send([row]);
+    let one = rows.length === 1 ? { data: null, error } : await send([row]);
+    if (one.error?.code === "23514") {
+      const level = await atServerGeneration(supabase, table, row, token);
+      if (level) one = await send([level]);
+    }
     if (!one.error) acknowledged.push(...matchAnswers(table, [events[at]!], one.data));
     else if (isRefusal(one.error)) refused.push({ ...events[at]!, reason: "refused" });
     else throw new Error(`push ${table}: ${one.error.message}`);
