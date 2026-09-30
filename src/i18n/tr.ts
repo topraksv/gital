@@ -180,6 +180,10 @@ export const tr = {
     favourite: "Favori",
     aisle: "Reyon",
     notFound: "Bulunamadı",
+    boughtNothing: "Hiçbir şey almadım",
+    boughtOther: "Yerine başka bir şey aldım",
+    boughtNothingHint: "Ürün listede “bulunamadı” işaretiyle kalır.",
+    boughtOtherHint: "Aldığını yaz; kaydedince ürün sepete girer ve yerine ne alındığı görünür.",
     insteadLabel: "Yerine alınan",
     instead: (name: string) => `Yerine: ${name}`,
     priceLabel: "Ödenen fiyat",
@@ -301,6 +305,8 @@ export const tr = {
     summary: (open: number, totalMinor: number | null) =>
       tr.common.joined(`${open}\u00a0istek`, totalMinor == null ? undefined : formatMinor(totalMinor)),
     openHint: "Koleksiyonu aç",
+    /** On a wish's row while its link's page is being read (SPEC 7.2). */
+    reading: "Bilgileri okunuyor…",
     edit: (name: string) => `${name} koleksiyonunu düzenle`,
     delete: (name: string) => `${name} koleksiyonunu sil`,
     add: "Ekle",
@@ -403,8 +409,8 @@ export const tr = {
   },
   settings: {
     appSection: "Uygulama",
-    stayAwake: "Alışverişte ekran açık kalsın",
-    stayAwakeHint: "Listede alınacak bir şey varken ekran kararmaz.",
+    stayAwake: "Ekran açık kalsın",
+    stayAwakeHint: "Gital açıkken ekran kendiliğinden kararmaz.",
     syncSection: "Cihazlar",
     syncExplain: "Değişikliklerin önce bu cihazda saklanır. İnternet geldiğinde diğer cihazlarınla ve listeyi paylaştığın kişilerle kendiliğinden eşitlenir.",
     quarantineHint: (count: number) => `${count}\u00a0kayıt yalnızca bu cihazda; hiçbiri silinmedi.`,

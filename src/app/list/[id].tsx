@@ -40,7 +40,6 @@ import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
 import { density, motion, spacing, themeShadow, type, useTheme } from "../../ui/theme";
-import { useStayAwake } from "../../ui/stay-awake";
 import { showNotice, showUndo } from "../../ui/undo";
 import { ProductSuggestions } from "../../ui/suggestions";
 
@@ -62,12 +61,10 @@ export default function ListScreen() {
   const [sorting, setSorting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const list = leaving ?? lists.data.find((candidate) => candidate.id === id);
-  // A list open with something still to buy is a shop under way (SPEC 3.3):
-  // the phone stays on in the hand between one shelf and the next, and the
-  // others sharing the list see who is at the shop (SPEC 1.6) — never a
-  // viewer, who can tick nothing.
+  // A list open with something still to buy is a shop under way: the others
+  // sharing the list see who is at the shop (SPEC 1.6) — never a viewer, who
+  // can tick nothing.
   const shopping = items.data.some((item) => item.checkedAt == null);
-  useStayAwake(shopping);
   useShoppingHere(id, shopping, viewer);
 
   // A link to a list that is not here — deleted elsewhere, or never existed.

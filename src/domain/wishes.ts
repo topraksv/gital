@@ -5,6 +5,7 @@
  */
 
 import type { ISODate } from "./dates";
+import { itemNameFrom } from "./items";
 
 /** Low, normal, high: what the wish list sorts by first. */
 export const PRIORITIES = [0, 1, 2] as const;
@@ -55,10 +56,20 @@ export function linkFrom(input: string): string | null {
   return `${match[1]!.toLowerCase()}://${match[2]!.toLowerCase()}${match[3] ?? "/"}`;
 }
 
-/** Whether the add field was given a link rather than a name. */
-export function isLinkLike(input: string): boolean {
+/**
+ * The link a pasted text is, or carries. A shop's share sheet hands over
+ * "Şuna bak: <ad> https://ty.gl/…", which does not start as a link and so
+ * became a wish with that sentence for a name and no link to read. `said` is
+ * what was written around the link.
+ */
+export function linkIn(input: string): { url: string; said: string } | null {
   const typed = input.trim();
-  return /^(?:https?:\/\/|www\.)/i.test(typed) || (BARE.test(typed) && /[/?#]/.test(typed));
+  // With no scheme, only the whole text can be the link; one with a scheme is found wherever it sits.
+  const whole = /^www\./i.test(typed) || (BARE.test(typed) && /[/?#]/.test(typed)) ? linkFrom(typed) : null;
+  if (whole) return { url: whole, said: "" };
+  const carried = /https?:\/\/\S+/i.exec(typed)?.[0];
+  const url = carried == null ? null : linkFrom(carried);
+  return url == null ? null : { url, said: typed.replace(carried!, " ").trim() };
 }
 
 // The shops the owner named (SPEC 7.1), with their short-link hosts.
@@ -69,10 +80,44 @@ const SHOPS: readonly [RegExp, string][] = [
   [/(^|\.)n11\.com$/, "n11"],
 ];
 
+const hostOf = (url: string) => (WEB.exec(url)?.[2] ?? url).toLowerCase().replace(/:\d+$/, "").replace(/^www\./, "");
+const namedShop = (url: string) => SHOPS.find(([pattern]) => pattern.test(hostOf(url)))?.[1] ?? null;
+
 /** The shop a link is at: its name when it is one the owner uses, else its address's host. */
 export function shopOf(url: string): string {
-  const host = (WEB.exec(url)?.[2] ?? url).toLowerCase().replace(/:\d+$/, "").replace(/^www\./, "");
-  return SHOPS.find(([pattern]) => pattern.test(host))?.[1] ?? host;
+  return namedShop(url) ?? hostOf(url);
+}
+
+/** Whether a wish still carries the name its link gave it, the shop's: what a page may replace, and what says none has. */
+export function isNamedByLink(name: string, url: string): boolean {
+  return name === itemNameFrom(shopOf(url));
+}
+
+/**
+ * When a link is read unasked: after the adding phone's minute, and for a week.
+ * Nothing records that a page was tried and had no product in it, so without
+ * an end a dead link would be loaded at every launch for good.
+ */
+const READ_GRACE_MS = 60_000;
+const READ_WINDOW_MS = 7 * 86_400_000;
+
+/**
+ * A wish still as its link made it — the shop's name, no price, no photo —
+ * and past the adding phone's turn: added on the web, which can read no page
+ * (SPEC 7.2), or on a phone whose read failed. Only when every link is at a shop
+ * named here: all of a wish's links are read, without being asked, and in a
+ * shared collection they may be someone else's, who must not be able to send
+ * this phone to any address.
+ */
+export function isUnread(wish: Wish, now: number): boolean {
+  return (
+    wish.boughtAt == null &&
+    wish.photoId == null &&
+    now - Date.parse(wish.createdAt) > READ_GRACE_MS &&
+    now - Date.parse(wish.createdAt) <= READ_WINDOW_MS &&
+    wish.links.every((link) => link.priceMinor == null && namedShop(link.url) != null) &&
+    wish.links.some((link) => isNamedByLink(wish.name, link.url))
+  );
 }
 
 /** The link a wish leads with (7.6): the cheapest with a price, else the first. */

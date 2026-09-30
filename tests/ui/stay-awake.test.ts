@@ -1,44 +1,33 @@
 /**
- * A list's screen keeps the phone awake while there is something to buy
- * (SPEC 3.3). The web's wake lock is the browser's, which lets it go whenever
- * the page is hidden and never takes it back itself.
+ * A phone running Gital keeps its screen on (SPEC 3.3), on every screen and
+ * only while Ayarlar allows it; the web holds nothing and shows no switch.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const keepAwake = vi.hoisted(() => ({
   activateKeepAwakeAsync: vi.fn(async (_tag: string) => {}),
   deactivateKeepAwake: vi.fn(async (_tag: string) => {}),
 }));
 vi.mock("expo-keep-awake", () => keepAwake);
+vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 const stored = vi.hoisted(() => new Map<string, string>([["gital.stayAwake", "false"]]));
 vi.mock("../../src/services/kv", () => ({
   kv: { get: async (key: string) => stored.get(key) ?? null, set: async (key: string, value: string) => void stored.set(key, value) },
 }));
 
-import { setStayAwakeAllowed, stayAwake, useStayAwakeAllowed } from "../../src/ui/stay-awake";
-
-class FakeDocument extends EventTarget {
-  visibilityState: "visible" | "hidden" = "visible";
-  show(state: "visible" | "hidden") {
-    this.visibilityState = state;
-    this.dispatchEvent(new Event("visibilitychange"));
-  }
-}
+import { setStayAwakeAllowed, stayAwake, stayAwakeAvailable, useStayAwakeAllowed } from "../../src/ui/stay-awake";
 
 const settle = () => new Promise((done) => setTimeout(done, 0));
 
 describe("stayAwake", () => {
-  let page: FakeDocument;
   beforeEach(() => {
-    page = new FakeDocument();
-    vi.stubGlobal("document", page);
     keepAwake.activateKeepAwakeAsync.mockClear();
     keepAwake.deactivateKeepAwake.mockClear();
   });
-  afterEach(() => vi.unstubAllGlobals());
 
   it("holds the screen until let go, under one tag", async () => {
+    expect(stayAwakeAvailable, "a phone").toBe(true);
     const release = stayAwake();
     expect(keepAwake.activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
     release();
@@ -46,21 +35,9 @@ describe("stayAwake", () => {
     expect(keepAwake.deactivateKeepAwake).toHaveBeenCalledWith(keepAwake.activateKeepAwakeAsync.mock.calls[0]![0]);
   });
 
-  it("takes the lock again when the page comes back into view, and stops asking once let go", () => {
-    const release = stayAwake();
-    page.show("hidden");
-    page.show("visible");
-    expect(keepAwake.activateKeepAwakeAsync).toHaveBeenCalledTimes(2);
-    release();
-    page.show("hidden");
-    page.show("visible");
-    expect(keepAwake.activateKeepAwakeAsync).toHaveBeenCalledTimes(2);
-  });
-
-  // A browser without the Wake Lock API, or a page hidden when it asked,
-  // refuses; letting go of a lock never taken then throws in expo-keep-awake.
-  it("lets neither a refused lock nor its release escape as an error", async () => {
-    keepAwake.activateKeepAwakeAsync.mockRejectedValueOnce(new Error("NotAllowedError"));
+  // With no activity to hold, Android refuses both, and the release of a hold never taken throws.
+  it("lets neither a refused hold nor its release escape as an error", async () => {
+    keepAwake.activateKeepAwakeAsync.mockRejectedValueOnce(new Error("ERR_KEEP_AWAKE_NO_ACTIVITY"));
     keepAwake.deactivateKeepAwake.mockRejectedValueOnce(new Error("ERR_KEEP_AWAKE_TAG_INVALID"));
     const unhandled = vi.fn();
     process.on("unhandledRejection", unhandled);
@@ -71,11 +48,11 @@ describe("stayAwake", () => {
     expect(unhandled).not.toHaveBeenCalled();
   });
 
-  it("works where there is no page to watch, as on a phone", () => {
-    vi.stubGlobal("document", undefined);
-    const release = stayAwake();
-    expect(keepAwake.activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
-    expect(release).not.toThrow();
+  it("is not offered on the web", async () => {
+    vi.resetModules();
+    vi.doMock("react-native", () => ({ Platform: { OS: "web" } }));
+    expect((await import("../../src/ui/stay-awake")).stayAwakeAvailable).toBe(false);
+    vi.doUnmock("react-native");
   });
 });
 

@@ -597,8 +597,12 @@ export const itemRow = { tile: 40, check: 26, swipe: 88, slop: 10 } as const;
  */
 export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25%" } as const;
 
-/** A photo in a panel (SPEC 8.2): about a third of a phone's height, whatever its proportions. */
-export const photoPreview = { height: 220 } as const;
+/**
+ * A photo in a panel (SPEC 8.2): about a third of a phone's height, whatever
+ * its proportions. With none, the ways to bring one in are frames `source`
+ * tall, each with its icon on a disc.
+ */
+export const photoPreview = { height: 220, source: 108, disc: 44, icon: 22 } as const;
 
 /**
  * The mark drawing itself (`src/ui/brand.tsx`), on the brand kit's timeline:

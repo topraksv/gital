@@ -35,6 +35,7 @@ import { CelebrationHost } from "../ui/celebration";
 import { ErrorBoundary } from "../ui/error-boundary";
 import { OperationWait } from "../ui/operation-wait";
 import { PageReaderHost, readLinkPages } from "../ui/page-reader";
+import { useStayAwake } from "../ui/stay-awake";
 import { clearUndo, UndoSnackbar } from "../ui/undo";
 
 // Helix's subset faces, byte for byte (`docs/ARCHITECTURE.md`, "The fonts are Helix's").
@@ -89,6 +90,7 @@ export default function RootLayout() {
   const [fontsLoaded, fontsError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, IBMPlexSerif_600SemiBold });
   const [database, setDatabase] = useState<"opening" | "ready" | "failed">(DATABASE_AT_START);
   const [openAttempt, setOpenAttempt] = useState(0);
+  useStayAwake();
 
   // Every screen reads the database, so none is drawn until it is migrated;
   // a failure gets its own screen with a retry rather than empty lists.

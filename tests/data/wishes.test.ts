@@ -90,6 +90,11 @@ describe("addWish", () => {
     expect(await readWishes(collection)).toMatchObject([{ name: "Trendyol", links: [{ url: "https://ty.gl/abc123", priceMinor: null }] }]);
   });
 
+  it("finds the link in what a shop's share sheet wrote, and keeps the rest as the note", async () => {
+    await addWish(collection, "Şuna bir bak! Krups Kahve Makinesi https://ty.gl/abc123");
+    expect(await readWishes(collection)).toMatchObject([{ name: "Trendyol", note: "Şuna bir bak! Krups Kahve Makinesi", links: [{ url: "https://ty.gl/abc123" }] }]);
+  });
+
   it("refuses an empty name and a collection that is gone or is a shopping list", async () => {
     await expect(addWish(collection, "  ")).rejects.toThrow();
     await expect(addWish(await createList("Market"), "Kettle")).rejects.toThrow();

@@ -7,7 +7,23 @@
 import { describe, expect, it } from "vitest";
 
 import { productFromPage } from "../../src/domain/product-page";
-import { LINK_MAX, isLinkLike, leadOf, linkFrom, openTotal, priceOf, shopOf, sortWishes, type Wish } from "../../src/domain/wishes";
+import { LINK_MAX, isUnread, leadOf, linkFrom, linkIn, openTotal, priceOf, shopOf, sortWishes, type Wish } from "../../src/domain/wishes";
+
+const link = (id: string, priceMinor: number | null) => ({ id, url: `https://a.com/${id}`, priceMinor });
+const wish = (over: Partial<Wish>): Wish => ({
+  id: "w",
+  name: "Kahve makinesi",
+  note: null,
+  priority: 1,
+  estimateMinor: null,
+  boughtAt: null,
+  createdAt: "2026-09-26T10:00:00.000Z",
+  photoId: null,
+  photo: null,
+  dueOn: null,
+  links: [],
+  ...over,
+});
 
 describe("linkFrom", () => {
   it("keeps a web address as it was pasted, taking https when none is given", () => {
@@ -24,12 +40,46 @@ describe("linkFrom", () => {
   });
 });
 
-describe("isLinkLike", () => {
+describe("linkIn", () => {
   it("tells a pasted link from a wish's name, so the field knows which it was given", () => {
-    expect(isLinkLike("https://ty.gl/abc")).toBe(true);
-    expect(isLinkLike("www.amazon.com.tr/dp/B0")).toBe(true);
-    expect(isLinkLike("Kahve makinesi")).toBe(false);
-    expect(isLinkLike("süt 1.5 lt")).toBe(false);
+    expect(linkIn(" https://ty.gl/abc ")).toEqual({ url: "https://ty.gl/abc", said: "" });
+    expect(linkIn("www.amazon.com.tr/dp/B0")?.url).toBe("https://www.amazon.com.tr/dp/B0");
+    expect(linkIn("WWW.amazon.com.tr")?.url, "a bare host is a link only when it says www").toBe("https://www.amazon.com.tr/");
+    expect(linkIn("hepsiburada.com/kahve-p-HB1")).toEqual({ url: "https://hepsiburada.com/kahve-p-HB1", said: "" });
+    for (const name of ["Kahve makinesi", "süt 1.5 lt", "trendyol.com", "https://localhost/x", "bak http://localhost/x"]) expect(linkIn(name), name).toBeNull();
+  });
+
+  // Trendyol's and Hepsiburada's share sheets, as they arrive on the clipboard.
+  it("finds the link a shop's share text carries, and keeps what was said around it", () => {
+    expect(linkIn("Şuna bir bak! Krups Kahve Makinesi https://ty.gl/abc123")).toEqual({ url: "https://ty.gl/abc123", said: "Şuna bir bak! Krups Kahve Makinesi" });
+    expect(linkIn("HTTPS://app.hb.biz/x sepette")).toEqual({ url: "https://app.hb.biz/x", said: "sepette" });
+  });
+});
+
+describe("isUnread", () => {
+  const added = "2026-09-30T10:00:00.000Z";
+  const at = (ms: number) => Date.parse(added) + ms;
+  const made = (over: Partial<Wish> = {}): Wish => wish({ name: "Trendyol", createdAt: added, links: [{ id: "l", url: "https://ty.gl/abc", priceMinor: null }], ...over });
+
+  it("is a wish still named after its link's shop, once the phone that added it has had its minute", () => {
+    expect(isUnread(made(), at(60_001))).toBe(true);
+    expect(isUnread(made(), at(60_000)), "still the adding phone's turn").toBe(false);
+    expect(isUnread(made(), at(7 * 86_400_000)), "for a week").toBe(true);
+    expect(isUnread(made(), at(7 * 86_400_000 + 1)), "a page that gave nothing is not loaded at every launch for good").toBe(false);
+    expect(isUnread(made({ name: "N11", links: [{ id: "l", url: "https://www.n11.com/urun", priceMinor: null }] }), at(60_001)), "named as the add named it").toBe(true);
+    expect(isUnread(made({ links: [{ id: "k", url: "https://www.n11.com/x", priceMinor: null }, { id: "l", url: "https://ty.gl/abc", priceMinor: null }] }), at(60_001)), "any of its links").toBe(true);
+  });
+
+  it("is never one a page or the person has already filled, nor one with nothing to read", () => {
+    const later = at(3_600_000);
+    expect(isUnread(made({ name: "Krups Kahve Makinesi" }), later)).toBe(false);
+    expect(isUnread(made({ photoId: "p" }), later)).toBe(false);
+    expect(isUnread(made({ boughtAt: added }), later)).toBe(false);
+    expect(isUnread(made({ links: [{ id: "l", url: "https://ty.gl/abc", priceMinor: 100 }] }), later)).toBe(false);
+    expect(isUnread(made({ links: [{ id: "k", url: "https://ty.gl/abc", priceMinor: null }, { id: "l", url: "https://a.com/x", priceMinor: 100 }] }), later)).toBe(false);
+    expect(isUnread(made({ links: [] }), later)).toBe(false);
+    expect(isUnread(made({ links: [{ id: "k", url: "https://a.com/x", priceMinor: null }, { id: "l", url: "https://ty.gl/abc", priceMinor: null }] }), later), "every link is read, so every one is at a named shop").toBe(false);
+    expect(isUnread(made({ name: "A.com", links: [{ id: "l", url: "https://a.com/x", priceMinor: null }] }), later), "a shop not named here is read only when its wish is saved").toBe(false);
   });
 });
 
@@ -43,22 +93,6 @@ describe("shopOf", () => {
     expect(shopOf("https://www.n11.com/urun")).toBe("n11");
     expect(shopOf("https://shop.example.co.uk/x")).toBe("shop.example.co.uk");
   });
-});
-
-const link = (id: string, priceMinor: number | null) => ({ id, url: `https://a.com/${id}`, priceMinor });
-const wish = (over: Partial<Wish>): Wish => ({
-  id: "w",
-  name: "Kahve makinesi",
-  note: null,
-  priority: 1,
-  estimateMinor: null,
-  boughtAt: null,
-  createdAt: "2026-09-26T10:00:00.000Z",
-  photoId: null,
-  photo: null,
-  dueOn: null,
-  links: [],
-  ...over,
 });
 
 describe("leadOf and priceOf", () => {

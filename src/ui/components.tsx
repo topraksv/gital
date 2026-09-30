@@ -850,6 +850,12 @@ function fieldStyle(palette: Palette, { focused, invalid, secure, editable }: { 
   };
 }
 
+/** A field's name above it; the price field draws it over its own box, so it is shared. */
+export function FieldLabel({ children }: { children: string }) {
+  const { palette } = useTheme();
+  return <Text style={[type.label, { color: palette.textSecondary, marginBottom: spacing.xs + offset.tight }]}>{children}</Text>;
+}
+
 /**
  * Helix's field: an optional name above it, the surface fill with a hairline
  * that thickens to the focus colour, an error under it read out as it
@@ -892,7 +898,7 @@ export function TextField({
   if (!wrapped) return input;
   return (
     <View style={style as StyleProp<ViewStyle>}>
-      {label ? <Text style={[type.label, { color: palette.textSecondary, marginBottom: spacing.xs + offset.tight }]}>{label}</Text> : null}
+      {label ? <FieldLabel>{label}</FieldLabel> : null}
       <View>
         {input}
         {secure ? <PasswordEye hidden={hidden} onPress={() => setHidden(!hidden)} /> : null}

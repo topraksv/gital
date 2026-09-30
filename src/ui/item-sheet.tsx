@@ -1,7 +1,8 @@
 /**
  * The item panel (`docs/UI.md` section 6: the row opens, the circle ticks): an
- * item's name, note, quantity and urgency; whether it was not found, and once
- * it was not found or is in the basket, what was bought instead; which list
+ * item's name, note, quantity and urgency; whether it was not found, and then
+ * whether anything was bought in its place; once that, or in the basket, what
+ * was bought and paid; which list
  * it is on (SPEC 4.3); and its delete. It is the prompt's sheet with more in
  * it, so it rises and closes like every other dialog here.
  */
@@ -70,7 +71,8 @@ export function ItemSheet({
   const [note, setNote] = useState(item.note ?? "");
   const [quantity, setQuantity] = useState({ quantityMilli: item.quantityMilli, unit: item.unit });
   const [urgent, setUrgent] = useState(item.urgent);
-  const [notFound, setNotFound] = useState(item.notFound);
+  const [outcome, setOutcome] = useState(() => outcomeOf(item));
+  const notFound = outcome !== "found";
   const [instead, setInstead] = useState(item.boughtInstead ?? "");
   const [price, setPrice] = useState(formatMinorInput(item.priceMinor));
   const [photo, setPhoto] = useState<PhotoChange>(undefined);
@@ -88,7 +90,7 @@ export function ItemSheet({
   const more = stepQuantity(quantity, 1);
   // Offered on an item still to find, a substitute or a price typed while
   // planning ("Sütaş if there is no Pınar") would tick it as bought.
-  const offersBought = !moving && (item.checkedAt != null || notFound);
+  const offersBought = !moving && (item.checkedAt != null || outcome === "other");
   const paid = readPrice(offersBought ? price : "");
   const ready = name.trim() !== "" && paid.ok;
   const save = () => {
@@ -103,7 +105,7 @@ export function ItemSheet({
   };
   const submits = { returnKeyType: "done", onSubmitEditing: save } as const;
   // The star is not here: it is written the moment it is pressed.
-  const dirty = useDraftDirty(JSON.stringify({ aisle, name, note, quantity, urgent, notFound, instead, price, photo: photo !== undefined, destination, keep }));
+  const dirty = useDraftDirty(JSON.stringify({ aisle, name, note, quantity, urgent, outcome, instead, price, photo: photo !== undefined, destination, keep }));
   const close = () => confirmDiscard(dirty, onClose);
   const step = (next: typeof less) => {
     if (!next) return;
@@ -152,27 +154,27 @@ export function ItemSheet({
         {/* A ticked item was found. */}
         {item.checkedAt == null && !moving ? (
           <PanelPart appears>
-            <ToggleRow value={notFound} onValueChange={setNotFound} title={tr.items.notFound} />
+            <NotFound value={outcome} onChange={setOutcome} />
+          </PanelPart>
+        ) : null}
+        {offersBought ? (
+          <PanelPart appears>
+            <Bought
+              before={before}
+              product={{ name, ...quantity }}
+              paidMinor={paid.ok ? paid.minor : null}
+              instead={instead}
+              price={price}
+              onInstead={setInstead}
+              onPrice={setPrice}
+              submits={submits}
+            />
           </PanelPart>
         ) : null}
       </View>
       <PanelPart>
         <AislePicker name={item.name} value={aisle} onChange={setShelf} />
       </PanelPart>
-      {offersBought ? (
-        <PanelPart appears>
-          <Bought
-            before={before}
-            product={{ name, ...quantity }}
-            paidMinor={paid.ok ? paid.minor : null}
-            instead={instead}
-            price={price}
-            onInstead={setInstead}
-            onPrice={setPrice}
-            submits={submits}
-          />
-        </PanelPart>
-      ) : null}
       {lists.length > 1 ? (
         <PanelPart>
           <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
@@ -266,6 +268,38 @@ function Past({ before, name }: { before: readonly BoughtBefore[]; name: string 
   );
 }
 
+/** One answer, three ways: found, not found and nothing bought, not found and something else bought. */
+type Outcome = "found" | "nothing" | "other";
+
+function outcomeOf(item: ShownItem): Outcome {
+  if (!item.notFound) return "found";
+  return item.boughtInstead != null || item.priceMinor != null ? "other" : "nothing";
+}
+
+/**
+ * Not found, and then what came of it, asked outright under the switch: two
+ * bare fields further down did not say what they were for (the owner,
+ * 2026-09-30). Nothing bought leaves the item on the list, flagged; something
+ * else opens what was bought and paid, which ticks it (SPEC 3.7).
+ */
+function NotFound({ value, onChange }: { value: Outcome; onChange: (outcome: Outcome) => void }) {
+  const substituted = value === "other";
+  return (
+    <>
+      <ToggleRow value={value !== "found"} onValueChange={(on) => onChange(on ? "nothing" : "found")} title={tr.items.notFound} />
+      {value !== "found" ? (
+        <View style={{ gap: spacing.sm }}>
+          <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.items.notFound} style={{ flexDirection: "row", gap: spacing.sm }}>
+            <ChoiceTile label={tr.items.boughtNothing} selected={!substituted} minHeight={controlSize.minimumTarget} onPress={() => onChange("nothing")} />
+            <ChoiceTile label={tr.items.boughtOther} selected={substituted} minHeight={controlSize.minimumTarget} onPress={() => onChange("other")} />
+          </View>
+          <Body muted>{substituted ? tr.items.boughtOtherHint : tr.items.boughtNothingHint}</Body>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * What was bought in the item's place, and what was paid — said to be dear
  * when it is (SPEC 3.12). The panel says it and the row does not: the aisle
@@ -294,17 +328,18 @@ function Bought({
   const rise = paidMinor == null ? null : priceRise(before, product, paidMinor);
   return (
     <>
+      {/* Named above, not only by an example inside: an empty field said nothing of what it asked. */}
       <TextField
         value={instead}
         maxLength={NAME_MAX}
         onChangeText={onInstead}
-        accessibilityLabel={tr.items.insteadLabel}
+        label={tr.items.insteadLabel}
         examples={tr.placeholders.instead}
         {...submits}
         style={{ marginTop: spacing.sm }}
       />
       <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
-        <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} examples={tr.placeholders.price} {...submits} />
+        <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} named examples={tr.placeholders.price} {...submits} />
         {rise == null ? null : <Text style={[type.small, { color: palette.warningText }]}>{tr.items.priceRise(rise)}</Text>}
       </View>
     </>

@@ -10,7 +10,7 @@ import { itemNameFrom, knownFrom, noteFrom, type KnownProduct } from "../domain/
 import { lookOf, type ListLook } from "../domain/lists";
 import { isPrice } from "../domain/money";
 import { photoColumn, type NewPhoto, type PhotoChange } from "./photos";
-import { PRIORITIES, isLinkLike, linkFrom, openTotal, shopOf, sortWishes, type Priority, type Wish } from "../domain/wishes";
+import { PRIORITIES, isNamedByLink, linkFrom, linkIn, openTotal, shopOf, sortWishes, type Priority, type Wish } from "../domain/wishes";
 
 export interface Collection extends ListLook {
   id: string;
@@ -118,17 +118,18 @@ async function readCollection(listId: string): Promise<void> {
 
 /**
  * A name, or a pasted link: a link becomes a wish named after its shop that
- * holds it, to be renamed in its panel.
+ * holds it, to be renamed by its page or in its panel. What a share sheet
+ * wrote around the link is kept as the note.
  */
 export async function addWish(listId: string, input: string): Promise<string> {
-  const url = isLinkLike(input) ? linkFrom(input) : null;
-  const name = itemNameFrom(url ? shopOf(url) : input);
+  const link = linkIn(input);
+  const name = itemNameFrom(link ? shopOf(link.url) : input);
   if (name == null) throw new Error("A wish needs a name");
   const id = uuidv7();
   await writeRows(async () => {
     await readCollection(listId);
-    const writes: RowWrite[] = [{ table: "wishes", row: { id, listId, name } }];
-    if (url) writes.push({ table: "wish_links", row: { id: uuidv7(), listId, wishId: id, url } });
+    const writes: RowWrite[] = [{ table: "wishes", row: { id, listId, name, note: noteFrom(link?.said) } }];
+    if (link) writes.push({ table: "wish_links", row: { id: uuidv7(), listId, wishId: id, url: link.url } });
     return writes;
   });
   return id;
@@ -191,12 +192,12 @@ export async function unpricedLinksOf(wishId: string): Promise<{ id: string; url
  * is read after the add returns, and by then the person may have written
  * their own; theirs is kept. Nothing is written for a wish gone meanwhile.
  */
-export async function fillFromPage(linkId: string, found: { name: string | null; priceMinor: number | null; photo: NewPhoto | null }): Promise<void> {
+export async function fillFromPage(linkId: string, found: { name?: string | null; priceMinor?: number | null; photo?: NewPhoto | null }): Promise<void> {
   await writeRows(async () => {
     const link = await findLiveRow("wish_links", linkId);
     const wish = link && (await findLiveRow("wishes", String(link.wish_id)));
     if (!link || !wish) return [];
-    const name = found.name != null && wish.name === itemNameFrom(shopOf(String(link.url))) ? itemNameFrom(found.name) : null;
+    const name = found.name != null && isNamedByLink(String(wish.name), String(link.url)) ? itemNameFrom(found.name) : null;
     const photo = found.photo != null && wish.photo_id == null ? await photoColumn(found.photo) : {};
     return [
       ...editRow("wishes", wish, { ...(name ? { name } : {}), ...photo }),

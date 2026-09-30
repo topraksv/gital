@@ -13,7 +13,7 @@ import CalculatorIcon from "lucide-react-native/icons/calculator";
 import { formatQuantity, type Quantity, type Unit } from "../domain/items";
 import { formatMinorInput, formatPriceInput } from "../domain/money";
 import { tr } from "../i18n/tr";
-import { TextField, fieldAccessoryStyle } from "./components";
+import { FieldLabel, TextField, fieldAccessoryStyle } from "./components";
 import { appError } from "./dialog";
 import { interactionSurface } from "./interaction";
 import { Press } from "./press";
@@ -30,12 +30,15 @@ export function PriceField({
   value,
   onChangeText,
   label,
+  named = false,
   style,
   ...props
 }: Omit<TextInputProps, "value" | "onChangeText" | "style"> & {
   value: string;
   onChangeText: (typed: string) => void;
   label: string;
+  /** Draws the label above the field, as `TextField`'s own does; the accessory is laid against the field alone. */
+  named?: boolean;
   examples?: readonly string[];
   style?: StyleProp<ViewStyle>;
 }) {
@@ -43,26 +46,29 @@ export function PriceField({
   const [open, sheet] = useCalculator(undefined, (minor) => onChangeText(formatMinorInput(minor)));
   return (
     <View style={style}>
-      <TextField
-        {...props}
-        value={value}
-        onChangeText={(typed) => onChangeText(formatPriceInput(typed))}
-        accessibilityLabel={label}
-        keyboardType="decimal-pad"
-        inputMode="decimal"
-        style={{ paddingRight: controlSize.minimumTarget }}
-      />
-      {/* Helix's accessory: the bare mark, centred in the field's own right
-          padding, its box the whole 44-point column so the web has a target
-          `hitSlop` would not give it. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={tr.calc.open(label)}
-        onPress={open}
-        style={(state) => fieldAccessoryStyle(palette, state)}
-      >
-        <CalculatorIcon accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
-      </Pressable>
+      {named ? <FieldLabel>{label}</FieldLabel> : null}
+      <View>
+        <TextField
+          {...props}
+          value={value}
+          onChangeText={(typed) => onChangeText(formatPriceInput(typed))}
+          accessibilityLabel={label}
+          keyboardType="decimal-pad"
+          inputMode="decimal"
+          style={{ paddingRight: controlSize.minimumTarget }}
+        />
+        {/* Helix's accessory: the bare mark, centred in the field's own right
+            padding, its box the whole 44-point column so the web has a target
+            `hitSlop` would not give it. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tr.calc.open(label)}
+          onPress={open}
+          style={(state) => fieldAccessoryStyle(palette, state)}
+        >
+          <CalculatorIcon accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
+        </Pressable>
+      </View>
       {sheet}
     </View>
   );

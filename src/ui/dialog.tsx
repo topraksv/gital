@@ -192,7 +192,13 @@ export function DialogShell({
         onPress={onDismiss}
       >
         <KeyboardSafeScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: asSheet ? "flex-end" : "center", padding: asSheet ? 0 : spacing.lg }}
+          // A sheet taller than the window stops short of the status bar, with
+          // the page showing above it: flush with the top edge, its handle sat
+          // under the notch, where a pull is the phone's own (the owner, 2026-09-30).
+          contentContainerStyle={{
+            flexGrow: 1,
+            ...(asSheet ? { justifyContent: "flex-end", paddingTop: insets.top + spacing.xl } : { justifyContent: "center", padding: spacing.lg }),
+          }}
           bottomOffset={Math.min(dialog.keyboardGap, Math.round(height * dialog.keyboardGapShare))}
           extraKeyboardSpace={spacing.lg}
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}

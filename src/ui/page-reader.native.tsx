@@ -18,6 +18,7 @@ import { WebView } from "react-native-webview";
 
 import { fillFromPage, unpricedLinksOf } from "../data/wishes";
 import { productFromPage, type PageProduct } from "../domain/product-page";
+import { isUnread, type Wish } from "../domain/wishes";
 import { photoFromWeb } from "./photo-take";
 import { pageReader } from "./theme";
 
@@ -31,6 +32,13 @@ const jobs: Job[] = [];
 let jobCount = 0;
 let current: Job | null = null;
 const listeners = new Set<() => void>();
+/** The wishes whose pages are being read now, and those this launch has already tried. */
+const reading = new Set<string>();
+const tried = new Set<string>();
+
+function tell(): void {
+  for (const listener of listeners) listener();
+}
 
 const GIVE_UP_MS = 25_000;
 // Run at the end of every load and polled: a shop may draw its product after
@@ -40,7 +48,7 @@ const READ = `(function(){var tries=0;(function look(){var html=document.documen
 
 function next(): void {
   current = jobs.shift() ?? null;
-  for (const listener of listeners) listener();
+  tell();
 }
 
 /** A job ends once, by its own identity: a late message from a page given up ends nothing. */
@@ -96,16 +104,49 @@ export function PageReaderHost() {
   );
 }
 
-/** After a wish is written: its unpriced links' pages, read and filled in, quietly. */
+/** Whether the wish's page is being read, for its row to say so: a read takes seconds, and silence read as failure. */
+export function useReadingWish(wishId: string): boolean {
+  return useSyncExternalStore(subscribe, () => reading.has(wishId));
+}
+
+/** A wish's unpriced links' pages, read and filled in, quietly. */
 export function readLinkPages(wishId: string): void {
+  tried.add(wishId);
   void (async () => {
-    for (const link of await unpricedLinksOf(wishId)) {
-      const product = await readProduct(link.url);
-      if (!product) continue;
-      const photo = product.image ? await photoFromWeb(product.image).catch(() => null) : null;
-      await fillFromPage(link.id, { name: product.name, priceMinor: product.priceMinor, photo });
+    // Asked again after each page, not listed once: a link added by a save
+    // while this was reading is read by the same pass, which is the only one.
+    const seen = new Set<string>();
+    const unread = async () => (await unpricedLinksOf(wishId)).find((link) => !seen.has(link.id));
+    let link = await unread();
+    if (!link || reading.has(wishId)) return;
+    reading.add(wishId);
+    tell();
+    try {
+      for (; link; link = await unread()) {
+        seen.add(link.id);
+        const product = await readProduct(link.url);
+        if (!product) continue;
+        // The name and the price first: the picture is a second download, and they need not wait for it.
+        await fillFromPage(link.id, { name: product.name, priceMinor: product.priceMinor });
+        const photo = product.image ? await photoFromWeb(product.image).catch(() => null) : null;
+        if (photo) await fillFromPage(link.id, { photo });
+      }
+    } finally {
+      reading.delete(wishId);
+      tell();
     }
   })().catch(() => {
     // A page that fills nothing is an expected outcome, not an error (ARCHITECTURE, 2026-09-23).
   });
+}
+
+/**
+ * The wishes no phone has read yet (`isUnread`), as their collection opens:
+ * one added on the web waited until its panel was saved on a phone, which the
+ * owner met as a link that showed nothing (2026-09-30). Once a launch each,
+ * since a page with no product in it would be loaded at every visit.
+ */
+export function readUnreadPages(wishes: readonly Wish[]): void {
+  const now = Date.now();
+  for (const wish of wishes) if (!tried.has(wish.id) && isUnread(wish, now)) readLinkPages(wish.id);
 }

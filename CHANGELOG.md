@@ -8,6 +8,21 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.4.0
+
+### Minor Changes
+
+- Fotoğraf alanı yeniden çizildi: ürün, istek ve fişte aynı alan; "Fotoğraf çek" ve "Galeriden seç" büyük karolar, fotoğraf varken kaldırma ve değiştirme görselin köşesinde.
+- "Bulunamadı" işaretlenince ne olduğu soruluyor: "Hiçbir şey almadım" ya da "Yerine başka bir şey aldım"; ikincisi yerine alınanı ve ödenen fiyatı ister.
+- Ekran, Gital açıkken uygulamanın her yerinde açık kalıyor; ayar yalnız telefonda görünüyor.
+- Uzun pencereler (katalog, istek) ekranın tepesine yapışmıyor; tutamaçtan ya da başlıktan aşağı çekince kapanıyor.
+- İsteğe eklenen bağlantı okunurken satır "Bilgileri okunuyor…" diyor; ad ve fiyat görselden önce geliyor. Webde eklenen isteğin bilgileri, koleksiyon telefonda açılınca kendiliğinden okunuyor.
+- Bir mağazanın paylaş metni ("… https://ty.gl/…") yapıştırılınca içindeki bağlantı bulunuyor, yazı not olarak kalıyor.
+
+### Patch Changes
+
+- Gönderilmeden silinip geri alınan bir kayıt artık "Bazı kayıtlar bekliyor" diye takılı kalmıyor. Daha önce takılanlar için Ayarlar → Bekleyen Kayıtlar → Tekrar Dene.
+
 ## 1.3.0
 
 ### Minor Changes

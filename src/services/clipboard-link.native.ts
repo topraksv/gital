@@ -14,7 +14,7 @@
 import { Platform } from "react-native";
 import { getStringAsync, hasUrlAsync } from "expo-clipboard";
 
-import { isLinkLike, linkFrom } from "../domain/wishes";
+import { linkIn } from "../domain/wishes";
 import { kv } from "./kv";
 
 /** What to offer: the link when the phone let it be read, `null` when it is for the person to paste. */
@@ -34,7 +34,7 @@ async function unseenIos(now: number): Promise<ClipboardOffer | null> {
 
 async function readAndroid(): Promise<ClipboardOffer | null> {
   const text = await getStringAsync();
-  const url = isLinkLike(text) ? linkFrom(text) : null;
+  const url = linkIn(text)?.url;
   if (!url || url === (await kv.get(KEYS.url))) return null;
   await kv.set(KEYS.url, url);
   return { url };

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
@@ -21,7 +21,7 @@ import { EditorsOnly, PeopleActions, useShare } from "../../ui/members-sheet";
 import { RowMotion } from "../../ui/list-motion";
 import { useCountUp } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
-import { readLinkPages } from "../../ui/page-reader";
+import { readLinkPages, readUnreadPages, useReadingWish } from "../../ui/page-reader";
 import { density, font, itemRow, motion, offset, spacing, type, useTheme } from "../../ui/theme";
 import { WishSuggestions } from "../../ui/suggestions";
 import { showUndo } from "../../ui/undo";
@@ -42,6 +42,11 @@ export default function CollectionScreen() {
   const [order, setOrder] = useState<WishOrder>("wanted");
   const shown = sortWishes(wishes.data, order);
   const collection = leaving ?? collections.data.find((candidate) => candidate.id === id);
+  // Never for a viewer, whose write the server refuses; so not before the members are read.
+  const reads = members.updatedAt != null && !viewer;
+  useEffect(() => {
+    if (reads) readUnreadPages(wishes.data);
+  }, [reads, wishes.data]);
 
   if (collections.updatedAt != null && !collection) return <Redirect href="/wishes" />;
 
@@ -234,6 +239,7 @@ function WishRow({ wish, onOpen, onToggle, readOnly }: { wish: Wish; onOpen: () 
   const { palette } = useTheme();
   const done = wish.boughtAt != null;
   const parts = detailOf(wish);
+  if (useReadingWish(wish.id)) parts.push({ text: tr.wishes.reading });
   return (
     <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
       <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={tr.wishes.openWishHint} onPress={onOpen} disabled={readOnly}>

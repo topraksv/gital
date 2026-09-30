@@ -23,7 +23,7 @@ import { disableReminders, enableReminders, remindersAvailable, replanReminders 
 import { syncNow } from "../../sync/engine";
 import { useSyncStatus } from "../../sync/status";
 import { isSupabaseConfigured } from "../../sync/supabase";
-import { setStayAwakeAllowed, useStayAwakeAllowed } from "../../ui/stay-awake";
+import { setStayAwakeAllowed, stayAwakeAvailable, useStayAwakeAllowed } from "../../ui/stay-awake";
 import { Body, Button, Card, ChoiceTile, ListRow, Screen, SectionHeader, ToggleRow, rowsOf } from "../../ui/components";
 import { appConfirm, appError } from "../../ui/dialog";
 import { TourModal } from "../../ui/tour";
@@ -90,9 +90,11 @@ export default function SettingsScreen() {
             explaining there why it is missing. */}
         {remindersAvailable ? <Reminders /> : null}
       </Card>
-      <Card rows>
-        <StayAwakeRow />
-      </Card>
+      {stayAwakeAvailable ? (
+        <Card rows>
+          <StayAwakeRow />
+        </Card>
+      ) : null}
       {isSupabaseConfigured ? (
         <>
           <SectionHeader>{tr.settings.syncSection}</SectionHeader>

@@ -44,6 +44,18 @@ test("a first list is made, written on, ticked and kept", async ({ page }) => {
   await milk.click();
   await expect(milk).toBeChecked();
 
+  // A sheet taller than the window stops short of its top edge, so its title
+  // is there to pull it away by (the owner, 2026-09-30).
+  await page.getByRole("button", { name: "Katalogdan seç" }).click();
+  const catalogue = page.getByRole("dialog", { name: "Katalog" });
+  const title = (await catalogue.getByRole("heading", { name: "Katalog" }).boundingBox())!;
+  expect(title.y).toBeGreaterThan(24);
+  await page.mouse.move(title.x + 20, title.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(title.x + 20, title.y + 200, { steps: 8 });
+  await page.mouse.up();
+  await expect(catalogue).toHaveCount(0);
+
   await page.reload();
   await expect(page.getByRole("button", { name: "Domates, 2 kg" })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "Süt" })).toBeChecked();
