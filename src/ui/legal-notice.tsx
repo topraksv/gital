@@ -18,6 +18,7 @@ import X from "lucide-react-native/icons/x";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
 import { Body, Button, Card, PanelHeader, SectionHeader } from "./components";
+import { useModalSlot } from "./dialog";
 import { selectionTap } from "./haptics";
 import { interactionSurface } from "./interaction";
 import { useReducedMotion } from "./motion";
@@ -109,8 +110,9 @@ export function LegalNoticeSheet({ onClose, onAccept }: { onClose: () => void; o
   const { width, height } = useWindowDimensions();
   const asSheet = shouldPresentAsSheet(width);
   const titleRef = useModalAccessibility(true);
+  const modal = useModalSlot("sheet");
   return (
-    <Modal aria-label={tr.legal.title} transparent animationType={reducedMotion ? "none" : "fade"} visible onRequestClose={onClose}>
+    <Modal aria-label={tr.legal.title} transparent animationType={reducedMotion ? "none" : "fade"} visible onRequestClose={onClose} onDismiss={modal.onGone}>
       <View style={{ flex: 1, justifyContent: asSheet ? "flex-end" : "center", padding: asSheet ? 0 : spacing.lg }}>
         <Pressable accessible={false} tabIndex={-1} onPress={onClose} style={[StyleSheet.absoluteFill, { backgroundColor: palette.scrim }]} />
         <View
@@ -192,6 +194,7 @@ export function LegalNoticeSheet({ onClose, onAccept }: { onClose: () => void; o
           </View>
         </View>
       </View>
+      {modal.slot}
     </Modal>
   );
 }

@@ -55,3 +55,25 @@ export function closeRequest<T>(store: QueueStore<T>, request: T, settle: (reque
   store.setState(advanceRequestQueue(store.getState()));
   settle(request);
 }
+
+/** A modal the overlays can be drawn inside: a sheet holds either, a prompt only a dialog above it. */
+export interface OpenModal {
+  id: number;
+  kind: "sheet" | "prompt" | "dialog";
+  /** Closed in React and still animating out on the phone. */
+  leaving?: boolean;
+}
+
+/**
+ * Which open modal presents the next overlay of `kind`: the newest that may
+ * hold it, `null` for the root, or "wait" while any modal is leaving. iOS
+ * presents one modal from a controller at a time, so an overlay drawn beside an
+ * open sheet rather than inside it is refused, and one presented while another
+ * leaves is stranded on screen, unseen, taking every touch: the owner's freeze
+ * of 2026-10-01, which only restarting Expo Go ended.
+ */
+export function presenterOf(open: readonly OpenModal[], kind: "prompt" | "dialog"): number | null | "wait" {
+  if (open.some((modal) => modal.leaving)) return "wait";
+  const holds = kind === "prompt" ? ["sheet"] : ["sheet", "prompt"];
+  return open.findLast((modal) => holds.includes(modal.kind))?.id ?? null;
+}

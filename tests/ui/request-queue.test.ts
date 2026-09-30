@@ -10,6 +10,7 @@ import {
   closeRequest,
   emptyRequestQueue,
   enqueueRequest,
+  presenterOf,
   type RequestQueue,
 } from "../../src/ui/request-queue";
 
@@ -151,5 +152,39 @@ describe("request-queue reducer", () => {
   it("empties rather than throwing when advanced past the last request", () => {
     expect(advanceRequestQueue<string>({ current: "a", queue: [] })).toEqual({ current: null, queue: [] });
     expect(advanceRequestQueue<string>({ current: null, queue: [] })).toEqual({ current: null, queue: [] });
+  });
+});
+
+// iOS presents one modal from a controller at a time: a dialog drawn beside an
+// open sheet, rather than inside it, is refused and strands a layer that takes
+// every touch (the owner's freeze, 2026-10-01).
+describe("presenterOf", () => {
+  it("presents over nothing from the root", () => {
+    expect(presenterOf([], "dialog")).toBeNull();
+    expect(presenterOf([], "prompt")).toBeNull();
+  });
+
+  it("presents a dialog or a prompt inside the newest open sheet", () => {
+    const open = [
+      { id: 1, kind: "sheet" as const },
+      { id: 2, kind: "sheet" as const },
+    ];
+    expect(presenterOf(open, "dialog")).toBe(2);
+    expect(presenterOf(open, "prompt")).toBe(2);
+  });
+
+  it("presents a dialog over a prompt inside the prompt, and never inside another dialog", () => {
+    const open = [
+      { id: 1, kind: "sheet" as const },
+      { id: 2, kind: "prompt" as const },
+      { id: 3, kind: "dialog" as const },
+    ];
+    expect(presenterOf(open, "dialog")).toBe(2);
+    expect(presenterOf(open, "prompt"), "a prompt is not drawn inside a prompt").toBe(1);
+  });
+
+  it("waits while a modal is still leaving, rather than present beside it", () => {
+    expect(presenterOf([{ id: 1, kind: "sheet", leaving: true }], "dialog")).toBe("wait");
+    expect(presenterOf([{ id: 1, kind: "sheet" }, { id: 2, kind: "sheet", leaving: true }], "dialog")).toBe("wait");
   });
 });

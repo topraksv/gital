@@ -6,13 +6,14 @@
  *   await appError(message);
  *   const name = await appPrompt(title, message, { confirmLabel, initialValue });
  *
- * `DialogHost` and `PromptHost` render once in the root layout; RN's Modal
- * overlays every screen, and outlives the screen that asked. Helix's operation
- * header is left out until a caller needs it; a confirm is only for what the
- * undo bar cannot take back, which a list's delete is not.
+ * The hosts render inside the newest open sheet, or at the root when none is
+ * open (`presenterOf`): iOS presents one modal from a controller at a time.
+ * An answer settles once its modal has gone. Helix's operation header is left
+ * out until a caller needs it; a confirm is only for what the undo bar cannot
+ * take back, which a list's delete is not.
  */
 
-import { useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Modal, Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
@@ -23,11 +24,13 @@ import { errorNotice } from "./haptics";
 import { KeyboardSafeScrollView } from "./keyboard-safe";
 import { PanelMotion } from "./list-motion";
 import { useDragAway, useReducedMotion } from "./motion";
-import { closeRequest, emptyRequestQueue, enqueueRequest, type RequestQueue } from "./request-queue";
+import { closeRequest, emptyRequestQueue, enqueueRequest, presenterOf, type OpenModal, type RequestQueue } from "./request-queue";
 import { shouldPresentAsSheet } from "./responsive";
 import { circle, dialog, motion, radius, spacing, themeShadow, type, useTheme } from "./theme";
 
 interface DialogRequest {
+  /** Keys the dialog, so each one opens, and leaves, as its own modal. */
+  id: number;
   title: string;
   message: string;
   /** The action a confirm asks for; an error has none and only closes. */
@@ -36,10 +39,11 @@ interface DialogRequest {
 }
 
 const useDialogStore = create<RequestQueue<DialogRequest>>(() => emptyRequestQueue<DialogRequest>());
+let dialogId = 0;
 
-function ask(request: Omit<DialogRequest, "resolve">): Promise<boolean> {
+function ask(request: Omit<DialogRequest, "id" | "resolve">): Promise<boolean> {
   return new Promise((resolve) => {
-    useDialogStore.setState(enqueueRequest(useDialogStore.getState(), { ...request, resolve }));
+    useDialogStore.setState(enqueueRequest(useDialogStore.getState(), { ...request, id: ++dialogId, resolve }));
   });
 }
 
@@ -103,6 +107,69 @@ export function appPrompt(
   });
 }
 
+const useOpenModals = create<{ open: OpenModal[] }>(() => ({ open: [] }));
+let modalId = 0;
+/** Longer than iOS takes to fade a modal out; a modal that reported itself gone is let go at once. */
+const LEAVE_MS = 500;
+
+/**
+ * Registers a modal while it is open, and returns what it must render inside
+ * itself: the prompt and dialog hosts, when it is the one to present them. On
+ * iOS a modal closed in React is still leaving the screen, so it is held as
+ * leaving until it has, and nothing is presented beside it meanwhile.
+ */
+export function useModalSlot(kind: OpenModal["kind"]): { slot: ReactNode; onGone: () => void } {
+  const [id] = useState(() => ++modalId);
+  const gone = useRef(false);
+  useEffect(() => {
+    gone.current = false;
+    useOpenModals.setState((state) => ({ open: [...state.open, { id, kind }] }));
+    return () => {
+      const drop = () => useOpenModals.setState((state) => ({ open: state.open.filter((modal) => modal.id !== id) }));
+      if (Platform.OS !== "ios" || gone.current) return drop();
+      useOpenModals.setState((state) => ({ open: state.open.map((modal) => (modal.id === id ? { ...modal, leaving: true } : modal)) }));
+      setTimeout(drop, LEAVE_MS);
+    };
+  }, [id, kind]);
+  return { slot: <OverlaySlot at={id} />, onGone: () => (gone.current = true) };
+}
+
+/** The prompt and dialog hosts, drawn wherever `presenterOf` puts them; the root layout renders the root's. */
+export function OverlaySlot({ at = null }: { at?: number | null }) {
+  const holdsPrompt = useOpenModals((state) => presenterOf(state.open, "prompt") === at);
+  const holdsDialog = useOpenModals((state) => presenterOf(state.open, "dialog") === at);
+  return (
+    <>
+      {holdsPrompt ? <PromptHost /> : null}
+      {holdsDialog ? <DialogHost /> : null}
+    </>
+  );
+}
+
+/**
+ * An answer given now and settled once its modal has gone: presenting the next
+ * modal, or closing the sheet under it, while this one still leaves strands it
+ * on an iPhone. iOS and the web report the modal gone; Android reports nothing
+ * and has no such trap, and the timer settles a modal that never presented.
+ */
+function useAnswer<T>(settle: (value: T) => void): { visible: boolean; answer: (value: T) => void; gone: () => void } {
+  const given = useRef<{ value: T } | null>(null);
+  const [visible, setVisible] = useState(true);
+  const gone = () => {
+    const answered = given.current;
+    given.current = null;
+    if (answered) settle(answered.value);
+  };
+  const answer = (value: T) => {
+    if (given.current || !visible) return;
+    given.current = { value };
+    setVisible(false);
+    if (Platform.OS === "android") gone();
+    else setTimeout(gone, LEAVE_MS);
+  };
+  return { visible, answer, gone };
+}
+
 /**
  * The overlay every dialog and sheet renders, so what must not drift between
  * them is written once: the scrim that dismisses, the container Pressables
@@ -117,9 +184,17 @@ export function DialogShell({
   dirty,
   lead,
   action,
+  kind = "sheet",
+  visible = true,
+  onGone,
   children,
 }: {
   title: string;
+  /** What it may hold above it (`presenterOf`); a prompt or a dialog is drawn by its host. */
+  kind?: OpenModal["kind"];
+  /** False once answered: the modal leaves, and `onGone` runs when it has. */
+  visible?: boolean;
+  onGone?: () => void;
   /** Beside the title: a control that acts on the whole thing the dialog is about, the item panel's star. */
   action?: ReactNode;
   message?: string;
@@ -136,6 +211,7 @@ export function DialogShell({
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const asSheet = shouldPresentAsSheet(width);
+  const modal = useModalSlot(kind);
   // A sheet goes down by its handle and title, not by its body, whose own
   // fields and lists take a vertical drag first.
   const { dragY, panHandlers } = useDragAway(dialog.dragAway, height, onDismiss, dirty);
@@ -184,7 +260,17 @@ export function DialogShell({
   return (
     // On the web the Modal is the element with `role="dialog"`, and takes the
     // name there; a label on a generic element inside it names nothing.
-    <Modal aria-label={title} transparent animationType={reducedMotion ? "none" : "fade"} visible onRequestClose={onDismiss}>
+    <Modal
+      aria-label={title}
+      transparent
+      animationType={reducedMotion ? "none" : "fade"}
+      visible={visible}
+      onRequestClose={onDismiss}
+      onDismiss={() => {
+        modal.onGone();
+        onGone?.();
+      }}
+    >
       <Pressable
         accessible={false}
         tabIndex={-1}
@@ -227,6 +313,7 @@ export function DialogShell({
           </Pressable>
         </KeyboardSafeScrollView>
       </Pressable>
+      {modal.slot}
     </Modal>
   );
 }
@@ -235,12 +322,13 @@ export function Actions({ children }: { children: ReactNode }) {
   return <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.lg }}>{children}</View>;
 }
 
-function PromptBody({ request, onClose }: { request: PromptRequest; onClose: (value: string | null) => void }) {
+function PromptBody({ request }: { request: PromptRequest }) {
   const [value, setValue] = useState(request.initialValue);
   const titleRef = useModalAccessibility(true, request.id, false);
+  const { visible, answer: onClose, gone } = useAnswer((answer: string | null) => closeRequest(usePromptStore, request, (open) => open.resolve(answer)));
   const ready = value.trim() !== "";
   return (
-    <DialogShell title={request.title} message={request.message} titleRef={titleRef} onDismiss={() => onClose(null)}>
+    <DialogShell kind="prompt" visible={visible} onGone={gone} title={request.title} message={request.message} titleRef={titleRef} onDismiss={() => onClose(null)}>
       <TextField
         value={value}
         maxLength={request.maxLength}
@@ -280,25 +368,26 @@ function fieldFor(kind: PromptKind) {
   } as const;
 }
 
-export function PromptHost() {
+function PromptHost() {
   const current = usePromptStore((s) => s.current);
-  if (!current) return null;
-  const close = (value: string | null) => closeRequest(usePromptStore, current, (request) => request.resolve(value));
-  return <PromptBody key={current.id} request={current} onClose={close} />;
+  return current ? <PromptBody key={current.id} request={current} /> : null;
 }
 
-export function DialogHost() {
+function DialogHost() {
   const current = useDialogStore((s) => s.current);
-  const titleRef = useModalAccessibility(current != null, current);
-  if (!current) return null;
-  const close = (confirmed: boolean) => closeRequest(useDialogStore, current, (request) => request.resolve(confirmed));
+  return current ? <DialogBody key={current.id} request={current} /> : null;
+}
+
+function DialogBody({ request }: { request: DialogRequest }) {
+  const titleRef = useModalAccessibility(true, request.id);
+  const { visible, answer: close, gone } = useAnswer((confirmed: boolean) => closeRequest(useDialogStore, request, (open) => open.resolve(confirmed)));
   return (
-    <DialogShell title={current.title} message={current.message} titleRef={titleRef} onDismiss={() => close(false)}>
+    <DialogShell kind="dialog" visible={visible} onGone={gone} title={request.title} message={request.message} titleRef={titleRef} onDismiss={() => close(false)}>
       <Actions>
-        {current.confirmLabel ? (
+        {request.confirmLabel ? (
           <>
             <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={() => close(false)} />
-            <Button label={current.confirmLabel} size="sm" onPress={() => close(true)} />
+            <Button label={request.confirmLabel} size="sm" onPress={() => close(true)} />
           </>
         ) : (
           <Button label={tr.common.done} size="sm" onPress={() => close(false)} />

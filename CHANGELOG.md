@@ -8,6 +8,12 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.4.1
+
+### Patch Changes
+
+- Bir ürünün penceresinde kamera, bir düğme ya da bir anahtar sonrası çıkan onay veya hata artık iPhone'da ekranı kilitlemiyor; soru, açık pencerenin içinde soruluyor.
+
 ## 1.4.0
 
 ### Minor Changes

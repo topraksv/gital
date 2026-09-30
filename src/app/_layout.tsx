@@ -25,7 +25,7 @@ import { followLists, startLive, stopLive } from "../sync/live";
 import { inviteFromPage, inviteTokenFrom } from "../sync/sharing";
 import { realtimeAccess } from "../sync/supabase";
 import { Button, EmptyState } from "../ui/components";
-import { appConfirm, appError, appPrompt, DialogHost, PromptHost } from "../ui/dialog";
+import { appConfirm, appError, appPrompt, OverlaySlot } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
 import { KeyboardSafeRoot } from "../ui/keyboard-safe";
 import { GestureRoot } from "../ui/list-motion";
@@ -195,8 +195,7 @@ export default function RootLayout() {
             <StatusBar style={scheme === "dark" ? "light" : "dark"} />
             <CelebrationHost />
             <UndoSnackbar />
-            <PromptHost />
-            <DialogHost />
+            <OverlaySlot />
             <ThemeDissolve />
           </View>
         </KeyboardSafeRoot>
