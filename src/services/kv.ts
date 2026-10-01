@@ -2,6 +2,8 @@
  * Helix's device-local key-value store: SecureStore on native, localStorage on
  * web. Preferences only — never a credential, since any script on the web
  * origin can read localStorage. `tests/auth/auth.test.ts` holds every key to that.
+ * The one bearer value is a web invitation waiting for sign-in, single-use
+ * and seven days at most, which `docs/SECURITY.md` accepts.
  *
  * Best-effort on web by contract: a browser that blocks site data throws on
  * the property access itself and a full one on the write, and a refused write

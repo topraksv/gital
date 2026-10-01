@@ -8,6 +8,7 @@ import Plus from "lucide-react-native/icons/plus";
 import Refrigerator from "lucide-react-native/icons/refrigerator";
 import Share from "lucide-react-native/icons/share";
 
+import { useSession } from "../../auth/session";
 import { useMovedAisles, usePantry } from "../../data/hooks";
 import { finishPantryItem, removePantryItem, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
 import { listSections, type Section } from "../../domain/catalogue";
@@ -23,6 +24,7 @@ import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFail
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import { Actions, DialogShell, appError, appPrompt } from "../../ui/dialog";
 import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
+import { HouseholdActions } from "../../ui/members-sheet";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { isReducedMotion } from "../../ui/motion";
 import { flightTo, landTab, tabCentre } from "../../ui/tab-landing";
@@ -37,9 +39,11 @@ const LISTS_TAB = "index";
  * What is at home (SPEC 12.2, 12.8), by aisle as a list is, and worked as a
  * list is (the owner asked 2026-09-27): sorted by its grips, filled from a
  * pasted message or the catalogue, and shared as text. Kiler is one, so it
- * has no name, colour or delete of its own.
+ * has no name, colour or delete of its own; its people are the household's
+ * (SPEC 12.13).
  */
 export default function Pantry() {
+  const userId = useSession((s) => s.userId) ?? "";
   const pantry = usePantry();
   const moved = useMovedAisles();
   const [sorting, setSorting] = useState(false);
@@ -119,11 +123,11 @@ export default function Pantry() {
       width="workspace"
       scrollEnabled={!dragging}
       actions={
-        <>
+        <HouseholdActions userId={userId}>
           <SortToggle sorting={sorting} canSort={pantry.data.length > 1} onChange={setSorting} />
           <IconButton icon={ClipboardPaste} label={tr.pantry.paste} onPress={() => void paste()} />
           <IconButton icon={Share} label={tr.pantry.share} disabled={pantry.data.length === 0} onPress={() => void share()} />
-        </>
+        </HouseholdActions>
       }
     >
       <PantryAdd held={pantry.data} />

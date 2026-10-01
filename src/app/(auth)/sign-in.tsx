@@ -1,4 +1,4 @@
-import { memo, useRef, useState, type ReactNode, type Ref } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { StyleSheet, Text, View, useWindowDimensions, type TextInput } from "react-native";
 import ClipboardList from "lucide-react-native/icons/clipboard-list";
 import CloudOff from "lucide-react-native/icons/cloud-off";
@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react-native";
 
 import { isEmail, isValidNewPassword, useSession } from "../../auth/session";
 import { tr } from "../../i18n/tr";
+import { heldInvite } from "../../sync/sharing";
 import { Body, Button, Card, Notice, Screen, TextField } from "../../ui/components";
 import { interactionSurface } from "../../ui/interaction";
 import { Press } from "../../ui/press";
@@ -216,6 +217,16 @@ function OfflineNote() {
   );
 }
 
+/**
+ * A web invitation waits for the sign-in. Saying so keeps the person from
+ * going to the app for it, which would ask for the link again (SPEC 1.4).
+ */
+function InviteWaiting() {
+  const [invited, setInvited] = useState(false);
+  useEffect(() => void heldInvite().then((token) => setInvited(token != null)), []);
+  return invited ? <Notice tone="success" text={tr.sharing.inviteWaiting} /> : null;
+}
+
 /** The address, which is the last field only when a reset link is all that is asked for. */
 function EmailField({ value, onChangeText, last, onSubmit, onNext }: { value: string; onChangeText: (value: string) => void; last: boolean; onSubmit: () => void; onNext: () => void }) {
   return (
@@ -340,6 +351,7 @@ export default function SignInScreen() {
           <Card>
             <Text accessibilityRole="header" aria-level={2} style={[type.heading, { color: palette.text, marginBottom: spacing.xs }]}>{text.heading}</Text>
             <Body muted style={{ marginBottom: spacing.lg }}>{text.subtitle}</Body>
+            <InviteWaiting />
             <EmailField value={email} onChangeText={edit(setEmail)} last={mode === "forgot"} onSubmit={press} onNext={() => passwordRef.current?.focus()} />
             {mode !== "forgot" ? <PasswordField ref={passwordRef} creating={mode === "signUp"} value={password} onChangeText={edit(setPassword)} onSubmit={press} /> : null}
             {outcome ? <Notice {...outcome} /> : null}

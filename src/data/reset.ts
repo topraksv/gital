@@ -11,6 +11,7 @@
 import { getSqliteAsync } from "../db/client";
 import { actingUser, fromDbShape, nowIso, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
 import type { SyncedTableName } from "../db/schema";
+import { heldPantry } from "./pantry";
 
 export const RESET_SCOPES = ["lists", "history", "wishes", "products", "sets", "pantry"] as const;
 export type ResetScope = (typeof RESET_SCOPES)[number];
@@ -57,11 +58,21 @@ const PARTS: Record<ResetScope, readonly (readonly [SyncedTableName, string])[]>
   ],
 };
 
+/**
+ * A household's Kiler (SPEC 12.13) is its owner's to reset, as a shared list
+ * is: the owner's reset empties it for everyone, a member's leaves it alone.
+ */
+export async function inHousehold(): Promise<boolean> {
+  const me = actingUser();
+  return me != null && (await heldPantry(me)).id !== me;
+}
+
 /** Every live row the parts take, once each. */
 async function chosenRows(scopes: readonly ResetScope[]): Promise<Map<string, readonly [SyncedTableName, RowSnapshot]>> {
   const sqlite = await getSqliteAsync();
   const rows = new Map<string, readonly [SyncedTableName, RowSnapshot]>();
-  for (const [table, which] of scopes.flatMap((scope) => PARTS[scope])) {
+  const kept = (await inHousehold()) ? "pantry" : null;
+  for (const [table, which] of scopes.filter((scope) => scope !== kept).flatMap((scope) => PARTS[scope])) {
     const column = LIST_COLUMN[table];
     const own = column ? ` AND ${column} NOT IN (${THEIRS})` : "";
     for (const row of await sqlite.getAllAsync<RowSnapshot>(`SELECT * FROM ${table} WHERE deleted_at IS NULL AND (${which})${own}`, column ? [actingUser()] : [])) {

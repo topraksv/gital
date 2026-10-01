@@ -7,7 +7,7 @@ import { readBought, readItems, readKnownProducts, readShopItems } from "./items
 import { readLists } from "./lists";
 import { readFresh, readMembers, readSharedLists } from "./members";
 import { liveStore } from "./live-query";
-import { readLasted, readPantry } from "./pantry";
+import { heldPantry, readLasted, readPantry } from "./pantry";
 import { readProducts } from "./products";
 import { readSets } from "./sets";
 import { frozenFrom, readSettings } from "./settings";
@@ -23,6 +23,13 @@ export function useMembers(listId: string) {
 // Listeler's count of what is new on each shared list (SPEC 1.9), for the person signed in.
 export function useFresh(userId: string) {
   const store = useMemo(() => liveStore(() => readFresh(userId), ["items", "list_members"]), [userId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+// The Kiler this device holds (SPEC 12.13). It changes at a sync that empties
+// Kiler and fills it again, which a membership coming or going goes with.
+export function useHeldPantry(userId: string) {
+  const store = useMemo(() => liveStore(async () => [await heldPantry(userId)], ["pantry_items", "list_members"]), [userId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 

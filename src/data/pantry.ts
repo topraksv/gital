@@ -5,17 +5,36 @@ import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, findLiveRow, findRow, nowIso, readLiveRow, writeRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
-import { pantryItems, pantryMoves } from "../db/schema";
+import { lists, pantryItems, pantryMoves } from "../db/schema";
 import { isISODate, type ISODate } from "../domain/dates";
 import { foldName, quantityOrOne, type Entry, type Unit } from "../domain/items";
 import { lastedOf, lessOf, stockOf, type Stock } from "../domain/pantry";
 import { entryRows } from "./items";
+import { viewing } from "./lists";
 
 export interface PantryItem extends Stock {
   id: string;
   name: string;
+  /** The list its last shop came from, where finishing it puts it back. */
+  listId: string | null;
   expiresOn: ISODate | null;
   sortOrder: number;
+}
+
+/**
+ * The Kiler this device holds (SPEC 12.13): a `sync_state` row `pantry:<id>`,
+ * written when it last changed Kiler, with when. None is the person's own,
+ * held since always.
+ */
+export const HELD_PANTRY = "pantry:";
+
+export async function heldPantry(userId: string): Promise<{ id: string; since: string | null }> {
+  const sqlite = await getSqliteAsync();
+  const held = await sqlite.getFirstAsync<{ table_name: string; last_pulled_at: string }>(
+    "SELECT table_name, last_pulled_at FROM sync_state WHERE table_name LIKE ?",
+    [`${HELD_PANTRY}%`],
+  );
+  return held ? { id: held.table_name.slice(HELD_PANTRY.length), since: held.last_pulled_at } : { id: userId, since: null };
 }
 
 /** A product finished, for the undo bar: the list it went back on, if that list is still there. */
@@ -24,7 +43,7 @@ export interface Finished {
   listName: string | null;
 }
 
-type Held = Pick<PantryItem, "name" | "expiresOn" | "sortOrder"> & { moves: (Stock & { at: string })[] };
+type Held = Pick<PantryItem, "name" | "listId" | "expiresOn" | "sortOrder"> & { moves: (Stock & { at: string })[] };
 
 /** Each pantry row's moves, oldest first. */
 async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<string, Held>> {
@@ -32,6 +51,7 @@ async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<str
     .select({
       id: pantryItems.id,
       name: pantryItems.name,
+      listId: pantryItems.listId,
       expiresOn: pantryItems.expiresOn,
       sortOrder: pantryItems.sortOrder,
       quantityMilli: pantryMoves.quantityMilli,
@@ -43,8 +63,8 @@ async function readMoves(where = isNull(pantryItems.deletedAt)): Promise<Map<str
     .where(where)
     .orderBy(asc(pantryMoves.createdAt), asc(pantryMoves.id));
   const moves = new Map<string, Held>();
-  for (const { id, name, expiresOn, sortOrder, ...move } of rows) {
-    const held = moves.get(id) ?? { name, expiresOn, sortOrder, moves: [] };
+  for (const { id, name, listId, expiresOn, sortOrder, ...move } of rows) {
+    const held = moves.get(id) ?? { name, listId, expiresOn, sortOrder, moves: [] };
     held.moves.push(move);
     moves.set(id, held);
   }
@@ -160,17 +180,20 @@ const SETTLE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * A shared list's shop someone else finished (SPEC 12.2, 12.5): what this
- * person ticked comes home to their pantry, and goes again with an undo. Only
- * a pantry's owner writes it, so each member's device settles its own after a
- * pull. The arrival's id is the bought row's, so a shop seen twice, or on a
- * second device, adds nothing twice; a list never shared is left to its own
- * finish, which stocked it. An arrival an undo took back returns with
- * the shop only while its product is still at home, since a pantry reset
- * takes both.
+ * person ticked comes home to the Kiler they are in, and goes again with an
+ * undo. Each person's device settles their own ticks after a pull. The
+ * arrival's id is the bought row's, so a shop seen twice, or on a second
+ * device, adds nothing twice; a list never shared is left to its own finish,
+ * which stocked it. An arrival an undo took back returns with the shop only
+ * while its product is still at home, since a pantry reset takes both. A shop
+ * finished before this device changed Kiler belongs to the one it had: joined
+ * empty, or gone from a household, the person starts with nothing.
  */
 export async function settleArrivals(userId: string): Promise<void> {
   const sqlite = await getSqliteAsync();
-  const since = new Date(Date.now() - SETTLE_WINDOW_MS).toISOString();
+  const window = new Date(Date.now() - SETTLE_WINDOW_MS).toISOString();
+  const { since: switched } = await heldPantry(userId);
+  const since = switched != null && switched > window ? switched : window;
   await writeRows(async () => {
     const bought = await sqlite.getAllAsync<RowSnapshot>(
       `SELECT items.*, items.deleted_at IS NULL AND shops.deleted_at IS NULL AS home FROM items
@@ -215,7 +238,9 @@ async function readStock(id: string): Promise<PantryItem> {
 
 /**
  * Empty a product and put it on the list it last came from (SPEC 12.2), in
- * one write the undo bar takes back whole. A list deleted since takes nothing.
+ * one write the undo bar takes back whole. A list deleted since takes nothing,
+ * and so does one this person only views: in a household, the list a product
+ * came from may be another member's.
  */
 async function finishWith(id: string, rest: (stock: PantryItem) => Stock | null): Promise<Finished | null> {
   const outcome: { finished: boolean; listName: string | null } = { finished: false, listName: null };
@@ -228,10 +253,15 @@ async function finishWith(id: string, rest: (stock: PantryItem) => Stock | null)
     const item = await readLiveRow("pantry_items", id);
     // The date was the stay's; the next arrival is another package.
     writes.push(...editRow("pantry_items", item, { expiresOn: null }));
-    const list = item.list_id == null ? null : await findLiveRow("lists", String(item.list_id));
-    if (!list) return writes;
-    outcome.listName = String(list.name);
-    return [...writes, ...(await entryRows(String(list.id), [{ name: stock.name, quantityMilli: null, unit: null, note: null, urgent: false }]))];
+    const [list] = item.list_id == null
+      ? []
+      : await getDb()
+          .select({ id: lists.id, name: lists.name, viewer: viewing() })
+          .from(lists)
+          .where(and(eq(lists.id, String(item.list_id)), isNull(lists.deletedAt)));
+    if (!list || list.viewer) return writes;
+    outcome.listName = list.name;
+    return [...writes, ...(await entryRows(list.id, [{ name: stock.name, quantityMilli: null, unit: null, note: null, urgent: false }]))];
   });
   return outcome.finished ? { written, listName: outcome.listName } : null;
 }

@@ -4,8 +4,8 @@
  * what `supabase/migrations/00000000000003_sync.sql` decides — the server's
  * clock in microseconds, one `now()` per statement, the delete generation,
  * who may read and write which row, a personal row keyed by its person, a
- * list's members and their invitations (migration 5), and a statement that
- * fails whole — so the engine is tested against the rules it
+ * list's members and their invitations (migration 5), the household Kiler
+ * (migration 12), and a statement that fails whole — so the engine is tested against the rules it
  * will meet, and `supabase/tests/sync_rls.sql` proves the real server keeps
  * the same ones.
  */
@@ -16,6 +16,7 @@ type Failure = { message: string; code?: string; status?: number };
 type Reply = { data: unknown; error: Failure | null };
 
 const PERSONAL = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
+const PANTRY = new Set(["pantry_items", "pantry_moves"]);
 const LIST_CHILDREN = new Set(["shops", "items", "wishes", "wish_links"]);
 export const TABLES = ["lists", "list_members", "shops", "items", "wishes", "wish_links", "products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"];
 const PHOTO_OBJECT = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(full|thumb)\.jpg$/;
@@ -72,6 +73,19 @@ export class FakeCloud {
     return this.rows("list_members").find((row) => row.list_id === list && row.user_id === uid && row.deleted_at == null);
   }
 
+  /** `private.my_pantry()`: the household the person joined, else their own Kiler. */
+  home(uid: string): string {
+    const joined = this.rows("list_members").find(
+      (row) => row.user_id === uid && row.role !== "owner" && row.deleted_at == null && this.tables.get("lists")!.get(String(row.list_id))?.kind === "pantry",
+    );
+    return joined ? String(joined.list_id) : uid;
+  }
+
+  /** Whose a personal row is: a pantry row the Kiler's the person is in. */
+  private scopeOf(table: string, uid: string): string {
+    return PANTRY.has(table) ? this.home(uid) : uid;
+  }
+
   private canRead(list: unknown, uid: string): boolean {
     return this.isOwner(list, uid) || this.membership(list, uid) != null;
   }
@@ -84,21 +98,21 @@ export class FakeCloud {
     if (table === "lists") return this.canRead(row.id, uid);
     if (table === "list_members") return row.user_id === uid || this.canRead(row.list_id, uid);
     if (LIST_CHILDREN.has(table)) return this.canRead(row.list_id, uid);
-    return row.user_id === uid;
+    return row.user_id === this.scopeOf(table, uid);
   }
 
   private writable(table: string, row: Row, uid: string, old: Row | undefined): boolean {
-    if (table === "lists") return old ? this.canWrite(old.id, uid) : row.owner_id === uid;
+    if (table === "lists") return old ? this.canWrite(old.id, uid) : row.owner_id === uid && row.kind !== "pantry";
     if (table === "list_members") return old != null && (old.user_id === uid || this.isOwner(old.list_id, uid));
     if (LIST_CHILDREN.has(table)) return this.canWrite(row.list_id, uid);
-    return row.user_id === uid;
+    return row.user_id === this.scopeOf(table, uid);
   }
 
   /** The triggers `keep_list_owner` and `guard_list_member`: what a write may not change. */
   private guard(table: string, next: Row, old: Row, uid: string): void {
     const keepDelete = () => Object.assign(next, { deleted_at: old.deleted_at, tombstone_version: old.tombstone_version });
     if (table === "lists") {
-      next.owner_id = old.owner_id;
+      Object.assign(next, { owner_id: old.owner_id, kind: old.kind });
       if (old.owner_id !== uid) keepDelete();
     }
     if (table !== "list_members") return;
@@ -193,6 +207,40 @@ export class FakeCloud {
     this.tables.get(table)!.set(this.keyOf(table, stored), stored);
   }
 
+  /**
+   * `private.join_household`: refused (and the token kept) while the person is
+   * in another household or others are in theirs; otherwise what they brought
+   * arrives as counted, and their own Kiler is emptied.
+   */
+  private joinHousehold(household: string, uid: string, pantry: unknown): Failure | "joined" | "already" {
+    if (this.home(uid) === household) return "already";
+    if (pantry == null) return { message: "this version cannot join a household", code: "ZK003" };
+    if (this.home(uid) !== uid) return { message: "in another household", code: "ZK001" };
+    if (this.rows("list_members").some((row) => row.list_id === uid && row.role !== "owner" && row.deleted_at == null)) {
+      return { message: "others are in this Kiler", code: "ZK002" };
+    }
+    for (const [token, invite] of this.invites) if (invite.list === uid) this.invites.delete(token);
+    for (const entry of pantry as Row[]) {
+      const held = this.tables.get("pantry_items")!.get(`${household}|${String(entry.id)}`);
+      if (!held) {
+        this.serverWrite("pantry_items", { user_id: household, id: entry.id, name: entry.name, list_id: entry.list_id, expires_on: entry.expires_on, sort_order: 0 });
+      } else if (held.deleted_at != null) {
+        this.serverWrite("pantry_items", { ...held, deleted_at: null });
+      }
+      if (Number(entry.quantity_milli) > 0) {
+        this.serverWrite("pantry_moves", { user_id: household, id: crypto.randomUUID(), pantry_item_id: entry.id, quantity_milli: entry.quantity_milli, unit: entry.unit });
+      }
+    }
+    for (const table of PANTRY) {
+      for (const row of this.rows(table)) {
+        if (row.user_id === uid && row.deleted_at == null) {
+          this.serverWrite(table, { ...row, deleted_at: timestamptz(this.clock), tombstone_version: Number(row.tombstone_version) + 1 });
+        }
+      }
+    }
+    return "joined";
+  }
+
   private rpc(name: string, args: Record<string, unknown> = {}): Reply {
     const uid = this.user;
     if (!uid) return { data: null, error: { message: "permission denied for function " + name, code: "42501" } };
@@ -200,6 +248,13 @@ export class FakeCloud {
     if (name === "create_list_invite") {
       const list = String(args.list);
       if (args.invite_role !== "editor" && args.invite_role !== "viewer") return invalid("invalid role");
+      if (list === uid) {
+        if (this.home(uid) !== uid) return { data: null, error: { message: "in another household", code: "ZK001" } };
+        if (args.invite_role !== "editor") return invalid("a household has no viewers");
+        if (!this.tables.get("lists")!.has(uid)) {
+          this.serverWrite("lists", { id: uid, owner_id: uid, name: "Kiler", kind: "pantry", color: null, icon: null, pantry: true });
+        }
+      }
       if (!this.isOwner(list, uid) || this.tables.get("lists")!.get(list)?.deleted_at != null) {
         return { data: null, error: { message: "not the owner of this list", code: "42501" } };
       }
@@ -210,11 +265,23 @@ export class FakeCloud {
       this.invites.set(token, { list, role: String(args.invite_role) });
       return { data: token, error: null };
     }
+    if (name === "peek_list_invite") {
+      const invite = this.invites.get(String(args.token));
+      const list = invite && this.tables.get("lists")!.get(invite.list);
+      const owner = list && this.rows("list_members").find((row) => row.list_id === list.id && row.role === "owner");
+      return { data: list ? [{ kind: list.kind, name: list.name, inviter: owner?.name ?? "" }] : [], error: null };
+    }
     if (name === "accept_list_invite") {
       const invite = this.invites.get(String(args.token));
-      this.invites.delete(String(args.token));
       if (!invite) return invalid("invite not found");
-      if (this.isOwner(invite.list, uid)) return { data: invite.list, error: null };
+      if (this.isOwner(invite.list, uid)) {
+        this.invites.delete(String(args.token));
+        return { data: invite.list, error: null };
+      }
+      const joined = this.tables.get("lists")!.get(invite.list)?.kind === "pantry" ? this.joinHousehold(invite.list, uid, args.pantry) : null;
+      if (typeof joined === "object" && joined) return { data: null, error: joined };
+      this.invites.delete(String(args.token));
+      if (joined === "already") return { data: invite.list, error: null };
       const held = this.rows("list_members").find((row) => row.list_id === invite.list && row.user_id === uid);
       this.serverWrite("list_members", { ...held, id: held?.id ?? crypto.randomUUID(), list_id: invite.list, user_id: uid, role: invite.role, name: args.member_name ?? "", seen_at: held?.seen_at ?? null, deleted_at: null });
       return { data: invite.list, error: null };
@@ -224,10 +291,13 @@ export class FakeCloud {
     }
     if (name !== "sync_cursors") return { data: null, error: { message: "no such function", code: "PGRST202" } };
     return {
-      data: TABLES.map((table) => {
-        const head = (this.select(table, { limit: Number.MAX_SAFE_INTEGER }).data as Row[]).at(-1);
-        return { table_name: table, max_updated_at: head?.updated_at ?? null, max_id: head?.id ?? null };
-      }),
+      data: [
+        ...TABLES.map((table) => {
+          const head = (this.select(table, { limit: Number.MAX_SAFE_INTEGER }).data as Row[]).at(-1);
+          return { table_name: table, max_updated_at: head?.updated_at ?? null, max_id: head?.id ?? null };
+        }),
+        { table_name: "pantry_home", max_updated_at: null, max_id: this.home(uid) },
+      ],
       error: null,
     };
   }

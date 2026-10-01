@@ -22,7 +22,7 @@ import { clipboardOffer } from "../services/clipboard-link";
 import { remindersAvailable, replanReminders } from "../services/reminders";
 import { scheduleSync, syncNow } from "../sync/engine";
 import { followLists, startLive, stopLive } from "../sync/live";
-import { inviteFromPage, inviteTokenFrom } from "../sync/sharing";
+import { heldInvite, holdInvite, inviteFromPage, inviteTokenFrom } from "../sync/sharing";
 import { realtimeAccess } from "../sync/supabase";
 import { Button, EmptyState } from "../ui/components";
 import { appConfirm, appError, appPrompt, OverlaySlot } from "../ui/dialog";
@@ -49,15 +49,17 @@ const IBMPlexSerif_600SemiBold = require("../../assets/fonts/IBMPlexSerif_600Sem
  * session. The mail app may open it beside a tab that holds the database, and
  * the web's database admits one tab (`docs/ARCHITECTURE.md`, 2026-09-26).
  */
-const RECOVERY_PAGE = Platform.OS === "web" && typeof location !== "undefined" && /\/reset-password\/?$/.test(location.pathname);
+const WEB = Platform.OS === "web" && typeof location !== "undefined";
+const RECOVERY_PAGE = WEB && /\/reset-password\/?$/.test(location.pathname);
 const DATABASE_AT_START = RECOVERY_PAGE ? "ready" : "opening";
 
 /**
  * A web invitation opened signed out: signing in sends the page to the tabs
- * and the fragment with it, so the token is read here, once, and the
+ * and the fragment with it, so the token is held here, once, and the
  * invitation reopened after (SPEC 1.4).
  */
-let heldInvite = Platform.OS === "web" && typeof location !== "undefined" ? inviteFromPage(location) : null;
+const invitedTo = WEB ? inviteFromPage(location) : null;
+if (invitedTo) void holdInvite(invitedTo);
 
 /** Fonts are cosmetic: a slow web fetch must not hold the app on a blank screen. */
 const FONT_GRACE_MS = 2500;
@@ -238,11 +240,11 @@ function Routes({ background }: { background: string }) {
   // Helix's bug: an undo offered to one account ran against the next one's lists.
   useEffect(() => clearUndo(), [userId]);
   useEffect(() => {
-    if (!signedIn || !heldInvite) return;
-    const token = heldInvite;
-    heldInvite = null;
-    // Signed in already, the invitation page opened with its own fragment.
-    if (!/\/invite\/?$/.test(location.pathname)) router.push({ pathname: "/invite", params: { token } });
+    if (!signedIn || !WEB) return;
+    void heldInvite({ take: true }).then((token) => {
+      // Signed in already, the invitation page opened with its own fragment.
+      if (token && !/\/invite\/?$/.test(location.pathname)) router.push({ pathname: "/invite", params: { token } });
+    });
   }, [signedIn]);
   if ((!ready || (signedIn && frozen == null)) && !RECOVERY_PAGE) return null;
   // The device that freezes signs out; its own freezing is not a lock.

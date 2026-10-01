@@ -10,9 +10,11 @@
  * refuses is sent row by row, so one bad row waits aside instead of stopping
  * every other; a row this device made afresh over a delete it never saw is
  * added again rather than lost; the pull reaches back a few seconds past its
- * cursor; photos travel beside the rows, before the row that names one; and
- * a list shared with this person is fetched whole when they join it and
- * dropped from the device when they leave it (`docs/ARCHITECTURE.md`, sharing).
+ * cursor; photos travel beside the rows, before the row that names one; a
+ * list shared with this person is fetched whole when they join it and
+ * dropped from the device when they leave it (`docs/ARCHITECTURE.md`,
+ * sharing); and Kiler is the household's while the person is in one, which
+ * the probe names and the device follows (SPEC 12.13).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -20,7 +22,7 @@ import Constants from "expo-constants";
 import { getSqliteAsync, withTransaction } from "../db/client";
 import { fromDbShape, nowIso, onLocalWrite, setActor, writeRows, type RowWrite } from "../db/mutations";
 import { SYNCED_TABLES, type SyncedTableName } from "../db/schema";
-import { settleArrivals } from "../data/pantry";
+import { HELD_PANTRY, heldPantry, settleArrivals } from "../data/pantry";
 import { tr } from "../i18n/tr";
 import { retryDeadLetter } from "./dead-letters";
 import {
@@ -30,7 +32,6 @@ import {
   isAddedAgain,
   isUuidShaped,
   parsePullCursor,
-  PULL_EPOCH,
   remoteWinsLww,
   shouldApplyServerAck,
   type OutboxEvent,
@@ -45,6 +46,14 @@ import { classifyRefreshFailure, completedSyncState, isNetworkFailure, useSyncSt
 import { getSupabase } from "./supabase";
 
 const TABLES = Object.keys(SYNCED_TABLES) as SyncedTableName[];
+/**
+ * Parents first (`SYNCED_TABLES`): the server checks an item's list.
+ * Memberships last, since a device only ever narrows one: what was done just
+ * before leaving a list, or a household, lands before the leaving does.
+ */
+const PUSHED = [...TABLES.filter((table) => table !== "list_members"), "list_members" as const];
+/** Whose rows these are is the household's while the person is in one (SPEC 12.13). */
+const PANTRY: ReadonlySet<SyncedTableName> = new Set(["pantry_items", "pantry_moves"]);
 const PULL_PAGE = 1000;
 const PUSH_BATCH = 200;
 /** SQLite binds this many ids per statement comfortably on every build (Helix's). */
@@ -213,7 +222,8 @@ async function sendRows(
   return { acknowledged, refused };
 }
 
-async function pushTable(supabase: Supabase, table: SyncedTableName, userId: string, token: SessionEpochToken): Promise<void> {
+/** `owner` is whose a personal row is: the person, or for a pantry row the Kiler this device holds. */
+async function pushTable(supabase: Supabase, table: SyncedTableName, owner: string, token: SessionEpochToken): Promise<void> {
   const sqlite = await getSqliteAsync();
   for (;;) {
     assertActive(token);
@@ -226,7 +236,7 @@ async function pushTable(supabase: Supabase, table: SyncedTableName, userId: str
     const pushed: ParsedOutboxEvent[] = [];
     const rows: Record<string, unknown>[] = [];
     for (const event of latestByRow.values()) {
-      const row = toServerRow(table, event.row, userId);
+      const row = toServerRow(table, event.row, owner);
       if (row) {
         pushed.push(event);
         rows.push(row);
@@ -245,7 +255,7 @@ async function pushTable(supabase: Supabase, table: SyncedTableName, userId: str
       const newest = await newestOutboxIds(sqlite, table, acknowledged.map(({ event }) => event.row_id));
       for (const { event, answer } of acknowledged) {
         if (!shouldApplyServerAck(event.id, newest.get(event.row_id) ?? null)) continue;
-        const local = toLocalRow(table, answer, userId);
+        const local = toLocalRow(table, answer, owner);
         if (isAddedAgain(event.row, local)) {
           addedAgain.push({ table, row: { ...fromDbShape(table, event.row), tombstoneVersion: local.tombstone_version } });
         } else {
@@ -275,8 +285,8 @@ async function pushTable(supabase: Supabase, table: SyncedTableName, userId: str
 async function pushOutbox(supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
   // Before the rows: a row naming a photo must never reach a device before the photo can.
   await sendPendingPhotos(supabase, token.signal);
-  // Parents first (`SYNCED_TABLES`): the server checks an item's list.
-  for (const table of TABLES) await pushTable(supabase, table, userId, token);
+  const pantry = (await heldPantry(userId)).id;
+  for (const table of PUSHED) await pushTable(supabase, table, PANTRY.has(table) ? pantry : userId, token);
 }
 
 interface ServerHead {
@@ -286,11 +296,15 @@ interface ServerHead {
 }
 
 /**
- * Each table's keyset head in one request, or `null` to pull every table. A
+ * Each table's keyset head in one request, and which Kiler the server shows
+ * this person (`pantry_home`, migration 12); `null` pulls every table. A
  * table the answer leaves out is pulled too: the function's list is a second
  * copy of `SYNCED_TABLES`, and a copy can fall behind.
  */
-async function fetchServerHeads(supabase: Supabase, token: SessionEpochToken): Promise<Map<string, PullCursor | null> | null> {
+async function fetchServerHeads(
+  supabase: Supabase,
+  token: SessionEpochToken,
+): Promise<{ heads: Map<string, PullCursor | null>; home: string | null } | null> {
   if (changeProbeUnavailable) return null;
   const { data, error } = await supabase.rpc("sync_cursors").abortSignal(token.signal);
   if (error) {
@@ -299,11 +313,36 @@ async function fetchServerHeads(supabase: Supabase, token: SessionEpochToken): P
     return null;
   }
   const heads = new Map<string, PullCursor | null>();
+  let home: string | null = null;
   for (const row of (data ?? []) as ServerHead[]) {
-    if (row.max_updated_at == null && row.max_id == null) heads.set(row.table_name, null);
+    if (row.table_name === "pantry_home") home = isUuidShaped(row.max_id) ? row.max_id : null;
+    else if (row.max_updated_at == null && row.max_id == null) heads.set(row.table_name, null);
     else if (typeof row.max_updated_at === "string" && isUuidShaped(row.max_id)) heads.set(row.table_name, { ts: row.max_updated_at, id: row.max_id });
   }
-  return heads;
+  return { heads, home };
+}
+
+/**
+ * Joining a household, leaving one or being removed (SPEC 12.13) changes the
+ * Kiler the server shows this person, and the probe says which. The device
+ * lets the one it held go — its rows, and what waited to go into it, which
+ * the server now refuses — and pulls the new one from the start. Stamping a
+ * stale write into the new Kiler instead would merge two homes by name.
+ */
+async function switchPantry(sqlite: LocalDatabase, from: string, to: string, userId: string, token: SessionEpochToken): Promise<void> {
+  await withTransaction(async () => {
+    assertActive(token);
+    for (const table of PANTRY) {
+      // A bare DELETE empties the table without the update hook, so Kiler's
+      // live query would never hear its rows went (measured, SQLite 3.54).
+      await sqlite.runAsync(`DELETE FROM ${table} WHERE true`);
+      for (const queue of ["outbox", "sync_dead_letters"]) await sqlite.runAsync(`DELETE FROM ${queue} WHERE table_name = ?`, [table]);
+    }
+    await sqlite.runAsync("DELETE FROM sync_state WHERE table_name IN (?, ?) OR table_name LIKE ?", [...PANTRY, `${HELD_PANTRY}%`]);
+    await sqlite.runAsync("INSERT INTO sync_state (table_name, last_pulled_at) VALUES (?, ?)", [HELD_PANTRY + to, nowIso()]);
+    // A household its owner deleted leaves no membership behind to say so.
+    if (from !== userId) await dropList(sqlite, from);
+  });
 }
 
 async function localMergeState(
@@ -322,8 +361,8 @@ async function localMergeState(
   return state;
 }
 
-/** One table from `from` on, or with `list` one list's rows from the beginning, which moves no cursor. */
-async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullCursor, userId: string, token: SessionEpochToken, list?: string): Promise<void> {
+/** One table from `from` on, or with `list` one list's rows from the beginning, which moves no cursor. `owner` is `pushTable`'s. */
+async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullCursor, owner: string, token: SessionEpochToken, list?: string): Promise<void> {
   const sqlite = await getSqliteAsync();
   let cursor = from;
   let first = true;
@@ -341,7 +380,7 @@ async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullC
     assertActive(token);
     // The whole page is checked before any of it lands or the cursor moves:
     // a bad row retries in place rather than hiding behind a newer cursor.
-    const remotes = (data as Record<string, unknown>[]).map((raw) => toLocalRow(table, raw, userId));
+    const remotes = (data as Record<string, unknown>[]).map((raw) => toLocalRow(table, raw, owner));
     await withTransaction(async () => {
       const ids = remotes.map((remote) => String(remote.id));
       const local = await localMergeState(sqlite, table, ids);
@@ -371,16 +410,21 @@ async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullC
 
 async function pullAll(supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
   const sqlite = await getSqliteAsync();
+  assertActive(token);
+  // Asked even by a device that has never pulled: it says which Kiler to pull.
+  const probe = await fetchServerHeads(supabase, token);
+  let pantry = (await heldPantry(userId)).id;
+  if (probe?.home && probe.home !== pantry) {
+    await switchPantry(sqlite, pantry, probe.home, userId, token);
+    pantry = probe.home;
+  }
   const stored = await sqlite.getAllAsync<{ table_name: string; last_pulled_at: string }>("SELECT table_name, last_pulled_at FROM sync_state");
   const cursors = new Map(stored.map((row) => [row.table_name, parsePullCursor(row.last_pulled_at)]));
   const cursorFor = (table: SyncedTableName) => cursors.get(table) ?? parsePullCursor(null);
-  assertActive(token);
-  // A device that has never pulled has nothing to skip, so the probe would only cost a request.
-  const heads = TABLES.some((table) => cursorFor(table).ts !== PULL_EPOCH) ? await fetchServerHeads(supabase, token) : null;
   // One after another, parents first, so a pull cut short never leaves a child ahead of its list.
   for (const table of TABLES) {
-    if (heads?.has(table) && cursorIsAtServerHead(cursorFor(table), heads.get(table) ?? null)) continue;
-    await pullTable(supabase, table, cursorFor(table), userId, token);
+    if (probe?.heads.has(table) && cursorIsAtServerHead(cursorFor(table), probe.heads.get(table) ?? null)) continue;
+    await pullTable(supabase, table, cursorFor(table), PANTRY.has(table) ? pantry : userId, token);
   }
 }
 
@@ -422,16 +466,19 @@ async function followMemberships(supabase: Supabase, userId: string, token: Sess
   }
 }
 
-async function forgetList(sqlite: LocalDatabase, list: string): Promise<void> {
-  await withTransaction(async () => {
-    for (const [table, column] of LIST_SCOPED) {
-      await sqlite.runAsync(`DELETE FROM ${table} WHERE ${column} = ?`, [list]);
-      for (const queue of ["outbox", "sync_dead_letters"]) {
-        await sqlite.runAsync(`DELETE FROM ${queue} WHERE table_name = ? AND json_extract(payload, '$.${column}') = ?`, [table, list]);
-      }
+function forgetList(sqlite: LocalDatabase, list: string): Promise<void> {
+  return withTransaction(() => dropList(sqlite, list));
+}
+
+/** `forgetList` inside a transaction already open. */
+async function dropList(sqlite: LocalDatabase, list: string): Promise<void> {
+  for (const [table, column] of LIST_SCOPED) {
+    await sqlite.runAsync(`DELETE FROM ${table} WHERE ${column} = ?`, [list]);
+    for (const queue of ["outbox", "sync_dead_letters"]) {
+      await sqlite.runAsync(`DELETE FROM ${queue} WHERE table_name = ? AND json_extract(payload, '$.${column}') = ?`, [table, list]);
     }
-    await sqlite.runAsync("DELETE FROM sync_state WHERE table_name = ?", [FETCHED + list]);
-  });
+  }
+  await sqlite.runAsync("DELETE FROM sync_state WHERE table_name = ?", [FETCHED + list]);
 }
 
 const RETRIED = "retried:";

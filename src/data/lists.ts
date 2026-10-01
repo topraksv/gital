@@ -46,7 +46,7 @@ function nameOrThrow(input: string): string {
   return name;
 }
 
-export async function createList(input: string, kind: ListKind = "shop"): Promise<string> {
+export async function createList(input: string, kind: Exclude<ListKind, "pantry"> = "shop"): Promise<string> {
   const name = nameOrThrow(input);
   const id = uuidv7();
   await writeRows([{ table: "lists", row: { id, name, kind, icon: iconForName(name) } }]);

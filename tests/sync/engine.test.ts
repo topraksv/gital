@@ -13,7 +13,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeCloud } from "./fake-cloud";
 
-const harness = vi.hoisted(() => ({ db: null as DatabaseSync | null, cloud: null as unknown as { client(): unknown }, version: "1.4.1" }));
+const harness = vi.hoisted(() => ({ db: null as DatabaseSync | null, cloud: null as unknown as { client(): unknown }, version: "1.4.1", kv: new Map<string, string>() }));
 
 vi.mock("../../src/db/client", async () => {
   const { sqliteClientMock } = await import("../helpers");
@@ -24,6 +24,13 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 vi.mock("../../src/sync/supabase", () => ({ getSupabase: () => harness.cloud.client() }));
+vi.mock("../../src/services/kv", () => ({
+  kv: {
+    get: async (key: string) => harness.kv.get(key) ?? null,
+    set: async (key: string, value: string) => void harness.kv.set(key, value),
+    remove: async (key: string) => void harness.kv.delete(key),
+  },
+}));
 vi.mock("expo-constants", () => ({
   default: {
     get expoConfig() {
@@ -35,7 +42,8 @@ vi.mock("expo-constants", () => ({
 const { addEntries, addScanned, deleteItem, readItems, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
 const { createList, editList, readLists } = await import("../../src/data/lists");
 const { readProducts, setStarred } = await import("../../src/data/products");
-const { readPantry } = await import("../../src/data/pantry");
+const { readPantry, stockPantry } = await import("../../src/data/pantry");
+const { parseEntry } = await import("../../src/domain/items");
 const { readCollections } = await import("../../src/data/wishes");
 const { finishShop, readShops, reopenShop, setShopReceipt } = await import("../../src/data/shops");
 const { countDataReset, resetData } = await import("../../src/data/reset");
@@ -45,7 +53,9 @@ const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/d
 const { leaveList, markSeen, readFresh, readMembers, readSharedLists, removeMember, roleOf, rowPeople, setMemberRole } = await import(
   "../../src/data/members"
 );
-const { acceptInvite, createInvite, inviteFromPage, inviteLink, inviteToList, inviteTokenFrom } = await import("../../src/sync/sharing");
+const { acceptInvite, createInvite, heldInvite, holdInvite, inviteFromPage, inviteLink, inviteToList, inviteTokenFrom, peekInvite } = await import(
+  "../../src/sync/sharing"
+);
 const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
 const { purgeOwnPhotos } = await import("../../src/sync/photos");
@@ -293,31 +303,31 @@ describe("two devices of one person", () => {
   });
 });
 
-describe("two people sharing a list", () => {
-  /** A's list with two things on it, and C's own, synced before any invitation, so C's cursors are past A's rows. */
-  async function sharedMarket(role: "editor" | "viewer" = "editor"): Promise<string> {
-    const listId = await on("A", async () => {
-      const id = await createList("Market");
-      await add(id, "süt", "elma");
-      await sync();
-      return id;
-    });
-    await on("C", async () => {
-      await createList("Kendi");
-      await sync();
-    });
-    const token = await on("A", async () => {
-      const made = await createInvite(listId, role, "Ömer");
-      if ("refused" in made) throw new Error(made.refused);
-      return made.token;
-    });
-    await on("C", async () => {
-      expect(await acceptInvite(token, "Deniz")).toEqual({ listId });
-      await sync();
-    });
-    return listId;
-  }
+/** A's list with two things on it, and C's own, synced before any invitation, so C's cursors are past A's rows. */
+async function sharedMarket(role: "editor" | "viewer" = "editor"): Promise<string> {
+  const listId = await on("A", async () => {
+    const id = await createList("Market");
+    await add(id, "süt", "elma");
+    await sync();
+    return id;
+  });
+  await on("C", async () => {
+    await createList("Kendi");
+    await sync();
+  });
+  const token = await on("A", async () => {
+    const made = await createInvite(listId, role, "Ömer");
+    if ("refused" in made) throw new Error(made.refused);
+    return made.token;
+  });
+  await on("C", async () => {
+    expect(await acceptInvite(token, "Deniz")).toEqual({ listId });
+    await sync();
+  });
+  return listId;
+}
 
+describe("two people sharing a list", () => {
   it("invites at once to a list the server holds, and sends a list made a moment ago first", async () => {
     await on("A", async () => {
       const sent = vi.fn(sync);
@@ -505,6 +515,21 @@ describe("two people sharing a list", () => {
     expect(inviteFromPage({ pathname: "/gital/", hash: `#${token}` })).toBeNull();
     expect(inviteFromPage({ pathname: "/gital/invite", hash: "#nope" })).toBeNull();
     expect(inviteFromPage(undefined)).toBeNull();
+  });
+
+  it("holds a web invitation for the first sign-in, through a reload, for the link's own seven days", async () => {
+    const token = "c".repeat(64);
+    const stored = (at: number) => harness.kv.set("gital.invite", JSON.stringify({ token, at }));
+    await holdInvite(token);
+    expect(await heldInvite(), "the sign-in screen only looks").toBe(token);
+    expect(await heldInvite({ take: true })).toBe(token);
+    expect(await heldInvite(), "the next account on this browser is not sent into it").toBeNull();
+    stored(Date.now());
+    expect(await heldInvite(), "a reload, or the confirmation's tab, finds it").toBe(token);
+    stored(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    expect(await heldInvite()).toBeNull();
+    harness.kv.set("gital.invite", "{");
+    expect(await heldInvite()).toBeNull();
   });
 
   it("knows each person's part in a list: the owner's until someone else's row says otherwise", async () => {
@@ -696,6 +721,143 @@ describe("two people sharing a list", () => {
   });
 });
 
+describe("a household Kiler (SPEC 12.13)", () => {
+  const stock = (text: string) => stockPantry(parseEntry(text));
+  const pantry = async () => (await readPantry()).map((item) => `${item.name} ${item.quantityMilli}`).sort();
+
+  /**
+   * A's Kiler and C's own, each synced, and D (C's other device) holding C's
+   * own; then A invites, C looks at the link and joins, bringing theirs or not.
+   */
+  async function household(bring: boolean): Promise<void> {
+    await on("A", async () => {
+      await stock("2 lt süt");
+      await sync();
+    });
+    await on("C", async () => {
+      await stock("1 lt süt, ekmek");
+      await sync();
+    });
+    await on("D", sync);
+    const token = await on("A", async () => {
+      const made = await createInvite(USER, "editor", "Ömer");
+      if ("refused" in made) throw new Error(made.refused);
+      return made.token;
+    });
+    await on("C", async () => {
+      expect(await peekInvite(token)).toEqual({ kind: "pantry", name: "Kiler", inviter: "Ömer" });
+      expect(await acceptInvite(token, "Deniz"), "a version that cannot ask what to bring is told to update").toEqual({ refused: tr.sharing.errUpdate });
+      expect(await acceptInvite(token, "Deniz", bring ? await readPantry() : [])).toEqual({ listId: USER });
+      await sync();
+    });
+  }
+
+  it("lets the person who joins bring what they have, and their other device follows", async () => {
+    await household(true);
+    await on("C", async () => expect(await pantry()).toEqual(["Ekmek 1000", "Süt 3000"]));
+    await on("D", async () => {
+      await sync();
+      expect(await pantry()).toEqual(["Ekmek 1000", "Süt 3000"]);
+      await stock("yağ");
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      expect(await pantry(), "a member's arrival lands in the owner's Kiler").toEqual(["Ekmek 1000", "Süt 3000", "Yağ 1000"]);
+    });
+  });
+
+  /** C ticks elma on A's Market, and A finishes the shop. */
+  async function tickedElma(listId: string): Promise<void> {
+    await on("C", async () => {
+      await toggleChecked((await readItems(listId)).find((item) => item.name === "elma")!.id);
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      await finishShop(listId);
+      await sync();
+    });
+  }
+
+  it("joins empty: the joiner's own Kiler goes, and a shop they shared before brings nothing in", async () => {
+    await tickedElma(await sharedMarket());
+    await on("C", async () => {
+      await sync();
+      expect(await pantry(), "C's tick came home to C's own Kiler").toEqual(["elma 1000"]);
+    });
+    await household(false);
+    await on("C", async () => {
+      await sync();
+      expect(await pantry()).toEqual(["Süt 2000"]);
+    });
+  });
+
+  it("sets aside what a device sent into the Kiler it no longer holds, and lets it go at the switch", async () => {
+    await household(true);
+    await on("D", async () => {
+      await stock("un");
+      await sync();
+      expect(await pantry()).toEqual(["Ekmek 1000", "Süt 3000"]);
+      expect(await readDeadLetters()).toEqual([]);
+      expect(await pendingOutboxCount()).toBe(0);
+    });
+    expect(cloud.rows("pantry_items").filter((row) => row.name === "Un")).toEqual([]);
+  });
+
+  it("sends what a member did just before leaving, then starts them empty, without the household's ticks", async () => {
+    const listId = await sharedMarket();
+    await household(true);
+    await tickedElma(listId);
+    await on("C", async () => {
+      await sync();
+      expect(await pantry(), "C's tick came home to the household").toContain("elma 1000");
+      await stock("çay");
+      await leaveList(USER, OTHER);
+      await sync();
+      expect(await pantry()).toEqual([]);
+      await sync();
+      expect(await pantry(), "a shop from the household's days stays the household's").toEqual([]);
+    });
+    await on("A", async () => {
+      await sync();
+      expect(await pantry()).toContain("Çay 1000");
+    });
+  });
+
+  it("empties the Kiler of a member the owner removes, on every device", async () => {
+    await household(true);
+    await on("A", async () => {
+      await sync();
+      await removeMember((await readMembers(USER)).find((member) => member.userId === OTHER)!.id);
+      await sync();
+    });
+    for (const device of ["C", "D"] as const) {
+      await on(device, async () => {
+        await sync();
+        expect(await pantry()).toEqual([]);
+      });
+    }
+  });
+
+  it("leaves the household alone when a member resets their Kiler", async () => {
+    await household(true);
+    await on("C", async () => {
+      expect(await countDataReset(["pantry"])).toBe(0);
+      await resetData(["pantry"]);
+      await sync();
+      expect(await pantry()).toEqual(["Ekmek 1000", "Süt 3000"]);
+    });
+  });
+
+  it("lets nobody in a household open another", async () => {
+    await household(false);
+    await on("C", async () => {
+      expect(await createInvite(OTHER, "editor", "Deniz")).toEqual({ refused: tr.sharing.errOtherHousehold });
+    });
+  });
+});
+
 describe("what the server will not take", () => {
   it("sets a refused row aside and sends the rest of its batch", async () => {
     await on("A", async () => {
@@ -788,6 +950,7 @@ describe("what the server will not take", () => {
     await on("A", async () => {
       await createList("Market");
       await sync();
+      cloud.requests.length = 0;
       cloud.failures.push({ message: "Could not find the function public.sync_cursors", code: "PGRST202" });
       expect(await sync()).toBe(true);
       expect(await sync()).toBe(true);

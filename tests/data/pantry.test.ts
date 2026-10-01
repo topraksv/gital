@@ -25,6 +25,7 @@ const { finishShop, reopenShop } = await import("../../src/data/shops");
 const { createList, deleteList, editList } = await import("../../src/data/lists");
 const { finishPantryItem, readLasted, readPantry, removePantryItem, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
+const { setActor } = await import("../../src/db/mutations");
 const { migratedDatabase } = await import("../helpers");
 
 const T0 = new Date("2026-09-26T10:00:00.000Z");
@@ -238,6 +239,21 @@ describe("finishPantryItem", () => {
     const finished = await finishPantryItem(await idOf("Süt"));
     expect(finished.listName).toBeNull();
     expect(await stock()).toEqual([]);
+  });
+
+  it("puts it on no list this person only views: in a household, the list may be another member's (SPEC 12.13)", async () => {
+    const DENIZ = "22222222-2222-4222-8222-222222222222";
+    await shop(market, "süt");
+    harness.db!.prepare(
+      "INSERT INTO list_members (id, created_at, updated_at, list_id, user_id, role) VALUES ('019f0000-0000-7000-8000-000000000001', '', '', ?, ?, 'viewer')",
+    ).run(market, DENIZ);
+    setActor(DENIZ);
+    try {
+      expect((await finishPantryItem(await idOf("Süt"))).listName).toBeNull();
+      expect(await readItems(market)).toEqual([]);
+    } finally {
+      setActor(null);
+    }
   });
 
   it("refuses what is no longer at home", async () => {

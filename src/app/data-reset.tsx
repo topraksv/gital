@@ -10,7 +10,7 @@ import { View } from "react-native";
 import Eraser from "lucide-react-native/icons/eraser";
 
 import { useSession } from "../auth/session";
-import { countDataReset, resetData, RESET_SCOPES, type ResetScope } from "../data/reset";
+import { countDataReset, inHousehold, resetData, RESET_SCOPES, type ResetScope } from "../data/reset";
 import { tr } from "../i18n/tr";
 import { Body, Button, Card, Divider, Screen, ToggleRow } from "../ui/components";
 import { appConfirm, appError, appPrompt } from "../ui/dialog";
@@ -22,6 +22,9 @@ export default function DataResetScreen() {
   const [chosen, setChosen] = useState<readonly ResetScope[]>([]);
   const [counted, setCounted] = useState<{ of: readonly ResetScope[]; count: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  // A member's reset leaves the household's Kiler alone; the toggle says so rather than counting nothing.
+  const [member, setMember] = useState(false);
+  useEffect(() => void inHousehold().then(setMember, () => {}), []);
 
   useEffect(() => {
     let current = true;
@@ -71,7 +74,8 @@ export default function DataResetScreen() {
                 value={chosen.includes(scope)}
                 onValueChange={(on) => choose(scope, on)}
                 title={tr.dataReset.scope[scope]}
-                subtitle={tr.dataReset.scopeHint[scope]}
+                subtitle={scope === "pantry" && member ? tr.dataReset.pantryHousehold : tr.dataReset.scopeHint[scope]}
+                disabled={scope === "pantry" && member}
               />
             </View>
           ))}

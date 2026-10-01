@@ -1,8 +1,8 @@
 /**
- * Who a list or a wish collection is shared with (SPEC 1.2, 1.4, 7.8): its
- * people, and for the owner each one's role, their removal, and a new
- * invitation as a link. Anyone else only reads who is in it;
- * leaving is the screen's, where deleting is for the owner.
+ * Who a list, a wish collection or the household's Kiler is shared with (SPEC
+ * 1.2, 1.4, 7.8, 12.13): its people, and for the owner each one's role, their
+ * removal, and a new invitation as a link. Anyone else only reads who is in
+ * it; leaving is the screen's, where deleting is for the owner.
  */
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -17,10 +17,10 @@ import Trash from "lucide-react-native/icons/trash";
 import UserMinus from "lucide-react-native/icons/user-minus";
 import Users from "lucide-react-native/icons/users";
 
-import { useMembers, useSettings } from "../data/hooks";
+import { useHeldPantry, useMembers, useSettings } from "../data/hooks";
 import { leaveList, removeMember, roleOf, setMemberRole, type Member } from "../data/members";
 import type { MemberRole } from "../db/schema";
-import { memberNameOf, readSettings, setMemberName } from "../data/settings";
+import { memberNameOf, setMemberName } from "../data/settings";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { shareText } from "../services/share";
@@ -31,25 +31,11 @@ import { useSession } from "../auth/session";
 import { useModalAccessibility } from "./accessibility";
 import { Body, Button, ChoiceTile, IconButton, Notice, SectionHeader, TextField, Tile } from "./components";
 import { radioGroupKeys } from "./keys";
-import { Actions, DialogShell, appConfirm, appError, appPrompt } from "./dialog";
+import { Actions, DialogShell, appConfirm, appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { navigateBack } from "./navigation";
 import { controlSize, itemRow, radius, spacing, type, useTheme } from "./theme";
 import { showNotice } from "./undo";
-
-/** The name the others see, asked for the first time it is needed and then kept on every device. */
-export async function memberName(): Promise<string | null> {
-  const known = memberNameOf(await readSettings());
-  if (known) return known;
-  const typed = await appPrompt(tr.sharing.nameTitle, tr.sharing.nameMessage, {
-    confirmLabel: tr.common.save,
-    examples: tr.placeholders.memberName,
-    maxLength: NAME_MAX,
-  });
-  if (typed == null || typed.trim() === "") return null;
-  await setMemberName(typed);
-  return memberNameOf(await readSettings());
-}
 
 /** This person's part in a list: a viewer reads it and changes nothing (SPEC 1.4). */
 export function useShare(listId: string) {
@@ -131,19 +117,47 @@ export function PeopleActions({
   );
 }
 
-function MembersSheet({ list, userId, onClose }: { list: { id: string; name: string }; userId: string; onClose: () => void }) {
+/**
+ * Kiler's people (SPEC 12.13): the household this device holds, whose id is
+ * its owner's. The owner invites and removes; a member leaves, and goes on
+ * with an empty Kiler of their own. Nobody deletes it, and it has no viewers.
+ */
+export function HouseholdActions({ userId, children }: { userId: string; children: ReactNode }) {
+  const home = useHeldPantry(userId).data[0]?.id ?? userId;
+  const [open, setOpen] = useState(false);
+  const leave = async () => {
+    if (!(await appConfirm(tr.sharing.leaveHousehold, tr.sharing.leaveHouseholdMessage, tr.sharing.leaveConfirm))) return;
+    try {
+      await leaveList(home, userId);
+      showNotice(tr.sharing.leftHousehold);
+    } catch {
+      void appError(tr.errors.saveFailed);
+    }
+  };
+  return (
+    <>
+      <IconButton icon={Users} label={tr.sharing.open(tr.tabs.pantry)} onPress={() => setOpen(true)} />
+      {children}
+      {home === userId ? null : <IconButton icon={LogOut} label={tr.sharing.leaveHousehold} tone="danger" onPress={() => void leave()} />}
+      {open ? <MembersSheet list={{ id: home, name: tr.tabs.pantry }} userId={userId} household onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+function MembersSheet({ list, userId, household = false, onClose }: { list: { id: string; name: string }; userId: string; household?: boolean; onClose: () => void }) {
   const titleRef = useModalAccessibility(true, list.id);
   const members = useMembers(list.id);
-  const owner = roleOf(members.data, userId) === "owner";
+  // A household's owner is the person whose id it is, even before anyone is in it.
+  const owner = household ? list.id === userId : roleOf(members.data, userId) === "owner";
   return (
     <DialogShell title={tr.sharing.title} titleRef={titleRef} onDismiss={onClose}>
       <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
         {members.updatedAt != null && members.data.length === 0 ? <Body muted>{tr.sharing.alone}</Body> : null}
         {members.data.map((member) => (
-          <MemberRow key={member.id} member={member} me={member.userId === userId} manage={owner && member.role !== "owner"} />
+          <MemberRow key={member.id} member={member} me={member.userId === userId} manage={owner && member.role !== "owner"} roles={!household} />
         ))}
       </View>
-      {owner ? <Invite list={list} /> : null}
+      {owner ? <Invite list={list} household={household} /> : null}
       <Actions>
         <Button label={tr.common.done} size="sm" onPress={onClose} />
       </Actions>
@@ -151,7 +165,7 @@ function MembersSheet({ list, userId, onClose }: { list: { id: string; name: str
   );
 }
 
-function MemberRow({ member, me, manage }: { member: Member; me: boolean; manage: boolean }) {
+function MemberRow({ member, me, manage, roles }: { member: Member; me: boolean; manage: boolean; roles: boolean }) {
   const { palette } = useTheme();
   const name = member.name || tr.sharing.unnamed;
   const act = (work: () => Promise<void>) => () =>
@@ -172,11 +186,13 @@ function MemberRow({ member, me, manage }: { member: Member; me: boolean; manage
       </View>
       {manage ? (
         <>
-          <IconButton
-            icon={viewer ? Pencil : Eye}
-            label={viewer ? tr.sharing.makeEditor(name) : tr.sharing.makeViewer(name)}
-            onPress={act(() => setMemberRole(member.id, viewer ? "editor" : "viewer"))}
-          />
+          {roles ? (
+            <IconButton
+              icon={viewer ? Pencil : Eye}
+              label={viewer ? tr.sharing.makeEditor(name) : tr.sharing.makeViewer(name)}
+              onPress={act(() => setMemberRole(member.id, viewer ? "editor" : "viewer"))}
+            />
+          ) : null}
           <IconButton icon={UserMinus} label={tr.sharing.remove(name)} tone="danger" onPress={act(remove)} />
         </>
       ) : null}
@@ -190,7 +206,7 @@ function MemberRow({ member, me, manage }: { member: Member; me: boolean; manage
  * show in Expo Go, and the button seemed to do nothing. The list is sent only
  * when the server says it does not hold it yet.
  */
-function Invite({ list }: { list: { id: string; name: string } }) {
+function Invite({ list, household }: { list: { id: string; name: string }; household: boolean }) {
   const { palette } = useTheme();
   const userId = useSession((s) => s.userId);
   const known = memberNameOf(useSettings().data);
@@ -219,7 +235,8 @@ function Invite({ list }: { list: { id: string; name: string } }) {
 
   const share = async (url: string) => {
     try {
-      if ((await shareText(tr.sharing.inviteText(list.name, url))) === "clipboard") showNotice(tr.sharing.inviteCopied);
+      const text = household ? tr.sharing.householdInviteText(url) : tr.sharing.inviteText(list.name, url);
+      if ((await shareText(text)) === "clipboard") showNotice(tr.sharing.inviteCopied);
     } catch {
       void appError(tr.errors.shareFailed);
     }
@@ -233,18 +250,21 @@ function Invite({ list }: { list: { id: string; name: string } }) {
 
   return (
     <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
-      <SectionHeader>{tr.sharing.invite}</SectionHeader>
-      <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.sharing.inviteRole} style={{ flexDirection: "row", gap: spacing.sm }}>
-        {(["editor", "viewer"] as const).map((choice) => (
-          <ChoiceTile
-            key={choice}
-            label={tr.sharing.roles[choice]}
-            selected={role === choice}
-            minHeight={controlSize.minimumTarget}
-            onPress={() => choose(choice)}
-          />
-        ))}
-      </View>
+      <SectionHeader>{household ? tr.sharing.inviteHousehold : tr.sharing.invite}</SectionHeader>
+      {/* Everyone in a household keeps it: it has no one who only looks. */}
+      {household ? null : (
+        <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.sharing.inviteRole} style={{ flexDirection: "row", gap: spacing.sm }}>
+          {(["editor", "viewer"] as const).map((choice) => (
+            <ChoiceTile
+              key={choice}
+              label={tr.sharing.roles[choice]}
+              selected={role === choice}
+              minHeight={controlSize.minimumTarget}
+              onPress={() => choose(choice)}
+            />
+          ))}
+        </View>
+      )}
       <Body muted>{tr.sharing.inviteHint}</Body>
       {known ? null : (
         <TextField label={tr.sharing.nameTitle} value={typed} onChangeText={setTyped} maxLength={NAME_MAX} examples={tr.placeholders.memberName} />

@@ -8,6 +8,18 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.6.0
+
+### Minor Changes
+
+- Kiler artık evce paylaşılabiliyor: Kiler'in başlığındaki kişiler düğmesinden davet bağlantısı oluşturuluyor; katılan, aynı kileri görüp düzenliyor. Katılırken kendi kilerindekileri getirmeyi ya da boş katılmayı seçiyor; evden ayrılan ya da çıkarılan boş bir kilerle devam ediyor.
+- Davet sayfası daveti tek onayla açıyor: kimin neye davet ettiğini baştan söylüyor, adı sayfada soruyor; web'de giriş yapınca davet kaldığı yerden açılıyor, giriş ekranı bir davetin beklediğini söylüyor.
+
+### Patch Changes
+
+- Bir listeden ayrılmadan hemen önce yapılan değişiklikler artık ayrılmadan önce gönderiliyor; önceden sunucu reddedip siliniyordu.
+- Kilerden biten bir ürün, yalnız görüntüleyebildiğin bir listeye geri eklenmiyor.
+
 ## 1.5.0
 
 ### Minor Changes

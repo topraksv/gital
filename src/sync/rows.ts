@@ -10,7 +10,10 @@ import { getTableColumns } from "drizzle-orm";
 import { SYNCED_TABLES, type SyncedTableName } from "../db/schema";
 import { isUuidShaped } from "./merge-policy";
 
-/** Keyed by the person as well as the id on the server (`00000000000003_sync.sql`). */
+/**
+ * Keyed by an owner as well as the id on the server (`00000000000003_sync.sql`):
+ * the person, or for a pantry row the Kiler it is in (migration 12).
+ */
 export const PERSONAL_TABLES: ReadonlySet<SyncedTableName> = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
 
 interface Column {
@@ -48,7 +51,7 @@ function fits(column: Column, value: unknown): boolean {
  * not have written. Every column is named: an event queued before a column
  * existed sends its default, which is what the migration gave the row.
  */
-export function toServerRow(table: SyncedTableName, payload: Record<string, unknown>, userId: string): Record<string, unknown> | null {
+export function toServerRow(table: SyncedTableName, payload: Record<string, unknown>, owner: string): Record<string, unknown> | null {
   const columns = COLUMNS.get(table)!;
   if (Object.keys(payload).some((key) => !columns.has(key)) || !isUuidShaped(payload.id)) return null;
   const out: Record<string, unknown> = {};
@@ -58,7 +61,7 @@ export function toServerRow(table: SyncedTableName, payload: Record<string, unkn
     out[name] = column.kind === "boolean" && value != null ? Boolean(value) : value;
   }
   if (Number(out.tombstone_version) < 0) return null;
-  if (PERSONAL_TABLES.has(table)) out.user_id = userId;
+  if (PERSONAL_TABLES.has(table)) out.user_id = owner;
   return out;
 }
 
@@ -76,8 +79,8 @@ function canonicalTimestamp(value: unknown): unknown {
  * list's owner, the person's id, one a newer server added — is dropped; the
  * id becomes the pull's keyset cursor, so its shape is checked.
  */
-export function toLocalRow(table: SyncedTableName, raw: Record<string, unknown>, userId: string): Record<string, unknown> {
-  if (PERSONAL_TABLES.has(table) && raw.user_id !== userId) throw new Error(`pull ${table}: another person's row`);
+export function toLocalRow(table: SyncedTableName, raw: Record<string, unknown>, owner: string): Record<string, unknown> {
+  if (PERSONAL_TABLES.has(table) && raw.user_id !== owner) throw new Error(`pull ${table}: another owner's row`);
   if (!isUuidShaped(raw.id) || typeof raw.updated_at !== "string") throw new Error(`pull ${table}: invalid server row`);
   const out: Record<string, unknown> = {};
   for (const [name, column] of COLUMNS.get(table)!) {

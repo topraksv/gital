@@ -13,8 +13,12 @@ import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { AISLES } from "../domain/catalogue";
 import { UNITS } from "../domain/items";
 
-/** A list to shop from, or a wish collection (SPEC 7.4), which the wish list keeps apart. */
-export const LIST_KINDS = ["shop", "wish"] as const;
+/**
+ * A list to shop from, or a wish collection (SPEC 7.4), which the wish list
+ * keeps apart. A household (SPEC 12.13) is a `pantry` list only the server
+ * makes, whose id is its owner's: it holds the members, and no screen lists it.
+ */
+export const LIST_KINDS = ["shop", "wish", "pantry"] as const;
 export type ListKind = (typeof LIST_KINDS)[number];
 
 /**
