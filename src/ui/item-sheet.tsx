@@ -4,7 +4,8 @@
  * whether anything was bought in its place; once that, or in the basket, what
  * was bought and paid; which list
  * it is on (SPEC 4.3); and its delete. It is the prompt's sheet with more in
- * it, so it rises and closes like every other dialog here.
+ * it, so it rises and closes like every other dialog here. The finish's
+ * question about what was not found (SPEC 3.15) shares its list tiles.
  */
 
 import { useState } from "react";
@@ -40,6 +41,68 @@ type ListChoice = { id: string; name: string };
 
 /** Another list the save sends the item to, and whether it stays on this one too. */
 export type ItemDestination = { list: ListChoice; keep: boolean };
+
+/** The lists something can go to, as tiles, one of them chosen (SPEC 4.3). */
+function ListPicker({ lists, value, onChange }: { lists: readonly ListChoice[]; value: string; onChange: (id: string) => void }) {
+  const columns = Math.min(lists.length, itemPanel.listColumns);
+  return (
+    <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.items.list} style={{ gap: spacing.sm }}>
+      {rowsOf(lists, columns).map((row, at) => (
+        <View key={at} style={{ flexDirection: "row", gap: spacing.sm }}>
+          {row.map((list) => (
+            <ChoiceTile
+              key={list.id}
+              label={list.name}
+              selected={list.id === value}
+              minHeight={controlSize.minimumTarget}
+              basis={itemPanel.listCellBasis}
+              onPress={() => onChange(list.id)}
+            />
+          ))}
+          {/* Empty cells keep a short last row's tiles as wide as the rest. */}
+          {Array.from({ length: columns - row.length }, (_, cell) => (
+            <View key={cell} style={{ flexGrow: 1, flexBasis: itemPanel.listCellBasis }} />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Asked at a finish that leaves something not found (the owner's idea,
+ * approved 2026-09-30): which list it waits on for the next shop, this one
+ * unless another is chosen.
+ */
+export function CarrySheet({
+  names,
+  listId,
+  lists,
+  onFinish,
+  onClose,
+}: {
+  names: readonly string[];
+  listId: string;
+  lists: readonly ListChoice[];
+  onFinish: (to: string) => void;
+  onClose: () => void;
+}) {
+  const titleRef = useModalAccessibility(true);
+  const [chosen, setChosen] = useState(listId);
+  // A list deleted while the sheet is open is no longer a destination.
+  const to = lists.some((list) => list.id === chosen) ? chosen : listId;
+  return (
+    <DialogShell title={tr.items.carryTitle} message={tr.items.carryMessage(names)} titleRef={titleRef} onDismiss={onClose}>
+      <View style={{ marginTop: spacing.lg }}>
+        <ListPicker lists={lists} value={to} onChange={setChosen} />
+      </View>
+      <Actions>
+        <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={onClose} />
+        <Button label={tr.items.finish} size="sm" onPress={() => onFinish(to)} />
+      </Actions>
+    </DialogShell>
+  );
+}
 
 export function ItemSheet({
   item,
@@ -82,8 +145,6 @@ export function ItemSheet({
   const to = lists.find((list) => list.id === destination && list.id !== listId);
   // Moving, the tick and what was found stay with this list's shop, so they are not asked.
   const moving = to != null && !keep;
-  const columns = Math.min(lists.length, itemPanel.listColumns);
-  const rows = rowsOf(lists, columns);
   const shownQuantity = quantityOrOne(quantity);
   const [calculate, calculator] = useCalculator(shownQuantity.unit, (quantityMilli) => setQuantity({ quantityMilli, unit: shownQuantity.unit }));
   const less = stepQuantity(quantity, -1);
@@ -179,26 +240,7 @@ export function ItemSheet({
         <PanelPart>
           <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
             <Body>{tr.items.list}</Body>
-            <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.items.list} style={{ gap: spacing.sm }}>
-              {rows.map((row, at) => (
-                <View key={at} style={{ flexDirection: "row", gap: spacing.sm }}>
-                  {row.map((list) => (
-                    <ChoiceTile
-                      key={list.id}
-                      label={list.name}
-                      selected={list.id === (to?.id ?? listId)}
-                      minHeight={controlSize.minimumTarget}
-                      basis={itemPanel.listCellBasis}
-                      onPress={() => setDestination(list.id)}
-                    />
-                  ))}
-                  {/* Empty cells keep a short last row's tiles as wide as the rest. */}
-                  {Array.from({ length: columns - row.length }, (_, cell) => (
-                    <View key={cell} style={{ flexGrow: 1, flexBasis: itemPanel.listCellBasis }} />
-                  ))}
-                </View>
-              ))}
-            </View>
+            <ListPicker lists={lists} value={to ? to.id : listId} onChange={setDestination} />
             {to ? (
               <PanelPart appears>
                 <ToggleRow value={keep} onValueChange={setKeep} title={tr.items.keepHere} />

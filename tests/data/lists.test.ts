@@ -93,8 +93,8 @@ describe("readLists", () => {
     const eczane = await createList("Eczane");
     await deleteList(pazar);
     expect(await readLists()).toEqual([
-      { id: market, name: "Market", color: null, icon: "cart", pantry: true, total: 0, inBasket: 0 },
-      { id: eczane, name: "Eczane", color: null, icon: "pharmacy", pantry: true, total: 0, inBasket: 0 },
+      { id: market, name: "Market", color: null, icon: "cart", pantry: true, total: 0, inBasket: 0, viewer: false },
+      { id: eczane, name: "Eczane", color: null, icon: "pharmacy", pantry: true, total: 0, inBasket: 0, viewer: false },
     ]);
   });
 

@@ -9,6 +9,7 @@ import { isISODate, type ISODate } from "../domain/dates";
 import { itemNameFrom, knownFrom, noteFrom, type KnownProduct } from "../domain/items";
 import { lookOf, type ListLook } from "../domain/lists";
 import { isPrice } from "../domain/money";
+import { viewing } from "./lists";
 import { photoColumn, type NewPhoto, type PhotoChange } from "./photos";
 import { PRIORITIES, isNamedByLink, linkFrom, linkIn, openTotal, shopOf, sortWishes, type Priority, type Wish } from "../domain/wishes";
 
@@ -17,6 +18,8 @@ export interface Collection extends ListLook {
   /** Wishes not yet bought. */
   open: number;
   openTotalMinor: number | null;
+  /** Shared with this person to read, so a pasted link goes elsewhere. */
+  viewer: boolean;
 }
 
 /** What the wish panel saves; a link without an id is a new one. */
@@ -70,7 +73,7 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
 /** Oldest first, as Listeler's lists are. */
 export async function readCollections(): Promise<Collection[]> {
   const rows = await getDb()
-    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon })
+    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, viewer: viewing() })
     .from(lists)
     .where(and(isNull(lists.deletedAt), eq(lists.kind, "wish")))
     .orderBy(asc(lists.createdAt), asc(lists.id));

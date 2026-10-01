@@ -212,6 +212,9 @@ export const tr = {
     pastedNothing: "Eklenecek yeni ürün yok",
     finish: "Alışverişi Bitir",
     finished: (count: number) => `Alışveriş bitti, ${count} ürün geçmişe taşındı`,
+    carryTitle: "Bulunamayanlar",
+    carryMessage: (names: readonly string[]) =>
+      `${names.length > 1 ? `${names.slice(0, -1).join(", ")} ve ${names.at(-1)}` : names[0]} bulunamadı. Sonraki alışverişte hangi listede olsun?`,
   },
   /** Helix's calculator (SPEC 4.4). */
   celebration: {

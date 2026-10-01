@@ -399,8 +399,8 @@ function ReminderPlanner() {
 
 /**
  * A product link on the clipboard, offered once as the app opens (SPEC 2.9):
- * it becomes a wish in the first collection, or in a new one when there is
- * none, and the collection opens on it. The field holds the link where the
+ * it becomes a wish in the first collection this person can add to, or in a
+ * new one when there is none, and the collection opens on it. The field holds the link where the
  * phone let it be read, and takes a paste where it did not.
  */
 function ClipboardLinkOffer() {
@@ -424,7 +424,7 @@ function ClipboardLinkOffer() {
       if (typed == null || typed.trim() === "") return;
       const url = linkFrom(typed);
       if (!url) return appError(tr.wishes.linkInvalid);
-      const collection = (await readCollections())[0]?.id ?? (await createList(tr.clipboard.collection, "wish"));
+      const collection = (await readCollections()).find((held) => !held.viewer)?.id ?? (await createList(tr.clipboard.collection, "wish"));
       readLinkPages(await addWish(collection, url));
       router.push({ pathname: "/collection/[id]", params: { id: collection } });
     })().catch(() => appError(tr.errors.saveFailed));

@@ -32,8 +32,8 @@ export function useSharedLists(userId: string) {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
-// Items, because each card counts what is on its list.
-const listsStore = liveStore(readLists, ["lists", "items"]);
+// Items, because each card counts what is on its list; members, because a viewer sends nothing.
+const listsStore = liveStore(readLists, ["lists", "items", "list_members"]);
 
 export function useLists() {
   return useSyncExternalStore(listsStore.subscribe, listsStore.getSnapshot, listsStore.getSnapshot);

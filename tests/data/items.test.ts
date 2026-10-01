@@ -21,7 +21,7 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, addScanned, deleteItem, importEntries, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
+const { addEntries, addScanned, carryNotFound, deleteItem, importEntries, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
 const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
@@ -374,6 +374,38 @@ describe("not found, and bought instead", () => {
     const [ayran] = await addItems(listId, "ayran");
     await updateItem(sut!, { ...as("ayran"), boughtInstead: "Kefir" });
     expect(await readItems(listId)).toMatchObject([{ id: ayran, name: "Ayran", boughtInstead: "Kefir", checkedAt: expect.any(String) }]);
+  });
+
+  it("carries what was not found to the next shop, here or on another list, unmarked, and undo puts it back", async () => {
+    const [sut, ekmek, peynir] = await addItems(listId, "2 lt süt, ekmek, peynir, ayran");
+    await updateItem(sut!, { ...as("Süt", 2000, "lt"), note: "Pınar", notFound: true });
+    await updateItem(ekmek!, { ...as("Ekmek"), notFound: true });
+    await toggleChecked(peynir!);
+    await finishShop(listId);
+    const missed = await readItems(listId);
+    const marks = async (list: string) => (await readItems(list)).map(({ name, notFound }) => [name, notFound]);
+
+    const kept = await carryNotFound(listId, listId);
+    expect(await marks(listId)).toEqual([["Süt", false], ["Ekmek", false], ["Ayran", false]]);
+    await undoSave(kept!, listId);
+    expect(await readItems(listId)).toEqual(missed);
+
+    const pazar = await createList("Pazar");
+    const [there] = await addItems(pazar, "ekmek, elma");
+    const sent = await carryNotFound(listId, pazar);
+    expect(await names(listId), "what was only still to find stays").toEqual(["Ayran"]);
+    // On top, in their order, as adding them there would; a product already there takes them in.
+    expect(await readItems(pazar)).toMatchObject([
+      { name: "Süt", quantityMilli: 2000, unit: "lt", note: "Pınar", notFound: false, checkedAt: null },
+      { id: there, name: "Ekmek", notFound: false },
+      { name: "Elma" },
+    ]);
+    await undoSave(sent!, listId);
+    expect(await readItems(listId)).toEqual(missed);
+    expect(await names(pazar)).toEqual(["Ekmek", "Elma"]);
+    expect(await carryNotFound(pazar, listId), "nothing was missed there").toBeNull();
+    await deleteList(pazar);
+    await expect(carryNotFound(listId, pazar)).rejects.toThrow();
   });
 });
 

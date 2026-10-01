@@ -331,25 +331,49 @@ export async function updateItem(
     const here = !to || to.keep ? await saveHere(stored, { ...saved, photoId }) : editRow("items", stored, { deletedAt: nowIso() });
     if (!to) return here;
     if (to.listId === stored.list_id) throw new Error("An item is sent to another list");
-    await readLiveRow("lists", to.listId);
-    const target = await openItemId(to.listId, name);
     const { quantityMilli, unit, urgent } = saved;
-    return [
-      ...here,
-      ...land(target, await findLiveRow("items", target), {
-        listId: to.listId,
-        name,
-        quantityMilli,
-        unit,
-        note,
-        urgent,
-        photoId,
-        sortOrder: (await topPlace(to.listId)) - 1,
-        checkedAt: null,
-      }),
-    ];
+    return [...here, ...(await sendTo(to.listId, [{ name, quantityMilli, unit, note, urgent, photoId }]))];
   });
   return { name, written };
+}
+
+/**
+ * Items landing on another list as adding them there would (SPEC 4.3): on
+ * top, in the order given, with what each needs to be bought. Its tick, what
+ * was or was not found and its price were the left list's shop, and do not go.
+ */
+async function sendTo(listId: string, sent: readonly ({ name: string } & Record<string, unknown>)[]): Promise<RowWrite[]> {
+  await readLiveRow("lists", listId);
+  const top = await topPlace(listId);
+  const writes: RowWrite[] = [];
+  for (const [at, item] of sent.entries()) {
+    const target = await openItemId(listId, item.name);
+    writes.push(...land(target, await findLiveRow("items", target), { listId, ...item, sortOrder: top - sent.length + at, checkedAt: null }));
+  }
+  return writes;
+}
+
+/**
+ * What was not found stays to buy at the next shop (the owner's idea,
+ * approved 2026-09-30), on this list or sent to another, and no longer
+ * marked: not finding it was the finished shop's. Undone with `undoSave`.
+ */
+export async function carryNotFound(listId: string, toListId: string): Promise<RowsWritten | null> {
+  const written = await writeUndoable(async () => {
+    const sqlite = await getSqliteAsync();
+    const missed = await sqlite.getAllAsync<RowSnapshot>(
+      "SELECT * FROM items WHERE list_id = ? AND shop_id IS NULL AND checked_at IS NULL AND not_found = 1 AND deleted_at IS NULL ORDER BY sort_order",
+      [listId],
+    );
+    if (toListId === listId) return missed.flatMap((row) => editItem(row, { notFound: false }));
+    const now = nowIso();
+    const sent = missed.map((row) => {
+      const { quantityMilli, unit, note, urgent, photoId } = fromDbShape("items", row);
+      return { name: String(row.name), quantityMilli, unit, note, urgent, photoId };
+    });
+    return [...missed.flatMap((row) => editRow("items", row, { deletedAt: now })), ...(await sendTo(toListId, sent))];
+  });
+  return written.writes.length > 0 ? written : null;
 }
 
 async function saveHere(stored: RowSnapshot, saved: Record<string, unknown>): Promise<RowWrite[]> {

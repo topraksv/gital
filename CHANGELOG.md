@@ -8,6 +8,16 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.5.0
+
+### Minor Changes
+
+- Alışverişi bitirirken bulunamayan bir şey varsa sonraki alışverişte hangi listede olacağı soruluyor; seçilen listede işaretsiz bekliyor ve bitişin geri alınması onu da geri getiriyor.
+
+### Patch Changes
+
+- Yalnız görüntüleyebildiğin bir listeye ya da koleksiyona artık hiçbir şey gönderilmiyor; sunucu reddedip "Bazı kayıtlar bekliyor"a düşürüyordu: ürün taşıma hedefi olarak çıkmıyor, panodaki bağlantı oraya eklenmiyor, geçmiş sayfasında "+", toplam ve fiş değiştirme görünmüyor (fiş yine görülüyor).
+
 ## 1.4.2
 
 ### Patch Changes

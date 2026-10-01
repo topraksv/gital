@@ -12,7 +12,7 @@ import Share from "lucide-react-native/icons/share";
 
 
 import { useItems, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
-import { addEntries, addScanned, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
+import { addEntries, addScanned, carryNotFound, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
 import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
 import { markSeen, rowPeople, type Member, type RowPeople } from "../../data/members";
 import { readPantry } from "../../data/pantry";
@@ -32,7 +32,7 @@ import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { celebrate, hideCelebration } from "../../ui/celebration";
 import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
-import { ItemSheet, type ItemDestination } from "../../ui/item-sheet";
+import { CarrySheet, ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import { ListSheet } from "../../ui/list-sheet";
 import { EditorsOnly, PeopleActions, ShoppersNote, useShare, useShoppingHere } from "../../ui/members-sheet";
@@ -61,18 +61,20 @@ export default function ListScreen() {
   const [sorting, setSorting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const list = leaving ?? lists.data.find((candidate) => candidate.id === id);
+  const open = items.data.filter((item) => item.checkedAt == null);
+  const basket = items.data.filter((item) => item.checkedAt != null);
+  // Where an item can be sent: never a list this person only views, whose server refuses it.
+  const destinations = lists.data.filter((candidate) => !candidate.viewer || candidate.id === id);
+  const finishing = useFinish(id, open, basket, destinations);
   // A list open with something still to buy is a shop under way: the others
   // sharing the list see who is at the shop (SPEC 1.6) — never a viewer, who
   // can tick nothing.
-  const shopping = items.data.some((item) => item.checkedAt == null);
-  useShoppingHere(id, shopping, viewer);
+  useShoppingHere(id, open.length > 0, viewer);
 
   // A link to a list that is not here — deleted elsewhere, or never existed.
   if (lists.updatedAt != null && !list) return <Redirect href="/" />;
 
 
-  const open = items.data.filter((item) => item.checkedAt == null);
-  const basket = items.data.filter((item) => item.checkedAt != null);
   const sections = listSections(open, moved);
 
   // A list from a message (SPEC 6.2), taken back whole from the bar.
@@ -146,25 +148,6 @@ export default function ListScreen() {
       if (snapshot) showUndo(tr.common.deleted(item.name), () => restoreItem(snapshot));
     } catch {
       void appError(tr.errors.deleteFailed);
-    }
-  };
-
-  // What is in the basket is filed and leaves; the rest stays on the list (SPEC 3.4).
-  const finish = async () => {
-    try {
-      // Read before the finish: the basket leaves the list with it.
-      const spentMinor = spentOn(basket);
-      const stayed = open.length;
-      const shop = await finishShop(id);
-      if (!shop) return;
-      successNotice();
-      celebrate({ bought: shop.bought, spentMinor, stayed, stocked: shop.stocked });
-      showUndo(tr.items.finished(shop.bought), () => {
-        hideCelebration();
-        return reopenShop(shop.id);
-      });
-    } catch {
-      void appError(tr.errors.saveFailed);
     }
   };
 
@@ -255,7 +238,7 @@ export default function ListScreen() {
                       <SlideUp distance={motion.travel.bar}>
                         <EditorsOnly viewer={viewer}>
                           <View style={{ marginTop: spacing.md }}>
-                            <Button label={tr.items.finish} icon={CheckCheck} onPress={finish} />
+                            <Button label={tr.items.finish} icon={CheckCheck} onPress={finishing.ask} />
                           </View>
                         </EditorsOnly>
                       </SlideUp>
@@ -272,12 +255,13 @@ export default function ListScreen() {
           key={editing.id}
           item={editing}
           listId={id}
-          lists={lists.data}
+          lists={destinations}
           onSave={(change, to) => save(editing, change, to)}
           onDelete={() => removeItem(editing)}
           onClose={() => setEditing(null)}
         />
       ) : null}
+      {finishing.question}
     </Screen>
   );
 }
@@ -300,6 +284,56 @@ function useSeenOnLeave(listId: string, userId: string, items: readonly Item[], 
     },
     [listId, userId],
   );
+}
+
+/**
+ * Finishing a shop: what is in the basket is filed and leaves, the rest stays
+ * on the list (SPEC 3.4), and what was not found waits for the next shop, on
+ * whichever list the question names (SPEC 3.15). Returns the press, and the
+ * question for the screen to draw beside its other sheets.
+ */
+function useFinish(listId: string, open: readonly Item[], basket: readonly Item[], lists: readonly ListSummary[]) {
+  const [asking, setAsking] = useState(false);
+  const missed = open.filter((item) => item.notFound);
+  // Carried first: a finish that then fails can be pressed again, and finds
+  // nothing left to carry. One that finds the basket emptied on another
+  // device meanwhile finished nothing, so what it carried goes back.
+  const finish = async (carryTo: string) => {
+    setAsking(false);
+    try {
+      // Read before the finish: the basket leaves the list with it.
+      const spentMinor = spentOn(basket);
+      const stayed = carryTo === listId ? open.length : open.length - missed.length;
+      const carried = await carryNotFound(listId, carryTo);
+      const shop = await finishShop(listId);
+      if (!shop) {
+        if (carried) await undoSave(carried, listId);
+        return;
+      }
+      successNotice();
+      celebrate({ bought: shop.bought, spentMinor, stayed, stocked: shop.stocked });
+      showUndo(tr.items.finished(shop.bought), async () => {
+        hideCelebration();
+        await reopenShop(shop.id);
+        if (carried) await undoSave(carried, listId);
+      });
+    } catch {
+      void appError(tr.errors.saveFailed);
+    }
+  };
+  return {
+    ask: () => (missed.length > 0 && lists.length > 1 ? setAsking(true) : void finish(listId)),
+    question:
+      asking && missed.length > 0 ? (
+        <CarrySheet
+          names={missed.map((item) => item.name)}
+          listId={listId}
+          lists={lists}
+          onFinish={(to) => void finish(to)}
+          onClose={() => setAsking(false)}
+        />
+      ) : null,
+  };
 }
 
 /**

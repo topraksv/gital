@@ -15,6 +15,7 @@ import { PhotoField } from "../../ui/photo-field";
 import { Actions, DialogShell, appError } from "../../ui/dialog";
 import { useModalAccessibility } from "../../ui/accessibility";
 import { selectionTap } from "../../ui/haptics";
+import { useShare } from "../../ui/members-sheet";
 import { controlSize, density, motion, spacing, type, useTheme } from "../../ui/theme";
 
 /** What one finished shop bought (SPEC 3.5), each item one tap from its list again. */
@@ -26,6 +27,8 @@ export default function ShopScreen() {
   // What this visit put back, so each row shows that it landed.
   const [added, setAdded] = useState<ReadonlySet<string>>(() => new Set());
   const shop = shops.data.find((candidate) => candidate.id === id);
+  // A viewer reads the shop; the server would refuse anything it changed.
+  const { viewer } = useShare(shop?.listId ?? "");
 
   // Undone, or its list deleted, since the link was made.
   if (shops.updatedAt != null && !shop) return <Redirect href="/history" />;
@@ -44,7 +47,7 @@ export default function ShopScreen() {
   };
 
   return (
-    <Screen back="/history" title={shop?.listName} width="workspace" actions={shop ? <EditTotal shop={shop} /> : null}>
+    <Screen back="/history" title={shop?.listName} width="workspace" actions={shop && !viewer ? <EditTotal shop={shop} /> : null}>
       {shops.status === "error" || items.status === "error" ? (
         <ReadFailed queries={[shops, items]} />
       ) : shop && items.updatedAt != null ? (
@@ -55,7 +58,7 @@ export default function ShopScreen() {
           <View style={{ gap: density.list.rowGap }}>
             {items.data.map((item) => (
               <SlideUp key={item.id} distance={motion.travel.bar}>
-                <BoughtRow item={item} added={added.has(item.id)} onAddBack={() => addBack(shop.listId, item)} />
+                <BoughtRow item={item} added={added.has(item.id)} onAddBack={viewer ? null : () => addBack(shop.listId, item)} />
               </SlideUp>
             ))}
           </View>
@@ -66,6 +69,7 @@ export default function ShopScreen() {
             photoId={shop.receiptId}
             thumb={shop.receipt}
             value={undefined}
+            readOnly={viewer}
             onChange={(change) => {
               if (change !== undefined) setShopReceipt(shop.id, change).catch(() => appError(tr.errors.saveFailed));
             }}
@@ -122,7 +126,8 @@ function EditTotal({ shop }: { shop: Shop }) {
   );
 }
 
-function BoughtRow({ item, added, onAddBack }: { item: Item; added: boolean; onAddBack: () => void }) {
+/** `onAddBack` is `null` for a viewer, who is offered nothing to press. */
+function BoughtRow({ item, added, onAddBack }: { item: Item; added: boolean; onAddBack: (() => void) | null }) {
   const { palette } = useTheme();
   return (
     <View style={{ ...cardEdge(palette), flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: palette.surface }}>
@@ -136,9 +141,9 @@ function BoughtRow({ item, added, onAddBack }: { item: Item; added: boolean; onA
         >
           <CheckMark checked />
         </View>
-      ) : (
+      ) : onAddBack ? (
         <IconButton icon={Plus} label={tr.history.addBack(item.name)} tone="primary" onPress={onAddBack} />
-      )}
+      ) : null}
     </View>
   );
 }

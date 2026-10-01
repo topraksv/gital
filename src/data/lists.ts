@@ -1,9 +1,9 @@
 /** The lists a screen reads and the four things it can do to one. */
 
-import { and, asc, count, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
-import { deleteRow, editRow, readLiveRow, writeRows, type RowsWritten } from "../db/mutations";
+import { actingUser, deleteRow, editRow, readLiveRow, writeRows, type RowsWritten } from "../db/mutations";
 import { items, lists, type ListKind } from "../db/schema";
 import { LIST_COLORS, LIST_ICONS, iconForName, knownOf, lookOf, type ListLook } from "../domain/lists";
 import { nameFrom } from "../domain/names";
@@ -14,12 +14,23 @@ export interface ListSummary extends ListLook {
   /** Items on the list, the basket included; a finished shop's are history. */
   total: number;
   inBasket: number;
+  /** Shared with this person to read: nothing is sent to it, since the server would refuse it and set it aside. */
+  viewer: boolean;
 }
+
+/**
+ * Whether the person signed in only views the `lists` row selected beside it:
+ * the server refuses anything sent to it. Spelled out, because drizzle leaves
+ * a column unqualified in a query with no join, where `id` would be the member's.
+ */
+export const viewing = () =>
+  sql<boolean>`EXISTS (SELECT 1 FROM list_members m WHERE m.list_id = lists.id AND m.user_id = ${actingUser()}
+    AND m.role = 'viewer' AND m.deleted_at IS NULL)`.mapWith(Boolean);
 
 /** Oldest first, so a new list joins the end and nothing already there moves. Wish collections are İstekler's. */
 export async function readLists(): Promise<ListSummary[]> {
   const rows = await getDb()
-    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, pantry: lists.pantry, total: count(items.id), inBasket: count(items.checkedAt) })
+    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, pantry: lists.pantry, total: count(items.id), inBasket: count(items.checkedAt), viewer: viewing() })
     .from(lists)
     .leftJoin(items, and(eq(items.listId, lists.id), isNull(items.shopId), isNull(items.deletedAt)))
     .where(and(isNull(lists.deletedAt), eq(lists.kind, "shop")))

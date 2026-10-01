@@ -32,10 +32,11 @@ vi.mock("expo-constants", () => ({
   },
 }));
 
-const { addEntries, addScanned, deleteItem, readItems, restoreItem, toggleChecked } = await import("../../src/data/items");
+const { addEntries, addScanned, deleteItem, readItems, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
 const { createList, editList, readLists } = await import("../../src/data/lists");
 const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry } = await import("../../src/data/pantry");
+const { readCollections } = await import("../../src/data/wishes");
 const { finishShop, readShops, reopenShop, setShopReceipt } = await import("../../src/data/shops");
 const { countDataReset, resetData } = await import("../../src/data/reset");
 const { readPhoto } = await import("../../src/data/photos");
@@ -439,6 +440,46 @@ describe("two people sharing a list", () => {
       expect(await readDeadLetters()).toEqual([]);
     });
     expect(cloud.rows("items").map((row) => row.name)).toContain("yağ");
+  });
+
+  it("marks a list the person only views, since the server refuses an item sent there", async () => {
+    const listId = await sharedMarket("viewer");
+    const views = async () => (await readLists()).map(({ name, viewer }) => [name, viewer]).sort();
+    await on("C", async () => {
+      expect(await views()).toEqual([["Kendi", false], ["Market", true]]);
+      const kendi = (await readLists()).find((list) => list.name === "Kendi")!.id;
+      const [yag] = await add(kendi, "yağ");
+      await updateItem(yag!, { name: "Yağ", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null }, { listId, keep: false });
+      await sync();
+      expect(await readDeadLetters()).toMatchObject([{ tableName: "items", reason: "refused" }]);
+    });
+    await on("A", async () => {
+      await sync();
+      await setMemberRole((await readMembers(listId)).find((member) => member.userId === OTHER)!.id, "editor");
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      expect(await views()).toEqual([["Kendi", false], ["Market", false]]);
+    });
+  });
+
+  it("marks a wish collection the person only views, so a pasted link is not sent there", async () => {
+    const collection = await on("A", async () => {
+      const id = await createList("Hediyeler", "wish");
+      await sync();
+      return id;
+    });
+    const token = await on("A", async () => {
+      const made = await createInvite(collection, "viewer", "Ömer");
+      if ("refused" in made) throw new Error(made.refused);
+      return made.token;
+    });
+    await on("C", async () => {
+      await acceptInvite(token, "Deniz");
+      await sync();
+      expect(await readCollections()).toMatchObject([{ name: "Hediyeler", viewer: true }]);
+    });
   });
 
   it("leaves nothing to do for a list the person never joined", async () => {
