@@ -13,7 +13,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeCloud } from "./fake-cloud";
 
-const harness = vi.hoisted(() => ({ db: null as DatabaseSync | null, cloud: null as unknown as { client(): unknown } }));
+const harness = vi.hoisted(() => ({ db: null as DatabaseSync | null, cloud: null as unknown as { client(): unknown }, version: "1.4.1" }));
 
 vi.mock("../../src/db/client", async () => {
   const { sqliteClientMock } = await import("../helpers");
@@ -24,6 +24,13 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 vi.mock("../../src/sync/supabase", () => ({ getSupabase: () => harness.cloud.client() }));
+vi.mock("expo-constants", () => ({
+  default: {
+    get expoConfig() {
+      return { version: harness.version };
+    },
+  },
+}));
 
 const { addEntries, addScanned, deleteItem, readItems, restoreItem, toggleChecked } = await import("../../src/data/items");
 const { createList, editList, readLists } = await import("../../src/data/lists");
@@ -77,7 +84,8 @@ beforeEach(() => {
   cloud = new FakeCloud();
   cloud.user = USER;
   harness.cloud = cloud;
-  devices = { A: migratedDatabase(), B: migratedDatabase(), C: migratedDatabase(), D: migratedDatabase() };
+  harness.version = "1.4.1";
+  devices ={ A: migratedDatabase(), B: migratedDatabase(), C: migratedDatabase(), D: migratedDatabase() };
   useSyncStatus.getState().set({ state: "idle", error: null, lastSyncAt: null });
 });
 
@@ -809,6 +817,35 @@ describe("what the server will not take", () => {
       expect(await readDeadLetters()).toEqual([]);
       expect(devices.A.prepare("SELECT name FROM lists WHERE id = ?").get(id), "the row itself stays").toEqual({ name: "y".repeat(201) });
       expect(await retryDeadLetter(again!.id)).toBe("missing");
+    });
+  });
+
+  it("sends what an older version set aside once more after an update, and a refusal of its own only once", async () => {
+    await on("A", async () => {
+      const [id] = await add(await createList("Market"), "süt");
+      await sync();
+      // What 1.3 left on the owner's phone, measured 2026-09-30: a delete taken
+      // back, refused for its generation, set aside with nothing left to send.
+      await restoreItem((await deleteItem(id!))!);
+      devices.A.prepare("DELETE FROM outbox").run();
+      devices.A.prepare(
+        "INSERT INTO sync_dead_letters (outbox_id, table_name, row_id, payload, reason, quarantined_at) VALUES (1, 'items', ?, '{}', 'refused', '2026-09-30T14:27:31.000Z')",
+      ).run(id!);
+      await sync();
+      expect(await readDeadLetters(), "this version has had its look").toHaveLength(1);
+
+      harness.version = "1.4.2";
+      expect(await sync()).toBe(true);
+      expect(await readDeadLetters()).toEqual([]);
+      expect(serverRow("items", id!)).toMatchObject({ deleted_at: null, tombstone_version: 0 });
+      expect(useSyncStatus.getState().state).toBe("idle");
+
+      await writeRows([{ table: "lists", row: { id: "019f6bba-2c65-7ea8-a6c9-96d891155e06", name: "x".repeat(201) } }]);
+      await sync();
+      const before = cloud.requests.length;
+      await sync();
+      expect(cloud.requests.slice(before), "not sent on every sync").not.toContain("upsert lists");
+      expect(await readDeadLetters()).toMatchObject([{ reason: "refused" }]);
     });
   });
 });

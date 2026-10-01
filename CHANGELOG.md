@@ -8,6 +8,12 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.4.2
+
+### Patch Changes
+
+- Eski bir sürümün gönderemeyip "Bazı kayıtlar bekliyor" diye kenara ayırdığı kayıtlar, yeni sürüm açılınca kendiliğinden bir kez daha gönderiliyor; bunun için çıkış yapmak ya da Tekrar Dene'ye basmak gerekmiyor.
+
 ## 1.4.1
 
 ### Patch Changes
