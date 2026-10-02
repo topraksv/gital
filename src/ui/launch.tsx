@@ -1,6 +1,6 @@
 /**
  * The cold start: the native splash hands over to the mark drawing itself on
- * the ground, and the app comes up from under it once it is ready and the
+ * the ground, the name writing itself under it, and the app comes up from under it once it is ready and the
  * drawing is done and has rested — whichever is later, so a ready app waits
  * no longer than `brandMark.launch`. It lives as long as the root layout and leaves once, so coming
  * back from the background never replays it. Reduced motion shows the mark at
@@ -76,7 +76,7 @@ export function Launch({ shown, ready }: { shown: boolean; ready: boolean }) {
           : { opacity },
       ]}
     >
-      <BrandMark height={SPLASH_IMAGE_WIDTH / ASPECT} duration={brandMark.launch.draw} />
+      <BrandMark height={SPLASH_IMAGE_WIDTH / ASPECT} duration={brandMark.launch.draw} named />
     </Animated.View>
   );
 }

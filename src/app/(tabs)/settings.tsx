@@ -15,11 +15,13 @@ import Monitor from "lucide-react-native/icons/monitor";
 import Moon from "lucide-react-native/icons/moon";
 import Sun from "lucide-react-native/icons/sun";
 import SunMedium from "lucide-react-native/icons/sun-medium";
+import UserRoundPen from "lucide-react-native/icons/user-round-pen";
 
 import { useSession } from "../../auth/session";
 import { useSettings } from "../../data/hooks";
-import { memberNameOf } from "../../data/settings";
+import { memberNameOf, setMemberName } from "../../data/settings";
 import { partOfDay } from "../../domain/dates";
+import { NAME_MAX } from "../../domain/names";
 import type { ShoppingDay } from "../../domain/reminders";
 import { tr } from "../../i18n/tr";
 import { readReminderPreferences, saveShoppingDay, type ReminderPreferences } from "../../services/reminder-preferences";
@@ -31,7 +33,7 @@ import { BrandMark } from "../../ui/brand";
 import { setShoppingNoticesAllowed, useShoppingNoticesAllowed } from "../../ui/members-sheet";
 import { setStayAwakeAllowed, stayAwakeAvailable, useStayAwakeAllowed } from "../../ui/stay-awake";
 import { Body, Button, Card, ChoiceTile, ListRow, Screen, SectionHeader, ToggleRow, rowsOf } from "../../ui/components";
-import { appConfirm, appError } from "../../ui/dialog";
+import { appConfirm, appError, appPrompt } from "../../ui/dialog";
 import { TourModal } from "../../ui/tour";
 import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, authHero, borderWidth, circle, controlSize, density, PALETTES, radius, spacing, type, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
@@ -115,6 +117,7 @@ export default function SettingsScreen() {
         <>
           <SectionHeader>{tr.account.section}</SectionHeader>
           <Card rows>
+            <NameRow />
             <ListRow icon={KeyRound} title={tr.account.security} subtitle={tr.account.securityDesc} chevron onPress={() => router.push("/account-security")} />
           </Card>
           <Card rows>
@@ -162,6 +165,20 @@ function Greeting() {
       </View>
     </View>
   );
+}
+
+/**
+ * The name the people a list is shared with see. Asked once, beside the first
+ * invitation; this is where it is put right, as it had to be when one inviter
+ * typed the other's name there (2026-10-02).
+ */
+function NameRow() {
+  const name = memberNameOf(useSettings().data);
+  const rename = async () => {
+    const typed = await appPrompt(tr.settings.name, tr.settings.nameMessage, { confirmLabel: tr.common.save, initialValue: name ?? "", maxLength: NAME_MAX });
+    if (typed != null) await setMemberName(typed).catch(() => appError(tr.errors.saveFailed));
+  };
+  return <ListRow icon={UserRoundPen} title={tr.settings.name} subtitle={tr.settings.nameDesc(name)} chevron onPress={() => void rename()} />;
 }
 
 function StayAwakeRow() {

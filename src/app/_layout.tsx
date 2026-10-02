@@ -34,7 +34,6 @@ import { Launch } from "../ui/launch";
 import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, spacing, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
-import { CelebrationHost } from "../ui/celebration";
 import { ErrorBoundary } from "../ui/error-boundary";
 import { OperationWait } from "../ui/operation-wait";
 import { PageReaderHost, readLinkPages } from "../ui/page-reader";
@@ -156,7 +155,10 @@ export default function RootLayout() {
 
   // The root view shows through wherever no screen is drawn: beside a page
   // sliding in, and in a phone's rounded corners. Left alone it is the system's
-  // white, so it wears the page's ground and follows a theme change.
+  // white, so it wears the page's ground and follows a theme change. Expo Go
+  // repaints it white each time it comes to the front (its
+  // `EXAppViewController`), which a store build has no part of; the owner
+  // chose not to work around Expo Go (2026-10-02).
   useEffect(() => {
     if (Platform.OS === "web") return;
     void SystemUI.setBackgroundColorAsync(theme.palette.background).catch(() => {});
@@ -204,7 +206,6 @@ export default function RootLayout() {
                 </ErrorBoundary>
               )}
               <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-              <CelebrationHost />
               <UndoSnackbar />
               <OverlaySlot />
               <ThemeDissolve />

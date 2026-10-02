@@ -45,6 +45,20 @@ export function tabLabelsFit(labelWidth: number, slotWidth: number): boolean {
   return labelWidth <= slotWidth - LABEL_BREATHING;
 }
 
+/**
+ * From where a record's header holds the word "Davet et" beside the invite
+ * mark (about 50 px more), measured in the browser on 2026-10-02: a list's six
+ * controls leave 0 px free at 360, 20 at 390 and 60 at 430; a collection's
+ * four, its order labelled, leave about 75 at 390. Kiler's has room at 360.
+ * Measured at the system's text size: a larger one grows the words and not the
+ * marks, so the width is read in its units, which errs toward the mark alone.
+ */
+const INVITE_WORD_WIDTH = { list: 430, collection: 390, household: 360 } as const;
+
+export function inviteWordFits(viewport: { width: number; fontScale: number }, header: keyof typeof INVITE_WORD_WIDTH): boolean {
+  return viewport.width / Math.max(1, viewport.fontScale) >= INVITE_WORD_WIDTH[header];
+}
+
 /** Whether a browser's visual viewport can be shrunk by a software keyboard. */
 export function isMobileViewportWidth(viewportWidth: number): boolean {
   return viewportWidth < DESKTOP_WIDTH;

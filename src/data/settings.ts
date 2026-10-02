@@ -6,9 +6,9 @@
  */
 
 import { isNull } from "drizzle-orm";
-import { getDb } from "../db/client";
+import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
-import { editRow, findRow, writeRows } from "../db/mutations";
+import { actingUser, editRow, findRow, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
 import { settings } from "../db/schema";
 import { LOGIN_KEY_PREFIX, type DeviceLogin } from "../domain/logins";
 import { nameFrom } from "../domain/names";
@@ -45,21 +45,31 @@ export function memberNameOf(all: readonly Setting[]): string | null {
   return value == null ? null : (JSON.parse(value) as string);
 }
 
-async function writeSetting(key: string, json: unknown): Promise<void> {
+async function settingWrite(key: string, json: unknown): Promise<RowWrite[]> {
   const id = await deterministicId(naturalKeys.setting(key));
   const value = JSON.stringify(json);
-  await writeRows(async () => {
-    const there = await findRow("settings", id);
-    return there ? editRow("settings", there, { value, deletedAt: null }) : [{ table: "settings" as const, row: { id, key, value, deletedAt: null } }];
-  });
+  const there = await findRow("settings", id);
+  return there ? editRow("settings", there, { value, deletedAt: null }) : [{ table: "settings", row: { id, key, value, deletedAt: null } }];
 }
+
+const writeSetting = (key: string, json: unknown) => writeRows(() => settingWrite(key, json));
 
 export const setAccountFrozen = (frozen: boolean) => writeSetting(ACCOUNT_FROZEN, frozen);
 
+/**
+ * The name, and every shared list's row that shows it: a member row keeps the
+ * name it was made with, so a correction that stopped at the setting would
+ * never reach the others. The server lets a person change only their own
+ * (`guard_list_member`), which is all this writes.
+ */
 export async function setMemberName(input: string): Promise<void> {
   const name = nameFrom(input);
   if (name == null) throw new Error("A member needs a name");
-  return writeSetting(MEMBER_NAME, name);
+  await writeRows(async () => {
+    const sqlite = await getSqliteAsync();
+    const mine = await sqlite.getAllAsync<RowSnapshot>("SELECT * FROM list_members WHERE user_id = ? AND deleted_at IS NULL", [actingUser()]);
+    return [...(await settingWrite(MEMBER_NAME, name)), ...mine.flatMap((row) => editRow("list_members", row, { name }))];
+  });
 }
 
 export const recordDeviceLogin = (device: string, login: DeviceLogin) => writeSetting(LOGIN_KEY_PREFIX + device, login);

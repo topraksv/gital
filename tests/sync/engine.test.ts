@@ -726,6 +726,25 @@ describe("two people sharing a list", () => {
     await expect(setMemberName("   ")).rejects.toThrow();
   });
 
+  it("carries a corrected name to every list the person already shares", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      await setMemberName("Betül");
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      expect((await readMembers(listId)).map(({ name }) => name)).toEqual(["Ömer", "Betül"]);
+      // The owner's own row too: it is what an invitation shows as who invited.
+      await setMemberName("Toprak");
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      expect((await readMembers(listId)).map(({ name }) => name)).toEqual(["Toprak", "Betül"]);
+    });
+  });
+
   it("says why an invitation could not be made", async () => {
     const listId = await on("A", () => createList("Market"));
     await on("A", async () => {

@@ -129,7 +129,7 @@ export default function Pantry() {
         selection,
         (chosen) => void remove(chosen),
         tr.tabs.pantry,
-        <HouseholdActions userId={userId}>
+        <HouseholdActions userId={userId} crowded={sorting}>
           <SortToggle sorting={sorting} canSort={pantry.data.length > 1} onChange={setSorting} />
           <IconButton icon={ClipboardPaste} label={tr.pantry.paste} onPress={() => void paste()} />
           <IconButton icon={Share} label={tr.pantry.share} disabled={pantry.data.length === 0} onPress={() => void share()} />

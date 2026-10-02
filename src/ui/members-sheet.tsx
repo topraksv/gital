@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Text, View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
 import Eye from "lucide-react-native/icons/eye";
@@ -38,6 +38,7 @@ import { Actions, DialogShell, appConfirm, appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { navigateBack } from "./navigation";
 import { Press } from "./press";
+import { inviteWordFits } from "./responsive";
 import { interactionSurface } from "./interaction";
 import { controlSize, iconSize, iconStroke, itemRow, radius, spacing, type, useTheme } from "./theme";
 import { showNotice } from "./undo";
@@ -122,13 +123,15 @@ export function ShoppersNote({ listId }: { listId: string }) {
  * A shared record's header, after its own actions: its people, the edit the
  * screen passes in, then delete for the owner or leave for anyone else. The
  * server forgets a member who leaves at once; the device lets the list go with
- * the next sync.
+ * the next sync. `crowded`: another control has put its word in the header
+ * (sorting's "Bitti"), so the invite mark goes without its own.
  */
 export function PeopleActions({
   list,
   userId,
   role,
   back,
+  crowded = false,
   deleteLabel,
   onDelete,
   children,
@@ -137,11 +140,13 @@ export function PeopleActions({
   userId: string;
   role: MemberRole;
   back: "/" | "/wishes";
+  crowded?: boolean;
   deleteLabel: string;
   onDelete: () => void;
   children: ReactNode;
 }) {
   const router = useRouter();
+  const viewport = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const leave = async () => {
     if (!(await appConfirm(tr.sharing.leaveTitle, tr.sharing.leaveMessage(list.name), tr.sharing.leaveConfirm))) return;
@@ -155,8 +160,13 @@ export function PeopleActions({
   };
   return (
     <>
-      {/* The owner's sheet is where an invitation is made, so its mark says so; anyone else's only lists the people. */}
-      <IconButton icon={role === "owner" ? UserPlus : Users} label={tr.sharing.open(list.name)} onPress={() => setOpen(true)} />
+      {/* The owner's sheet is where an invitation is made, so its mark says so, in a word where the header has room; anyone else's only lists the people. */}
+      <IconButton
+        icon={role === "owner" ? UserPlus : Users}
+        text={role === "owner" && !crowded && inviteWordFits(viewport, back === "/" ? "list" : "collection") ? tr.sharing.invite : undefined}
+        label={role === "owner" ? tr.sharing.inviteOpen(list.name) : tr.sharing.open(list.name)}
+        onPress={() => setOpen(true)}
+      />
       {children}
       {role === "owner" ? (
         <IconButton icon={Trash} label={deleteLabel} tone="danger" onPress={onDelete} />
@@ -173,8 +183,12 @@ export function PeopleActions({
  * its owner's. The owner invites and removes; a member leaves, and goes on
  * with an empty Kiler of their own. Nobody deletes it, and it has no viewers.
  */
-export function HouseholdActions({ userId, children }: { userId: string; children: ReactNode }) {
-  const home = useHeldPantry(userId).data[0]?.id ?? userId;
+export function HouseholdActions({ userId, crowded = false, children }: { userId: string; crowded?: boolean; children: ReactNode }) {
+  const held = useHeldPantry(userId);
+  const home = held.data[0]?.id ?? userId;
+  const viewport = useWindowDimensions();
+  // The word waits for the read: until then a member's Kiler would wear the owner's.
+  const word = home === userId && held.updatedAt != null && !crowded && inviteWordFits(viewport, "household");
   const [open, setOpen] = useState(false);
   const leave = async () => {
     if (!(await appConfirm(tr.sharing.leaveHousehold, tr.sharing.leaveHouseholdMessage, tr.sharing.leaveConfirm))) return;
@@ -187,7 +201,12 @@ export function HouseholdActions({ userId, children }: { userId: string; childre
   };
   return (
     <>
-      <IconButton icon={home === userId ? UserPlus : Users} label={tr.sharing.open(tr.tabs.pantry)} onPress={() => setOpen(true)} />
+      <IconButton
+        icon={home === userId ? UserPlus : Users}
+        text={word ? tr.sharing.invite : undefined}
+        label={home === userId ? tr.sharing.inviteOpen(tr.tabs.pantry) : tr.sharing.open(tr.tabs.pantry)}
+        onPress={() => setOpen(true)}
+      />
       {children}
       {home === userId ? null : <IconButton icon={LogOut} label={tr.sharing.leaveHousehold} tone="danger" onPress={() => void leave()} />}
       {open ? <MembersSheet list={{ id: home, name: tr.tabs.pantry }} userId={userId} household onClose={() => setOpen(false)} /> : null}

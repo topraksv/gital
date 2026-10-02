@@ -33,7 +33,7 @@ import { shareText } from "../../services/share";
 import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
-import { celebrate, hideCelebration } from "../../ui/celebration";
+import { FinishedCard, type ShopSummary } from "../../ui/celebration";
 import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
 import { CarrySheet, ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
@@ -211,7 +211,8 @@ export default function ListScreen() {
           <EditorsOnly viewer={viewer} fallback={<Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.viewOnly}</Body>}>
             <QuickAdd listId={list.id} items={items.data} purchases={purchases.data} onRemove={removeItem} />
           </EditorsOnly>
-          {items.data.length === 0 ? (
+          {/* The card stays in the one keyed array when the finish empties the list, so a last row deleted under it never mounts it again. */}
+          {items.data.length === 0 && !finishing.card ? (
             <EmptyState icon={ListPlus} title={tr.items.emptyTitle} hint={tr.items.emptyHint} />
           ) : (
             <>
@@ -251,6 +252,7 @@ export default function ListScreen() {
                       </SlideUp>
                     </RowMotion>
                   ) : null,
+                  finishing.card,
                 ]}
               </View>
             </>
@@ -307,7 +309,7 @@ function ListActions({
         <IconButton icon={ClipboardPaste} label={tr.items.paste(list.name)} onPress={() => onPaste(list)} />
       </EditorsOnly>
       <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={!canShare} onPress={() => onShare(list)} />
-      <PeopleActions list={list} userId={userId} role={role} back="/" deleteLabel={tr.lists.delete(list.name)} onDelete={() => onRemove(list)}>
+      <PeopleActions list={list} userId={userId} role={role} back="/" crowded={sorting} deleteLabel={tr.lists.delete(list.name)} onDelete={() => onRemove(list)}>
         <EditorsOnly viewer={viewer}>
           <EditList list={list} />
         </EditorsOnly>
@@ -339,11 +341,16 @@ function useSeenOnLeave(listId: string, userId: string, items: readonly Item[], 
 /**
  * Finishing a shop: what is in the basket is filed and leaves, the rest stays
  * on the list (SPEC 3.4), and what was not found waits for the next shop, on
- * whichever list the question names (SPEC 3.15). Returns the press, and the
- * question for the screen to draw beside its other sheets.
+ * whichever list the question names (SPEC 3.15). Returns the press, the
+ * question for the screen to draw beside its other sheets, and the card that
+ * celebrates the finish where the basket was. The card holds the finish's
+ * undo, and stands while the list holds only what the finish left on it (less
+ * what is deleted): an item added or ticked afterwards begins the next shop,
+ * and the card steps aside for good, even if that item goes again.
  */
 function useFinish(listId: string, open: readonly Item[], basket: readonly Item[], lists: readonly ListSummary[]) {
   const [asking, setAsking] = useState(false);
+  const [finished, setFinished] = useState<{ summary: ShopSummary; stayed: ReadonlySet<string>; undo: () => Promise<void> } | null>(null);
   const missed = open.filter((item) => item.notFound);
   // Carried first: a finish that then fails can be pressed again, and finds
   // nothing left to carry. One that finds the basket emptied on another
@@ -353,7 +360,6 @@ function useFinish(listId: string, open: readonly Item[], basket: readonly Item[
     try {
       // Read before the finish: the basket leaves the list with it.
       const spentMinor = spentOn(basket);
-      const stayed = carryTo === listId ? open.length : open.length - missed.length;
       const carried = await carryNotFound(listId, carryTo);
       const shop = await finishShop(listId);
       if (!shop) {
@@ -361,16 +367,31 @@ function useFinish(listId: string, open: readonly Item[], basket: readonly Item[
         return;
       }
       successNotice();
-      celebrate({ bought: shop.bought, spentMinor, stayed, stocked: shop.stocked });
-      showUndo(tr.items.finished(shop.bought), async () => {
-        hideCelebration();
-        await reopenShop(shop.id);
-        if (carried) await undoSave(carried, listId);
-      });
+      const undo = async () => {
+        try {
+          await reopenShop(shop.id);
+          if (carried) await undoSave(carried, listId);
+          setFinished(null);
+        } catch {
+          void appError(tr.errors.undoFailed);
+        }
+      };
+      setFinished({ summary: { bought: shop.bought, spentMinor, stayed: shop.stayed.length, stocked: shop.stocked }, stayed: new Set(shop.stayed), undo });
     } catch {
       void appError(tr.errors.saveFailed);
     }
   };
+  const settled = finished != null && basket.length === 0 && open.every((item) => finished.stayed.has(item.id));
+  // Until the screen has caught up with the finish the card is not yet due;
+  // once it has stood, the list moving on is final.
+  const stood = useRef(false);
+  useEffect(() => {
+    if (settled) stood.current = true;
+    else if (stood.current) {
+      stood.current = false;
+      setFinished(null);
+    }
+  }, [settled]);
   return {
     ask: () => (missed.length > 0 && lists.length > 1 ? setAsking(true) : void finish(listId)),
     question:
@@ -383,6 +404,7 @@ function useFinish(listId: string, open: readonly Item[], basket: readonly Item[
           onClose={() => setAsking(false)}
         />
       ) : null,
+    card: settled ? <FinishedCard key="finished" summary={finished.summary} onUndo={finished.undo} /> : null,
   };
 }
 
@@ -577,6 +599,8 @@ function Restock({ purchases, items, onPick }: { purchases: readonly Purchase[];
 
 function Progress({ done, total }: { done: number; total: number }) {
   const { palette } = useTheme();
+  // A finish that empties the list has nothing left to count; its card does.
+  if (total === 0) return null;
   return (
     <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
       <Text accessibilityLiveRegion="polite" style={[type.small, { color: palette.textSecondary }]}>

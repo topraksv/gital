@@ -10,7 +10,7 @@ import { useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
-import { PhotoViewerFrame, type PhotoViewerProps } from "./photo-viewer";
+import { PhotoViewerFrame, type PhotoViewerProps } from "./photo-viewer-frame";
 import { motion, photoViewer } from "./theme";
 import { clampPan, clampScale } from "./zoom";
 

@@ -368,8 +368,6 @@ export const motion = {
   figure: 900,
   /** A pulse fading off a row that changed, Helix's `motion.settle`. */
   settle: 420,
-  /** The finished shop's confetti falling, and how long its card stays unless tapped away. */
-  celebration: { fall: 1800, hold: 4000 },
   /** The ease-out every web CSS transition uses. */
   webEase: "cubic-bezier(0.22, 1, 0.36, 1)",
   spring: {
@@ -566,12 +564,12 @@ export const catalogueSheet = { columns: 4, tile: 56, name: 32 } as const;
 /** Helix's calculator pad (`docs/UI.md` section 5): a key's height and the display's, which three lines never resize. */
 export const calculatorPad = { keyHeight: 56, displayHeight: 128 } as const;
 
-/** The finished shop's celebration (`docs/UI.md` section 7): a few dozen pieces, and the card's tick. */
 /** The first-open tour's drawings: a skeleton of the screen each slide names, and its step dots. */
 /** `text` holds three lines of body, so the sheet does not jump as a slide's text changes length. */
 export const tour = { art: 122, text: 66, line: 5, block: 20, mark: 30, dot: { width: 6, active: 18 } } as const;
 
-export const celebration = { pieces: 36, piece: { width: 8, height: 12 }, tick: 40, cardWidth: 280 } as const;
+/** The finished shop's card (`docs/UI.md` section 7): its tick, and how wide it may grow. */
+export const celebration = { tick: 40, cardWidth: 280 } as const;
 
 /** An illustration fills this share of its tile (`docs/UI.md` section 6). */
 export const illustrationShare = 0.72;
@@ -630,6 +628,15 @@ export const brandMark = {
   leaf: 220,
   leafTurn: 8,
   /**
+   * A cold start's name under the mark (owner, 2026-10-02): it starts writing
+   * as the G is half drawn and finishes with the leaf. Its cap height is the
+   * kit's wordmark files' own, not the lockup's 1.6 scaled to the splash mark,
+   * which would make the name twice as wide as the mark it sits under.
+   */
+  wordAt: 450,
+  word: 670,
+  wordCap: 44,
+  /**
    * A cold start's mark: the same timeline stretched to `draw`, the finished
    * mark held for `rest`, then a fade. At the kit's own 1120 ms and a 120 ms
    * fade it was gone before it was seen (owner, 2026-10-02).
@@ -639,8 +646,9 @@ export const brandMark = {
   weave: "#C98D4C",
   weaveShade: "#B87C40",
   leafInk: "#8B9583",
-  /** What a mask shows through. */
+  /** What a mask shows through, and what it hides: luminance, never opacity, which a native mask may not read. */
   reveal: "#FFFFFF",
+  conceal: "#000000",
 } as const;
 
 /**

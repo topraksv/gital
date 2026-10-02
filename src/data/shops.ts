@@ -129,11 +129,13 @@ async function lastShopNumber(listId: string): Promise<number> {
  * instead of taking the item back out of history with a whole-row write.
  * `stocked` is how many went to the pantry (SPEC 12.5), for the celebration:
  * this person's ticks only, since a pantry is its owner's to write, and each
- * other member's device brings theirs home (`settleArrivals`).
+ * other member's device brings theirs home (`settleArrivals`). `stayed` is
+ * what the shop left on the list, read inside the same write: a tick that
+ * lands as Bitir is pressed is bought, which the screen's snapshot was not.
  */
-export async function finishShop(listId: string): Promise<{ id: string; bought: number; stocked: number } | null> {
+export async function finishShop(listId: string): Promise<{ id: string; bought: number; stocked: number; stayed: string[] } | null> {
   const sqlite = await getSqliteAsync();
-  let finished: { id: string; bought: number; stocked: number } | null = null;
+  let finished: { id: string; bought: number; stocked: number; stayed: string[] } | null = null;
   await writeRows(async () => {
     const list = fromDbShape("lists", await readLiveRow("lists", listId));
     const bought = await sqlite.getAllAsync<RowSnapshot>(
@@ -147,7 +149,11 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
     // A tick made with nobody signed in is this device's person's too.
     const mine = (row: RowSnapshot) => row.checked_by == null || row.checked_by === actingUser();
     const home = list.pantry === true ? bought.flatMap((row, at) => (mine(row) ? [at] : [])) : [];
-    finished = { id, bought: bought.length, stocked: home.length };
+    const stayed = await sqlite.getAllAsync<{ id: string }>(
+      "SELECT id FROM items WHERE list_id = ? AND shop_id IS NULL AND checked_at IS NULL AND deleted_at IS NULL",
+      [listId],
+    );
+    finished = { id, bought: bought.length, stocked: home.length, stayed: stayed.map((row) => row.id) };
     const copies = await Promise.all(
       bought.map(async (row) => ({
         ...fromDbShape("items", row),

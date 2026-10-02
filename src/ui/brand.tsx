@@ -4,15 +4,32 @@
  * the G under a widening mask, then opens the leaf from its stem. Once the
  * intro ends the mask is dropped, so the resting mark is the kit's exact
  * drawing. The G takes the palette's accent, as the kit's petrol and servi
- * marks do. Decoration: hidden from assistive technology on a wrapper, since
+ * marks do. `named` writes the name under it, left to right, as a cold start
+ * shows it. Decoration: hidden from assistive technology on a wrapper, since
  * an SVG drops the props that would hide it. Reduced motion draws it at rest.
  */
 
 import { useEffect, useId, useState } from "react";
 import { Easing, View } from "react-native";
-import Svg, { ClipPath, Defs, G, Mask, Path } from "react-native-svg";
+import Svg, { ClipPath, Defs, G, LinearGradient, Mask, Path, Rect, Stop } from "react-native-svg";
 
-import { ASPECT, G as G_SHAPE, G_DRAW, G_DRAW_LENGTH, G_DRAW_WIDTH, LEAF, LEAF_PIVOT, LEAF_TRANSFORM, VIEW_BOX, WEAVE_DARK, WEAVE_LIGHT, WEAVE_OUTLINE } from "./brand-art";
+import {
+  ASPECT,
+  G as G_SHAPE,
+  G_DRAW,
+  G_DRAW_LENGTH,
+  G_DRAW_WIDTH,
+  LEAF,
+  LEAF_PIVOT,
+  LEAF_TRANSFORM,
+  VIEW_BOX,
+  WEAVE_DARK,
+  WEAVE_LIGHT,
+  WEAVE_OUTLINE,
+  WORDMARK,
+  WORDMARK_BOX,
+  WORDMARK_CAP,
+} from "./brand-art";
 import { useReducedMotion } from "./motion";
 import { brandMark, PALETTES, useTheme } from "./theme";
 
@@ -45,9 +62,40 @@ function useIntro(duration: number): number | null {
   return reducedMotion ? null : elapsed;
 }
 
+/**
+ * The name as the kit's wordmark files set it, turned from beside the mark to
+ * under it with the lockup's gap: half the mark's width at the name's size.
+ * It writes itself under a mask whose soft edge, half a cap high, travels with
+ * the pen; at rest there is no mask.
+ */
+const WORD_SCALE = brandMark.wordCap / WORDMARK_CAP;
+const WORD_GAP = (1.6 * brandMark.wordCap * ASPECT) / 2;
+const PEN_EDGE = WORDMARK_CAP / 2;
+
+function Name({ id, ink, written }: { id: string; ink: string; written: number | null }) {
+  const [x, y, inkWidth, inkHeight] = WORDMARK_BOX;
+  const pen = x + (inkWidth + PEN_EDGE) * (written ?? 1);
+  return (
+    <Svg width={inkWidth * WORD_SCALE} height={inkHeight * WORD_SCALE} viewBox={`${x} ${y} ${inkWidth} ${inkHeight}`}>
+      {written !== null && (
+        <Defs>
+          <LinearGradient id={`${id}p`} gradientUnits="userSpaceOnUse" x1={pen - PEN_EDGE} y1={0} x2={pen} y2={0}>
+            <Stop offset={0} stopColor={brandMark.reveal} />
+            <Stop offset={1} stopColor={brandMark.conceal} />
+          </LinearGradient>
+          <Mask id={`${id}w`}>
+            <Rect x={x} y={y} width={pen - x} height={inkHeight} fill={`url(#${id}p)`} />
+          </Mask>
+        </Defs>
+      )}
+      <Path d={WORDMARK} fill={ink} mask={written === null ? undefined : `url(#${id}w)`} />
+    </Svg>
+  );
+}
+
 /** `duration` is the whole intro, the kit's timeline scaled evenly to fit, as Helix's mark takes it. */
-export function BrandMark({ height, duration = MARK_DRAW_MS }: { height: number; duration?: number }) {
-  const { paletteId } = useTheme();
+export function BrandMark({ height, duration = MARK_DRAW_MS, named = false }: { height: number; duration?: number; named?: boolean }) {
+  const { palette, paletteId } = useTheme();
   const elapsed = useIntro(duration);
   const pace = duration / MARK_DRAW_MS;
   // `useId` answers with colons, which a `url(#…)` reference cannot hold.
@@ -55,6 +103,7 @@ export function BrandMark({ height, duration = MARK_DRAW_MS }: { height: number;
   const progress = (start: number, length: number) => (elapsed === null ? 1 : easeOut(Math.min(1, Math.max(0, (elapsed - start * pace) / (length * pace)))));
   const drawn = progress(0, brandMark.draw);
   const leaf = progress(brandMark.leafAt, brandMark.leaf);
+  const written = elapsed === null ? null : progress(brandMark.wordAt, brandMark.word);
   const [x, y] = LEAF_PIVOT;
   const width = Math.round(height * ASPECT);
   return (
@@ -91,6 +140,12 @@ export function BrandMark({ height, duration = MARK_DRAW_MS }: { height: number;
           </G>
         )}
       </Svg>
+      {/* Hung below the mark's box, so the mark keeps the place the native splash gave it. */}
+      {named && (
+        <View style={{ position: "absolute", top: height + WORD_GAP, left: (width - WORDMARK_BOX[2] * WORD_SCALE) / 2 }}>
+          <Name id={id} ink={palette.textStrong} written={written} />
+        </View>
+      )}
     </View>
   );
 }

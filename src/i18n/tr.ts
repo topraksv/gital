@@ -54,7 +54,7 @@ export const tr = {
     link: ["https://www.trendyol.com/…", "https://www.hepsiburada.com/…", "https://www.amazon.com.tr/…"],
     estimate: ["1.250", "349,90", "4.500", "89,90"],
     shopTotal: ["612,75", "248,40", "1.085,30", "96,50"],
-    memberName: ["Ayşe", "Mehmet", "Annem", "Eşim", "Elif"],
+    memberName: ["Ayşe", "Mehmet", "Elif", "Can", "Zeynep"],
     pantryAdd: ["2 kg un", "Zeytinyağı", "5 paket makarna", "1 kg pirinç", "Salça"],
     feedback: [
       "Listede sütü işaretleyince öteki telefonda görünmedi",
@@ -225,7 +225,6 @@ export const tr = {
     pasted: (count: number) => `${count} ürün listeye eklendi`,
     pastedNothing: "Eklenecek yeni ürün yok",
     finish: "Alışverişi Bitir",
-    finished: (count: number) => `Alışveriş bitti, ${count} ürün geçmişe taşındı`,
     carryTitle: "Bulunamayanlar",
     carryMessage: (names: readonly string[]) =>
       `${names.length > 1 ? `${names.slice(0, -1).join(", ")} ve ${names.at(-1)}` : names[0]} bulunamadı. Sonraki alışverişte hangi listede olsun?`,
@@ -237,7 +236,6 @@ export const tr = {
     stayed: (count: number) => `${count}\u00a0ürün listede kaldı`,
     stocked: (count: number) => `${count}\u00a0ürün kilere gitti`,
     month: (spent: string) => `Bu ay: ${spent}`,
-    skip: "Kutlamayı kapat",
   },
   photos: {
     title: "Fotoğraf",
@@ -432,6 +430,9 @@ export const tr = {
     /** Helix's greeting, by `partOfDay`. */
     greeting: { night: "İyi geceler", morning: "Günaydın", day: "İyi günler", evening: "İyi akşamlar" },
     welcome: (name: string | null) => (name ? `Hoş geldin, ${name}.` : "Gital'a hoş geldin."),
+    name: "Adın",
+    nameDesc: (name: string | null) => (name ? `${name} · paylaştığın listelerde böyle görünürsün` : "Paylaştığın listelerde görünecek adın"),
+    nameMessage: "Paylaştığın listelerdeki herkes seni bu adla görür.",
     appSection: "Uygulama",
     stayAwake: "Ekran açık kalsın",
     stayAwakeHint: "Gital açıkken ekran kendiliğinden kararmaz.",
@@ -663,6 +664,8 @@ export const tr = {
     errAlreadyIn: "Bu kişi zaten içeride. Eşitlenince yetkisi burada görünür.",
     errNotShared: "Bu kişiyle artık ortak bir listen yok, bu yüzden davet gidemez.",
     open: (name: string) => `${name} kişileri`,
+    /** The owner's, whose button shows "Davet et": the name it is called by begins with that word. */
+    inviteOpen: (name: string) => `Davet et, ${name} kişileri`,
     fresh: "Yeni",
     freshCount: (count: number) => `${count} yeni`,
     /** SPEC 1.6, on the list the others are shopping. */
@@ -691,7 +694,8 @@ export const tr = {
     inviteShare: "Bağlantıyı Paylaş",
     inviteCopied: "Davet bağlantısı kopyalandı",
     inviteText: (name: string, link: string) => `Gital'da "${name}" listesine katıl: ${link}`,
-    nameTitle: "Adın",
+    /** Asked beside an invitation, so it says whose name it is: one inviter typed the other's. */
+    nameTitle: "Senin adın — diğerleri seni böyle görür",
     leave: (name: string) => `${name} listesinden ayrıl`,
     leaveTitle: "Listeden ayrıl",
     leaveMessage: (name: string) => `${name} tüm cihazlarından kalkar. Geri dönmek için yeni bir davet gerekir.`,
