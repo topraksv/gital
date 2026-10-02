@@ -15,9 +15,10 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-const { addWish, deleteWish, fillFromPage, unpricedLinksOf, readCollections, readDueWishes, readKnownWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
-const { createList, deleteList, readLists } = await import("../../src/data/lists");
+const { addWish, deleteWishes, fillFromPage, unpricedLinksOf, readCollections, readDueWishes, readKnownWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
+const { createList, deleteLists, readLists } = await import("../../src/data/lists");
 const { readPhoto } = await import("../../src/data/photos");
+const { setActor, writeRows } = await import("../../src/db/mutations");
 const { migratedDatabase } = await import("../helpers");
 
 const T0 = new Date("2026-09-26T10:00:00.000Z");
@@ -57,6 +58,19 @@ describe("collections", () => {
     expect(await readCollections()).toMatchObject([{ id: collection, name: "Ev", open: 0, openTotalMinor: null }]);
   });
 
+  it("are owned unless this person only edits or views them", async () => {
+    const DENIZ = "d0000000-0000-4000-8000-00000000000d";
+    const viewed = await createList("Hediye", "wish");
+    await writeRows([{ table: "list_members", row: { id: crypto.randomUUID(), listId: viewed, userId: DENIZ, role: "viewer" } }]);
+    setActor(DENIZ);
+    try {
+      const owner = Object.fromEntries((await readCollections()).map((each) => [each.id, each.owner]));
+      expect(owner).toEqual({ [collection]: true, [viewed]: false });
+    } finally {
+      setActor(null);
+    }
+  });
+
   it("count what is still wished and what it comes to", async () => {
     const kettle = await addWish(collection, "Kettle");
     await saveWish(kettle, change({ name: "Kettle", estimateMinor: 90000 }));
@@ -74,7 +88,7 @@ describe("collections", () => {
 
   it("leave out a deleted collection and its wishes", async () => {
     await addWish(collection, "Kettle");
-    await deleteList(collection);
+    await deleteLists([collection]);
     expect(await readCollections()).toEqual([]);
   });
 });
@@ -98,7 +112,7 @@ describe("addWish", () => {
   it("refuses an empty name and a collection that is gone or is a shopping list", async () => {
     await expect(addWish(collection, "  ")).rejects.toThrow();
     await expect(addWish(await createList("Market"), "Kettle")).rejects.toThrow();
-    await deleteList(collection);
+    await deleteLists([collection]);
     await expect(addWish(collection, "Kettle")).rejects.toThrow();
   });
 });
@@ -114,10 +128,10 @@ describe("readKnownWishes", () => {
     later(2000);
     await addWish(collection, "Kulaklık");
     const gone = await addWish(collection, "Masa lambası");
-    await deleteWish(gone);
+    await deleteWishes([gone]);
     const other = await createList("Eski", "wish");
     await addWish(other, "Bisiklet");
-    await deleteList(other);
+    await deleteLists([other]);
     expect(await readKnownWishes()).toEqual([
       { key: "kulaklik", name: "Kulaklık", times: 1 },
       { key: "kahve makinesi", name: "Kahve makinesi", times: 2 },
@@ -181,15 +195,15 @@ describe("a wish's date", () => {
     await saveWish(kettle, change({ name: "Kettle" }));
     expect(await readDueWishes()).toEqual([]);
     await saveWish(kettle, change({ name: "Kettle", dueOn: "2026-10-15" }));
-    await deleteList(collection);
+    await deleteLists([collection]);
     expect(await readDueWishes()).toEqual([]);
   });
 });
 
-describe("deleteWish", () => {
+describe("deleteWishes", () => {
   it("deletes a wish with its links out of sight, and undo brings it back whole", async () => {
     const id = await addWish(collection, "https://a.com/x");
-    const snapshot = await deleteWish(id);
+    const snapshot = await deleteWishes([id]);
     expect(await readWishes(collection)).toEqual([]);
     await restoreWish(snapshot!);
     expect(await readWishes(collection)).toMatchObject([{ id, links: [{ url: "https://a.com/x" }] }]);
@@ -243,7 +257,7 @@ describe("a link's page (SPEC 7.2)", () => {
     const before = outbox();
     await fillFromPage(links[0]!.id, { name: null, priceMinor: null, photo: null });
     expect(outbox()).toBe(before);
-    await deleteWish(id);
+    await deleteWishes([id]);
     await fillFromPage(links[0]!.id, found);
     expect(live("wishes")).toEqual([]);
   });

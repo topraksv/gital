@@ -9,33 +9,41 @@
  * tap puts one on the list, and both that and a delete close the panel, since
  * the undo bar they raise is drawn under it. Kiler opens the same panel
  * (the owner asked 2026-09-27), so where a product goes is the caller's.
+ * Typing in the field above searches every shelf at once; emptying it gives
+ * back the shelf and aisle that were open.
  */
 
-import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useState, type ReactElement } from "react";
+import { Pressable, ScrollView, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
+import Plus from "lucide-react-native/icons/plus";
+import Search from "lucide-react-native/icons/search";
 import Trash from "lucide-react-native/icons/trash";
+import X from "lucide-react-native/icons/x";
 
-import { useProducts, useSets } from "../data/hooks";
+import { useKnownProducts, useProducts, useSets } from "../data/hooks";
 import { createSet, deleteSet, restoreSet, type ProductSet } from "../data/sets";
-import { AISLES, CATALOGUE, catalogueProduct, type Aisle, type CatalogueProduct } from "../domain/catalogue";
+import { AISLES, CATALOGUE, catalogueProduct, searchCatalogue, type Aisle, type CatalogueProduct } from "../domain/catalogue";
 import { foldName, type ListedEntry } from "../domain/items";
-import { NAME_MAX } from "../domain/names";
+import { NAME_MAX, nameFrom } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
-import { Body, Button, CheckMark, IconButton, Tile, cardEdge, radioChoice, rowsOf } from "./components";
+import { Body, Button, CheckMark, IconButton, TextField, Tile, cardEdge, fieldAccessoryStyle, radioChoice, rowsOf } from "./components";
 import { Actions, DialogShell, appError, appPrompt } from "./dialog";
 import { selectionTap } from "./haptics";
 import { showNotice, showUndo } from "./undo";
 import { interactionSurface } from "./interaction";
 import { radioGroupKeys, webKeys } from "./keys";
-import { borderWidth, catalogueSheet, controlSize, font, offset, radius, spacing, themeShadow, type, useTheme } from "./theme";
+import { borderWidth, catalogueSheet, controlSize, font, iconSize, iconStroke, offset, radius, spacing, themeShadow, type, useTheme } from "./theme";
 import { Press } from "./press";
 
 /** What a tile needs: a product outside the catalogue has no picture. */
 type Shown = Pick<CatalogueProduct, "key" | "name"> & { picture?: CatalogueProduct["picture"] };
 
 type Shelf = "catalogue" | "favourites" | "sets";
+
+/** A product by name as a tile draws it: the catalogue's spelling and picture, or its initial outside it. */
+const shownAs = ({ name }: { name: string }): Shown => catalogueProduct(name) ?? { key: foldName(name), name };
 
 export function CatalogueSheet<T extends { name: string }>({
   items,
@@ -59,57 +67,127 @@ export function CatalogueSheet<T extends { name: string }>({
   const titleRef = useModalAccessibility(true, "catalogue");
   const [shown, setShown] = useState<Shelf>("catalogue");
   const [aisle, setAisle] = useState<Aisle>(AISLES[0]);
+  const [query, setQuery] = useState("");
   const favourites = useProducts().data.filter((product) => product.starred);
   const listed = new Map(items.map((item) => [foldName(item.name), item]));
   const shelf: readonly Shown[] =
-    shown === "catalogue"
-      ? CATALOGUE.filter((product) => product.aisle === aisle)
-      : shown === "favourites"
-        ? favourites.map(({ name }) => catalogueProduct(name) ?? { key: foldName(name), name })
-        : [];
+    shown === "catalogue" ? CATALOGUE.filter((product) => product.aisle === aisle) : shown === "favourites" ? favourites.map(shownAs) : [];
+  const tile = (product: Shown) => {
+    const item = listed.get(product.key);
+    return <ProductTile key={product.key} product={product} added={item != null} onPress={() => (item && onRemove ? onRemove(item) : onAdd(product))} />;
+  };
 
   return (
     <DialogShell title={tr.catalogue.title} titleRef={titleRef} onDismiss={onClose}>
-      <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.catalogue.title} style={{ flexDirection: "row", marginTop: spacing.sm, padding: offset.tuck, borderRadius: radius.md, backgroundColor: palette.surfaceAlt }}>
-        <ShelfChoice label={tr.catalogue.title} selected={shown === "catalogue"} onPress={() => setShown("catalogue")} />
-        <ShelfChoice label={tr.catalogue.favourites} selected={shown === "favourites"} onPress={() => setShown("favourites")} />
-        <ShelfChoice label={tr.catalogue.sets} selected={shown === "sets"} onPress={() => setShown("sets")} />
-      </View>
-      {shown === "catalogue" ? (
-        <ScrollView
-          horizontal
-          role="radiogroup" {...radioGroupKeys()}
-          accessibilityLabel={tr.catalogue.aisle}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}
-          style={{ marginTop: spacing.sm }}
-        >
-          {AISLES.map((each) => (
-            <AisleChip key={each} label={tr.catalogue.aisles[each]} selected={each === aisle} onPress={() => setAisle(each)} />
-          ))}
-        </ScrollView>
-      ) : shown === "sets" ? (
-        <SetsShelf addSet={addSet} open={open} onClose={onClose} />
-      ) : shelf.length === 0 ? (
-        <Body muted>{tr.catalogue.noFavourites}</Body>
-      ) : null}
-      <View style={{ gap: spacing.md, marginTop: spacing.md }}>
-        {rowsOf(shelf, catalogueSheet.columns).map((row, at) => (
-          <View key={`${shown}-${aisle}-${at}`} style={{ flexDirection: "row", gap: spacing.xs }}>
-            {row.map((product) => {
-              const item = listed.get(product.key);
-              return <ProductTile key={product.key} product={product} added={item != null} onPress={() => (item && onRemove ? onRemove(item) : onAdd(product))} />;
-            })}
-            {Array.from({ length: catalogueSheet.columns - row.length }, (_, cell) => (
-              <View key={cell} style={{ flex: 1 }} />
-            ))}
+      <SearchField value={query} onChangeText={setQuery} />
+      {/* The same fold the search uses, so a field of spaces is no search. */}
+      {foldName(query) !== "" ? (
+        <Found typed={query} favourites={favourites} tile={tile} onAdd={(product) => { onAdd(product); setQuery(""); }} />
+      ) : (
+        <>
+          <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.catalogue.title} style={{ flexDirection: "row", marginTop: spacing.sm, padding: offset.tuck, borderRadius: radius.md, backgroundColor: palette.surfaceAlt }}>
+            <ShelfChoice label={tr.catalogue.title} selected={shown === "catalogue"} onPress={() => setShown("catalogue")} />
+            <ShelfChoice label={tr.catalogue.favourites} selected={shown === "favourites"} onPress={() => setShown("favourites")} />
+            <ShelfChoice label={tr.catalogue.sets} selected={shown === "sets"} onPress={() => setShown("sets")} />
           </View>
-        ))}
-      </View>
+          {shown === "catalogue" ? (
+            <ScrollView
+              horizontal
+              role="radiogroup" {...radioGroupKeys()}
+              accessibilityLabel={tr.catalogue.aisle}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}
+              style={{ marginTop: spacing.sm }}
+            >
+              {AISLES.map((each) => (
+                <AisleChip key={each} label={tr.catalogue.aisles[each]} selected={each === aisle} onPress={() => setAisle(each)} />
+              ))}
+            </ScrollView>
+          ) : shown === "sets" ? (
+            <SetsShelf addSet={addSet} open={open} onClose={onClose} />
+          ) : shelf.length === 0 ? (
+            <Body muted style={{ marginTop: spacing.lg }}>{tr.catalogue.noFavourites}</Body>
+          ) : null}
+          <ProductGrid products={shelf} id={`${shown}-${aisle}`} tile={tile} style={{ marginTop: shown === "favourites" && shelf.length === 0 ? 0 : spacing.md }} />
+        </>
+      )}
       <Actions>
         <Button label={tr.common.done} size="sm" onPress={onClose} />
       </Actions>
     </DialogShell>
+  );
+}
+
+/** The field over the shelves: a magnifier while empty, then the button that empties it in the same place. */
+function SearchField({ value, onChangeText }: { value: string; onChangeText: (typed: string) => void }) {
+  const { palette } = useTheme();
+  return (
+    <View style={{ marginTop: spacing.sm }}>
+      <TextField
+        value={value}
+        onChangeText={onChangeText}
+        accessibilityLabel={tr.catalogue.search}
+        placeholder={tr.catalogue.search}
+        returnKeyType="search"
+        // What is typed can be added as it stands, so it is held to a name's length.
+        maxLength={NAME_MAX}
+        style={{ paddingRight: controlSize.minimumTarget }}
+      />
+      {value ? (
+        <Press accessibilityRole="button" accessibilityLabel={tr.catalogue.clearSearch} onPress={() => onChangeText("")} style={(state) => fieldAccessoryStyle(palette, state)}>
+          <X accessible={false} size={iconSize.compact} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
+        </Press>
+      ) : (
+        <View pointerEvents="none" style={fieldAccessoryStyle(palette, { pressed: false, hovered: false })}>
+          <Search accessible={false} size={iconSize.compact} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+/**
+ * What the search finds, mounted only while something is typed: the
+ * household's products are watched then and not with every tap on a tile,
+ * as the quick-add suggestions watch them. Nothing found offers the text
+ * itself, the way the list's own field would take it.
+ */
+function Found({
+  typed,
+  favourites,
+  tile,
+  onAdd,
+}: {
+  typed: string;
+  favourites: readonly { name: string }[];
+  tile: (product: Shown) => ReactElement;
+  onAdd: (product: Shown) => void;
+}) {
+  const known = useKnownProducts().data;
+  const found = searchCatalogue([...known, ...favourites.map(({ name }) => ({ name, times: 0 }))], typed).map(shownAs);
+  if (found.length > 0) return <ProductGrid products={found} id="found" tile={tile} style={{ marginTop: spacing.md }} />;
+  const name = nameFrom(typed);
+  return (
+    <View accessibilityLiveRegion="polite" style={{ marginTop: spacing.lg, gap: spacing.md, alignItems: "flex-start" }}>
+      <Body muted>{tr.catalogue.notFound(typed.trim())}</Body>
+      {name ? <Button label={tr.catalogue.keep(name)} icon={Plus} variant="secondary" size="sm" onPress={() => onAdd(shownAs({ name }))} /> : null}
+    </View>
+  );
+}
+
+/** Tiles in rows of `catalogueSheet.columns`, a short last row held to the same widths. */
+function ProductGrid({ products, id, tile, style }: { products: readonly Shown[]; id: string; tile: (product: Shown) => ReactElement; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[{ gap: spacing.md }, style]}>
+      {rowsOf(products, catalogueSheet.columns).map((row, at) => (
+        <View key={`${id}-${at}`} style={{ flexDirection: "row", gap: spacing.xs }}>
+          {row.map((product) => tile(product))}
+          {Array.from({ length: catalogueSheet.columns - row.length }, (_, cell) => (
+            <View key={cell} style={{ flex: 1 }} />
+          ))}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -165,7 +243,7 @@ function SetsShelf({
       ))}
       {open.length > 0 ? (
         <View style={{ alignItems: "flex-start" }}>
-          <Button label={tr.sets.make} variant="ghost" size="sm" onPress={() => void make()} />
+          <Button label={tr.sets.make} variant="secondary" size="sm" onPress={() => void make()} />
         </View>
       ) : null}
     </View>

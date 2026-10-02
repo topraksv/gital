@@ -8,6 +8,25 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.7.0
+
+### Minor Changes
+
+- Uzun basınca seçim: listeler, koleksiyonlar, bir listenin ürünleri, bir koleksiyonun istekleri ve Kiler'de birden çok satır seçilip tek seferde siliniyor; Geri Al hepsini geri getiriyor.
+- Bir listenin kişilerinden birine dokununca yetki sayfası açılıyor: sahip olduğun her liste, koleksiyon ve Kiler için Yok, Görür ya da Düzenler. İçinde olmadığı yere davet uygulamanın içinden gidiyor, Listeler'de görünüyor, kabul ya da reddediliyor; yalnız zaten ortak bir listen olan kişiye.
+- Listendeki biri ürün işaretlemeye başlayınca "X alışverişte" uyarısı çıkıyor; Ayarlar'dan kapatılıyor. Yeni bir veri gitmiyor, işaretlerden çıkarılıyor.
+- Katalogda arama.
+- Geçmişte fişin toplamı ve fotoğrafı tek kartta; fiş tam ekran açılıp iki parmakla ya da çift dokunarak yakınlaştırılıyor.
+- Açılışta Gital'ın logosu kendini çiziyor; Ayarlar günün saatine göre adınla selamlıyor; alışveriş bitince kutlama küçük bir kartta.
+
+### Patch Changes
+
+- Ekran geçişlerinde kenarlarda beyaz görünmüyor.
+- "Önceki giriş" bu cihazın son açılışını da hesaba katıyor ve açılış iki kez sayılmıyor.
+- Favoriler ve Setler'de aralıklar ve düğme hizalandı; sekme başlığındaki davet düğmesi simgesiyle "Katıl" diyor.
+- Bir davet gidemediğinde nedeni doğru söyleniyor: kişi zaten içeride ya da artık ortak bir listeniz yok.
+- Ekran okuyucu kaydırarak işaretlemeyi "sepete at" ve "sepetten çıkar" diye okuyor.
+
 ## 1.6.0
 
 ### Minor Changes

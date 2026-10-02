@@ -81,6 +81,17 @@ export const tr = {
     save: "Kaydet",
     undo: "Geri Al",
   },
+  /** Choosing rows to act on together (SPEC 4.5, `docs/UI.md` section 6). */
+  selection: {
+    title: (count: number) => `${count}\u00A0seçildi`,
+    all: "Tümünü seç",
+    delete: "Sil",
+    cancel: "Vazgeç",
+    select: "Seç",
+    /** The nouns a bulk delete counts, so the undo bar says what went. */
+    nouns: { item: "ürün", wish: "istek", list: "liste", collection: "koleksiyon" },
+    deleted: (count: number, noun: string) => `${count}\u00A0${noun} silindi`,
+  },
   a11y: {
     showPassword: "Şifreyi göster",
     hidePassword: "Şifreyi gizle",
@@ -199,6 +210,9 @@ export const tr = {
     less: (name: string) => `${name} miktarını azalt`,
     more: (name: string) => `${name} miktarını artır`,
     delete: (name: string) => `${name} ürününü sil`,
+    /** The tick's swipe, as a screen reader is offered it. */
+    toBasket: (name: string) => `${name} ürününü sepete at`,
+    fromBasket: (name: string) => `${name} ürününü sepetten çıkar`,
     suggestion: (name: string) => `${name} ürününü ekle`,
     restockTitle: "Bitmiş olabilir",
     restockChip: (name: string, everyDays: number) => `${name} · ${everyDays === 1 ? "her gün" : `${everyDays} günde bir`}`,
@@ -232,6 +246,7 @@ export const tr = {
     camera: "Fotoğraf çek",
     library: "Galeriden seç",
     remove: "Fotoğrafı kaldır",
+    enlarge: "Fotoğrafı büyüt",
     of: (name: string) => `${name} fotoğrafı`,
     denied: "Kamera izni verilmedi. Telefonun ayarlarından Gital'a kamera izni verebilirsin.",
     failed: "Fotoğraf alınamadı. Lütfen tekrar dene.",
@@ -263,6 +278,9 @@ export const tr = {
     favourites: "Favoriler",
     noFavourites: "Bir ürünün panelindeki yıldız onu buraya ekler.",
     sets: "Setler",
+    search: "Katalogda ara",
+    clearSearch: "Aramayı temizle",
+    notFound: (typed: string) => `“${typed}” bulunamadı.`,
     didYouMean: (name: string) => `Bunu mu demek istediniz: ${name}?`,
     keep: (typed: string) => `${typed} olarak ekle`,
     aisles: {
@@ -341,6 +359,7 @@ export const tr = {
   history: {
     receipt: "Fiş",
     receiptOf: (list: string) => `${list} alışverişinin fişi`,
+    enlargeReceipt: "Fişi büyüt",
     emptyTitle: "Henüz biten alışveriş yok",
     emptyHint: "Sepete attıklarını “Alışverişi Bitir” ile buraya taşı. Her birini tek dokunuşla listesine geri ekleyebilirsin.",
     /** A shop's card and the line above what it bought; the count never parts from its noun. */
@@ -349,8 +368,7 @@ export const tr = {
     spent: (spentMinor: number | null) => (spentMinor == null ? undefined : formatMinor(spentMinor)),
     openHint: "Alınanları gör",
     total: "Alışverişin toplamı",
-    totalMessage: "Fişteki tutarı yaz. Boş bırakırsan girilen fiyatların toplamı kalır.",
-    editTotal: "Toplamı fişe göre düzelt",
+    totalHint: "Fişteki tutarı yaz. Boş bırakırsan girilen fiyatların toplamı kalır.",
     addBack: (name: string) => `${name} ürününü listeye geri ekle`,
     addedBack: (name: string) => `${name} listeye eklendi`,
     months: "Son 6 ay",
@@ -411,9 +429,14 @@ export const tr = {
     ],
   },
   settings: {
+    /** Helix's greeting, by `partOfDay`. */
+    greeting: { night: "İyi geceler", morning: "Günaydın", day: "İyi günler", evening: "İyi akşamlar" },
+    welcome: (name: string | null) => (name ? `Hoş geldin, ${name}.` : "Gital'a hoş geldin."),
     appSection: "Uygulama",
     stayAwake: "Ekran açık kalsın",
     stayAwakeHint: "Gital açıkken ekran kendiliğinden kararmaz.",
+    shoppingNotices: "Alışveriş bildirimleri",
+    shoppingNoticesHint: "Listendeki biri alışverişe başlayınca Gital'ın içinde haber verir.",
     syncSection: "Cihazlar",
     syncExplain: "Değişikliklerin önce bu cihazda saklanır. İnternet geldiğinde diğer cihazlarınla ve listeyi paylaştığın kişilerle kendiliğinden eşitlenir.",
     quarantineHint: (count: number) => `${count}\u00a0kayıt yalnızca bu cihazda; hiçbiri silinmedi.`,
@@ -637,15 +660,19 @@ export const tr = {
     errOtherHousehold: "Başka bir evin kilerindesin. Önce o evden ayrıl.",
     errHasHousehold: "Kilerinde başkaları var. Başka bir eve katılmak için önce onları çıkar.",
     errUpdate: "Bu davet için Gital'ın yeni sürümü gerekiyor. Uygulamayı güncelleyip tekrar dene.",
+    errAlreadyIn: "Bu kişi zaten içeride. Eşitlenince yetkisi burada görünür.",
+    errNotShared: "Bu kişiyle artık ortak bir listen yok, bu yüzden davet gidemez.",
     open: (name: string) => `${name} kişileri`,
     fresh: "Yeni",
     freshCount: (count: number) => `${count} yeni`,
     /** SPEC 1.6, on the list the others are shopping. */
     shopping: (names: readonly string[]) => `${names.join(", ")} şu an markette`,
     shoppingCount: (count: number) => (count === 1 ? "Biri şu an markette" : `${count} kişi şu an markette`),
+    /** The banner when someone starts a shop on a list this person is in. */
+    shoppingNotice: (names: readonly string[]) => `${names.join(", ")} alışverişte`,
     /** Initials, as a row shows them (SPEC 1.5). */
     by: (added: string | null, checked: string | null) =>
-      [added ? `${added} ekledi` : "", checked ? `${checked} aldı` : ""].filter(Boolean).join(", "),
+      [added ? `${added}\u00A0ekledi` : "", checked ? `${checked}\u00A0aldı` : ""].filter(Boolean).join(", "),
     title: "Kişiler",
     roles: { owner: "Sahibi", editor: "Düzenleyebilir", viewer: "Yalnız görür" },
     you: (name: string) => `${name} (sen)`,
@@ -678,6 +705,8 @@ export const tr = {
     leftHousehold: "Evden ayrıldın",
     viewOnly: "Bunu yalnız görebilirsin; değiştiremezsin.",
     join: "Davetle katıl",
+    /** Beside the join button's mark in a tab's header, where "Davetle katıl" would squeeze the title. */
+    joinShort: "Katıl",
     joinTitle: "Davet",
     /** What the link is to, asked before it is spent (SPEC 1.4). */
     invitedTo: (inviter: string, kind: "shop" | "wish" | "pantry", name: string) =>
@@ -698,6 +727,17 @@ export const tr = {
     clipboardTitle: "Davet bağlantısı",
     clipboardMessage: "Panoda bir davet bağlantısı var. Açmak ister misin?",
     clipboardOpen: "Aç",
+    /** One person's access to what this person owns, and the offers it sends (SPEC 1.4). */
+    openPerson: (name: string) => `${name}: yetkiler`,
+    personHint: (name: string) => `${name} içinde olmadığı yere davet olarak gider; kabul ederse katılır.`,
+    personNothing: "Paylaşabileceğin bir listen yok.",
+    access: (name: string) => `${name} için yetki`,
+    accessNone: "Yok",
+    member: "İçinde",
+    offered: "Davet gönderildi, cevap bekleniyor",
+    offers: "Davetler",
+    decline: "Reddet",
+    declined: "Davet reddedildi",
   },
   sync: {
     title: "Eşitleme",

@@ -9,7 +9,7 @@
  * the setting. The `.native` split keeps Reanimated and gesture-handler out of
  * the web bundle.
  */
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {
@@ -25,13 +25,10 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
-import Check from "lucide-react-native/icons/check";
-import Trash from "lucide-react-native/icons/trash";
-import Undo2 from "lucide-react-native/icons/undo-2";
-import type { LucideIcon } from "lucide-react-native";
 
+import { SwipeSides } from "./components";
 import { selectionTap } from "./haptics";
-import type { RowSwipeProps } from "./list-motion";
+import type { RowAction, RowSwipeProps } from "./list-motion";
 import { iconSize, iconStroke, itemRow, motion, radius, useTheme } from "./theme";
 
 export function RowMotion({ children }: { children: ReactNode }) {
@@ -78,26 +75,34 @@ export function GestureRoot({ children }: { children: ReactNode }) {
 
 const home = { ...motion.spring.entrance, reduceMotion: ReduceMotion.System };
 
-/** Which way a row released at `x` acts: past `itemRow.swipe` either way, or not at all. */
+/** Which way a row released at `x` acts: past `itemRow.swipe` either way, or not at all. A side with no action never gets there. */
 function releaseSide(x: number): 1 | -1 | 0 {
   "worklet";
   return x >= itemRow.swipe ? 1 : x <= -itemRow.swipe ? -1 : 0;
 }
 
 /**
- * A row that swipes (`docs/UI.md` section 8): right ticks it or takes the tick
- * back, left deletes it through the undo bar. The row follows the thumb over
+ * A row that swipes (`docs/UI.md` section 8): each side runs the action it is
+ * given, or travels not at all. The row follows the thumb over
  * its action; past `itemRow.swipe` the icon lifts with a touch, and on release
  * the row springs home and acts if, and only if, it was past — one rule for
  * the feel and the outcome, so a flick that never lifted the icon never acts.
  */
-export function RowSwipe({ children, checked, onTick, onDelete }: RowSwipeProps) {
+export function RowSwipe({ children, right, left }: RowSwipeProps) {
+  const canRight = right != null;
+  const canLeft = left != null;
   const x = useSharedValue(0);
   const origin = useSharedValue(0);
-  // Where the last release acted. The gesture writes only shared values, so it
-  // is built once per row; were it to call the handlers itself, every list
-  // re-render would rebuild every row's gesture and send it to the native side.
+  // Where the last release acted. The gesture writes only shared values and
+  // the actions are read from a ref, so neither the gesture nor the reaction
+  // changes when a list re-render hands every row new closures; were they to,
+  // each render would rebuild every row's gesture and send it to the native side.
   const released = useSharedValue<1 | -1 | 0>(0);
+  const sides = useRef({ right, left });
+  useEffect(() => {
+    sides.current = { right, left };
+  });
+  const run = useCallback((side: 1 | -1) => (side === 1 ? sides.current.right : sides.current.left)?.run(), []);
   // The actions mount for a swipe and leave when the row is home: forty rows
   // at rest carry none of their icons.
   const [swiping, setSwiping] = useState(false);
@@ -107,17 +112,21 @@ export function RowSwipe({ children, checked, onTick, onDelete }: RowSwipeProps)
     (side) => {
       if (side === 0) return;
       released.set(0);
-      scheduleOnRN(side === 1 ? onTick : onDelete);
+      scheduleOnRN(run, side);
     },
+    [run],
   );
   useAnimatedReaction(
     () => releaseSide(x.get()) !== 0,
     (past, before) => {
       if (past && before === false) scheduleOnRN(selectionTap);
     },
+    [],
   );
 
-  const pan = Gesture.Pan()
+  const pan = useMemo(() => Gesture.Pan()
+    // No action on either side: the row is a plain row, and the tree is the same.
+    .enabled(canRight || canLeft)
     // Sideways first, or it is a scroll: a vertical drag that drifts is never a swipe.
     .activeOffsetX([-itemRow.slop, itemRow.slop])
     .failOffsetY([-itemRow.slop, itemRow.slop])
@@ -126,7 +135,9 @@ export function RowSwipe({ children, checked, onTick, onDelete }: RowSwipeProps)
       scheduleOnRN(setSwiping, true);
     })
     .onUpdate((event) => {
-      x.set(origin.get() + event.translationX);
+      const next = origin.get() + event.translationX;
+      // A side with no action does not travel.
+      x.set(next > 0 ? (canRight ? next : 0) : canLeft ? next : 0);
     })
     .onEnd((_event, success) => {
       if (success) released.set(releaseSide(x.get()));
@@ -135,29 +146,30 @@ export function RowSwipe({ children, checked, onTick, onDelete }: RowSwipeProps)
           if (finished) scheduleOnRN(setSwiping, false);
         }),
       );
-    });
+    }), [canRight, canLeft, x, origin, released]);
 
   const follow = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
 
   return (
     <View style={{ borderRadius: radius.lg, borderCurve: "continuous", overflow: "hidden" }}>
-      {swiping ? <SwipeActions x={x} checked={checked} /> : null}
+      {swiping ? <SwipeActions x={x} right={right} left={left} /> : null}
       <GestureDetector gesture={pan}>
-        <Animated.View style={follow}>{children}</Animated.View>
+        <Animated.View style={follow}>
+          <SwipeSides.Provider value={{ right, left }}>{children}</SwipeSides.Provider>
+        </Animated.View>
       </GestureDetector>
     </View>
   );
 }
 
-function SwipeActions({ x, checked }: { x: SharedValue<number>; checked: boolean }) {
-  const { palette } = useTheme();
-  // Held from the swipe's start: the tick lands while the row springs home, and
-  // the icon under it must not turn into its own undo.
-  const [wasChecked] = useState(checked);
+function SwipeActions({ x, right, left }: { x: SharedValue<number>; right?: RowAction; left?: RowAction }) {
+  // Held from the swipe's start: the action lands while the row springs home,
+  // and the icon under it must not turn into its own undo.
+  const [held] = useState({ right, left });
   return (
     <>
-      <SwipeAction x={x} side={1} icon={wasChecked ? Undo2 : Check} fill={palette.secondary} ink={palette.onSecondary} />
-      <SwipeAction x={x} side={-1} icon={Trash} fill={palette.destructive} ink={palette.onDestructive} />
+      {held.right ? <SwipeAction x={x} side={1} action={held.right} /> : null}
+      {held.left ? <SwipeAction x={x} side={-1} action={held.left} /> : null}
     </>
   );
 }
@@ -165,17 +177,17 @@ function SwipeActions({ x, checked }: { x: SharedValue<number>; checked: boolean
 function SwipeAction({
   x,
   side,
-  icon: Icon,
-  fill,
-  ink,
+  action,
 }: {
   x: SharedValue<number>;
   /** 1 for the action a rightward swipe uncovers, -1 for the leftward one. */
   side: 1 | -1;
-  icon: LucideIcon;
-  fill: string;
-  ink: string;
+  action: RowAction;
 }) {
+  const { palette } = useTheme();
+  const Icon = action.icon;
+  const fill = palette[action.tone];
+  const ink = palette[ON[action.tone]];
   const shown = useAnimatedStyle(() => ({ opacity: x.get() * side > 0 ? 1 : 0 }));
   const lift = useAnimatedStyle(() => ({
     transform: [{ scale: withSpring(releaseSide(x.get()) === side ? 1.25 : 1, home) }],
@@ -194,3 +206,5 @@ function SwipeAction({
     </Animated.View>
   );
 }
+
+const ON = { secondary: "onSecondary", primary: "onPrimary", destructive: "onDestructive" } as const;

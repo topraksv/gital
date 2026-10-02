@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
+import Check from "lucide-react-native/icons/check";
 import Gift from "lucide-react-native/icons/gift";
 import Pencil from "lucide-react-native/icons/pencil";
 import Plus from "lucide-react-native/icons/plus";
+import Trash from "lucide-react-native/icons/trash";
+import Undo2 from "lucide-react-native/icons/undo-2";
 
 import { useCollections, useWishes } from "../../data/hooks";
-import { deleteList, editList, restoreList } from "../../data/lists";
-import { addWish, deleteWish, restoreWish, saveWish, toggleWishBought, type Collection, type WishChange } from "../../data/wishes";
+import { deleteLists, editList, restoreList } from "../../data/lists";
+import { addWish, deleteWishes, restoreWish, saveWish, toggleWishBought, type Collection, type WishChange } from "../../data/wishes";
 import type { ListLook } from "../../domain/lists";
 import { LINK_MAX, WISH_ORDERS, leadOf, shopOf, sortWishes, type Wish, type WishOrder } from "../../domain/wishes";
 import { formatMinor } from "../../domain/money";
@@ -16,14 +19,16 @@ import { tr } from "../../i18n/tr";
 import { ArrivalScope, Body, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, TextField, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
+import type { MemberRole } from "../../db/schema";
 import { ListSheet } from "../../ui/list-sheet";
 import { EditorsOnly, PeopleActions, useShare } from "../../ui/members-sheet";
-import { RowMotion } from "../../ui/list-motion";
+import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
 import { readLinkPages, readUnreadPages, useReadingWish } from "../../ui/page-reader";
 import { density, font, itemRow, motion, offset, spacing, type, useTheme } from "../../ui/theme";
 import { WishSuggestions } from "../../ui/suggestions";
+import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
 import { showUndo } from "../../ui/undo";
 import { WishSheet } from "../../ui/wish-sheet";
 
@@ -41,6 +46,7 @@ export default function CollectionScreen() {
   // How the open wishes are ordered, for this visit: a price order is a question asked now.
   const [order, setOrder] = useState<WishOrder>("wanted");
   const shown = sortWishes(wishes.data, order);
+  const selection = useSelection(shown);
   const collection = leaving ?? collections.data.find((candidate) => candidate.id === id);
   // Never for a viewer, whose write the server refuses; so not before the members are read.
   const reads = members.updatedAt != null && !viewer;
@@ -57,7 +63,7 @@ export default function CollectionScreen() {
     setLeaving(current);
     mediumImpact();
     try {
-      const snapshot = await deleteList(current.id);
+      const snapshot = await deleteLists([current.id]);
       if (snapshot) showUndo(tr.common.deleted(current.name), () => restoreList(snapshot));
       navigateBack(router, "/wishes");
     } catch {
@@ -67,7 +73,6 @@ export default function CollectionScreen() {
   };
 
   const toggle = async (wish: Wish) => {
-    selectionTap();
     try {
       await toggleWishBought(wish.id);
     } catch {
@@ -85,48 +90,65 @@ export default function CollectionScreen() {
     }
   };
 
-  const removeWish = async (wish: Wish) => {
+  const removeWishes = (chosen: readonly Wish[]) => {
     setEditing(null);
-    mediumImpact();
-    try {
-      const snapshot = await deleteWish(wish.id);
-      if (snapshot) showUndo(tr.common.deleted(wish.name), () => restoreWish(snapshot));
-    } catch {
-      void appError(tr.errors.deleteFailed);
-    }
+    return deleteWithUndo(chosen, tr.selection.nouns.wish, deleteWishes, restoreWish);
   };
+  const removeWish = (wish: Wish) => removeWishes([wish]);
 
-  const row = (wish: Wish) => (
-    <RowMotion key={wish.id}>
-      <SlideUp distance={motion.travel.bar}>
-        <WishRow wish={wish} onOpen={() => setEditing(wish)} onToggle={() => toggle(wish)} readOnly={viewer} />
-      </SlideUp>
-    </RowMotion>
-  );
+  const row = (wish: Wish) => {
+    if (viewer) {
+      return (
+        <RowMotion key={wish.id}>
+          <SlideUp distance={motion.travel.bar}>
+            <WishRow wish={wish} onOpen={() => undefined} onToggle={() => undefined} readOnly />
+          </SlideUp>
+        </RowMotion>
+      );
+    }
+    const right = { icon: wish.boughtAt != null ? Undo2 : Check, tone: "secondary" as const, label: tr.common.withDetail(wish.name, tr.wishes.bought), run: () => void toggle(wish) };
+    const left = { icon: Trash, tone: "destructive" as const, label: tr.wishes.deleteWish(wish.name), run: () => void removeWish(wish) };
+    return (
+      <RowMotion key={wish.id}>
+        <SlideUp distance={motion.travel.bar}>
+          <RowSwipe right={selection.active ? undefined : right} left={selection.active ? undefined : left}>
+            <WishRow
+              wish={wish}
+              onOpen={() => (selection.active ? selection.toggle(wish.id) : setEditing(wish))}
+              onLongPress={() => selection.begin(wish.id)}
+              selected={selection.active ? selection.has(wish.id) : undefined}
+              onToggle={() => {
+                if (selection.active) return selection.toggle(wish.id);
+                selectionTap();
+                void toggle(wish);
+              }}
+              readOnly={false}
+            />
+          </RowSwipe>
+        </SlideUp>
+      </RowMotion>
+    );
+  };
 
   return (
     <Screen
       back="/wishes"
-      title={collection?.name}
+      {...selectionHeader(
+        selection,
+        (chosen) => void removeWishes(chosen),
+        collection?.name,
+        <CollectionActions
+          collection={leaving ? undefined : collection}
+          userId={userId}
+          role={role}
+          viewer={viewer}
+          order={order}
+          canOrder={open.length >= 2}
+          onOrder={setOrder}
+          onRemove={remove}
+        />,
+      )}
       width="workspace"
-      actions={
-        collection && !leaving ? (
-          <>
-            <IconButton
-              icon={ArrowUpDown}
-              text={tr.wishes.orders[order]}
-              label={tr.wishes.orderLabel(tr.wishes.orders[order])}
-              disabled={open.length < 2}
-              onPress={() => setOrder(WISH_ORDERS[(WISH_ORDERS.indexOf(order) + 1) % WISH_ORDERS.length]!)}
-            />
-            <PeopleActions list={collection} userId={userId} role={role} back="/wishes" deleteLabel={tr.wishes.delete(collection.name)} onDelete={() => remove(collection)}>
-              <EditorsOnly viewer={viewer}>
-                <EditCollection collection={collection} />
-              </EditorsOnly>
-            </PeopleActions>
-          </>
-        ) : null
-      }
     >
       {queries.some((query) => query.status === "error") ? (
         <ReadFailed queries={queries} />
@@ -165,6 +187,45 @@ export default function CollectionScreen() {
         />
       ) : null}
     </Screen>
+  );
+}
+
+/** The header's actions outside choosing; none while the collection is not there or is going. */
+function CollectionActions({
+  collection,
+  userId,
+  role,
+  viewer,
+  order,
+  canOrder,
+  onOrder,
+  onRemove,
+}: {
+  collection: Collection | undefined;
+  userId: string;
+  role: MemberRole;
+  viewer: boolean;
+  order: WishOrder;
+  canOrder: boolean;
+  onOrder: (order: WishOrder) => void;
+  onRemove: (collection: Collection) => void;
+}) {
+  if (!collection) return null;
+  return (
+    <>
+      <IconButton
+        icon={ArrowUpDown}
+        text={tr.wishes.orders[order]}
+        label={tr.wishes.orderLabel(tr.wishes.orders[order])}
+        disabled={!canOrder}
+        onPress={() => onOrder(WISH_ORDERS[(WISH_ORDERS.indexOf(order) + 1) % WISH_ORDERS.length]!)}
+      />
+      <PeopleActions list={collection} userId={userId} role={role} back="/wishes" deleteLabel={tr.wishes.delete(collection.name)} onDelete={() => onRemove(collection)}>
+        <EditorsOnly viewer={viewer}>
+          <EditCollection collection={collection} />
+        </EditorsOnly>
+      </PeopleActions>
+    </>
   );
 }
 
@@ -235,14 +296,29 @@ function detailOf(wish: Wish): { text: string; wanted?: boolean }[] {
   return parts;
 }
 
-function WishRow({ wish, onOpen, onToggle, readOnly }: { wish: Wish; onOpen: () => void; onToggle: () => void; readOnly: boolean }) {
+function WishRow({
+  wish,
+  onOpen,
+  onToggle,
+  onLongPress,
+  selected,
+  readOnly,
+}: {
+  wish: Wish;
+  onOpen: () => void;
+  onToggle: () => void;
+  onLongPress?: () => void;
+  /** Defined while a selection is under way: whether this row is in it. */
+  selected?: boolean;
+  readOnly: boolean;
+}) {
   const { palette } = useTheme();
   const done = wish.boughtAt != null;
   const parts = detailOf(wish);
   if (useReadingWish(wish.id)) parts.push({ text: tr.wishes.reading });
   return (
     <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
-      <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={tr.wishes.openWishHint} onPress={onOpen} disabled={readOnly}>
+      <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={tr.wishes.openWishHint} onPress={onOpen} onLongPress={onLongPress} selected={selected} disabled={readOnly}>
         <Tile id={wish.id} name={wish.name} photo={wish.photo} size={itemRow.tile} />
         <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
           <Text
@@ -265,7 +341,13 @@ function WishRow({ wish, onOpen, onToggle, readOnly }: { wish: Wish; onOpen: () 
           ) : null}
         </View>
       </RowOpen>
-      <RowTick checked={done} label={tr.common.withDetail(wish.name, tr.wishes.bought)} onToggle={onToggle} disabled={readOnly} />
+      <RowTick
+        checked={done}
+        selected={selected}
+        label={selected === undefined ? tr.common.withDetail(wish.name, tr.wishes.bought) : wish.name}
+        onToggle={onToggle}
+        disabled={readOnly}
+      />
     </View>
   );
 }

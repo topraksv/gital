@@ -5,26 +5,29 @@
  * it; leaving is the screen's, where deleting is for the owner.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import ChevronRight from "lucide-react-native/icons/chevron-right";
 import Eye from "lucide-react-native/icons/eye";
 import Link from "lucide-react-native/icons/link";
 import LogOut from "lucide-react-native/icons/log-out";
 import Pencil from "lucide-react-native/icons/pencil";
-import Share2 from "lucide-react-native/icons/share-2";
+import Share from "lucide-react-native/icons/share";
 import Trash from "lucide-react-native/icons/trash";
 import UserMinus from "lucide-react-native/icons/user-minus";
+import UserPlus from "lucide-react-native/icons/user-plus";
 import Users from "lucide-react-native/icons/users";
 
-import { useHeldPantry, useMembers, useSettings } from "../data/hooks";
+import { useHeldPantry, useMembers, useSettings, useShoppingTicks } from "../data/hooks";
 import { leaveList, removeMember, roleOf, setMemberRole, type Member } from "../data/members";
 import type { MemberRole } from "../db/schema";
 import { memberNameOf, setMemberName } from "../data/settings";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
+import { announce, nextExpiry, shoppersNow } from "../domain/shopping";
+import { kvSwitch } from "../services/kv";
 import { shareText } from "../services/share";
-import { setShopping, useShoppers } from "../sync/live";
 import { syncNow } from "../sync/engine";
 import { inviteLink, inviteToList, type InviteRole } from "../sync/sharing";
 import { useSession } from "../auth/session";
@@ -34,7 +37,9 @@ import { radioGroupKeys } from "./keys";
 import { Actions, DialogShell, appConfirm, appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { navigateBack } from "./navigation";
-import { controlSize, itemRow, radius, spacing, type, useTheme } from "./theme";
+import { Press } from "./press";
+import { interactionSurface } from "./interaction";
+import { controlSize, iconSize, iconStroke, itemRow, radius, spacing, type, useTheme } from "./theme";
 import { showNotice } from "./undo";
 
 /** This person's part in a list: a viewer reads it and changes nothing (SPEC 1.4). */
@@ -50,22 +55,67 @@ export function EditorsOnly({ viewer, fallback = null, children }: { viewer: boo
   return viewer ? fallback : children;
 }
 
-/** Says on a shared list's channel that this person is shopping it, while `shopping` holds (SPEC 1.6). */
-export function useShoppingHere(listId: string, shopping: boolean, viewer: boolean) {
-  const on = shopping && !viewer;
+/** The clock, read apart from the render that asks for it: a run lapsing is the one change no data announces, so the render passes
+ * the count of lapses to read it again. */
+const clockNow = (_lapse: number) => Date.now();
+
+/**
+ * The people shopping the lists this person is in, now (SPEC 1.6), read from
+ * ticks. The clock is read again when the data changes and at the earliest
+ * lapse, since nothing else changes when a run simply stops.
+ */
+export function useShoppingNow() {
+  const userId = useSession((s) => s.userId) ?? "";
+  const ticks = useShoppingTicks(userId).data;
+  const [lapse, setLapse] = useState(0);
+  const shoppers = useMemo(
+    () => shoppersNow(ticks, userId, clockNow(lapse)).map((shopper) => ({ ...shopper, name: shopper.name || tr.sharing.unnamed })),
+    [ticks, userId, lapse],
+  );
+  const expiry = nextExpiry(shoppers);
   useEffect(() => {
-    if (!on) return;
-    setShopping(listId);
-    return () => setShopping(null);
-  }, [listId, on]);
+    if (expiry == null) return;
+    const timer = setTimeout(() => setLapse((n) => n + 1), Math.max(expiry - Date.now(), 0));
+    return () => clearTimeout(timer);
+  }, [expiry]);
+  return shoppers;
+}
+
+/**
+ * Whether a new run of shopping shows a banner, Ayarlar's switch. On by
+ * default, kept on this device like the stay-awake choice: whether this phone
+ * is told is its owner's business, not the account's. It hides the banner and
+ * nothing else; the list still says who is at the shop.
+ */
+const notices = kvSwitch("gital.shoppingNotices");
+
+export function useShoppingNoticesAllowed(): boolean {
+  return useSyncExternalStore(notices.subscribe, notices.get, notices.get);
+}
+
+export const setShoppingNoticesAllowed = notices.set;
+
+/**
+ * One banner for each list, person and run: "X alışverişte", for the
+ * shoppers `useShoppingNow` gave. Mounted once, by the Lists tab: it is the
+ * tabs' first screen and tabs stay mounted under every list and sheet pushed
+ * over them, so it watches wherever the person is. A run seen while the
+ * switch is off is still counted as told.
+ */
+export function useShoppingNotices(shoppers: ReturnType<typeof useShoppingNow>): void {
+  const told = useRef<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const next = announce(shoppers, told.current);
+    told.current = next.announced;
+    if (notices.get() && next.fresh.length) showNotice(tr.sharing.shoppingNotice(next.fresh.map((shopper) => shopper.name)));
+  }, [shoppers]);
 }
 
 /** Who else is at the shop with this list now, by the name they gave it. */
-export function ShoppersNote({ listId, members }: { listId: string; members: readonly Member[] }) {
-  const here = useShoppers((s) => s.byList[listId]);
-  if (!here?.length) return null;
-  const names = here.map((userId) => members.find((member) => member.userId === userId)?.name || tr.sharing.unnamed);
-  return <Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.shopping(names)}</Body>;
+export function ShoppersNote({ listId }: { listId: string }) {
+  const here = useShoppingNow().filter((shopper) => shopper.listId === listId);
+  if (!here.length) return null;
+  return <Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.shopping(here.map((shopper) => shopper.name))}</Body>;
 }
 
 /**
@@ -105,7 +155,8 @@ export function PeopleActions({
   };
   return (
     <>
-      <IconButton icon={Users} label={tr.sharing.open(list.name)} onPress={() => setOpen(true)} />
+      {/* The owner's sheet is where an invitation is made, so its mark says so; anyone else's only lists the people. */}
+      <IconButton icon={role === "owner" ? UserPlus : Users} label={tr.sharing.open(list.name)} onPress={() => setOpen(true)} />
       {children}
       {role === "owner" ? (
         <IconButton icon={Trash} label={deleteLabel} tone="danger" onPress={onDelete} />
@@ -136,7 +187,7 @@ export function HouseholdActions({ userId, children }: { userId: string; childre
   };
   return (
     <>
-      <IconButton icon={Users} label={tr.sharing.open(tr.tabs.pantry)} onPress={() => setOpen(true)} />
+      <IconButton icon={home === userId ? UserPlus : Users} label={tr.sharing.open(tr.tabs.pantry)} onPress={() => setOpen(true)} />
       {children}
       {home === userId ? null : <IconButton icon={LogOut} label={tr.sharing.leaveHousehold} tone="danger" onPress={() => void leave()} />}
       {open ? <MembersSheet list={{ id: home, name: tr.tabs.pantry }} userId={userId} household onClose={() => setOpen(false)} /> : null}
@@ -149,12 +200,24 @@ function MembersSheet({ list, userId, household = false, onClose }: { list: { id
   const members = useMembers(list.id);
   // A household's owner is the person whose id it is, even before anyone is in it.
   const owner = household ? list.id === userId : roleOf(members.data, userId) === "owner";
+  const router = useRouter();
+  const openPerson = (member: Member) => {
+    onClose();
+    router.push({ pathname: "/person/[id]", params: { id: member.userId, list: list.id, name: member.name } });
+  };
   return (
     <DialogShell title={tr.sharing.title} titleRef={titleRef} onDismiss={onClose}>
       <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
         {members.updatedAt != null && members.data.length === 0 ? <Body muted>{tr.sharing.alone}</Body> : null}
         {members.data.map((member) => (
-          <MemberRow key={member.id} member={member} me={member.userId === userId} manage={owner && member.role !== "owner"} roles={!household} />
+          <MemberRow
+            key={member.id}
+            member={member}
+            me={member.userId === userId}
+            manage={owner && member.role !== "owner"}
+            roles={!household}
+            onOpen={member.userId === userId ? undefined : () => openPerson(member)}
+          />
         ))}
       </View>
       {owner ? <Invite list={list} household={household} /> : null}
@@ -165,7 +228,8 @@ function MembersSheet({ list, userId, household = false, onClose }: { list: { id
   );
 }
 
-function MemberRow({ member, me, manage, roles }: { member: Member; me: boolean; manage: boolean; roles: boolean }) {
+/** `onOpen` is the person's access to what this person owns (SPEC 1.4), for anyone but oneself. */
+function MemberRow({ member, me, manage, roles, onOpen }: { member: Member; me: boolean; manage: boolean; roles: boolean; onOpen?: () => void }) {
   const { palette } = useTheme();
   const name = member.name || tr.sharing.unnamed;
   const act = (work: () => Promise<void>) => () =>
@@ -175,8 +239,8 @@ function MemberRow({ member, me, manage, roles }: { member: Member; me: boolean;
     await removeMember(member.id);
   };
   const viewer = member.role === "viewer";
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+  const who = (
+    <>
       <Tile id={member.userId} name={name} size={itemRow.tile} round />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text numberOfLines={1} style={[type.body, { color: palette.textStrong }]}>
@@ -184,6 +248,23 @@ function MemberRow({ member, me, manage, roles }: { member: Member; me: boolean;
         </Text>
         <Text style={[type.small, { color: palette.textSecondary }]}>{tr.sharing.roles[member.role]}</Text>
       </View>
+    </>
+  );
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+      {onOpen ? (
+        <Press
+          accessibilityRole="button"
+          accessibilityLabel={tr.sharing.openPerson(name)}
+          onPress={onOpen}
+          style={(state) => ({ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.md, borderRadius: radius.sm, ...interactionSurface(palette, state) })}
+        >
+          {who}
+          <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
+        </Press>
+      ) : (
+        who
+      )}
       {manage ? (
         <>
           {roles ? (
@@ -275,7 +356,7 @@ function Invite({ list, household }: { list: { id: string; name: string }; house
           <Text selectable numberOfLines={1} ellipsizeMode="middle" style={[type.small, { color: palette.textSecondary, backgroundColor: palette.surfaceAlt, borderRadius: radius.sm, padding: spacing.md }]}>
             {link}
           </Text>
-          <Button label={tr.sharing.inviteShare} icon={Share2} onPress={() => share(link)} />
+          <Button label={tr.sharing.inviteShare} icon={Share} onPress={() => share(link)} />
         </View>
       ) : (
         <Button label={tr.sharing.inviteCreate} icon={Link} loading={busy} disabled={busy || name === ""} onPress={create} />

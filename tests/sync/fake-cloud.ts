@@ -5,10 +5,12 @@
  * clock in microseconds, one `now()` per statement, the delete generation,
  * who may read and write which row, a personal row keyed by its person, a
  * list's members and their invitations (migration 5), the household Kiler
- * (migration 12), and a statement that fails whole — so the engine is tested against the rules it
+ * (migration 12), offers in the app (migration 13), and a statement that fails whole — so the engine is tested against the rules it
  * will meet, and `supabase/tests/sync_rls.sql` proves the real server keeps
  * the same ones.
  */
+
+import { createHash } from "node:crypto";
 
 type Row = Record<string, unknown>;
 // `status` is Storage's: set, possibly undefined, on every error it returns.
@@ -64,6 +66,8 @@ export class FakeCloud {
   }
 
   private readonly invites = new Map<string, { list: string; role: string }>();
+  /** Offers by `list|invitee`: who made each, and as what. */
+  private readonly offers = new Map<string, { list: string; role: string; by: string; to: string }>();
 
   private isOwner(list: unknown, uid: string): boolean {
     return this.tables.get("lists")!.get(String(list))?.owner_id === uid;
@@ -220,6 +224,7 @@ export class FakeCloud {
       return { message: "others are in this Kiler", code: "ZK002" };
     }
     for (const [token, invite] of this.invites) if (invite.list === uid) this.invites.delete(token);
+    for (const [key, offer] of this.offers) if (offer.list === uid) this.offers.delete(key);
     for (const entry of pantry as Row[]) {
       const held = this.tables.get("pantry_items")!.get(`${household}|${String(entry.id)}`);
       if (!held) {
@@ -239,6 +244,83 @@ export class FakeCloud {
       }
     }
     return "joined";
+  }
+
+  /**
+   * `private.admit`: the person joins `list` as `role`, the offer to them
+   * going with it. A refusal changes nothing, as the statement it fails rolls back.
+   */
+  private admit(list: string, role: string, uid: string, name: unknown, pantry: unknown): Failure | null {
+    if (!this.isOwner(list, uid)) {
+      const joined = this.tables.get("lists")!.get(list)?.kind === "pantry" ? this.joinHousehold(list, uid, pantry) : null;
+      if (typeof joined === "object" && joined) return joined;
+      if (joined !== "already") {
+        const held = this.rows("list_members").find((row) => row.list_id === list && row.user_id === uid);
+        this.serverWrite("list_members", { ...held, id: held?.id ?? crypto.randomUUID(), list_id: list, user_id: uid, role, name: name ?? "", seen_at: held?.seen_at ?? null, deleted_at: null });
+      }
+    }
+    this.offers.delete(`${list}|${uid}`);
+    return null;
+  }
+
+  private isLive(list: string): boolean {
+    const row = this.tables.get("lists")!.get(list);
+    return row != null && row.deleted_at == null;
+  }
+
+  /** `private.my_offers()`: a hash of the offers to `uid` on live lists, null when none waits. */
+  private offersHash(uid: string): string | null {
+    const mine = [...this.offers.values()].filter((offer) => offer.to === uid && this.isLive(offer.list));
+    if (mine.length === 0) return null;
+    const hex = createHash("md5").update(mine.map((offer) => `${offer.list}:${offer.role}`).sort().join(",")).digest("hex");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  /** `offer_list`: the owner of a live list, to someone in a live list with them and not yet in this one. */
+  private offerList(uid: string, args: Record<string, unknown>): Reply {
+    const invalid = (message: string) => ({ data: null, error: { message, code: "22023" } });
+    const list = String(args.list);
+    const person = typeof args.person === "string" ? args.person : null;
+    if (args.role == null) {
+      if (person && this.isOwner(list, uid)) this.offers.delete(`${list}|${person}`);
+      return { data: null, error: null };
+    }
+    if (args.role !== "editor" && args.role !== "viewer") return invalid("invalid role");
+    if (list === uid) {
+      if (this.home(uid) !== uid) return { data: null, error: { message: "in another household", code: "ZK001" } };
+      if (args.role !== "editor") return invalid("a household has no viewers");
+      if (!this.tables.get("lists")!.has(uid)) {
+        this.serverWrite("lists", { id: uid, owner_id: uid, name: "Kiler", kind: "pantry", color: null, icon: null, pantry: true });
+      }
+    }
+    if (!this.isOwner(list, uid) || !this.isLive(list)) return { data: null, error: { message: "not the owner of this list", code: "42501" } };
+    if (!person || person === uid) return invalid("an offer is to someone else");
+    if (this.membership(list, person)) return { data: null, error: { message: "already in this list", code: "ZK004" } };
+    const shared = this.rows("list_members").some(
+      (theirs) => theirs.user_id === person && theirs.deleted_at == null && this.isLive(String(theirs.list_id)) && this.membership(theirs.list_id, uid),
+    );
+    if (!shared) return { data: null, error: { message: "shares no list with you", code: "ZK005" } };
+    if (!this.rows("list_members").some((row) => row.list_id === list && row.user_id === uid)) {
+      this.serverWrite("list_members", { id: crypto.randomUUID(), list_id: list, user_id: uid, role: "owner", name: args.owner_name ?? "", seen_at: null });
+    }
+    this.offers.set(`${list}|${person}`, { list, role: String(args.role), by: uid, to: person });
+    return { data: null, error: null };
+  }
+
+  /** `answer_offer`: decline deletes the offer; accept admits, and a refusal leaves it waiting. */
+  private answerOffer(uid: string, args: Record<string, unknown>): Reply {
+    const invalid = (message: string) => ({ data: null, error: { message, code: "22023" } });
+    const list = String(args.list);
+    const offer = this.offers.get(`${list}|${uid}`);
+    if (typeof args.accept !== "boolean") return invalid("accept or decline");
+    if (!offer) return invalid("offer not found");
+    if (!args.accept) {
+      this.offers.delete(`${list}|${uid}`);
+      return { data: null, error: null };
+    }
+    if (!this.isLive(list)) return invalid("offer not found");
+    const refused = this.admit(list, offer.role, uid, args.member_name, args.pantry);
+    return refused ? { data: null, error: refused } : { data: list, error: null };
   }
 
   private rpc(name: string, args: Record<string, unknown> = {}): Reply {
@@ -274,17 +356,23 @@ export class FakeCloud {
     if (name === "accept_list_invite") {
       const invite = this.invites.get(String(args.token));
       if (!invite) return invalid("invite not found");
-      if (this.isOwner(invite.list, uid)) {
-        this.invites.delete(String(args.token));
-        return { data: invite.list, error: null };
-      }
-      const joined = this.tables.get("lists")!.get(invite.list)?.kind === "pantry" ? this.joinHousehold(invite.list, uid, args.pantry) : null;
-      if (typeof joined === "object" && joined) return { data: null, error: joined };
+      const refused = this.admit(invite.list, invite.role, uid, args.member_name, args.pantry);
+      if (refused) return { data: null, error: refused };
       this.invites.delete(String(args.token));
-      if (joined === "already") return { data: invite.list, error: null };
-      const held = this.rows("list_members").find((row) => row.list_id === invite.list && row.user_id === uid);
-      this.serverWrite("list_members", { ...held, id: held?.id ?? crypto.randomUUID(), list_id: invite.list, user_id: uid, role: invite.role, name: args.member_name ?? "", seen_at: held?.seen_at ?? null, deleted_at: null });
       return { data: invite.list, error: null };
+    }
+    if (name === "offer_list") return this.offerList(uid, args);
+    if (name === "answer_offer") return this.answerOffer(uid, args);
+    if (name === "list_offers") {
+      const offers = [...this.offers.values()].filter((offer) => (offer.to === uid || offer.by === uid) && this.isLive(offer.list));
+      return {
+        data: offers.map((offer) => {
+          const list = this.tables.get("lists")!.get(offer.list)!;
+          const owner = this.rows("list_members").find((row) => row.list_id === offer.list && row.user_id === list.owner_id);
+          return { list_id: offer.list, list_name: list.name, kind: list.kind, role: offer.role, from_name: owner?.name ?? "", to_user: offer.to };
+        }),
+        error: null,
+      };
     }
     if (name === "own_photo_objects") {
       return { data: [...this.objects].filter(([, object]) => object.owner === uid).map(([path]) => path), error: null };
@@ -297,6 +385,7 @@ export class FakeCloud {
           return { table_name: table, max_updated_at: head?.updated_at ?? null, max_id: head?.id ?? null };
         }),
         { table_name: "pantry_home", max_updated_at: null, max_id: this.home(uid) },
+        { table_name: "offers", max_updated_at: null, max_id: this.offersHash(uid) },
       ],
       error: null,
     };

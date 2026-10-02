@@ -571,7 +571,7 @@ export const calculatorPad = { keyHeight: 56, displayHeight: 128 } as const;
 /** `text` holds three lines of body, so the sheet does not jump as a slide's text changes length. */
 export const tour = { art: 122, text: 66, line: 5, block: 20, mark: 30, dot: { width: 6, active: 18 } } as const;
 
-export const celebration = { pieces: 36, piece: { width: 8, height: 12 }, tick: 56, cardWidth: 340 } as const;
+export const celebration = { pieces: 36, piece: { width: 8, height: 12 }, tick: 40, cardWidth: 280 } as const;
 
 /** An illustration fills this share of its tile (`docs/UI.md` section 6). */
 export const illustrationShare = 0.72;
@@ -605,6 +605,21 @@ export const itemPanel = { quantityWidth: 84, listColumns: 3, listCellBasis: "25
 export const photoPreview = { height: 220, source: 108, disc: 44, icon: 22 } as const;
 
 /**
+ * A photo opened full screen (`src/ui/photo-viewer.native.tsx`). Black in every
+ * scheme, as a photo is looked at on black: a themed scrim would tint it, and
+ * a translucent one would show the page through it. The zoom runs from the
+ * whole photo to `maxZoom`; a double tap goes to `doubleTapZoom` and back.
+ */
+export const photoViewer = {
+  backdrop: "#000000",
+  ink: "#FFFFFF",
+  chip: "rgba(255, 255, 255, 0.16)",
+  minZoom: 1,
+  maxZoom: 4,
+  doubleTapZoom: 2.5,
+} as const;
+
+/**
  * The mark drawing itself (`src/ui/brand.tsx`), on the brand kit's timeline:
  * the G is traced, then its leaf opens from the stem, swinging in by `leafTurn`
  * degrees. Milliseconds from the first frame.
@@ -614,6 +629,12 @@ export const brandMark = {
   leafAt: 900,
   leaf: 220,
   leafTurn: 8,
+  /**
+   * A cold start's mark: the same timeline stretched to `draw`, the finished
+   * mark held for `rest`, then a fade. At the kit's own 1120 ms and a 120 ms
+   * fade it was gone before it was seen (owner, 2026-10-02).
+   */
+  launch: { draw: 2000, rest: 300, fade: 400 },
   /** The kit's own inks; only the G follows the palette. */
   weave: "#C98D4C",
   weaveShade: "#B87C40",

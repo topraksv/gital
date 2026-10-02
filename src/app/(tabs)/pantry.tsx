@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Platform, Text, View, type TextInput } from "react-native";
 import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
 import LayoutGrid from "lucide-react-native/icons/layout-grid";
+import Trash from "lucide-react-native/icons/trash";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import Minus from "lucide-react-native/icons/minus";
 import Plus from "lucide-react-native/icons/plus";
@@ -10,7 +11,7 @@ import Share from "lucide-react-native/icons/share";
 
 import { useSession } from "../../auth/session";
 import { useMovedAisles, usePantry } from "../../data/hooks";
-import { finishPantryItem, removePantryItem, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
+import { finishPantryItem, removePantryItems, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
 import { listSections, type Section } from "../../domain/catalogue";
 import { todayISO } from "../../domain/dates";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, type ListedEntry } from "../../domain/items";
@@ -20,7 +21,7 @@ import { tr } from "../../i18n/tr";
 import { useModalAccessibility } from "../../ui/accessibility";
 import { QuantityFace, useCalculator } from "../../ui/calculator";
 import { DateField } from "../../ui/calendar";
-import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SectionHeader, SlideUp, cardEdge, itemDetail, RowOpen, TextField } from "../../ui/components";
+import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SectionHeader, SlideUp, cardEdge, itemDetail, RowOpen, RowTick, TextField } from "../../ui/components";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import { Actions, DialogShell, appError, appPrompt } from "../../ui/dialog";
 import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
@@ -29,6 +30,8 @@ import { mediumImpact, selectionTap } from "../../ui/haptics";
 import { isReducedMotion } from "../../ui/motion";
 import { flightTo, landTab, tabCentre } from "../../ui/tab-landing";
 import { ProductSuggestions } from "../../ui/suggestions";
+import { RowMotion, RowSwipe } from "../../ui/list-motion";
+import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
 import { showNotice, showUndo } from "../../ui/undo";
 import { density, motion, spacing, type, useTheme } from "../../ui/theme";
 
@@ -49,6 +52,7 @@ export default function Pantry() {
   const [sorting, setSorting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const sections = listSections(pantry.data, moved);
+  const selection = useSelection(sections.flatMap((section) => section.items));
 
   /** Whether the product finished, so a row that flew for it knows to come back. */
   const act = async (item: PantryItem, action: (id: string) => Promise<Finished | null>) => {
@@ -68,15 +72,13 @@ export default function Pantry() {
     }
   };
 
-  const remove = async (item: PantryItem) => {
-    try {
-      const written = await removePantryItem(item.id);
-      mediumImpact();
-      showUndo(tr.common.deleted(item.name), () => undoFinish(written));
-    } catch {
-      void appError(tr.errors.deleteFailed);
-    }
+  /** What is no longer at home was refused before the batch; it still says so. */
+  const removeRows = async (ids: readonly string[]) => {
+    const written = await removePantryItems(ids);
+    if (!written) throw new Error("nothing removed");
+    return written;
   };
+  const remove = (items: readonly PantryItem[]) => deleteWithUndo(items, tr.selection.nouns.item, removeRows, undoFinish);
 
   // A list from a message (SPEC 6.2), taken back whole from the bar.
   const paste = async () => {
@@ -113,22 +115,28 @@ export default function Pantry() {
       onLess={() => void act(item, takeSome)}
       onCount={(quantityMilli) => void act(item, (id) => setStock(id, quantityMilli))}
       onFinish={() => act(item, finishPantryItem)}
-      onRemove={() => void remove(item)}
+      onRemove={() => void remove([item])}
+      // Choosing and sorting exclude each other: a grip row neither swipes nor is chosen.
+      selected={grip || !selection.active ? undefined : selection.has(item.id)}
+      onSelect={grip ? undefined : () => selection.begin(item.id)}
+      onToggle={() => selection.toggle(item.id)}
     />
   );
 
   return (
     <Screen
-      title={tr.tabs.pantry}
-      width="workspace"
-      scrollEnabled={!dragging}
-      actions={
+      {...selectionHeader(
+        selection,
+        (chosen) => void remove(chosen),
+        tr.tabs.pantry,
         <HouseholdActions userId={userId}>
           <SortToggle sorting={sorting} canSort={pantry.data.length > 1} onChange={setSorting} />
           <IconButton icon={ClipboardPaste} label={tr.pantry.paste} onPress={() => void paste()} />
           <IconButton icon={Share} label={tr.pantry.share} disabled={pantry.data.length === 0} onPress={() => void share()} />
-        </HouseholdActions>
-      }
+        </HouseholdActions>,
+      )}
+      width="workspace"
+      scrollEnabled={!dragging}
     >
       <PantryAdd held={pantry.data} />
       {pantry.status === "error" ? (
@@ -145,9 +153,9 @@ export default function Pantry() {
                 <View key={section.key} style={{ gap: density.list.rowGap }}>
                   {section.aisle ? <SectionHeader flush={at === 0}>{tr.catalogue.aisles[section.aisle]}</SectionHeader> : null}
                   {section.items.map((item) => (
-                    <SlideUp key={item.id} distance={motion.travel.bar}>
-                      {row(item)}
-                    </SlideUp>
+                    <RowMotion key={item.id}>
+                      <SlideUp distance={motion.travel.bar}>{row(item)}</SlideUp>
+                    </RowMotion>
                   ))}
                 </View>
               ))}
@@ -290,6 +298,9 @@ function PantryRow({
   onCount,
   onFinish,
   onRemove,
+  selected,
+  onSelect,
+  onToggle,
 }: {
   item: PantryItem;
   /** While Kiler is sorted, the grip takes the buttons' place: a press mid-sort would move the row away. */
@@ -298,9 +309,11 @@ function PantryRow({
   onCount: (quantityMilli: number) => void;
   onFinish: () => Promise<boolean>;
   onRemove: () => void;
+  /** Defined while a selection is under way: whether this row is in it. */
+  selected?: boolean;
+  onSelect?: () => void;
+  onToggle: () => void;
 }) {
-  const { palette } = useTheme();
-  const [open, setOpen] = useState(false);
   const rowRef = useRef<View>(null);
   const [flight] = useState(() => new Animated.Value(0));
   const [path, setPath] = useState({ dx: 0, dy: 0 });
@@ -325,6 +338,48 @@ function PantryRow({
       );
     });
   };
+  return (
+    // The flight is outside the swipe: RowSwipe clips, and the row must leave the screen.
+    <Animated.View
+      ref={rowRef}
+      style={{
+        opacity: flight.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        transform: [
+          { translateX: Animated.multiply(flight, path.dx) },
+          { translateY: Animated.multiply(flight, path.dy) },
+          { scale: flight.interpolate({ inputRange: [0, 1], outputRange: [1, motion.landing.shrink] }) },
+        ],
+      }}
+    >
+      <PantryCard item={item} grip={grip} onLess={onLess} onCount={onCount} onFinish={finish} onRemove={onRemove} selected={selected} onSelect={onSelect} onToggle={onToggle} />
+    </Animated.View>
+  );
+}
+
+/** The card inside the flight: swipe, tap, long press and the buttons. A part of its own so the flight's refs stay out of the accessibility actions. */
+function PantryCard({
+  item,
+  grip,
+  onLess,
+  onCount,
+  onFinish,
+  onRemove,
+  selected,
+  onSelect,
+  onToggle,
+}: {
+  item: PantryItem;
+  grip?: ReactNode;
+  onLess: () => void;
+  onCount: (quantityMilli: number) => void;
+  onFinish: () => void;
+  onRemove: () => void;
+  selected?: boolean;
+  onSelect?: () => void;
+  onToggle: () => void;
+}) {
+  const { palette } = useTheme();
+  const [open, setOpen] = useState(false);
   const shown = {
     ...item,
     note: null,
@@ -335,37 +390,35 @@ function PantryRow({
     checkedAt: null,
     extra: expiryPart(item.expiresOn, todayISO()),
   };
+  const choosing = selected !== undefined;
+  const swipes = grip || choosing ? {} : { right: { icon: ListPlus, tone: "primary" as const, label: tr.pantry.finish(item.name), run: onFinish }, left: { icon: Trash, tone: "destructive" as const, label: tr.items.delete(item.name), run: onRemove } };
   return (
-    <Animated.View
-      ref={rowRef}
-      style={{
-        ...cardEdge(palette),
-        padding: 0,
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: palette.surface,
-        overflow: "hidden",
-        opacity: flight.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-        transform: [
-          { translateX: Animated.multiply(flight, path.dx) },
-          { translateY: Animated.multiply(flight, path.dy) },
-          { scale: flight.interpolate({ inputRange: [0, 1], outputRange: [1, motion.landing.shrink] }) },
-        ],
-      }}
-    >
-      <RowOpen label={tr.common.withDetail(item.name, itemDetail(shown))} hint={tr.pantry.openHint} onPress={() => setOpen(true)}>
-        <ItemLabel item={shown} />
-      </RowOpen>
-      <View style={{ flexDirection: "row", paddingRight: spacing.sm }}>
-        {grip ?? (
-          <>
-            {leavesSome(item) ? <IconButton icon={Minus} label={tr.pantry.less(item.name)} onPress={onLess} /> : null}
-            <IconButton icon={ListPlus} label={tr.pantry.finish(item.name)} tone="primary" onPress={finish} />
-          </>
+    <RowSwipe {...swipes}>
+      <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", alignItems: "center", backgroundColor: palette.surface, overflow: "hidden" }}>
+        <RowOpen
+          label={tr.common.withDetail(item.name, itemDetail(shown))}
+          hint={tr.pantry.openHint}
+          onPress={choosing ? onToggle : () => setOpen(true)}
+          onLongPress={onSelect}
+          selected={selected}
+        >
+          <ItemLabel item={shown} />
+        </RowOpen>
+        {choosing ? (
+          <RowTick selected={selected} label={item.name} onToggle={onToggle} />
+        ) : (
+          <View style={{ flexDirection: "row", paddingRight: spacing.sm }}>
+            {grip ?? (
+              <>
+                {leavesSome(item) ? <IconButton icon={Minus} label={tr.pantry.less(item.name)} onPress={onLess} /> : null}
+                <IconButton icon={ListPlus} label={tr.pantry.finish(item.name)} tone="primary" onPress={onFinish} />
+              </>
+            )}
+          </View>
         )}
+        {open ? <PantrySheet item={item} onCount={onCount} onRemove={onRemove} onClose={() => setOpen(false)} /> : null}
       </View>
-      {open ? <PantrySheet item={item} onCount={onCount} onRemove={onRemove} onClose={() => setOpen(false)} /> : null}
-    </Animated.View>
+    </RowSwipe>
   );
 }
 

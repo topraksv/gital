@@ -3,7 +3,7 @@
 import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
-import { actingUser, deleteRow, editRow, readLiveRow, writeRows, type RowsWritten } from "../db/mutations";
+import { actingUser, deleteRows, editRow, readLiveRow, writeRows, type RowsWritten } from "../db/mutations";
 import { items, lists, type ListKind } from "../db/schema";
 import { LIST_COLORS, LIST_ICONS, iconForName, knownOf, lookOf, type ListLook } from "../domain/lists";
 import { nameFrom } from "../domain/names";
@@ -16,6 +16,7 @@ export interface ListSummary extends ListLook {
   inBasket: number;
   /** Shared with this person to read: nothing is sent to it, since the server would refuse it and set it aside. */
   viewer: boolean;
+  owner: boolean;
 }
 
 /**
@@ -27,10 +28,19 @@ export const viewing = () =>
   sql<boolean>`EXISTS (SELECT 1 FROM list_members m WHERE m.list_id = lists.id AND m.user_id = ${actingUser()}
     AND m.role = 'viewer' AND m.deleted_at IS NULL)`.mapWith(Boolean);
 
+/**
+ * Whether the person signed in owns the `lists` row selected beside it, as
+ * `roleOf` decides: a list with no member row for them is their own. The
+ * server keeps one member row per person and list.
+ */
+export const owning = () =>
+  sql<boolean>`NOT EXISTS (SELECT 1 FROM list_members m WHERE m.list_id = lists.id AND m.user_id = ${actingUser()}
+    AND m.role <> 'owner' AND m.deleted_at IS NULL)`.mapWith(Boolean);
+
 /** Oldest first, so a new list joins the end and nothing already there moves. Wish collections are İstekler's. */
 export async function readLists(): Promise<ListSummary[]> {
   const rows = await getDb()
-    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, pantry: lists.pantry, total: count(items.id), inBasket: count(items.checkedAt), viewer: viewing() })
+    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, pantry: lists.pantry, total: count(items.id), inBasket: count(items.checkedAt), viewer: viewing(), owner: owning() })
     .from(lists)
     .leftJoin(items, and(eq(items.listId, lists.id), isNull(items.shopId), isNull(items.deletedAt)))
     .where(and(isNull(lists.deletedAt), eq(lists.kind, "shop")))
@@ -66,9 +76,9 @@ export async function editList(id: string, look: ListLook & { pantry?: boolean }
   }));
 }
 
-/** Returns what undo needs, or `null` when the list was already gone. */
-export function deleteList(id: string): Promise<RowsWritten | null> {
-  return deleteRow("lists", id);
+/** Returns what undo needs, or `null` when every list was already gone. */
+export function deleteLists(ids: readonly string[]): Promise<RowsWritten | null> {
+  return deleteRows("lists", ids);
 }
 
 export { undoRows as restoreList } from "../db/mutations";

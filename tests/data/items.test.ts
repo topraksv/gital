@@ -21,13 +21,13 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, addScanned, carryNotFound, deleteItem, importEntries, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
+const { addEntries, addScanned, carryNotFound, deleteItems, importEntries, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
 const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
 const { finishShop, readShops } = await import("../../src/data/shops");
-const { createList, deleteList, readLists } = await import("../../src/data/lists");
+const { createList, deleteLists, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { readPhoto } = await import("../../src/data/photos");
 const { setActor } = await import("../../src/db/mutations");
@@ -120,7 +120,7 @@ describe("addItems", () => {
   it("brings a deleted product back on top with what was typed, as one row", async () => {
     const [id] = await addItems(listId, "3 süt");
     await addItems(listId, "ekmek");
-    const snapshot = await deleteItem(id!);
+    const snapshot = await deleteItems([id!]);
     await addItems(listId, "süt");
     expect(await readItems(listId)).toMatchObject([
       { id, name: "Süt", quantityMilli: null },
@@ -145,7 +145,7 @@ describe("addItems", () => {
   });
 
   it("refuses to add to a list deleted under the screen", async () => {
-    await deleteList(listId);
+    await deleteLists([listId]);
     await expect(addItems(listId, "süt")).rejects.toThrow();
     expect(outboxCount()).toBe(0);
   });
@@ -163,7 +163,7 @@ describe("readItems", () => {
   it("leaves out deleted items and other lists' items", async () => {
     const [sut] = await addItems(listId, "süt, ekmek");
     await addItems(await createList("Pazar"), "biber");
-    await deleteItem(sut!);
+    await deleteItems([sut!]);
     expect(await names(listId)).toEqual(["Ekmek"]);
   });
 });
@@ -190,7 +190,7 @@ describe("reorderItems", () => {
   it("leaves alone an item ticked, deleted or moved elsewhere while it was dragged", async () => {
     const [domates, sut, ekmek] = await addItems(listId, "domates, süt, ekmek");
     await toggleChecked(domates!);
-    await deleteItem(sut!);
+    await deleteItems([sut!]);
     const before = { domates: stored(domates!), sut: stored(sut!) };
     await reorderItems(listId, [ekmek!, sut!, domates!, "no-such-item"]);
     expect(stored(domates!)).toEqual(before.domates);
@@ -217,7 +217,7 @@ describe("toggleChecked", () => {
 
   it("refuses an item deleted under the screen", async () => {
     const [id] = await addItems(listId, "süt");
-    await deleteItem(id!);
+    await deleteItems([id!]);
     await expect(toggleChecked(id!)).rejects.toThrow();
   });
 });
@@ -277,7 +277,7 @@ describe("updateItem", () => {
 
   it("refuses to tick or edit an item whose list was deleted under the screen", async () => {
     const [id] = await addItems(listId, "süt");
-    await deleteList(listId);
+    await deleteLists([listId]);
     await expect(toggleChecked(id!)).rejects.toThrow();
     await expect(updateItem(id!, as("Ayran"))).rejects.toThrow();
     expect(await readItems(listId)).toEqual([expect.objectContaining({ id, checkedAt: null })]);
@@ -286,7 +286,7 @@ describe("updateItem", () => {
   it("refuses an empty name, and an item deleted under the screen", async () => {
     const [id] = await addItems(listId, "süt");
     await expect(updateItem(id!, as("  "))).rejects.toThrow();
-    await deleteItem(id!);
+    await deleteItems([id!]);
     await expect(updateItem(id!, as("Ayran"))).rejects.toThrow();
   });
 });
@@ -318,7 +318,7 @@ describe("a note and urgency", () => {
     const [sut, ekmek] = await addItems(listId, "süt, ekmek");
     await updateItem(sut!, change("Süt", "Pınar olsun", true));
     await updateItem(ekmek!, change("Ekmek", "Tam buğday", true));
-    await deleteItem(ekmek!);
+    await deleteItems([ekmek!]);
     await toggleChecked(sut!);
     const shop = await finishShop(listId);
     await addItems(listId, "süt, ekmek");
@@ -404,7 +404,7 @@ describe("not found, and bought instead", () => {
     expect(await readItems(listId)).toEqual(missed);
     expect(await names(pazar)).toEqual(["Ekmek", "Elma"]);
     expect(await carryNotFound(pazar, listId), "nothing was missed there").toBeNull();
-    await deleteList(pazar);
+    await deleteLists([pazar]);
     await expect(carryNotFound(listId, pazar)).rejects.toThrow();
   });
 });
@@ -523,7 +523,7 @@ describe("a save that sends an item to another list, and its undo", () => {
     const eczane = await createList("Eczane");
     const [old] = await addItems(eczane, "süt");
     await updateItem(old!, { ...as("Süt"), note: "eski" });
-    await deleteItem(old!);
+    await deleteItems([old!]);
     const [sut] = await addItems(listId, "süt");
     const saved = await send(sut!, as("Süt"), eczane);
     expect(await readItems(eczane)).toMatchObject([{ id: old, note: null }]);
@@ -537,11 +537,11 @@ describe("a save that sends an item to another list, and its undo", () => {
     expect(stored(old!)).toMatchObject({ note: "eski", deleted_at: expect.any(String) });
     expect(await names(listId)).toEqual(["Süt"]);
     const pazar = await createList("Pazar");
-    await deleteList(pazar);
+    await deleteLists([pazar]);
     await expect(send(sut!, as("Süt"), pazar)).rejects.toThrow();
     await expect(send(sut!, as("Süt"), listId, true)).rejects.toThrow();
     const again = await send(sut!, as("Süt"), eczane);
-    await deleteList(listId);
+    await deleteLists([listId]);
     await expect(undoSave(again.written, listId)).rejects.toThrow();
   });
 });
@@ -605,10 +605,10 @@ describe("a photo", () => {
   });
 });
 
-describe("deleteItem and restoreItem", () => {
+describe("deleteItems and restoreItem", () => {
   it("tombstones the item and restores it where it was", async () => {
     const [sut] = await addItems(listId, "süt, ekmek");
-    const snapshot = await deleteItem(sut!);
+    const snapshot = await deleteItems([sut!]);
     expect(await names(listId)).toEqual(["Ekmek"]);
     await restoreItem(snapshot!);
     expect(await names(listId)).toEqual(["Süt", "Ekmek"]);
@@ -616,9 +616,49 @@ describe("deleteItem and restoreItem", () => {
 
   it("refuses the undo once the deleted row has come back another way", async () => {
     const [sut] = await addItems(listId, "süt");
-    const snapshot = await deleteItem(sut!);
+    const snapshot = await deleteItems([sut!]);
     await addItems(listId, "süt");
     await expect(restoreItem(snapshot!)).rejects.toThrow(/changed since/);
+    expect(await names(listId)).toEqual(["Süt"]);
+  });
+
+  it("tombstones a batch in one write, and one undo brings it back whole", async () => {
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek, yumurta");
+    const queued = outboxCount();
+    later(1000);
+    const snapshot = await deleteItems([sut!, ekmek!]);
+    expect(snapshot!.writes).toHaveLength(2);
+    expect(outboxCount()).toBe(queued + 2);
+    expect(await names(listId)).toEqual(["Yumurta"]);
+    later(2000);
+    await restoreItem(snapshot!);
+    expect(await names(listId)).toEqual(["Süt", "Ekmek", "Yumurta"]);
+  });
+
+  it("refuses the whole undo when any one of the batch has changed since", async () => {
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek");
+    const snapshot = await deleteItems([sut!, ekmek!]);
+    await addItems(listId, "ekmek");
+    await expect(restoreItem(snapshot!)).rejects.toThrow(/changed since/);
+    expect(await names(listId)).toEqual(["Ekmek"]);
+  });
+
+  it("skips what is already gone, and answers null when all of it is", async () => {
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek");
+    await deleteItems([sut!]);
+    const snapshot = await deleteItems([sut!, ekmek!]);
+    expect(snapshot!.writes.map(({ row }) => row.id)).toEqual([ekmek]);
+    expect(stored(sut!)).toMatchObject({ tombstone_version: 1 });
+    expect(await deleteItems([sut!, ekmek!])).toBeNull();
+    expect(await deleteItems([])).toBeNull();
+  });
+
+  it("writes an id named twice once, so its undo is not refused", async () => {
+    const [sut] = await addItems(listId, "süt");
+    const snapshot = await deleteItems([sut!, sut!]);
+    expect(snapshot!.writes).toHaveLength(1);
+    expect(stored(sut!)).toMatchObject({ tombstone_version: 1 });
+    await restoreItem(snapshot!);
     expect(await names(listId)).toEqual(["Süt"]);
   });
 });
@@ -646,7 +686,7 @@ describe("who added and who ticked (SPEC 1.5)", () => {
   it("gives an item added again after a delete to whoever added it again", async () => {
     setActor(DENIZ);
     const [sut] = await addItems(listId, "süt");
-    await deleteItem(sut!);
+    await deleteItems([sut!]);
     setActor(OMER);
     await addItems(listId, "süt");
     expect(stored(sut!).added_by).toBe(OMER);
@@ -667,7 +707,7 @@ describe("readLists counts", () => {
     const [sut] = await addItems(listId, "süt, ekmek, peynir");
     await toggleChecked(sut!);
     const [deleted] = await addItems(listId, "biber");
-    await deleteItem(deleted!);
+    await deleteItems([deleted!]);
     await createList("Pazar");
     expect(await readLists()).toMatchObject([
       { name: "Market", total: 3, inBasket: 1 },
@@ -685,10 +725,10 @@ describe("readKnownProducts", () => {
     later(2000);
     await addItems(listId, "SÜT");
     const peynir = (await readItems(listId)).find((item) => item.name === "Peynir")!;
-    await deleteItem(peynir.id);
+    await deleteItems([peynir.id]);
     const other = await createList("Pazar");
     await addItems(other, "domates");
-    await deleteList(other);
+    await deleteLists([other]);
     expect(await readKnownProducts()).toEqual([
       { key: "sut", name: "SÜT", times: 2 },
       { key: "ekmek", name: "Ekmek", times: 1 },
@@ -717,7 +757,7 @@ describe("readBought", () => {
     const gone = await createList("Eski");
     const [eskiSut] = await addItems(gone, "süt");
     await updateItem(eskiSut!, { ...as("Süt"), priceMinor: 100 });
-    await deleteList(gone);
+    await deleteLists([gone]);
     const [again] = await addItems(listId, "süt");
     await updateItem(again!, { ...as("Süt"), priceMinor: 5000 });
     const at = (ms: number) => new Date(T0.getTime() + ms).toISOString();
@@ -762,7 +802,7 @@ describe("a pasted list, and its undo", () => {
     await addItems(listId, "2 kg domates");
     expect(await importEntries(listId, parseList("• Domates\n• 2 kg domates"))).toBeNull();
     expect(outboxCount()).toBe(1);
-    await deleteList(listId);
+    await deleteLists([listId]);
     await expect(importEntries(listId, parseList("• süt"))).rejects.toThrow();
   });
 });

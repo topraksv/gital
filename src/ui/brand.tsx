@@ -18,6 +18,9 @@ import { brandMark, PALETTES, useTheme } from "./theme";
 
 const easeOut = Easing.bezier(0, 0, 0.58, 1);
 
+/** The kit's timeline, from the first frame to the leaf at rest. */
+const MARK_DRAW_MS = brandMark.leafAt + brandMark.leaf;
+
 /**
  * Milliseconds into the intro, or null once it is over. React state rather
  * than an animated value: a mask's stroke is not a prop the native driver can
@@ -42,12 +45,14 @@ function useIntro(duration: number): number | null {
   return reducedMotion ? null : elapsed;
 }
 
-export function BrandMark({ height }: { height: number }) {
+/** `duration` is the whole intro, the kit's timeline scaled evenly to fit, as Helix's mark takes it. */
+export function BrandMark({ height, duration = MARK_DRAW_MS }: { height: number; duration?: number }) {
   const { paletteId } = useTheme();
-  const elapsed = useIntro(brandMark.leafAt + brandMark.leaf);
+  const elapsed = useIntro(duration);
+  const pace = duration / MARK_DRAW_MS;
   // `useId` answers with colons, which a `url(#…)` reference cannot hold.
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
-  const progress = (start: number, duration: number) => (elapsed === null ? 1 : easeOut(Math.min(1, Math.max(0, (elapsed - start) / duration))));
+  const progress = (start: number, length: number) => (elapsed === null ? 1 : easeOut(Math.min(1, Math.max(0, (elapsed - start * pace) / (length * pace)))));
   const drawn = progress(0, brandMark.draw);
   const leaf = progress(brandMark.leafAt, brandMark.leaf);
   const [x, y] = LEAF_PIVOT;

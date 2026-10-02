@@ -50,20 +50,27 @@ function parse(value: string): DeviceLogin | null {
   }
 }
 
-/** The account's sign-in before this session, and on which device. */
+/**
+ * The account's sign-in before this session, and on which device.
+ * `remembered` is this device's own memory of it, which names no device: the
+ * rows sync after the open and can lag it, so the later of the two wins and an
+ * older synced row never replaces a newer open. Until this device's id is
+ * read, only the memory answers.
+ */
 export function lastLogin(
   settings: readonly { key: string; value: string }[],
-  thisDevice: string,
+  thisDevice: string | null,
+  remembered: string | null = null,
 ): { at: string; device: string | null; here: boolean } | null {
   let latest: { at: string; device: string | null; here: boolean } | null = null;
-  for (const { key, value } of settings) {
+  for (const { key, value } of thisDevice ? settings : []) {
     if (!key.startsWith(LOGIN_KEY_PREFIX)) continue;
     const login = parse(value);
     const here = key === LOGIN_KEY_PREFIX + thisDevice;
     const at = here ? login?.previous : login?.at;
     if (login && at && (!latest || at > latest.at)) latest = { at, device: login.device, here };
   }
-  return latest;
+  return remembered && (!latest || remembered > latest.at) ? { at: remembered, device: null, here: false } : latest;
 }
 
 /** What the account screen names a device by: the browser on the web, the phone in the app. */

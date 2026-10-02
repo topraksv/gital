@@ -15,11 +15,12 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-const { createList, deleteList, editList, readLists, restoreList } = await import("../../src/data/lists");
+const { createList, deleteLists, editList, readLists, restoreList } = await import("../../src/data/lists");
 /** The list panel saved with only its name changed. */
 const rename = (id: string, name: string) => editList(id, { name, color: null, icon: null });
 const { migratedDatabase } = await import("../helpers");
 const { withTransaction } = await import("../../src/db/client");
+const { setActor, writeRows } = await import("../../src/db/mutations");
 
 /** Let every started read reach the transaction queue. Only `Date` is faked here. */
 const nextTask = () => new Promise((settle) => setTimeout(settle, 0));
@@ -91,11 +92,36 @@ describe("readLists", () => {
     const pazar = await createList("Pazar");
     vi.setSystemTime(new Date(T0.getTime() + 2000));
     const eczane = await createList("Eczane");
-    await deleteList(pazar);
+    await deleteLists([pazar]);
     expect(await readLists()).toEqual([
-      { id: market, name: "Market", color: null, icon: "cart", pantry: true, total: 0, inBasket: 0, viewer: false },
-      { id: eczane, name: "Eczane", color: null, icon: "pharmacy", pantry: true, total: 0, inBasket: 0, viewer: false },
+      { id: market, name: "Market", color: null, icon: "cart", pantry: true, total: 0, inBasket: 0, viewer: false, owner: true },
+      { id: eczane, name: "Eczane", color: null, icon: "pharmacy", pantry: true, total: 0, inBasket: 0, viewer: false, owner: true },
     ]);
+  });
+
+  it("owns a list nobody shares or this person owns, and not one it edits or views (roleOf)", async () => {
+    const DENIZ = "d0000000-0000-4000-8000-00000000000d";
+    const OMER = "e0000000-0000-4000-8000-00000000000e";
+    const [mine, owned, edited, viewed, theirs, left] = [
+      await createList("Kendi"), await createList("Sahip"), await createList("Düzenler"),
+      await createList("Bakar"), await createList("Onların"), await createList("Ayrıldı"),
+    ];
+    const member = (listId: string, userId: string, role: string, deletedAt: string | null = null) =>
+      ({ table: "list_members" as const, row: { id: crypto.randomUUID(), listId, userId, role, deletedAt } });
+    await writeRows([
+      member(owned, DENIZ, "owner"),
+      member(edited, DENIZ, "editor"),
+      member(viewed, DENIZ, "viewer"),
+      member(theirs, OMER, "editor"),
+      member(left, DENIZ, "editor", T0.toISOString()),
+    ]);
+    setActor(DENIZ);
+    try {
+      const owner = Object.fromEntries((await readLists()).map((list) => [list.id, list.owner]));
+      expect(owner).toEqual({ [mine]: true, [owned]: true, [edited]: false, [viewed]: false, [theirs]: true, [left]: true });
+    } finally {
+      setActor(null);
+    }
   });
 
   it("orders lists made in the same millisecond by their id", async () => {
@@ -150,7 +176,7 @@ describe("editList, renaming", () => {
 
   it("will not bring a deleted list back by renaming a stale copy", async () => {
     const id = await createList("Market");
-    await deleteList(id);
+    await deleteLists([id]);
     await expect(rename(id, "Pazar")).rejects.toThrow();
     expect(stored(id)).toMatchObject({ name: "Market", tombstone_version: 1 });
     expect(stored(id).deleted_at).not.toBeNull();
@@ -180,12 +206,12 @@ describe("editList, renaming", () => {
   });
 });
 
-describe("deleteList and restoreList", () => {
+describe("deleteLists and restoreList", () => {
   it("tombstones the list and hands back what undo needs", async () => {
     const id = await createList("Market");
     const deleted = new Date(T0.getTime() + 1000);
     vi.setSystemTime(deleted);
-    const snapshot = await deleteList(id);
+    const snapshot = await deleteLists([id]);
     expect(snapshot).not.toBeNull();
     expect(stored(id)).toMatchObject({ deleted_at: deleted.toISOString(), tombstone_version: 1 });
     expect(outbox()).toHaveLength(2);
@@ -194,7 +220,7 @@ describe("deleteList and restoreList", () => {
   it("restores the list as it was, keeping the delete's generation", async () => {
     const id = await createList("Market");
     vi.setSystemTime(new Date(T0.getTime() + 1000));
-    const snapshot = await deleteList(id);
+    const snapshot = await deleteLists([id]);
     const restored = new Date(T0.getTime() + 2000);
     vi.setSystemTime(restored);
     await restoreList(snapshot!);
@@ -217,7 +243,7 @@ describe("deleteList and restoreList", () => {
     const held = withTransaction(() => new Promise<void>((done) => (release = done)));
     const renaming = rename(id, "Pazar");
     await nextTask();
-    const removal = deleteList(id);
+    const removal = deleteLists([id]);
     await nextTask();
     release();
     await Promise.all([held, renaming]);
@@ -229,26 +255,26 @@ describe("deleteList and restoreList", () => {
 
   it("deletes once when asked twice at the same moment", async () => {
     const id = await createList("Market");
-    const snapshots = await Promise.all([deleteList(id), deleteList(id)]);
+    const snapshots = await Promise.all([deleteLists([id]), deleteLists([id])]);
     expect(snapshots.filter((snapshot) => snapshot != null)).toHaveLength(1);
     expect(stored(id)).toMatchObject({ tombstone_version: 1 });
   });
 
   it("answers null for a list that is not there", async () => {
-    expect(await deleteList("01926d3e-0000-7000-8000-000000000000")).toBeNull();
+    expect(await deleteLists(["01926d3e-0000-7000-8000-000000000000"])).toBeNull();
   });
 
   it("will not restore over a list that is live again", async () => {
     const id = await createList("Market");
-    const snapshot = await deleteList(id);
+    const snapshot = await deleteLists([id]);
     await restoreList(snapshot!);
     await expect(restoreList(snapshot!)).rejects.toThrow();
   });
 
   it("counts a second delete as a new generation", async () => {
     const id = await createList("Market");
-    await restoreList((await deleteList(id))!);
-    await deleteList(id);
+    await restoreList((await deleteLists([id]))!);
+    await deleteLists([id]);
     expect(stored(id)).toMatchObject({ tombstone_version: 2 });
   });
 });

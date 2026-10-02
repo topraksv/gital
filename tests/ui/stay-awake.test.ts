@@ -12,8 +12,10 @@ const keepAwake = vi.hoisted(() => ({
 vi.mock("expo-keep-awake", () => keepAwake);
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 const stored = vi.hoisted(() => new Map<string, string>([["gital.stayAwake", "false"]]));
-vi.mock("../../src/services/kv", () => ({
-  kv: { get: async (key: string) => stored.get(key) ?? null, set: async (key: string, value: string) => void stored.set(key, value) },
+// Under the real `kv`, so its switch is what is read back.
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: async (key: string) => stored.get(key) ?? null,
+  setItemAsync: async (key: string, value: string) => void stored.set(key, value),
 }));
 
 import { setStayAwakeAllowed, stayAwake, stayAwakeAvailable, useStayAwakeAllowed } from "../../src/ui/stay-awake";

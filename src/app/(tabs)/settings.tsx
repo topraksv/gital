@@ -9,6 +9,7 @@ import KeyRound from "lucide-react-native/icons/key-round";
 import LogOut from "lucide-react-native/icons/log-out";
 import MessageSquare from "lucide-react-native/icons/message-square";
 import ShieldCheck from "lucide-react-native/icons/shield-check";
+import ShoppingBasket from "lucide-react-native/icons/shopping-basket";
 import Check from "lucide-react-native/icons/check";
 import Monitor from "lucide-react-native/icons/monitor";
 import Moon from "lucide-react-native/icons/moon";
@@ -16,6 +17,9 @@ import Sun from "lucide-react-native/icons/sun";
 import SunMedium from "lucide-react-native/icons/sun-medium";
 
 import { useSession } from "../../auth/session";
+import { useSettings } from "../../data/hooks";
+import { memberNameOf } from "../../data/settings";
+import { partOfDay } from "../../domain/dates";
 import type { ShoppingDay } from "../../domain/reminders";
 import { tr } from "../../i18n/tr";
 import { readReminderPreferences, saveShoppingDay, type ReminderPreferences } from "../../services/reminder-preferences";
@@ -23,12 +27,14 @@ import { disableReminders, enableReminders, remindersAvailable, replanReminders 
 import { syncNow } from "../../sync/engine";
 import { useSyncStatus } from "../../sync/status";
 import { isSupabaseConfigured } from "../../sync/supabase";
+import { BrandMark } from "../../ui/brand";
+import { setShoppingNoticesAllowed, useShoppingNoticesAllowed } from "../../ui/members-sheet";
 import { setStayAwakeAllowed, stayAwakeAvailable, useStayAwakeAllowed } from "../../ui/stay-awake";
 import { Body, Button, Card, ChoiceTile, ListRow, Screen, SectionHeader, ToggleRow, rowsOf } from "../../ui/components";
 import { appConfirm, appError } from "../../ui/dialog";
 import { TourModal } from "../../ui/tour";
 import { shouldPairTiles } from "../../ui/responsive";
-import { alpha, appearanceTile, borderWidth, circle, controlSize, density, PALETTES, radius, spacing, type, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
+import { alpha, appearanceTile, authHero, borderWidth, circle, controlSize, density, PALETTES, radius, spacing, type, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
 import { radioGroupKeys } from "../../ui/keys";
 import { leaveAccount, setAppearance } from "../_layout";
 
@@ -56,7 +62,8 @@ export default function SettingsScreen() {
   const [touring, setTouring] = useState(false);
   return (
     <Screen title={tr.tabs.settings} width="workspace">
-      <SectionHeader flush>{tr.settings.appSection}</SectionHeader>
+      <Greeting />
+      <SectionHeader>{tr.settings.appSection}</SectionHeader>
       <Card>
         <Body style={{ marginBottom: spacing.sm }}>{tr.settings.theme}</Body>
         <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.settings.theme} style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg }}>
@@ -90,11 +97,10 @@ export default function SettingsScreen() {
             explaining there why it is missing. */}
         {remindersAvailable ? <Reminders /> : null}
       </Card>
-      {stayAwakeAvailable ? (
-        <Card rows>
-          <StayAwakeRow />
-        </Card>
-      ) : null}
+      <Card rows>
+        {stayAwakeAvailable ? <StayAwakeRow /> : null}
+        <ShoppingNoticesRow />
+      </Card>
       {isSupabaseConfigured ? (
         <>
           <SectionHeader>{tr.settings.syncSection}</SectionHeader>
@@ -128,9 +134,44 @@ export default function SettingsScreen() {
   );
 }
 
+/**
+ * Helix's dashboard greeting, the mark beside it, under the page's own title
+ * rather than in its place: the five tabs keep one title line, and a screen
+ * reader still lands on Ayarlar first. The tab stays mounted, so the hour is
+ * read again on the hour, as Helix's `useHourTick` learned to, and the mark
+ * draws itself once, on the tab's first mount.
+ */
+function Greeting() {
+  const { palette } = useTheme();
+  const name = memberNameOf(useSettings().data);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const next = new Date(now);
+    next.setHours(now.getHours() + 1, 0, 0, 0);
+    const timer = setTimeout(() => setNow(new Date()), next.getTime() - now.getTime());
+    return () => clearTimeout(timer);
+  }, [now]);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+      <BrandMark height={authHero.mark} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text accessibilityRole="header" aria-level={2} style={[type.heading, { color: palette.textStrong }]}>
+          {tr.settings.greeting[partOfDay(now)]}
+        </Text>
+        <Body muted>{tr.settings.welcome(name)}</Body>
+      </View>
+    </View>
+  );
+}
+
 function StayAwakeRow() {
   const on = useStayAwakeAllowed();
   return <ToggleRow icon={SunMedium} title={tr.settings.stayAwake} subtitle={tr.settings.stayAwakeHint} value={on} onValueChange={setStayAwakeAllowed} />;
+}
+
+function ShoppingNoticesRow() {
+  const on = useShoppingNoticesAllowed();
+  return <ToggleRow icon={ShoppingBasket} title={tr.settings.shoppingNotices} subtitle={tr.settings.shoppingNoticesHint} value={on} onValueChange={setShoppingNoticesAllowed} />;
 }
 
 /** Helix asks before signing out, and the layout asks again only if something would be lost. */

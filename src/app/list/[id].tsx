@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, ScrollView, StyleSheet, Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import Check from "lucide-react-native/icons/check";
 import CheckCheck from "lucide-react-native/icons/check-check";
 import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
 import ListPlus from "lucide-react-native/icons/list-plus";
@@ -8,12 +9,14 @@ import Pencil from "lucide-react-native/icons/pencil";
 import LayoutGrid from "lucide-react-native/icons/layout-grid";
 import Plus from "lucide-react-native/icons/plus";
 import ScanBarcode from "lucide-react-native/icons/scan-barcode";
+import Trash from "lucide-react-native/icons/trash";
+import Undo2 from "lucide-react-native/icons/undo-2";
 import Share from "lucide-react-native/icons/share";
 
 
 import { useItems, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
-import { addEntries, addScanned, carryNotFound, deleteItem, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
-import { deleteList, editList, restoreList, type ListSummary } from "../../data/lists";
+import { addEntries, addScanned, carryNotFound, deleteItems, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
+import { deleteLists, editList, restoreList, type ListSummary } from "../../data/lists";
 import { markSeen, rowPeople, type Member, type RowPeople } from "../../data/members";
 import { readPantry } from "../../data/pantry";
 import { finishShop, reopenShop } from "../../data/shops";
@@ -34,12 +37,14 @@ import { celebrate, hideCelebration } from "../../ui/celebration";
 import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
 import { CarrySheet, ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
+import type { MemberRole } from "../../db/schema";
 import { ListSheet } from "../../ui/list-sheet";
-import { EditorsOnly, PeopleActions, ShoppersNote, useShare, useShoppingHere } from "../../ui/members-sheet";
+import { EditorsOnly, PeopleActions, ShoppersNote, useShare } from "../../ui/members-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
 import { density, motion, spacing, themeShadow, type, useTheme } from "../../ui/theme";
+import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
 import { showNotice, showUndo } from "../../ui/undo";
 import { ProductSuggestions } from "../../ui/suggestions";
 
@@ -63,13 +68,10 @@ export default function ListScreen() {
   const list = leaving ?? lists.data.find((candidate) => candidate.id === id);
   const open = items.data.filter((item) => item.checkedAt == null);
   const basket = items.data.filter((item) => item.checkedAt != null);
+  const selection = useSelection(items.data);
   // Where an item can be sent: never a list this person only views, whose server refuses it.
   const destinations = lists.data.filter((candidate) => !candidate.viewer || candidate.id === id);
   const finishing = useFinish(id, open, basket, destinations);
-  // A list open with something still to buy is a shop under way: the others
-  // sharing the list see who is at the shop (SPEC 1.6) — never a viewer, who
-  // can tick nothing.
-  useShoppingHere(id, open.length > 0, viewer);
 
   // A link to a list that is not here — deleted elsewhere, or never existed.
   if (lists.updatedAt != null && !list) return <Redirect href="/" />;
@@ -109,7 +111,7 @@ export default function ListScreen() {
     setLeaving(current);
     mediumImpact();
     try {
-      const snapshot = await deleteList(current.id);
+      const snapshot = await deleteLists([current.id]);
       if (snapshot) showUndo(tr.common.deleted(current.name), () => restoreList(snapshot));
       navigateBack(router, "/");
     } catch {
@@ -140,29 +142,32 @@ export default function ListScreen() {
     }
   };
 
-  const removeItem = async (item: Item) => {
+  const removeItems = (chosen: readonly Item[]) => {
     setEditing(null);
-    mediumImpact();
-    try {
-      const snapshot = await deleteItem(item.id);
-      if (snapshot) showUndo(tr.common.deleted(item.name), () => restoreItem(snapshot));
-    } catch {
-      void appError(tr.errors.deleteFailed);
-    }
+    return deleteWithUndo(chosen, tr.selection.nouns.item, deleteItems, restoreItem);
   };
+  const removeItem = (item: Item) => removeItems([item]);
 
-  const row = (item: Item) => (
+  const row = (item: Item) => {
+    const checked = item.checkedAt != null;
+    const right = { icon: checked ? Undo2 : Check, tone: "secondary" as const, label: (checked ? tr.items.fromBasket : tr.items.toBasket)(item.name), run: () => void toggle(item) };
+    const left = { icon: Trash, tone: "destructive" as const, label: tr.items.delete(item.name), run: () => void removeItem(item) };
+    return (
     <RowMotion key={item.id}>
       <SlideUp distance={motion.travel.bar}>
         {viewer ? (
           <ItemRow item={item} people={rowPeople(item, members.data, userId)} onOpen={() => undefined} onToggle={() => undefined} readOnly />
         ) : (
-          <RowSwipe checked={item.checkedAt != null} onTick={() => toggle(item)} onDelete={() => removeItem(item)}>
+          <RowSwipe right={selection.active ? undefined : right} left={selection.active ? undefined : left}>
             <ItemRow
               item={item}
               people={rowPeople(item, members.data, userId)}
-              onOpen={() => setEditing(item)}
+              onOpen={() => (selection.active ? selection.toggle(item.id) : setEditing(item))}
+              // Choosing and sorting exclude each other, as on Kiler: the grips draw no circle.
+              onLongPress={sorting ? undefined : () => selection.begin(item.id)}
+              selected={selection.active ? selection.has(item.id) : undefined}
               onToggle={() => {
+                if (selection.active) return selection.toggle(item.id);
                 selectionTap();
                 void toggle(item);
               }}
@@ -171,36 +176,38 @@ export default function ListScreen() {
         )}
       </SlideUp>
     </RowMotion>
-  );
+    );
+  };
 
   return (
     <Screen
       back="/"
-      title={list?.name}
+      {...selectionHeader(
+        selection,
+        (chosen) => void removeItems(chosen),
+        list?.name,
+        <ListActions
+          list={leaving ? undefined : list}
+          userId={userId}
+          role={role}
+          viewer={viewer}
+          sorting={sorting}
+          canSort={open.length > 1}
+          canShare={open.length > 0}
+          onSorting={setSorting}
+          onPaste={paste}
+          onShare={share}
+          onRemove={remove}
+        />,
+      )}
       width="workspace"
       scrollEnabled={!dragging}
-      actions={
-        list && !leaving ? (
-          <>
-            <EditorsOnly viewer={viewer}>
-              <SortToggle sorting={sorting} canSort={open.length > 1} onChange={setSorting} />
-              <IconButton icon={ClipboardPaste} label={tr.items.paste(list.name)} onPress={() => paste(list)} />
-            </EditorsOnly>
-            <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={open.length === 0} onPress={() => share(list)} />
-            <PeopleActions list={list} userId={userId} role={role} back="/" deleteLabel={tr.lists.delete(list.name)} onDelete={() => remove(list)}>
-              <EditorsOnly viewer={viewer}>
-                <EditList list={list} />
-              </EditorsOnly>
-            </PeopleActions>
-          </>
-        ) : null
-      }
     >
       {queries.some((query) => query.status === "error") ? (
         <ReadFailed queries={queries} />
       ) : list && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
-          <ShoppersNote listId={list.id} members={members.data} />
+          <ShoppersNote listId={list.id} />
           <EditorsOnly viewer={viewer} fallback={<Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.viewOnly}</Body>}>
             <QuickAdd listId={list.id} items={items.data} purchases={purchases.data} onRemove={removeItem} />
           </EditorsOnly>
@@ -263,6 +270,49 @@ export default function ListScreen() {
       ) : null}
       {finishing.question}
     </Screen>
+  );
+}
+
+/** The header's actions outside choosing; none while the list is not there or is going. */
+function ListActions({
+  list,
+  userId,
+  role,
+  viewer,
+  sorting,
+  canSort,
+  canShare,
+  onSorting,
+  onPaste,
+  onShare,
+  onRemove,
+}: {
+  list: ListSummary | undefined;
+  userId: string;
+  role: MemberRole;
+  viewer: boolean;
+  sorting: boolean;
+  canSort: boolean;
+  canShare: boolean;
+  onSorting: (sorting: boolean) => void;
+  onPaste: (list: ListSummary) => void;
+  onShare: (list: ListSummary) => void;
+  onRemove: (list: ListSummary) => void;
+}) {
+  if (!list) return null;
+  return (
+    <>
+      <EditorsOnly viewer={viewer}>
+        <SortToggle sorting={sorting} canSort={canSort} onChange={onSorting} />
+        <IconButton icon={ClipboardPaste} label={tr.items.paste(list.name)} onPress={() => onPaste(list)} />
+      </EditorsOnly>
+      <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={!canShare} onPress={() => onShare(list)} />
+      <PeopleActions list={list} userId={userId} role={role} back="/" deleteLabel={tr.lists.delete(list.name)} onDelete={() => onRemove(list)}>
+        <EditorsOnly viewer={viewer}>
+          <EditList list={list} />
+        </EditorsOnly>
+      </PeopleActions>
+    </>
   );
 }
 
@@ -546,7 +596,9 @@ function ItemRow({
   item,
   onOpen,
   onToggle,
-  grip,
+  trailing,
+  onLongPress,
+  selected,
   lifted = false,
   readOnly = false,
   people,
@@ -556,8 +608,11 @@ function ItemRow({
   people?: RowPeople;
   onOpen: () => void;
   onToggle: () => void;
-  /** While the list is sorted, the grip takes the circle's place: a tick mid-sort would move the row away. */
-  grip?: ReactNode;
+  /** Takes the circle's place: the grip while sorting, as a tick mid-sort would move the row away. */
+  trailing?: ReactNode;
+  onLongPress?: () => void;
+  /** Defined while a selection is under way: whether this row is in it. */
+  selected?: boolean;
   lifted?: boolean;
   readOnly?: boolean;
 }) {
@@ -578,10 +633,10 @@ function ItemRow({
       }}
     >
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: palette.primarySoft, opacity: flash }]} />
-      <RowOpen label={tr.common.withDetail(item.name, itemDetail(shown))} hint={tr.items.openHint} onPress={onOpen} disabled={readOnly}>
+      <RowOpen label={tr.common.withDetail(item.name, itemDetail(shown))} hint={tr.items.openHint} onPress={onOpen} onLongPress={onLongPress} selected={selected} disabled={readOnly}>
         <ItemLabel item={shown} struck={checked} />
       </RowOpen>
-      {grip ?? <RowTick checked={checked} label={item.name} onToggle={onToggle} disabled={readOnly} />}
+      {trailing ?? <RowTick checked={checked} selected={selected} label={item.name} onToggle={onToggle} disabled={readOnly} />}
     </View>
   );
 }
@@ -635,7 +690,7 @@ function SortOpen({
                 onOpen={() => onOpen(item)}
                 onToggle={() => undefined}
                 lifted={handle.lifted}
-                grip={<ReorderGrip handle={handle} name={item.name} position={position + 1} count={section.items.length} />}
+                trailing={<ReorderGrip handle={handle} name={item.name} position={position + 1} count={section.items.length} />}
               />
             )}
           />

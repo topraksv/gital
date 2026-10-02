@@ -6,6 +6,7 @@
  */
 
 import { and, asc, count, desc, eq, gt, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "../db/client";
 import { editRow, nowIso, readLiveRow, writeRows } from "../db/mutations";
 import { items, listMembers, type MemberRole } from "../db/schema";
@@ -87,6 +88,22 @@ export function readFresh(userId: string): Promise<{ listId: string; count: numb
       ),
     )
     .groupBy(items.listId);
+}
+
+/**
+ * The ticks on open items of lists `userId` is a member of, with the name the
+ * ticker gave in each (SPEC 1.6). Whose and how recent is `shoppersNow`'s to
+ * decide, so the query is not tied to a clock; ticks leave with a finished
+ * shop, which keeps it small.
+ */
+export function readShoppingTicks(userId: string): Promise<{ listId: string; by: string; at: string; name: string }[]> {
+  const ticker = alias(listMembers, "ticker");
+  return getDb()
+    .select({ listId: items.listId, by: sql<string>`${items.checkedBy}`, at: sql<string>`${items.checkedAt}`, name: sql<string>`coalesce(${ticker.name}, '')` })
+    .from(items)
+    .innerJoin(listMembers, and(eq(listMembers.listId, items.listId), eq(listMembers.userId, userId), isNull(listMembers.deletedAt)))
+    .leftJoin(ticker, and(eq(ticker.listId, items.listId), eq(ticker.userId, items.checkedBy), isNull(ticker.deletedAt)))
+    .where(and(isNull(items.deletedAt), isNull(items.shopId), isNotNull(items.checkedAt), isNotNull(items.checkedBy), ne(items.checkedBy, userId)));
 }
 
 /** The lists `userId` shares with someone still in them: those worth a live channel (SPEC 1.3). */

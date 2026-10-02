@@ -37,7 +37,7 @@ export const CI_EXECUTED_SCRIPTS = [
 ];
 
 /** What a record means, what gets written, and what builds or checks the app. */
-export const HIGH_RISK = [
+const HIGH_RISK = [
   /^src\/domain\//,
   /^src\/data\//,
   /^src\/db\//,

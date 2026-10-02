@@ -1,22 +1,29 @@
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 import Gift from "lucide-react-native/icons/gift";
+import LogIn from "lucide-react-native/icons/log-in";
 import Plus from "lucide-react-native/icons/plus";
-import UserPlus from "lucide-react-native/icons/user-plus";
+import Trash from "lucide-react-native/icons/trash";
 
 import { useCollections } from "../../data/hooks";
-import { createList } from "../../data/lists";
+import { createList, deleteLists, restoreList } from "../../data/lists";
 import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import { ArrivalScope, Button, EmptyState, IconButton, LinkCard, ReadFailed, Screen, SlideUp } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { selectionTap } from "../../ui/haptics";
+import { RowMotion, RowSwipe } from "../../ui/list-motion";
+import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
 import { density, motion } from "../../ui/theme";
 
 /** İstekler (SPEC 7): the wish collections, drawn as Listeler draws its lists. */
 export default function Wishes() {
   const collections = useCollections();
   const router = useRouter();
+  // Only collections the person owns can be deleted, so only they swipe or are chosen.
+  const selection = useSelection(collections.data.filter((collection) => collection.owner));
+
+  const removeCollections = (chosen: readonly { id: string; name: string }[]) => deleteWithUndo(chosen, tr.selection.nouns.collection, deleteLists, restoreList);
 
   const create = async () => {
     const name = await appPrompt(tr.wishes.createTitle, tr.wishes.createMessage, {
@@ -36,16 +43,18 @@ export default function Wishes() {
   const answered = collections.updatedAt != null;
   return (
     <Screen
-      title={tr.tabs.wishes}
-      width="workspace"
-      actions={
+      {...selectionHeader(
+        selection,
+        (chosen) => void removeCollections(chosen),
+        tr.tabs.wishes,
         answered ? (
           <>
-            <IconButton icon={UserPlus} label={tr.sharing.join} onPress={() => router.push("/invite")} />
+            <IconButton icon={LogIn} text={tr.sharing.joinShort} label={tr.sharing.join} onPress={() => router.push("/invite")} />
             <IconButton icon={Plus} label={tr.wishes.create} tone="primary" onPress={create} />
           </>
-        ) : null
-      }
+        ) : null,
+      )}
+      width="workspace"
     >
       {collections.status === "error" ? (
         <ReadFailed queries={[collections]} />
@@ -60,18 +69,35 @@ export default function Wishes() {
             />
           ) : (
             <View style={{ gap: density.list.rowGap }}>
-              {collections.data.map((collection) => (
-                <SlideUp key={collection.id} distance={motion.travel.bar}>
+              {collections.data.map((collection) => {
+                const left = collection.owner
+                  ? { icon: Trash, tone: "destructive" as const, label: tr.wishes.delete(collection.name), run: () => void removeCollections([collection]) }
+                  : undefined;
+                return (
+                <RowMotion key={collection.id}>
+                <SlideUp distance={motion.travel.bar}>
+                  <RowSwipe left={selection.active ? undefined : left}>
                   <LinkCard
                     tileId={collection.id}
                     look={collection}
                     title={collection.name}
                     detail={tr.wishes.summary(collection.open, collection.openTotalMinor)}
                     hint={tr.wishes.openHint}
-                    onOpen={() => router.push({ pathname: "/collection/[id]", params: { id: collection.id } })}
+                    onOpen={() =>
+                      selection.active
+                        ? collection.owner
+                          ? selection.toggle(collection.id)
+                          : undefined
+                        : router.push({ pathname: "/collection/[id]", params: { id: collection.id } })
+                    }
+                    onLongPress={collection.owner ? () => selection.begin(collection.id) : undefined}
+                    selected={selection.active && collection.owner ? selection.has(collection.id) : undefined}
                   />
+                  </RowSwipe>
                 </SlideUp>
-              ))}
+                </RowMotion>
+                );
+              })}
             </View>
           )}
         </ArrivalScope>

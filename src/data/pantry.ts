@@ -1,6 +1,6 @@
 /** The pantry (SPEC 12.2, 12.8): what is at home, filled by finished shops and emptied by hand. */
 
-import { and, asc, eq, isNull, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
@@ -296,16 +296,24 @@ export async function finishPantryItem(id: string): Promise<Finished> {
 
 /**
  * Deleted from its panel: emptied as a finish is, but onto no list, since it
- * did not run out — it was never there, or it went in the bin.
+ * did not run out — it was never there, or it went in the bin. One write, so
+ * one undo; what is no longer at home is skipped, and `null` when none was.
  */
-export function removePantryItem(id: string): Promise<RowsWritten> {
-  return writeUndoable(async () => {
-    const stock = await readStock(id);
-    return [
-      { table: "pantry_moves", row: { id: uuidv7(), pantryItemId: id, quantityMilli: -stock.quantityMilli, unit: stock.unit } },
-      ...editRow("pantry_items", await readLiveRow("pantry_items", id), { expiresOn: null }),
-    ];
+export async function removePantryItems(ids: readonly string[]): Promise<RowsWritten | null> {
+  const written = await writeUndoable(async () => {
+    const stocks = await readStocks(and(inArray(pantryItems.id, [...ids]), isNull(pantryItems.deletedAt)));
+    const writes: RowWrite[] = [];
+    for (const id of new Set(ids)) {
+      const stock = stocks.get(id);
+      if (!stock) continue;
+      writes.push(
+        { table: "pantry_moves", row: { id: uuidv7(), pantryItemId: id, quantityMilli: -stock.quantityMilli, unit: stock.unit } },
+        ...editRow("pantry_items", await readLiveRow("pantry_items", id), { expiresOn: null }),
+      );
+    }
+    return writes;
   });
+  return written.writes.length > 0 ? written : null;
 }
 
 export { undoRows as undoFinish } from "../db/mutations";

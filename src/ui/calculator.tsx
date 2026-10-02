@@ -29,6 +29,7 @@ const loadSheet = () => import("./calculator-sheet").then((module) => module.def
 export function PriceField({
   value,
   onChangeText,
+  onResult,
   label,
   named = false,
   style,
@@ -36,6 +37,8 @@ export function PriceField({
 }: Omit<TextInputProps, "value" | "onChangeText" | "style"> & {
   value: string;
   onChangeText: (typed: string) => void;
+  /** The calculator's result, after it has gone to `onChangeText`: a field that writes on leaving is never focused for it. */
+  onResult?: (text: string) => void;
   label: string;
   /** Draws the label above the field, as `TextField`'s own does; the accessory is laid against the field alone. */
   named?: boolean;
@@ -43,7 +46,11 @@ export function PriceField({
   style?: StyleProp<ViewStyle>;
 }) {
   const { palette } = useTheme();
-  const [open, sheet] = useCalculator(undefined, (minor) => onChangeText(formatMinorInput(minor)));
+  const [open, sheet] = useCalculator(undefined, (minor) => {
+    const text = formatMinorInput(minor);
+    onChangeText(text);
+    onResult?.(text);
+  });
   return (
     <View style={style}>
       {named ? <FieldLabel>{label}</FieldLabel> : null}

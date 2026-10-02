@@ -1,23 +1,27 @@
 import { useEffect, useState } from "react";
 import { Platform, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import UserPlus from "lucide-react-native/icons/user-plus";
+import LogIn from "lucide-react-native/icons/log-in";
 
 import { useSession } from "../auth/session";
 import { useCollections, useLists, usePantry, useSettings } from "../data/hooks";
+import type { PantryItem } from "../data/pantry";
 import { memberNameOf, setMemberName } from "../data/settings";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { syncNow } from "../sync/engine";
-import { acceptInvite, inviteFromPage, inviteTokenFrom, peekInvite, type InvitePeek } from "../sync/sharing";
+import { acceptInvite, answerOffer, inviteFromPage, inviteTokenFrom, peekInvite, useOffers, type InvitePeek, type ListOffer } from "../sync/sharing";
 import { Body, Button, ChoiceTile, Notice, Screen, TextField } from "../ui/components";
 import { appError } from "../ui/dialog";
 import { successNotice } from "../ui/haptics";
 import { radioGroupKeys } from "../ui/keys";
+import { navigateBack } from "../ui/navigation";
 import { controlSize, spacing } from "../ui/theme";
+import { showNotice } from "../ui/undo";
 
 type Joined = { id: string; kind: InvitePeek["kind"] };
 type Peeked = Awaited<ReturnType<typeof peekInvite>>;
+type Accept = (name: string, bring: readonly PantryItem[] | undefined) => Promise<{ listId: string } | { refused: string }>;
 
 /**
  * Joining by an invitation (SPEC 1.4, 12.13), in one press: the page says
@@ -26,12 +30,16 @@ type Peeked = Awaited<ReturnType<typeof peekInvite>>;
  * Kiler comes along. The web opens here from the link itself, the token in the
  * fragment; the phone, which runs in Expo Go and so is not the link's target,
  * gets here from Listeler with the link pasted, or from the clipboard's offer.
+ * An offer in the app opens here from Listeler too, and is joined the same
+ * way or declined.
  */
 export default function InviteScreen() {
-  const params = useLocalSearchParams<{ token?: string }>();
+  const params = useLocalSearchParams<{ token?: string; offer?: string }>();
   const [linked] = useState<string | null>(
     () => (params.token ? inviteTokenFrom(params.token) : null) ?? (Platform.OS === "web" && typeof location !== "undefined" ? inviteFromPage(location) : null),
   );
+  // Held as the screen opened with it, since answering takes it out of the store.
+  const [offer] = useState(() => (params.offer ? (useOffers.getState().received.find((held) => held.listId === params.offer) ?? null) : undefined));
   const [joined, setJoined] = useState<Joined | null>(null);
 
   // Held in memory from here: in the address bar, a reload would send the
@@ -42,7 +50,13 @@ export default function InviteScreen() {
 
   return (
     <Screen back="/" title={tr.sharing.joinTitle} width="focus">
-      {joined ? <JoinedTo joined={joined} /> : <Invitation linked={linked} onJoined={setJoined} />}
+      {joined ? (
+        <JoinedTo joined={joined} />
+      ) : offer !== undefined ? (
+        <Offered offer={offer} onJoined={setJoined} />
+      ) : (
+        <Invitation linked={linked} onJoined={setJoined} />
+      )}
     </Screen>
   );
 }
@@ -89,7 +103,30 @@ function Invitation({ linked, onJoined }: { linked: string | null; onJoined: (jo
       )}
       {peek === null ? <Notice tone="error" text={tr.sharing.errInvite} /> : null}
       {peek && "refused" in peek ? <Notice tone="error" text={peek.refused} /> : null}
-      {token && peek && !("refused" in peek) ? <Join token={token} invite={peek} onJoined={onJoined} /> : null}
+      {token && peek && !("refused" in peek) ? <Join invite={peek} accept={(name, bring) => acceptInvite(token, name, bring)} onJoined={onJoined} /> : null}
+    </View>
+  );
+}
+
+/** An offer made in the app (SPEC 1.4); `null` when it was answered or withdrawn before the screen opened. */
+function Offered({ offer, onJoined }: { offer: ListOffer | null; onJoined: (joined: Joined) => void }) {
+  const router = useRouter();
+  if (!offer) return <Notice tone="error" text={tr.sharing.errInvite} />;
+
+  const decline = async () => {
+    const answer = await answerOffer(offer.listId, false, "");
+    if ("refused" in answer) return void appError(answer.refused);
+    showNotice(tr.sharing.declined);
+    navigateBack(router, "/");
+  };
+  const accept: Accept = async (name, bring) => {
+    const answer = await answerOffer(offer.listId, true, name, bring);
+    return "refused" in answer ? answer : { listId: offer.listId };
+  };
+
+  return (
+    <View style={{ gap: spacing.lg }}>
+      <Join invite={{ kind: offer.kind, name: offer.listName, inviter: offer.fromName }} accept={accept} decline={decline} onJoined={onJoined} />
     </View>
   );
 }
@@ -112,31 +149,35 @@ function usePeek(token: string | null): Peeked | undefined {
   return peeked?.token === token ? peeked.answer : undefined;
 }
 
-function Join({ token, invite, onJoined }: { token: string; invite: InvitePeek; onJoined: (joined: Joined) => void }) {
+/** `decline` is an offer's: one press waits on the other, so a join and a refusal never cross. */
+function Join({ invite, accept, decline, onJoined }: { invite: InvitePeek; accept: Accept; decline?: () => Promise<void>; onJoined: (joined: Joined) => void }) {
   const userId = useSession((s) => s.userId) ?? "";
   const own = usePantry();
   const known = memberNameOf(useSettings().data);
   const [named, setNamed] = useState("");
   const [bring, setBring] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"join" | "decline" | null>(null);
   const name = known ?? named.trim();
   const choosing = invite.kind === "pantry" && own.data.length > 0;
 
-  const join = async () => {
-    setBusy(true);
+  const hold = async (press: "join" | "decline", work: () => Promise<void>) => {
+    setBusy(press);
     try {
-      if (!known) await setMemberName(name);
-      // Each product goes as the stock the device counted; joining empty sends none.
-      const answer = await acceptInvite(token, name, invite.kind === "pantry" ? (bring ? own.data : []) : undefined);
-      if ("refused" in answer) return void appError(answer.refused);
-      successNotice();
-      await syncNow(userId).catch(() => false);
-      onJoined({ id: answer.listId, kind: invite.kind });
+      await work();
     } catch {
       void appError(tr.sharing.errGeneric);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
+  };
+  const join = async () => {
+    if (!known) await setMemberName(name);
+    // Each product goes as the stock the device counted; joining empty sends none.
+    const answer = await accept(name, invite.kind === "pantry" ? (bring ? own.data : []) : undefined);
+    if ("refused" in answer) return void appError(answer.refused);
+    successNotice();
+    await syncNow(userId).catch(() => false);
+    onJoined({ id: answer.listId, kind: invite.kind });
   };
 
   return (
@@ -165,11 +206,14 @@ function Join({ token, invite, onJoined }: { token: string; invite: InvitePeek; 
       ) : null}
       <Button
         label={tr.sharing.joinAccept}
-        icon={UserPlus}
-        loading={busy}
-        disabled={busy || name === "" || (choosing && bring == null)}
-        onPress={() => void join()}
+        icon={LogIn}
+        loading={busy === "join"}
+        disabled={busy !== null || name === "" || (choosing && bring == null)}
+        onPress={() => void hold("join", join)}
       />
+      {decline ? (
+        <Button label={tr.sharing.decline} variant="secondary" loading={busy === "decline"} disabled={busy !== null} onPress={() => void hold("decline", decline)} />
+      ) : null}
     </>
   );
 }

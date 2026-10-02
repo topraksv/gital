@@ -76,6 +76,6 @@ describe("the draft guard's wiring", () => {
 
 describe("the error screen", () => {
   it("catches every route under the root layout", () => {
-    expect(read("src/app/_layout.tsx")).toMatch(/<ErrorBoundary>\s*<Routes/);
+    expect(read("src/app/_layout.tsx")).toMatch(/<ErrorBoundary[^>]*>\s*<Routes/);
   });
 });

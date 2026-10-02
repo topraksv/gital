@@ -31,6 +31,7 @@ import {
   iconSize,
   iconStroke,
   motion,
+  radius,
   spacing,
   themeShadow,
   type,
@@ -80,10 +81,10 @@ function Celebration({ summary }: { summary: ShopSummary }) {
   const month = months.at(-1)!.spentMinor;
   const spent = useCountUp(summary.spentMinor ?? 0, 0);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={tr.celebration.skip}
-      onPress={hideCelebration}
+    // box-none: the overlay only frames the card, so the list behind it stays
+    // usable while the notice shows; only the card takes a tap.
+    <View
+      pointerEvents="box-none"
       style={{
         position: "absolute",
         top: 0,
@@ -96,16 +97,22 @@ function Celebration({ summary }: { summary: ShopSummary }) {
       }}
     >
       {reducedMotion ? null : <Confetti palette={palette} />}
-      <View style={{ width: "100%", maxWidth: celebration.cardWidth }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={tr.celebration.skip}
+        onPress={hideCelebration}
+        style={{ width: "100%", maxWidth: celebration.cardWidth }}
+      >
         <SuccessPop>
           <View
             accessibilityLiveRegion="polite"
             style={{
               ...cardEdge(palette),
               ...themeShadow.overlay(palette),
-              padding: spacing.xl,
+              borderRadius: radius.xl,
+              padding: spacing.lg,
               alignItems: "center",
-              gap: spacing.sm,
+              gap: spacing.xs,
               backgroundColor: palette.surface,
             }}
           >
@@ -117,7 +124,6 @@ function Celebration({ summary }: { summary: ShopSummary }) {
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: palette.success,
-                marginBottom: spacing.xs,
               }}
             >
               <Check
@@ -131,7 +137,7 @@ function Celebration({ summary }: { summary: ShopSummary }) {
               {tr.celebration.title}
             </Text>
             {summary.spentMinor == null ? null : (
-              <Text style={[type.amount, { color: palette.textStrong }]}>
+              <Text style={[type.heading, { color: palette.textStrong }]}>
                 {formatMinor(spent)}
               </Text>
             )}
@@ -173,8 +179,8 @@ function Celebration({ summary }: { summary: ShopSummary }) {
             )}
           </View>
         </SuccessPop>
-      </View>
-    </Pressable>
+      </Pressable>
+    </View>
   );
 }
 

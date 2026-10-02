@@ -39,7 +39,7 @@ vi.mock("expo-constants", () => ({
   },
 }));
 
-const { addEntries, addScanned, deleteItem, readItems, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
+const { addEntries, addScanned, deleteItems, readItems, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
 const { createList, editList, readLists } = await import("../../src/data/lists");
 const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry, stockPantry } = await import("../../src/data/pantry");
@@ -50,12 +50,23 @@ const { countDataReset, resetData } = await import("../../src/data/reset");
 const { readPhoto } = await import("../../src/data/photos");
 const { isFrozen, memberNameOf, readSettings, setAccountFrozen, setMemberName } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
-const { leaveList, markSeen, readFresh, readMembers, readSharedLists, removeMember, roleOf, rowPeople, setMemberRole } = await import(
+const { leaveList, markSeen, readFresh, readMembers, readSharedLists, readShoppingTicks, removeMember, roleOf, rowPeople, setMemberRole } = await import(
   "../../src/data/members"
 );
-const { acceptInvite, createInvite, heldInvite, holdInvite, inviteFromPage, inviteLink, inviteToList, inviteTokenFrom, peekInvite } = await import(
-  "../../src/sync/sharing"
-);
+const {
+  acceptInvite,
+  answerOffer,
+  createInvite,
+  heldInvite,
+  holdInvite,
+  inviteFromPage,
+  inviteLink,
+  inviteToList,
+  inviteTokenFrom,
+  offerList,
+  peekInvite,
+  useOffers,
+} = await import("../../src/sync/sharing");
 const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
 const { purgeOwnPhotos } = await import("../../src/sync/photos");
@@ -172,7 +183,7 @@ describe("two devices of one person", () => {
     });
     await on("B", sync);
     await on("A", async () => {
-      await deleteItem(itemId);
+      await deleteItems([itemId]);
       await sync();
     });
     await on("B", async () => {
@@ -361,6 +372,21 @@ describe("two people sharing a list", () => {
       const milk = (await readItems(listId)).find((item) => item.name === "süt")!;
       expect(milk.checkedAt).not.toBeNull();
       expect(serverRow("items", milk.id)?.checked_by).toBe(OTHER);
+    });
+  });
+
+  it("reads who is shopping from the others' ticks on open items, with the name they gave (SPEC 1.6)", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      await toggleChecked((await readItems(listId)).find((item) => item.name === "süt")!.id);
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      await toggleChecked((await readItems(listId)).find((item) => item.name === "elma")!.id);
+      expect((await readShoppingTicks(USER)).map(({ listId: list, by, name }) => [list, by, name]), "one's own tick is not another shopper").toEqual([[listId, OTHER, "Deniz"]]);
+      await finishShop(listId);
+      expect(await readShoppingTicks(USER), "a finished shop takes its ticks off the list").toEqual([]);
     });
   });
 
@@ -721,6 +747,89 @@ describe("two people sharing a list", () => {
   });
 });
 
+describe("an offer in the app (SPEC 1.4)", () => {
+  const received = () => useOffers.getState().received;
+
+  /** Market shared between A and C, and A's Ev, made a moment ago, offered to C, who has not synced since. */
+  async function offeredHome(role: "editor" | "viewer" = "viewer"): Promise<string> {
+    await sharedMarket();
+    return on("A", async () => {
+      const id = await createList("Ev");
+      const sent = vi.fn(sync);
+      expect(await offerList(id, OTHER, role, "Ömer", sent)).toEqual({ offered: true });
+      expect(sent, "the list goes to the server first").toHaveBeenCalledTimes(1);
+      return id;
+    });
+  }
+
+  it("reaches the person with their next sync, and brings the list once they accept", async () => {
+    const home = await offeredHome();
+    await on("C", async () => {
+      expect(received()).toEqual([]);
+      await sync();
+      expect(received()).toEqual([{ listId: home, listName: "Ev", kind: "shop", role: "viewer", fromName: "Ömer", to: OTHER }]);
+      expect(await answerOffer(home, true, "Deniz")).toEqual({ listId: home });
+      expect(received(), "gone at once, not at the next sync").toEqual([]);
+      await sync();
+      expect(received()).toEqual([]);
+      expect((await readLists()).map((list) => list.name).sort()).toEqual(["Ev", "Kendi", "Market"]);
+      expect((await readMembers(home)).map((member) => [member.name, member.role])).toEqual([["Ömer", "owner"], ["Deniz", "viewer"]]);
+    });
+    await on("A", async () => {
+      // A's device has not synced C in yet, so its screen still offers.
+      expect(await offerList(home, OTHER, "editor", "Ömer", sync), "told who is in, not that a link expired").toEqual({ refused: tr.sharing.errAlreadyIn });
+    });
+  });
+
+  it("asks for the offers only when they change, and forgets them with the session", async () => {
+    const home = await offeredHome();
+    await on("C", async () => {
+      await sync();
+      cloud.requests.length = 0;
+      await sync();
+      expect(cloud.requests).toEqual(["rpc sync_cursors"]);
+    });
+    await on("C", async () => expect(received(), "a new session starts empty").toEqual([]));
+    await on("A", async () => {
+      await sync();
+      expect(received(), "the one who offered has nothing waiting").toEqual([]);
+      expect(await offerList(home, OTHER, null, "Ömer", sync)).toEqual({ offered: true });
+    });
+    await on("C", async () => {
+      await sync();
+      expect(received(), "withdrawn").toEqual([]);
+    });
+  });
+
+  it("tries again at the next sync when the offers do not arrive", async () => {
+    await offeredHome();
+    await on("C", async () => {
+      const release = cloud.hold("rpc sync_cursors");
+      const run = sync();
+      await vi.waitFor(() => expect(cloud.requests.at(-1)).toBe("rpc sync_cursors"));
+      cloud.failures.push({ message: "TypeError: fetch failed" });
+      release();
+      await run;
+      expect(received()).toEqual([]);
+      await sync();
+      expect(received()).toHaveLength(1);
+    });
+  });
+
+  it("leaves a refused answer waiting", async () => {
+    await sharedMarket();
+    await on("A", async () => expect(await offerList(USER, OTHER, "editor", "Ömer", sync)).toEqual({ offered: true }));
+    await on("C", async () => {
+      await sync();
+      expect(await answerOffer(USER, true, "Deniz"), "a version that cannot ask what to bring is told to update").toEqual({ refused: tr.sharing.errUpdate });
+      expect(received().map((offer) => offer.kind)).toEqual(["pantry"]);
+      expect(await answerOffer(USER, true, "Deniz", [])).toEqual({ listId: USER });
+      await sync();
+      expect(received()).toEqual([]);
+    });
+  });
+});
+
 describe("a household Kiler (SPEC 12.13)", () => {
   const stock = (text: string) => stockPantry(parseEntry(text));
   const pantry = async () => (await readPantry()).map((item) => `${item.name} ${item.quantityMilli}`).sort();
@@ -878,9 +987,9 @@ describe("what the server will not take", () => {
       await sync();
       // Only the newest event of a row is sent, so the server never sees the
       // generation these moved through; measured refused on 2026-09-30.
-      await restoreItem((await deleteItem(undone!))!);
-      await restoreItem((await deleteItem(twice!))!);
-      await deleteItem(twice!);
+      await restoreItem((await deleteItems([undone!]))!);
+      await restoreItem((await deleteItems([twice!]))!);
+      await deleteItems([twice!]);
       expect(await sync()).toBe(true);
       expect(await readDeadLetters()).toEqual([]);
       expect(serverRow("items", undone!)).toMatchObject({ deleted_at: null, tombstone_version: 0 });
@@ -901,7 +1010,7 @@ describe("what the server will not take", () => {
     await on("A", async () => {
       const [id] = await add(await createList("Market"), "süt");
       await sync();
-      await restoreItem((await deleteItem(id!))!);
+      await restoreItem((await deleteItems([id!]))!);
       const release = cloud.hold("upsert items");
       const running = sync();
       await vi.waitFor(() => expect(cloud.requests.at(-1)).toBe("upsert items"));
@@ -1030,7 +1139,7 @@ describe("what the server will not take", () => {
       await sync();
       // What 1.3 left on the owner's phone, measured 2026-09-30: a delete taken
       // back, refused for its generation, set aside with nothing left to send.
-      await restoreItem((await deleteItem(id!))!);
+      await restoreItem((await deleteItems([id!]))!);
       devices.A.prepare("DELETE FROM outbox").run();
       devices.A.prepare(
         "INSERT INTO sync_dead_letters (outbox_id, table_name, row_id, payload, reason, quarantined_at) VALUES (1, 'items', ?, '{}', 'refused', '2026-09-30T14:27:31.000Z')",

@@ -24,11 +24,13 @@ import { join, relative } from "node:path";
 // card, the maskable icon, the mail's mark and the card's tags on every page.
 // 2026-09-28, the error screen and the draft guard: all JS 2_484_430, entry
 // 2_246_164, 5_986 bytes of Gital's own code and no new library.
-// `docs/HEALTH.md` traces the growth.
+// 2026-10-02, 1.7.0: entry 2_304_739, all JS 2_543_005, export 4_424_875;
+// the third list's screens, about 37 KB of Gital's own code and 618 bytes of
+// expo-system-ui. `docs/HEALTH.md` traces the growth.
 const CEILINGS = {
-  entryJs: 2_268_700,
-  totalJs: 2_509_300,
-  totalExport: 4_380_800,
+  entryJs: 2_327_700,
+  totalJs: 2_568_400,
+  totalExport: 4_469_100,
   pictures: 328_000,
 };
 

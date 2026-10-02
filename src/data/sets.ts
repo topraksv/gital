@@ -7,7 +7,7 @@
 import { and, asc, inArray, isNull } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
-import { deleteRow, writeRows, type RowsWritten } from "../db/mutations";
+import { deleteRows, writeRows, type RowsWritten } from "../db/mutations";
 import { setItems, sets } from "../db/schema";
 import { foldName, type ListedEntry } from "../domain/items";
 import { nameFrom } from "../domain/names";
@@ -61,7 +61,7 @@ export async function createSet(input: string, entries: readonly ListedEntry[]):
 
 /** Its items stay under the tombstone, so `undoRows` brings the set back whole. */
 export function deleteSet(id: string): Promise<RowsWritten | null> {
-  return deleteRow("sets", id);
+  return deleteRows("sets", [id]);
 }
 
 export { undoRows as restoreSet } from "../db/mutations";

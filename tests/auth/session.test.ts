@@ -303,14 +303,39 @@ describe("whose lists the device holds", () => {
 });
 
 describe("opening the app", () => {
-  it("opens a live session's own workspace, with the sign-in before it", async () => {
+  it("opens a live session's own workspace; opening is a sign-in, so previous is the open before", async () => {
     cloud.session = { user: { id: A.id, email: A.email, last_sign_in_at: "2026-09-26T09:00:00.000Z" } };
     device.stored.set(OWNER, A.id);
     device.stored.set(`gital.login.current.${A.id}`, "2026-09-25T08:00:00.000Z");
     device.stored.set(`gital.login.previous.${A.id}`, "2026-09-24T08:00:00.000Z");
     await session().bootstrap();
-    expect(session()).toMatchObject({ ready: true, userId: A.id, email: A.email, previousLoginAt: "2026-09-24T08:00:00.000Z" });
+    expect(session()).toMatchObject({ ready: true, userId: A.id, email: A.email, previousLoginAt: "2026-09-25T08:00:00.000Z" });
     expect(sync.calls).toEqual([`start:${A.id}`]);
+    expect(device.stored.get(`gital.login.previous.${A.id}`)).toBe("2026-09-25T08:00:00.000Z");
+    expect(device.stored.get(`gital.login.current.${A.id}`)).not.toBe("2026-09-25T08:00:00.000Z");
+  });
+
+  it("advances on every cold start, but not twice in one launch after a sign-in", async () => {
+    cloud.session = { user: { id: A.id, email: A.email, last_sign_in_at: "2026-09-26T09:00:00.000Z" } };
+    device.stored.set(OWNER, A.id);
+    await session().bootstrap();
+    const first = device.stored.get(`gital.login.current.${A.id}`);
+    expect(session().previousLoginAt, "a first open has no open before it").toBeNull();
+    useSession.setState({ userId: null, ready: false });
+    await new Promise((r) => setTimeout(r, 5));
+    await session().bootstrap();
+    expect(session().previousLoginAt).toBe(first);
+    const second = device.stored.get(`gital.login.current.${A.id}`);
+    await session().bootstrap();
+    expect(device.stored.get(`gital.login.current.${A.id}`), "already open: no second record").toBe(second);
+  });
+
+  it("counts one opening when two starts overlap, as React's double effect makes them", async () => {
+    cloud.session = { user: { id: A.id, email: A.email, last_sign_in_at: "2026-09-26T09:00:00.000Z" } };
+    device.stored.set(OWNER, A.id);
+    device.stored.set(`gital.login.current.${A.id}`, "2026-09-25T08:00:00.000Z");
+    await Promise.all([session().bootstrap(), session().bootstrap()]);
+    expect(session().previousLoginAt, "not the overlapping start's own record").toBe("2026-09-25T08:00:00.000Z");
   });
 
   it("opens the last account offline, and nobody once Auth has refused the session", async () => {

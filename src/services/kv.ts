@@ -48,3 +48,31 @@ export const kv = {
     await SecureStore.deleteItemAsync(key);
   },
 };
+
+/**
+ * A device-local on/off choice, on unless turned off: read once at start,
+ * changed at once for every screen holding it. The shape `useSyncExternalStore`
+ * takes, so a hook is one line.
+ */
+export function kvSwitch(key: string) {
+  let on = true;
+  const listeners = new Set<() => void>();
+  const tell = () => listeners.forEach((listener) => listener());
+  void kv.get(key).then((stored) => {
+    if (stored !== "false") return;
+    on = false;
+    tell();
+  });
+  return {
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    get: (): boolean => on,
+    set(next: boolean): void {
+      on = next;
+      tell();
+      void kv.set(key, String(next));
+    },
+  };
+}

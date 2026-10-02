@@ -21,13 +21,13 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 
-const { addEntries, deleteItem, readItems, readShopItems, toggleChecked, updateItem } = await import("../../src/data/items");
+const { addEntries, deleteItems, readItems, readShopItems, toggleChecked, updateItem } = await import("../../src/data/items");
 const { parseEntry } = await import("../../src/domain/items");
 /** The quick-add field's Enter. */
 const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
 const { finishShop, readPricedSince, readPurchases, readShops, reopenShop, setShopReceipt, setShopTotal } = await import("../../src/data/shops");
 const { readPhoto } = await import("../../src/data/photos");
-const { createList, deleteList, readLists } = await import("../../src/data/lists");
+const { createList, deleteLists, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { migratedDatabase } = await import("../helpers");
 const { tr } = await import("../../src/i18n/tr");
@@ -87,7 +87,7 @@ describe("finishShop", () => {
       { name: "Süt", quantityMilli: 2000, checkedAt: T0.toISOString() },
     ]);
     expect(await readShops()).toEqual([
-      { id: shop!.id, listId, listName: "Market", color: null, icon: "cart", finishedAt: new Date(T0.getTime() + 60_000).toISOString(), bought: 2, spentMinor: null, receiptId: null, receipt: null },
+      { id: shop!.id, listId, listName: "Market", color: null, icon: "cart", finishedAt: new Date(T0.getTime() + 60_000).toISOString(), bought: 2, spentMinor: null, totalMinor: null, summedMinor: null, receiptId: null, receipt: null },
     ]);
   });
 
@@ -108,7 +108,7 @@ describe("finishShop", () => {
 
   it("refuses a list deleted under the screen", async () => {
     await shopFor("süt", ["Süt"]);
-    await deleteList(listId);
+    await deleteLists([listId]);
     await expect(finishShop(listId)).rejects.toThrow();
   });
 
@@ -152,7 +152,7 @@ describe("the list after a shop", () => {
     const shopId = await finish();
     await expect(toggleChecked(sut!)).rejects.toThrow();
     await expect(updateItem(sut!, { name: "Ayran", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null })).rejects.toThrow();
-    expect(await deleteItem(sut!)).toBeNull();
+    expect(await deleteItems([sut!])).toBeNull();
     expect(await history(shopId)).toMatchObject([{ name: "Süt" }]);
   });
 });
@@ -196,7 +196,7 @@ describe("reopenShop", () => {
   it("refuses the undo of a shop whose list was deleted", async () => {
     await shopFor("süt", ["Süt"]);
     const shopId = await finish();
-    await deleteList(listId);
+    await deleteLists([listId]);
     await expect(reopenShop(shopId)).rejects.toThrow();
   });
 
@@ -221,7 +221,7 @@ describe("readShops", () => {
       [second, "Pazar", 1],
       [first, "Market", 1],
     ]);
-    await deleteList(other);
+    await deleteLists([other]);
     expect((await readShops()).map((shop) => shop.id)).toEqual([first]);
   });
 });
@@ -372,7 +372,7 @@ describe("readPricedSince", () => {
     const [pil] = await addEntries(other, parseEntry("pil"));
     await updateItem(pil!, priced("Pil", 5000));
     await finishShop(other);
-    await deleteList(other);
+    await deleteLists([other]);
 
     const byName = (rows: { name: string; priceMinor: number }[]) => [...rows].sort((a, b) => a.name.localeCompare(b.name));
     expect(byName(await readPricedSince(T0.toISOString()))).toEqual([

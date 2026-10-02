@@ -13,8 +13,7 @@
  * introduce a kind of problem", not "which line is it on".
  *
  * `--record` adopts the current counts. That is a decision made after reading
- * the diff, and it is why nothing here adopts automatically. `--status <path>`
- * writes the comparison as JSON instead of failing, for the session-start hook.
+ * the diff, and it is why nothing here adopts automatically.
  *
  * WHY IT SHELLS OUT TO `expo lint` rather than importing ESLint: `expo lint`
  * is what `npm run verify` and CI run, and it resolves the flat config through
@@ -132,14 +131,6 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
   const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
   const { problems, improvements } = evaluate(rules, baseline);
-
-  const statusAt = process.argv.indexOf("--status");
-  if (statusAt !== -1) {
-    const head = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim();
-    const status = { head, regression: problems.length > 0 || errors > 0, worsened: problems, errors };
-    writeFileSync(process.argv[statusAt + 1], `${JSON.stringify(status, null, 2)}\n`);
-    process.exit(0);
-  }
 
   for (const rule of Object.keys({ ...baseline.rules, ...rules }).sort()) {
     const now = rules[rule] ?? 0;

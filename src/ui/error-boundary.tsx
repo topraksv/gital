@@ -14,7 +14,8 @@ import TriangleAlert from "lucide-react-native/icons/triangle-alert";
 import { tr } from "../i18n/tr";
 import { Button, EmptyState } from "./components";
 
-export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+/** `onShown` is told once the fallback is laid out: the launch screen leaves for it as it would for the routes. */
+export class ErrorBoundary extends Component<{ children: ReactNode; onShown?: () => void }, { failed: boolean }> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -28,7 +29,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: 
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }}>
+      <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }} onLayout={this.props.onShown}>
         <EmptyState
           icon={TriangleAlert}
           title={tr.errors.appCrashed}

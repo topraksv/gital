@@ -9,7 +9,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
-import { kv } from "../services/kv";
+import { kvSwitch } from "../services/kv";
 
 const TAG = "gital";
 
@@ -26,29 +26,13 @@ export function stayAwake(): () => void {
  * 2026-09-27). On by default, as 3.3 shipped; kept on this device, since
  * whether a screen may sleep is the phone's business, not the account's.
  */
-const PREFERENCE_KEY = "gital.stayAwake";
-let allowed = true;
-const listeners = new Set<() => void>();
-void kv.get(PREFERENCE_KEY).then((stored) => {
-  if (stored !== "false") return;
-  allowed = false;
-  listeners.forEach((listener) => listener());
-});
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
+const preference = kvSwitch("gital.stayAwake");
 
 export function useStayAwakeAllowed(): boolean {
-  return useSyncExternalStore(subscribe, () => allowed, () => allowed);
+  return useSyncExternalStore(preference.subscribe, preference.get, preference.get);
 }
 
-export function setStayAwakeAllowed(on: boolean): void {
-  allowed = on;
-  listeners.forEach((listener) => listener());
-  void kv.set(PREFERENCE_KEY, String(on));
-}
+export const setStayAwakeAllowed = preference.set;
 
 /** Keeps the screen on while the app is open and Ayarlar allows it; the root layout holds it once. */
 export function useStayAwake(): void {

@@ -1,6 +1,6 @@
 {
   "name": "gital",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "main": "expo-router/entry",
   "license": "UNLICENSED",
   "private": true,
@@ -28,6 +28,7 @@
     "expo-splash-screen": "~57.0.9",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
     "expo-updates": "~57.0.23",
     "lucide-react-native": "^1.47.0",
     "react": "19.2.3",

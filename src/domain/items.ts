@@ -13,6 +13,9 @@ export interface Quantity {
   unit: Unit | null;
 }
 
+/** No quantity typed: the item is one of whatever it is. */
+export const NO_QUANTITY: Readonly<Quantity> = Object.freeze({ quantityMilli: null, unit: null });
+
 /** An item as typed: what a quick-add entry names, and what the item panel saves. */
 export interface Entry extends Quantity {
   name: string;
@@ -321,7 +324,7 @@ export function typedProduct(text: string): TypedProduct | null {
   if (Array.from(key).length < SUGGEST_FROM) return null;
   return {
     before: text.slice(0, text.length - raw.length),
-    quantity: quantity ?? { quantityMilli: null, unit: null },
+    quantity: quantity ?? NO_QUANTITY,
     key,
     whole: foldName(segment),
   };
@@ -334,7 +337,7 @@ export function typedProduct(text: string): TypedProduct | null {
  */
 export function pickEntries(typed: TypedProduct, name: string): Entry[] {
   const named = foldName(name).startsWith(typed.whole);
-  return [...parseEntry(typed.before), { name, ...(named ? { quantityMilli: null, unit: null } : typed.quantity) }];
+  return [...parseEntry(typed.before), { name, ...(named ? NO_QUANTITY : typed.quantity) }];
 }
 
 /** With fewer letters, one slip would match half the catalogue: "sit" is süt as much as dut. */
@@ -364,7 +367,7 @@ function nearlyBegins(word: string, typed: string): boolean {
  * the list holds is left out unless a quantity is typed, which the merge (2.5)
  * gives it; without one, a tap on it would do nothing.
  */
-export function suggestProducts(known: readonly KnownProduct[], typed: TypedProduct, listed: readonly { name: string }[]): KnownProduct[] {
+export function suggestProducts(known: readonly KnownProduct[], typed: Pick<TypedProduct, "quantity" | "key" | "whole">, listed: readonly { name: string }[], max = SUGGESTIONS_MAX): KnownProduct[] {
   const onList = new Set(typed.quantity.quantityMilli == null ? listed.map((entry) => foldName(entry.name)) : []);
   const forgives = typed.key.length >= TYPO_FROM;
   const rank = ({ key }: KnownProduct): number => {
@@ -381,6 +384,6 @@ export function suggestProducts(known: readonly KnownProduct[], typed: TypedProd
     .map((product) => ({ product, rank: rank(product) }))
     .filter(({ rank }) => rank < 5)
     .sort((a, b) => a.rank - b.rank || b.product.times - a.product.times)
-    .slice(0, SUGGESTIONS_MAX)
+    .slice(0, max)
     .map(({ product }) => product);
 }

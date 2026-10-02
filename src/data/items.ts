@@ -8,7 +8,7 @@ import {
   findLiveRow,
   fromDbShape,
   nowIso,
-  deleteRow,
+  deleteRows,
   readLiveRow,
   revertRows,
   writeRows,
@@ -390,9 +390,9 @@ export function undoSave(written: RowsWritten, listId: string): Promise<void> {
   return revertRows(written, () => readLiveRow("lists", listId));
 }
 
-/** Returns what undo needs, or `null` when the item was already gone. */
-export function deleteItem(id: string): Promise<RowsWritten | null> {
-  return deleteRow("items", id);
+/** Returns what undo needs, or `null` when every item was already gone. */
+export function deleteItems(ids: readonly string[]): Promise<RowsWritten | null> {
+  return deleteRows("items", ids);
 }
 
 export { undoRows as restoreItem } from "../db/mutations";

@@ -3,13 +3,13 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
-import { deleteRow, editRow, findLiveRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
+import { deleteRows, editRow, findLiveRow, fromDbShape, nowIso, readLiveRow, writeRows, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { lists, photos, wishLinks, wishes } from "../db/schema";
 import { isISODate, type ISODate } from "../domain/dates";
 import { itemNameFrom, knownFrom, noteFrom, type KnownProduct } from "../domain/items";
 import { lookOf, type ListLook } from "../domain/lists";
 import { isPrice } from "../domain/money";
-import { viewing } from "./lists";
+import { owning, viewing } from "./lists";
 import { photoColumn, type NewPhoto, type PhotoChange } from "./photos";
 import { PRIORITIES, isNamedByLink, linkFrom, linkIn, openTotal, shopOf, sortWishes, type Priority, type Wish } from "../domain/wishes";
 
@@ -20,6 +20,7 @@ export interface Collection extends ListLook {
   openTotalMinor: number | null;
   /** Shared with this person to read, so a pasted link goes elsewhere. */
   viewer: boolean;
+  owner: boolean;
 }
 
 /** What the wish panel saves; a link without an id is a new one. */
@@ -73,7 +74,7 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
 /** Oldest first, as Listeler's lists are. */
 export async function readCollections(): Promise<Collection[]> {
   const rows = await getDb()
-    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, viewer: viewing() })
+    .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, viewer: viewing(), owner: owning() })
     .from(lists)
     .where(and(isNull(lists.deletedAt), eq(lists.kind, "wish")))
     .orderBy(asc(lists.createdAt), asc(lists.id));
@@ -217,8 +218,8 @@ export function toggleWishBought(id: string): Promise<void> {
 }
 
 /** Its links stay under the tombstone, out of every read, so undo needs only the wish. */
-export function deleteWish(id: string): Promise<RowsWritten | null> {
-  return deleteRow("wishes", id);
+export function deleteWishes(ids: readonly string[]): Promise<RowsWritten | null> {
+  return deleteRows("wishes", ids);
 }
 
 export { undoRows as restoreWish } from "../db/mutations";

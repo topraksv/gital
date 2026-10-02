@@ -5,8 +5,8 @@ import type { Aisle } from "../domain/catalogue";
 import { foldName } from "../domain/items";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
-import { readFresh, readMembers, readSharedLists } from "./members";
-import { liveStore } from "./live-query";
+import { readFresh, readMembers, readShoppingTicks, readSharedLists } from "./members";
+import { liveStore, type LiveStore } from "./live-query";
 import { heldPantry, readLasted, readPantry } from "./pantry";
 import { readProducts } from "./products";
 import { readSets } from "./sets";
@@ -23,6 +23,21 @@ export function useMembers(listId: string) {
 // Listeler's count of what is new on each shared list (SPEC 1.9), for the person signed in.
 export function useFresh(userId: string) {
   const store = useMemo(() => liveStore(() => readFresh(userId), ["items", "list_members"]), [userId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+// Who has ticked what, on the lists this person is in: who is shopping now is worked out from it (SPEC 1.6).
+// One store per person, at module scope: the Lists tab and the list screen
+// over it read one query, not one each, and a tick anywhere runs it.
+// A store at rest runs nothing, so one kept for an account signed out costs a few bytes.
+const ticksStores = new Map<string, LiveStore<Awaited<ReturnType<typeof readShoppingTicks>>[number]>>();
+function ticksStore(userId: string) {
+  const held = ticksStores.get(userId) ?? liveStore(() => readShoppingTicks(userId), ["items", "list_members"]);
+  ticksStores.set(userId, held);
+  return held;
+}
+export function useShoppingTicks(userId: string) {
+  const store = ticksStore(userId);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 

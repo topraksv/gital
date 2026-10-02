@@ -85,5 +85,21 @@ test("what is already at home goes into the pantry by hand, and stays after a re
 
   await page.reload();
   await expect(page.getByRole("button", { name: "Un, 2 kg" })).toBeVisible();
+
+  // Right-click chooses a row (the web does not swipe); Escape leaves, Sil is one write with one undo.
+  await page.getByRole("button", { name: "Un, 2 kg" }).click({ button: "right" });
+  await expect(page.getByText(/^1\s*seçildi$/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText(/seçildi$/)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Un, 2 kg" }).click({ button: "right" });
+  await page.getByRole("button", { name: "Tümünü seç" }).click();
+  await expect(page.getByText(/^3\s*seçildi$/)).toBeVisible();
+  await page.getByRole("button", { name: "Sil", exact: true }).click();
+  await expect(page.getByText(/3\s*ürün silindi/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Un, 2 kg" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Geri Al" }).click();
+  await expect(page.getByRole("button", { name: "Un, 2 kg" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tuz, 1 adet" })).toBeVisible();
   expect(failures).toEqual([]);
 });

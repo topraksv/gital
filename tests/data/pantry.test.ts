@@ -22,8 +22,8 @@ vi.mock("expo-crypto", () => ({
 
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { finishShop, reopenShop } = await import("../../src/data/shops");
-const { createList, deleteList, editList } = await import("../../src/data/lists");
-const { finishPantryItem, readLasted, readPantry, removePantryItem, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
+const { createList, deleteLists, editList } = await import("../../src/data/lists");
+const { finishPantryItem, readLasted, readPantry, removePantryItems, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { setActor } = await import("../../src/db/mutations");
 const { migratedDatabase } = await import("../helpers");
@@ -164,14 +164,42 @@ describe("reorderPantry", () => {
 
 // Deleted from the panel: gone from home, and put on no list, since it did
 // not run out — it was never there, or it was thrown away.
-describe("removePantryItem", () => {
+describe("removePantryItems", () => {
   it("takes it out without putting it on its list, and the undo brings it back", async () => {
     await shop(market, "2 süt");
-    const written = await removePantryItem(await idOf("Süt"));
+    const written = await removePantryItems([await idOf("Süt")]);
     expect(await stock()).toEqual([]);
     expect(await readItems(market)).toEqual([]);
-    await undoFinish(written);
+    await undoFinish(written!);
     expect(await stock()).toEqual([{ name: "Süt", quantityMilli: 2000, unit: "adet" }]);
+  });
+
+  it("takes several out in one write, each with its date off, and one undo brings them all back", async () => {
+    await shop(market, "2 süt, ekmek, 3 yumurta");
+    const [sut, ekmek] = [await idOf("Süt"), await idOf("Ekmek")];
+    await setExpiry(sut, "2026-10-01");
+    tick();
+    const written = await removePantryItems([sut, ekmek, sut]);
+    expect(written!.writes.filter(({ table }) => table === "pantry_moves")).toHaveLength(2);
+    expect(await stock()).toEqual([{ name: "Yumurta", quantityMilli: 3000, unit: "adet" }]);
+    expect(await readItems(market)).toEqual([]);
+    tick();
+    await undoFinish(written!);
+    expect((await stock()).map(({ name }) => name).sort()).toEqual(["Ekmek", "Süt", "Yumurta"]);
+    expect((await readPantry()).find(({ id }) => id === sut)!.expiresOn).toBe("2026-10-01");
+  });
+
+  it("skips what was finished meanwhile, and answers null when nothing is left at home", async () => {
+    await shop(market, "süt, ekmek");
+    const [sut, ekmek] = [await idOf("Süt"), await idOf("Ekmek")];
+    await finishPantryItem(sut);
+    tick();
+    const written = await removePantryItems([sut, ekmek]);
+    expect(written!.writes.map(({ table, row }) => [table, row.pantryItemId])).toEqual([["pantry_moves", ekmek]]);
+    expect(await stock()).toEqual([]);
+    expect(await readItems(market)).toMatchObject([{ name: "Süt" }]);
+    expect(await removePantryItems([sut, ekmek])).toBeNull();
+    expect(await removePantryItems([])).toBeNull();
   });
 });
 
@@ -235,7 +263,7 @@ describe("finishPantryItem", () => {
 
   it("puts it on no list when its list was deleted", async () => {
     await shop(market, "süt");
-    await deleteList(market);
+    await deleteLists([market]);
     const finished = await finishPantryItem(await idOf("Süt"));
     expect(finished.listName).toBeNull();
     expect(await stock()).toEqual([]);

@@ -65,6 +65,14 @@ describe("lastLogin", () => {
     ];
     expect(lastLogin(settings, "here")).toEqual({ at: "2026-09-24T08:00:00Z", device: null, here: false });
   });
+
+  it("gives way to this device's memory while the rows lag it, and to the rows once they catch up", () => {
+    const settings = [row("phone", { at: "2026-09-25T08:00:00Z", previous: null, device: "iPhone" })];
+    expect(lastLogin(settings, "here", "2026-09-26T08:00:00Z")).toEqual({ at: "2026-09-26T08:00:00Z", device: null, here: false });
+    expect(lastLogin(settings, "here", "2026-09-25T08:00:00Z")).toEqual({ at: "2026-09-25T08:00:00Z", device: "iPhone", here: false });
+    expect(lastLogin(settings, null, "2026-09-20T08:00:00Z"), "before the device id is read").toEqual({ at: "2026-09-20T08:00:00Z", device: null, here: false });
+    expect(lastLogin(settings, null)).toBeNull();
+  });
 });
 
 describe("deviceName", () => {

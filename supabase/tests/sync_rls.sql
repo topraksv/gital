@@ -143,8 +143,8 @@ select is(
 );
 select is(
   (select count(*) from public.sync_cursors()),
-  13::bigint,
-  'the probe names every synced table, and which Kiler the person is in'
+  14::bigint,
+  'the probe names every synced table, which Kiler the person is in, and whether an offer waits'
 );
 
 -- ---------------------------------------------------------------------------

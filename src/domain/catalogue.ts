@@ -5,7 +5,7 @@
  * whole folded name and never guessed at: "Domates salatası" is not Domates.
  */
 
-import { TYPO_FROM, foldName, nearly, type KnownProduct } from "./items";
+import { NO_QUANTITY, TYPO_FROM, foldName, knownFrom, nearly, suggestProducts, type KnownProduct } from "./items";
 
 /** In the order a Turkish market is walked: fresh food at the door, the household at the back. */
 export const AISLES = ["produce", "fruit", "bakery", "dairy", "meat", "fish", "staples", "frozen", "snacks", "drinks", "cleaning", "laundry", "paper", "care", "baby", "pet", "pharmacy", "home"] as const;
@@ -160,6 +160,20 @@ export function catalogueProduct(name: string): CatalogueProduct | undefined {
 export function withCatalogue(known: readonly KnownProduct[]): KnownProduct[] {
   const had = new Set(known.map((product) => product.key));
   return [...known, ...CATALOGUE.filter((product) => !had.has(product.key)).map(({ key, name }) => ({ key, name, times: 0 }))];
+}
+
+/**
+ * The catalogue panel's search (2.12): every aisle, the household's products
+ * and favourites among the catalogue's, each once, ranked as the quick-add
+ * suggestions are (2.13). Typed text is a name, never an entry: "2 süt" and
+ * "tuz ve biber" are searched as written rather than read for a quantity or
+ * split, and one letter is enough. What the list holds stays in, as the tick
+ * it wears is how a second tap takes it off.
+ */
+export function searchCatalogue(known: readonly { name: string; times: number }[], text: string): KnownProduct[] {
+  const key = foldName(text);
+  if (key === "") return [];
+  return suggestProducts(withCatalogue(knownFrom(known)), { quantity: NO_QUANTITY, key, whole: key }, [], Infinity);
 }
 
 /** An entry under the catalogue's spelling of its product, when it names one: "sut" is kept as Süt. */

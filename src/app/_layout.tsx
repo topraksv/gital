@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, View, useColorScheme } from "react-native";
 import { Stack, router } from "expo-router";
 import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
+import * as SystemUI from "expo-system-ui";
 import DatabaseZap from "lucide-react-native/icons/database-zap";
 import LockOpen from "lucide-react-native/icons/lock-open";
 import LogOut from "lucide-react-native/icons/log-out";
@@ -28,6 +30,7 @@ import { Button, EmptyState } from "../ui/components";
 import { appConfirm, appError, appPrompt, OverlaySlot } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
 import { KeyboardSafeRoot } from "../ui/keyboard-safe";
+import { Launch } from "../ui/launch";
 import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, spacing, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
 import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
@@ -61,6 +64,10 @@ const DATABASE_AT_START = RECOVERY_PAGE ? "ready" : "opening";
 const invitedTo = WEB ? inviteFromPage(location) : null;
 if (invitedTo) void holdInvite(invitedTo);
 
+// At module load, as the package asks: from inside a component it can come
+// after the splash has already gone. `Launch` hides it.
+void SplashScreen.preventAutoHideAsync().catch(() => {});
+
 /** Fonts are cosmetic: a slow web fetch must not hold the app on a blank screen. */
 const FONT_GRACE_MS = 2500;
 
@@ -92,6 +99,9 @@ export default function RootLayout() {
   const [fontsLoaded, fontsError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, IBMPlexSerif_600SemiBold });
   const [database, setDatabase] = useState<"opening" | "ready" | "failed">(DATABASE_AT_START);
   const [openAttempt, setOpenAttempt] = useState(0);
+  // The first real screen — the routes, or a failure's own — has drawn.
+  const [settled, setSettled] = useState(false);
+  const settle = useCallback(() => setSettled(true), []);
   useStayAwake();
 
   // Every screen reads the database, so none is drawn until it is migrated;
@@ -144,73 +154,83 @@ export default function RootLayout() {
     });
   }, [scheme, theme.palette.focus, theme.palette.background]);
 
-  const ready = appearance != null && database !== "opening" && (fontsLoaded || fontsError != null || fontGrace);
-  // On the web the document already wears the stored ground (`+html.tsx`), and
-  // a colour here would differ between the static render and the first client
-  // render, which hydration never repairs.
-  if (!ready) {
-    return (
-      <>
-        <WebTitle />
-        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? undefined : theme.palette.background }} />
-      </>
-    );
-  }
+  // The root view shows through wherever no screen is drawn: beside a page
+  // sliding in, and in a phone's rounded corners. Left alone it is the system's
+  // white, so it wears the page's ground and follows a theme change.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    void SystemUI.setBackgroundColorAsync(theme.palette.background).catch(() => {});
+  }, [theme.palette.background]);
 
+  const ready = appearance != null && database !== "opening" && (fontsLoaded || fontsError != null || fontGrace);
+  // Both branches keep `Launch` in one place, so becoming ready does not
+  // remount it and restart the draw.
   return (
     <ThemeContext.Provider value={theme}>
       <WebTitle />
-      <GestureRoot>
-        <KeyboardSafeRoot>
-          <View style={{ flex: 1, backgroundColor: theme.palette.background }}>
-            {database === "failed" ? (
-              <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }}>
-                <EmptyState
-                  icon={DatabaseZap}
-                  title={tr.errors.bootFailedTitle}
-                  hint={tr.errors.bootFailedHint}
-                  action={
-                    <Button
-                      label={tr.common.retry}
-                      onPress={() => {
-                        // Helix measured that on the web a failed open leaves
-                        // wa-sqlite's VFS in "Invalid VFS state" for this
-                        // document: opening again in the same page fails the
-                        // same way for ever, while a reload (new realm, new
-                        // worker) succeeds. Native re-opens the file for real.
-                        if (Platform.OS === "web" && typeof window !== "undefined") {
-                          window.location.reload();
-                          return;
-                        }
-                        setDatabase("opening");
-                        setOpenAttempt((n) => n + 1);
-                      }}
-                    />
-                  }
-                />
-              </View>
-            ) : (
-              <ErrorBoundary>
-                <Routes background={theme.palette.background} />
-              </ErrorBoundary>
-            )}
-            <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-            <CelebrationHost />
-            <UndoSnackbar />
-            <OverlaySlot />
-            <ThemeDissolve />
-          </View>
-        </KeyboardSafeRoot>
-      </GestureRoot>
+      {ready ? (
+        <GestureRoot>
+          <KeyboardSafeRoot>
+            <View style={{ flex: 1, backgroundColor: theme.palette.background }}>
+              {database === "failed" ? (
+                <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }} onLayout={settle}>
+                  <EmptyState
+                    icon={DatabaseZap}
+                    title={tr.errors.bootFailedTitle}
+                    hint={tr.errors.bootFailedHint}
+                    action={
+                      <Button
+                        label={tr.common.retry}
+                        onPress={() => {
+                          // Helix measured that on the web a failed open leaves
+                          // wa-sqlite's VFS in "Invalid VFS state" for this
+                          // document: opening again in the same page fails the
+                          // same way for ever, while a reload (new realm, new
+                          // worker) succeeds. Native re-opens the file for real.
+                          if (Platform.OS === "web" && typeof window !== "undefined") {
+                            window.location.reload();
+                            return;
+                          }
+                          setDatabase("opening");
+                          setOpenAttempt((n) => n + 1);
+                        }}
+                      />
+                    }
+                  />
+                </View>
+              ) : (
+                <ErrorBoundary onShown={settle}>
+                  <Routes background={theme.palette.background} onSettled={settle} />
+                </ErrorBoundary>
+              )}
+              <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+              <CelebrationHost />
+              <UndoSnackbar />
+              <OverlaySlot />
+              <ThemeDissolve />
+            </View>
+          </KeyboardSafeRoot>
+        </GestureRoot>
+      ) : (
+        // On the web the document already wears the stored ground
+        // (`+html.tsx`), and a colour here would differ between the static
+        // render and the first client render, which hydration never repairs.
+        // `Launch` covers it on a cold start; a native retry of the database
+        // still shows it.
+        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? undefined : theme.palette.background }} />
+      )}
+      {/* Shown once the stored palette is known, so neither the ground nor
+          the G changes colour mid-draw; until then the native splash, or on
+          the web the shell's painted ground, is what shows. */}
+      <Launch shown={appearance != null} ready={settled} />
     </ThemeContext.Provider>
   );
 }
 
 /**
  * Expo Router's head writes a <title> ahead of the shell's, and the browser
- * shows the first: left empty, every tab read "" (2026-09-26). Rendered in
- * both of the layout's branches, since the static export renders the one that
- * is not ready.
+ * shows the first: left empty, every tab read "" (2026-09-26). Rendered ready
+ * or not, since the static export renders the layout before it is ready.
  */
 function WebTitle() {
   if (Platform.OS !== "web") return null;
@@ -226,7 +246,7 @@ function WebTitle() {
  * sign-in without one, the reset page for either. Expo Router's guard rather
  * than a redirect, which throws when it runs before the navigator mounts.
  */
-function Routes({ background }: { background: string }) {
+function Routes({ background, onSettled }: { background: string; onSettled: () => void }) {
   const ready = useSession((s) => s.ready);
   const userId = useSession((s) => s.userId);
   const operation = useSession((s) => s.operation);
@@ -246,7 +266,12 @@ function Routes({ background }: { background: string }) {
       if (token && !/\/invite\/?$/.test(location.pathname)) router.push({ pathname: "/invite", params: { token } });
     });
   }, [signedIn]);
-  if ((!ready || (signedIn && frozen == null)) && !RECOVERY_PAGE) return null;
+  const settled = RECOVERY_PAGE || (ready && !(signedIn && frozen == null));
+  // The launch screen stays over this gap, so it never shows as a blank frame.
+  useEffect(() => {
+    if (settled) onSettled();
+  }, [settled, onSettled]);
+  if (!settled) return null;
   // The device that freezes signs out; its own freezing is not a lock.
   const locked = frozen === true && operation !== "freeze";
   return (
@@ -264,6 +289,7 @@ function Routes({ background }: { background: string }) {
             <Stack.Screen name="data-reset" />
             <Stack.Screen name="account-security" />
             <Stack.Screen name="invite" />
+            <Stack.Screen name="person/[id]" />
             <Stack.Screen name="feedback" />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn}>

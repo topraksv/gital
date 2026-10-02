@@ -47,8 +47,8 @@ function CloudAccountSecurity() {
   const [device, setDevice] = useState<string | null>(null);
   useEffect(() => void deviceId(kv).then(setDevice, () => {}), []);
   // Every device's own row, once synced; until then, this device's memory.
-  const last = device ? lastLogin(settings.data, device) : null;
-  const previous = last ? tr.account.previousLogin(last.at, last.device, last.here) : previousLoginAt ? tr.account.previousLogin(previousLoginAt) : null;
+  const login = lastLogin(settings.data, device, previousLoginAt);
+  const previous = login && tr.account.previousLogin(login.at, login.device, login.here);
 
   /** One change at a time, and a refusal said where it happened. */
   const run = (which: NonNullable<typeof busy>, work: () => Promise<void>) => async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AISLES, CATALOGUE, aisleShares, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, listSections, nearMiss, withCatalogue } from "../../src/domain/catalogue";
+import { AISLES, CATALOGUE, aisleShares, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, listSections, nearMiss, searchCatalogue, withCatalogue } from "../../src/domain/catalogue";
 import { foldName, parseEntry, suggestProducts, typedProduct } from "../../src/domain/items";
 
 describe("the catalogue", () => {
@@ -42,6 +42,54 @@ describe("the catalogue", () => {
     expect(names("sut")[0]).toBe("Süt");
     expect(names("domtes")).toContain("Domates");
     expect(names("peynr")).toContain("Beyaz peynir");
+  });
+
+  describe("searchCatalogue", () => {
+    const names = (text: string, known: { name: string; times: number }[] = []) => searchCatalogue(known, text).map((product) => product.name);
+
+    it("shows every match, not the five a suggestion row holds", () => {
+      const known = ["Elma a", "Elma b", "Elma c", "Elma d", "Elma e", "Elma f", "Elma g"].map((name) => ({ name, times: 1 }));
+      expect(names("elma", known).length).toBeGreaterThan(5);
+    });
+
+    it("folds Turkish case and marks, ı and i alike", () => {
+      expect(names("sut")[0]).toBe("Süt");
+      expect(names("SÜT")[0]).toBe("Süt");
+      expect(names("kirmizi")).toEqual(["Kırmızı mercimek"]);
+      expect(names("ıslak")[0]).toBe("Islak mendil");
+      expect(names("INCIR")[0]).toBe("İncir");
+    });
+
+    it("finds a later word's start, after the names that begin with it", () => {
+      expect(names("peynir")).toContain("Beyaz peynir");
+      expect(names("cikolata")[0]).toBe("Çikolata");
+      expect(names("cikolata")).toContain("Bitter çikolata");
+      expect(names("su").slice(0, 2)).toEqual(["Süt", "Süzme yoğurt"]);
+    });
+
+    it("forgives one slip once four letters are typed, and not before", () => {
+      expect(names("domtes")[0]).toBe("Domates");
+      expect(names("domtes")).toContain("Cherry domates");
+      expect(names("peynr")).toContain("Beyaz peynir");
+      expect(names("sit")).toEqual([]);
+    });
+
+    it("ranks the household's products by how often they were had, its own beside the catalogue's, each once", () => {
+      const known = [{ name: "Ezine peyniri", times: 3 }, { name: "Krem peynir", times: 1 }, { name: "ezine peyniri", times: 0 }];
+      expect(names("peynir", known).slice(0, 2)).toEqual(["Ezine peyniri", "Krem peynir"]);
+      expect(names("peynir", known).filter((name) => name === "Krem peynir")).toHaveLength(1);
+      expect(names("ezine", known)).toEqual(["Ezine peyniri"]);
+    });
+
+    it("searches every aisle at once", () => {
+      const aisles = new Set(searchCatalogue([], "kuru").map((product) => catalogueProduct(product.name)?.aisle));
+      expect(aisles.size).toBeGreaterThan(1);
+    });
+
+    it("finds nothing while nothing is typed", () => {
+      expect(searchCatalogue([], "")).toEqual([]);
+      expect(searchCatalogue([{ name: "Süt", times: 2 }], "   ")).toEqual([]);
+    });
   });
 
   it("names an entry as the catalogue writes it when only case or marks differ", () => {

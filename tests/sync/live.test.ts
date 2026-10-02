@@ -4,9 +4,6 @@ type Handler = (payload: { payload?: Record<string, unknown> }) => void;
 
 class FakeChannel {
   handlers = new Map<string, Handler>();
-  tracked: Record<string, unknown> | null = null;
-  state: Record<string, unknown[]> = {};
-  onStatus: ((status: string) => void) | null = null;
   constructor(
     readonly topic: string,
     readonly options: unknown,
@@ -15,20 +12,8 @@ class FakeChannel {
     this.handlers.set(`${type}:${filter.event}`, handler);
     return this;
   }
-  subscribe(callback: (status: string) => void) {
-    this.onStatus = callback;
+  subscribe() {
     return this;
-  }
-  track = vi.fn(async (payload: Record<string, unknown>) => {
-    this.tracked = payload;
-    return "ok";
-  });
-  untrack = vi.fn(async () => {
-    this.tracked = null;
-    return "ok";
-  });
-  presenceState() {
-    return this.state;
   }
   emit(key: string, payload?: Record<string, unknown>) {
     this.handlers.get(key)!({ payload });
@@ -63,7 +48,7 @@ class FakeClient {
 
 vi.mock("@supabase/realtime-js", () => ({ RealtimeClient: FakeClient }));
 
-const { followLists, setShopping, startLive, stopLive, useShoppers } = await import("../../src/sync/live");
+const { followLists, startLive, stopLive } = await import("../../src/sync/live");
 
 const ME = "10000000-0000-4000-8000-000000000001";
 const HER = "20000000-0000-4000-8000-000000000002";
@@ -80,14 +65,14 @@ beforeEach(() => {
 afterEach(() => stopLive());
 
 describe("live lists", () => {
-  it("joins each shared list's private channel, keyed by the person, with the project's key and their token", async () => {
+  it("joins each shared list's private channel with the project's key and their token", async () => {
     followLists(["a", "b"]);
     await start();
     expect(client().endpoint).toBe("https://x.supabase.co/realtime/v1");
     expect(client().options.params.apikey).toBe("anon");
     expect(await client().options.accessToken()).toBe("jwt");
     expect(client().channels.map((c) => c.topic)).toEqual(["list:a", "list:b"]);
-    expect(channelOf("a").options).toEqual({ config: { private: true, presence: { key: ME } } });
+    expect(channelOf("a").options).toEqual({ config: { private: true } });
   });
 
   it("follows the lists as they change: a new one joined, one left dropped, one kept not joined twice", async () => {
@@ -107,46 +92,9 @@ describe("live lists", () => {
     expect(onMoved).toHaveBeenCalledTimes(2);
   });
 
-  it("says the person is shopping on that list alone, and stops saying it", async () => {
-    followLists(["a", "b"]);
-    await start();
-    setShopping("a");
-    expect(channelOf("a").tracked).toEqual({ shopping: true });
-    setShopping("b");
-    expect(channelOf("a").tracked).toBeNull();
-    expect(channelOf("b").tracked).toEqual({ shopping: true });
-    setShopping(null);
-    expect(channelOf("b").tracked).toBeNull();
-  });
-
-  it("says it again each time the channel joins, since a rejoin forgets it", async () => {
-    followLists(["a"]);
-    setShopping("a");
-    await start();
-    channelOf("a").onStatus!("SUBSCRIBED");
-    channelOf("a").onStatus!("SUBSCRIBED");
-    expect(channelOf("a").track).toHaveBeenCalledTimes(2);
-    setShopping(null);
-    channelOf("a").onStatus!("SUBSCRIBED");
-    channelOf("a").onStatus!("CHANNEL_ERROR");
-    expect(channelOf("a").track).toHaveBeenCalledTimes(2);
-  });
-
-  it("knows who else is shopping on each list, and forgets a list it leaves", async () => {
-    followLists(["a"]);
-    await start();
-    channelOf("a").state = { [ME]: [{ shopping: true }], [HER]: [{ shopping: true }] };
-    channelOf("a").emit("presence:sync");
-    expect(useShoppers.getState().byList).toEqual({ a: [HER] });
-    followLists([]);
-    expect(useShoppers.getState().byList).toEqual({});
-  });
-
   it("ends everything on sign-out, and a start overtaken by it opens nothing", async () => {
     followLists(["a"]);
     await start();
-    channelOf("a").state = { [HER]: [{}] };
-    channelOf("a").emit("presence:sync");
     const first = client();
     const late = start();
     stopLive();
@@ -154,9 +102,7 @@ describe("live lists", () => {
     await Promise.resolve();
     expect(first.disconnected).toBe(true);
     expect(clients).toHaveLength(1);
-    expect(useShoppers.getState().byList).toEqual({});
     followLists(["b"]);
-    setShopping("b");
     expect(first.channels).toHaveLength(1);
   });
 
@@ -171,12 +117,8 @@ describe("live lists", () => {
   it("lets a refusal on the way pass quietly: the half-minute pull still comes", async () => {
     followLists(["a", "b"]);
     await start();
-    channelOf("a").track.mockRejectedValueOnce(new Error("offline"));
-    channelOf("a").untrack.mockRejectedValueOnce(new Error("offline"));
     client().removeChannel.mockRejectedValueOnce(new Error("offline"));
     client().disconnect.mockRejectedValueOnce(new Error("offline"));
-    setShopping("a");
-    setShopping(null);
     followLists(["b"]);
     stopLive();
     await new Promise((resolve) => setTimeout(resolve, 0));

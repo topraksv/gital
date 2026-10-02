@@ -26,7 +26,7 @@ import { purgeOwnPhotos } from "../sync/photos";
 import { createRecoveryClient, getSupabase, subscribeSupabaseAuthEvents } from "../sync/supabase";
 import { friendlyAuthError } from "./auth-errors";
 import { deviceName } from "../domain/logins";
-import { deviceId, loadPreviousLogin, recordSuccessfulLogin, seedCurrentLogin, startLoginHistory } from "./login-history";
+import { deviceId, loadPreviousLogin, recordSuccessfulLogin, startLoginHistory } from "./login-history";
 import { HOSTED_RECOVERY_PAGE, parseRecoveryLink, recoveryPage, recoveryRedirect } from "./recovery";
 import { IDLE_BRAKE, isVerificationBlocked, recordVerificationFailure, recordVerificationSuccess } from "./verification-brake";
 
@@ -63,6 +63,12 @@ let listening = false;
 let recovery: SupabaseClient | null = null;
 /** A reset link's token, held unspent until save: opening the page, or reloading it, spends nothing. */
 let pendingRecoveryToken: string | null = null;
+/**
+ * The bootstrap under way. One that overlaps it — React's double effect in
+ * development, a remount mid-start — shares it rather than reading `ready`
+ * before either has set it and counting the same opening twice.
+ */
+let opening: Promise<void> | null = null;
 
 const signedOut = { userId: null, email: null, previousLoginAt: null } as const;
 
@@ -237,46 +243,58 @@ export const useSession = create<SessionStore>((set, get) => ({
   previousLoginAt: null,
   operation: null,
 
-  bootstrap: async () => {
-    const supabase = getSupabase();
-    if (!supabase) {
-      set({ userId: LOCAL_USER_ID, ready: true });
-      return;
-    }
-    listenForEndedSessions();
-    let offline = false;
-    try {
-      const { data, error } = await supabase.auth.getSession();
-      const user = data.session?.user;
-      if (user) {
-        if (await claim(supabase, user, "")) {
-          set({ ...signedOut, ready: true });
-          return;
-        }
-        await seedCurrentLogin(kv, user.id, user.last_sign_in_at ?? new Date().toISOString()).catch(ignore);
-        startSyncSession(user.id);
-        set({ userId: user.id, email: user.email ?? null, ready: true, previousLoginAt: await loadPreviousLogin(kv, user.id).catch(absent) });
+  bootstrap: () =>
+    (opening ??= (async () => {
+      const supabase = getSupabase();
+      if (!supabase) {
+        set({ userId: LOCAL_USER_ID, ready: true });
         return;
       }
-      offline = unreachable(error);
-    } catch {
-      offline = true;
-    }
-    // Only an unreachable Auth reopens the last account. One that answered
-    // with no session has refused it, and reopening it would hide that.
-    const lastUser = offline ? await kv.get(LAST_USER_KEY).catch(absent) : null;
-    if (lastUser && !(await ensureWorkspaceFor(lastUser))) {
-      startSyncSession(lastUser);
-      set({
-        userId: lastUser,
-        email: await kv.get(LAST_EMAIL_KEY).catch(absent),
-        ready: true,
-        previousLoginAt: await loadPreviousLogin(kv, lastUser).catch(absent),
-      });
-      return;
-    }
-    set({ ...signedOut, ready: true });
-  },
+      listenForEndedSessions();
+      let offline = false;
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        const user = data.session?.user;
+        if (user) {
+          if (await claim(supabase, user, "")) {
+            set({ ...signedOut, ready: true });
+            return;
+          }
+          // Opening the account counts as a sign-in (SPEC 9.4): sessions refresh
+          // for good, so waiting for a password sign-in would never advance it.
+          // Already open on this account (a sign-in just ran) is not a new open.
+          const open = get().ready && get().userId === user.id;
+          let previousLoginAt = get().previousLoginAt;
+          if (!open) {
+            const at = new Date().toISOString();
+            previousLoginAt = await recordSuccessfulLogin(kv, user.id, at).catch(absent);
+            await recordThisDevice(at, previousLoginAt);
+          }
+          startSyncSession(user.id);
+          set({ userId: user.id, email: user.email ?? null, ready: true, previousLoginAt });
+          return;
+        }
+        offline = unreachable(error);
+      } catch {
+        offline = true;
+      }
+      // Only an unreachable Auth reopens the last account. One that answered
+      // with no session has refused it, and reopening it would hide that.
+      const lastUser = offline ? await kv.get(LAST_USER_KEY).catch(absent) : null;
+      if (lastUser && !(await ensureWorkspaceFor(lastUser))) {
+        startSyncSession(lastUser);
+        set({
+          userId: lastUser,
+          email: await kv.get(LAST_EMAIL_KEY).catch(absent),
+          ready: true,
+          previousLoginAt: await loadPreviousLogin(kv, lastUser).catch(absent),
+        });
+        return;
+      }
+      set({ ...signedOut, ready: true });
+    })().finally(() => {
+      opening = null;
+    })),
 
   signIn: (email, password) =>
     running("sign-in", async () => {

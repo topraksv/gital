@@ -246,16 +246,24 @@ export function revertRows({ writes, before }: RowsWritten, check: () => Promise
 }
 
 /**
- * Tombstone a row, for `revertRows` to take back; `null` when it was already
- * gone. The row is read inside the transaction: read before it, a write that
- * landed in between would be reverted by this one. The undo is refused once
- * the tombstone has changed, as any undo is, so it cannot overwrite a row
+ * Tombstone rows in one write, for `revertRows` to take back whole; `null`
+ * when every one was already gone. Each is read inside the transaction: read
+ * before it, a write that landed in between would be reverted by this one.
+ * What is gone is skipped rather than refused, since a selection outlives
+ * the rows a sync takes from under it; an id named twice is written once,
+ * because `revertRows` refuses the same row twice. The undo is refused once
+ * any tombstone has changed, as any undo is, so it cannot overwrite a row
  * that came back another way.
  */
-export async function deleteRow(table: SyncedTableName, id: string): Promise<RowsWritten | null> {
+export async function deleteRows(table: SyncedTableName, ids: readonly string[]): Promise<RowsWritten | null> {
   const written = await writeUndoable(async () => {
-    const live = await findLiveRow(table, id);
-    return live ? [{ table, row: { ...fromDbShape(table, live), deletedAt: nowIso() } }] : [];
+    const deletedAt = nowIso();
+    const writes: RowWrite[] = [];
+    for (const id of new Set(ids)) {
+      const live = await findLiveRow(table, id);
+      if (live) writes.push({ table, row: { ...fromDbShape(table, live), deletedAt } });
+    }
+    return writes;
   });
   return written.writes.length > 0 ? written : null;
 }

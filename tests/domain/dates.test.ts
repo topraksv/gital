@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { addDaysISO, addMonthsToKey, daysBetweenISO, isISODate, monthCells, monthKeyOf, todayISO } from "../../src/domain/dates";
+import { addDaysISO, addMonthsToKey, daysBetweenISO, isISODate, monthCells, monthKeyOf, partOfDay, todayISO } from "../../src/domain/dates";
 
 describe("dates", () => {
   it("reads a real day and refuses one that is not", () => {
@@ -42,5 +42,17 @@ describe("dates", () => {
     expect(addDaysISO("2026-09-30", 1)).toBe("2026-10-01");
     expect(addDaysISO("2026-01-01", -1)).toBe("2025-12-31");
     expect(addDaysISO("2026-03-28", 2)).toBe("2026-03-30");
+  });
+
+  it("names the part of the day by the device's hour, as Helix's greeting does", () => {
+    const at = (hour: number, minute: number) => partOfDay(new Date(2026, 9, 1, hour, minute));
+    expect(at(0, 0)).toBe("night");
+    expect(at(5, 59)).toBe("night");
+    expect(at(6, 0)).toBe("morning");
+    expect(at(11, 59)).toBe("morning");
+    expect(at(12, 0)).toBe("day");
+    expect(at(17, 59)).toBe("day");
+    expect(at(18, 0)).toBe("evening");
+    expect(at(23, 59)).toBe("evening");
   });
 });

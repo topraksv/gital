@@ -42,17 +42,7 @@ export async function startLoginHistory(
   await storage.set(currentKey(userId), signedInAt);
 }
 
-/** Seed users who receive this feature mid-session without moving history. */
-export async function seedCurrentLogin(
-  storage: LoginHistoryStorage,
-  userId: string,
-  signedInAt: string,
-): Promise<void> {
-  if (await storage.get(currentKey(userId))) return;
-  await storage.set(currentKey(userId), signedInAt);
-}
-
-/** Cold-starting an existing session does not advance login history. */
+/** The stored sign-in before the current one; offline reopening reads it without advancing. */
 export function loadPreviousLogin(storage: LoginHistoryStorage, userId: string): Promise<string | null> {
   return storage.get(previousKey(userId));
 }

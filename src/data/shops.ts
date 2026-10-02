@@ -29,6 +29,9 @@ export interface Shop extends Omit<ListLook, "name"> {
    * else what its priced items add up to; `null` when neither, which is not ₺0.
    */
   spentMinor: number | null;
+  /** The two it is taken from: the total typed, and the sum of the prices. */
+  totalMinor: number | null;
+  summedMinor: number | null;
   /** The receipt's photo, and its thumbnail once it has reached this device. */
   receiptId: string | null;
   receipt: string | null;
@@ -68,7 +71,7 @@ export async function readShops(): Promise<Shop[]> {
     .where(isNull(shops.deletedAt))
     .groupBy(shops.id)
     .orderBy(desc(shops.finishedAt), desc(shops.id));
-  return rows.map(({ totalMinor, summedMinor, ...row }) => ({ ...lookOf(row), spentMinor: totalMinor ?? summedMinor }));
+  return rows.map((row) => ({ ...lookOf(row), spentMinor: row.totalMinor ?? row.summedMinor }));
 }
 
 /** What shops finished since `since` bought with a price, for the month's aisle shares (SPEC 3.9). */

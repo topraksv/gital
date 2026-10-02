@@ -42,6 +42,7 @@ import {
 import { fetchMissingPhotos, sendPendingPhotos } from "./photos";
 import { PERSONAL_TABLES, toLocalRow, toServerRow } from "./rows";
 import { SessionEpoch, SessionEpochCancelledError, type SessionEpochToken } from "./session-epoch";
+import { forgetOffers, listOffers, useOffers } from "./sharing";
 import { classifyRefreshFailure, completedSyncState, isNetworkFailure, useSyncStatus, type RefreshOutcome } from "./status";
 import { getSupabase } from "./supabase";
 
@@ -296,15 +297,16 @@ interface ServerHead {
 }
 
 /**
- * Each table's keyset head in one request, and which Kiler the server shows
- * this person (`pantry_home`, migration 12); `null` pulls every table. A
- * table the answer leaves out is pulled too: the function's list is a second
- * copy of `SYNCED_TABLES`, and a copy can fall behind.
+ * Each table's keyset head in one request, which Kiler the server shows this
+ * person (`pantry_home`, migration 12), and a hash of the offers waiting on
+ * them (`offers`, migration 13; `undefined` from a server before it); `null`
+ * pulls every table. A table the answer leaves out is pulled too: the
+ * function's list is a second copy of `SYNCED_TABLES`, and a copy can fall behind.
  */
 async function fetchServerHeads(
   supabase: Supabase,
   token: SessionEpochToken,
-): Promise<{ heads: Map<string, PullCursor | null>; home: string | null } | null> {
+): Promise<{ heads: Map<string, PullCursor | null>; home: string | null; offers: string | null | undefined } | null> {
   if (changeProbeUnavailable) return null;
   const { data, error } = await supabase.rpc("sync_cursors").abortSignal(token.signal);
   if (error) {
@@ -314,12 +316,27 @@ async function fetchServerHeads(
   }
   const heads = new Map<string, PullCursor | null>();
   let home: string | null = null;
+  let offers: string | null | undefined;
   for (const row of (data ?? []) as ServerHead[]) {
     if (row.table_name === "pantry_home") home = isUuidShaped(row.max_id) ? row.max_id : null;
+    else if (row.table_name === "offers") offers = isUuidShaped(row.max_id) ? row.max_id : null;
     else if (row.max_updated_at == null && row.max_id == null) heads.set(row.table_name, null);
     else if (typeof row.max_updated_at === "string" && isUuidShaped(row.max_id)) heads.set(row.table_name, { ts: row.max_updated_at, id: row.max_id });
   }
-  return { heads, home };
+  return { heads, home, offers };
+}
+
+/**
+ * The offers waiting on this person (SPEC 1.4), asked for only when the
+ * probe's hash of them moves. One that does not arrive keeps the old hash,
+ * and the next sync asks again; the sync itself goes on, as it owes nothing to them.
+ */
+async function followOffers(hash: string | null | undefined, userId: string, token: SessionEpochToken): Promise<void> {
+  if (hash === undefined || hash === useOffers.getState().seen) return;
+  const answer = hash === null ? { offers: [] } : await listOffers(token.signal);
+  assertActive(token);
+  if ("refused" in answer) return;
+  useOffers.setState({ seen: hash, received: answer.offers.filter((offer) => offer.to === userId) });
 }
 
 /**
@@ -418,6 +435,7 @@ async function pullAll(supabase: Supabase, userId: string, token: SessionEpochTo
     await switchPantry(sqlite, pantry, probe.home, userId, token);
     pantry = probe.home;
   }
+  await followOffers(probe?.offers, userId, token);
   const stored = await sqlite.getAllAsync<{ table_name: string; last_pulled_at: string }>("SELECT table_name, last_pulled_at FROM sync_state");
   const cursors = new Map(stored.map((row) => [row.table_name, parsePullCursor(row.last_pulled_at)]));
   const cursorFor = (table: SyncedTableName) => cursors.get(table) ?? parsePullCursor(null);
@@ -579,6 +597,7 @@ export function startSyncSession(userId: string): void {
 export async function stopSyncSession(): Promise<void> {
   sessionEpoch.stop();
   setActor(null);
+  forgetOffers();
   clearScheduledSync();
   await Promise.allSettled([inFlight]);
 }

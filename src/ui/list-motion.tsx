@@ -8,13 +8,24 @@
  * from the item panel, the swipe's twins (`docs/UI.md` section 8).
  */
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react-native";
 
-/** Declared here and imported by the `.native` file, so callers are checked against the real contract. */
+import { SwipeSides } from "./components";
+
+/** What a swipe to one side does: its mark and colour while the thumb pulls, and what it runs on release. */
+export interface RowAction {
+  icon: LucideIcon;
+  tone: "secondary" | "primary" | "destructive";
+  /** What a screen reader is offered in place of the swipe. */
+  label: string;
+  run: () => void;
+}
+
+/** Declared here and imported by the `.native` file, so callers are checked against the real contract. A side with no action does not travel. */
 export interface RowSwipeProps {
   children: ReactNode;
-  checked: boolean;
-  onTick: () => void;
-  onDelete: () => void;
+  right?: RowAction;
+  left?: RowAction;
 }
 
 export function RowMotion({ children }: { children: ReactNode }) {
@@ -33,6 +44,7 @@ export function GestureRoot({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function RowSwipe({ children }: RowSwipeProps) {
-  return <>{children}</>;
+// No swipe here, but a row's sides are still offered to a screen reader.
+export function RowSwipe({ children, right, left }: RowSwipeProps) {
+  return <SwipeSides.Provider value={{ right, left }}>{children}</SwipeSides.Provider>;
 }

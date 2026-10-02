@@ -17,6 +17,7 @@ import { tr } from "../i18n/tr";
 import { Body, IconButton } from "./components";
 import { appError } from "./dialog";
 import { interactionSurface } from "./interaction";
+import { PhotoViewer } from "./photo-viewer";
 import { Press } from "./press";
 import { borderWidth, circle, font, iconStroke, photoPreview, radius, spacing, type, useTheme } from "./theme";
 
@@ -47,9 +48,12 @@ export function PhotoField({
   value,
   onChange,
   readOnly = false,
+  enlargeLabel = tr.photos.enlarge,
 }: {
   title?: string;
   name: string;
+  /** What the photo's tap, which opens it full screen, is called. */
+  enlargeLabel?: string;
   /** Optional, as a `ShownItem`'s are. */
   photoId?: string | null;
   thumb?: string | null;
@@ -60,6 +64,7 @@ export function PhotoField({
 }) {
   const { palette } = useTheme();
   const stored = useStored(photoId, thumb);
+  const [enlarged, setEnlarged] = useState(false);
   const shown = value === undefined ? stored : (value?.data ?? null);
   // Fetched while the panel is open, so the first tap offline still finds the chunk.
   useEffect(() => void loadTake().catch(() => {}), []);
@@ -85,12 +90,15 @@ export function PhotoField({
       <Body>{title}</Body>
       {shown ? (
         <View>
-          <Image
-            source={{ uri: shown }}
-            accessibilityLabel={tr.photos.of(name)}
-            resizeMode="contain"
-            style={{ width: "100%", height: photoPreview.height, borderRadius: radius.md, backgroundColor: palette.surfaceAlt }}
-          />
+          <Press accessibilityRole="button" accessibilityLabel={`${enlargeLabel}, ${tr.photos.of(name)}`} onPress={() => setEnlarged(true)}>
+            <Image
+              source={{ uri: shown }}
+              accessible={false}
+              resizeMode="contain"
+              style={{ width: "100%", height: photoPreview.height, borderRadius: radius.md, backgroundColor: palette.surfaceAlt }}
+            />
+          </Press>
+          {enlarged ? <PhotoViewer uri={shown} label={tr.photos.of(name)} onClose={() => setEnlarged(false)} /> : null}
           {/* On the photo's own corners: what is drawn is what they act on. */}
           {readOnly ? null : (
             <>

@@ -43,6 +43,7 @@ import type { ListColor, ListIcon } from "../domain/lists";
 import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { selectionTap } from "./haptics";
+import type { RowAction } from "./list-motion";
 import { interactionSurface } from "./interaction";
 import { FOCUS_BOX } from "./focus-ring";
 import { webKeys } from "./keys";
@@ -486,7 +487,8 @@ function detailOf(item: ShownItem): DetailPart[] {
     { text: item.notFound ? tr.items.notFound : "", tone: "warningText" },
     { text: item.boughtInstead ? tr.items.instead(item.boughtInstead) : "" },
     { text: item.priceMinor == null ? "" : formatMinor(item.priceMinor) },
-    { text: formatQuantity(item) },
+    // A count never parts from its noun (`docs/UI.md` section 6).
+    { text: formatQuantity(item).replace(/ /g, "\u00A0") },
     item.extra ?? { text: "" },
     { text: item.note ?? "" },
     { text: item.people ?? "" },
@@ -550,18 +552,58 @@ const checkCircle = {
   justifyContent: "center",
 } as const;
 
-/** The empty ring, or the filled circle and its tick popping in (`docs/UI.md` section 7, Check). */
-export function CheckMark({ checked }: { checked: boolean }) {
+/**
+ * The empty ring, or the filled circle and its tick popping in (`docs/UI.md`
+ * section 7, Check). `select` is the same circle in the accent, for choosing a
+ * row rather than finishing it.
+ */
+export function CheckMark({ checked, tone = "done" }: { checked: boolean; tone?: "done" | "select" }) {
   const { palette } = useTheme();
+  const fill = tone === "select" ? palette.primary : palette.secondary;
+  const ink = tone === "select" ? palette.onPrimary : palette.onSecondary;
   return checked ? (
     <SuccessPop>
-      <View style={[checkCircle, { backgroundColor: palette.secondary }]}>
-        <Check accessible={false} size={iconSize.compact} color={palette.onSecondary} strokeWidth={iconStroke.mark} />
+      <View style={[checkCircle, { backgroundColor: fill }]}>
+        <Check accessible={false} size={iconSize.compact} color={ink} strokeWidth={iconStroke.mark} />
       </View>
     </SuccessPop>
   ) : (
     <View style={[checkCircle, { borderWidth: borderWidth.selected, borderColor: palette.controlBorder }]} />
   );
+}
+
+/**
+ * The sides of the `RowSwipe` a row sits in, so its press offers them to a
+ * screen reader as well: a gesture is never the only way (`docs/UI.md`
+ * section 8). Empty outside a swipe, and while a selection holds it still.
+ */
+export const SwipeSides = createContext<{ right?: RowAction; left?: RowAction }>({});
+
+/**
+ * A row's press besides the tap: long press on a phone and right-click on the
+ * web both choose it, with the browser's menu kept out of it, and a screen
+ * reader is offered its swipes and "Seç".
+ */
+function useRowPress(onLongPress: (() => void) | undefined): object {
+  const { right, left } = useContext(SwipeSides);
+  const actions = [
+    right ? { name: "swipeRight", label: right.label, run: right.run } : null,
+    left ? { name: "swipeLeft", label: left.label, run: left.run } : null,
+    onLongPress ? { name: "select", label: tr.selection.select, run: onLongPress } : null,
+  ].filter((action) => action != null);
+  return {
+    onLongPress,
+    ...(onLongPress && typeof document !== "undefined"
+      ? { onContextMenu: (event: { preventDefault: () => void }) => { event.preventDefault(); onLongPress(); } }
+      : null),
+    ...(actions.length
+      ? {
+          accessibilityActions: actions.map(({ name, label }) => ({ name, label })),
+          onAccessibilityAction: (event: { nativeEvent: { actionName: string } }) =>
+            actions.find((action) => action.name === event.nativeEvent.actionName)?.run(),
+        }
+      : null),
+  };
 }
 
 /**
@@ -571,16 +613,35 @@ export function CheckMark({ checked }: { checked: boolean }) {
  * the focus ring follow them rather than being cut.
  */
 // `disabled` is a viewer's row on a shared list (SPEC 1.4): read, never changed.
-export function RowOpen({ label, hint, onPress, disabled = false, children }: { label: string; hint: string; onPress: () => void; disabled?: boolean; children: ReactNode }) {
+export function RowOpen({
+  label,
+  hint,
+  onPress,
+  onLongPress,
+  selected,
+  disabled = false,
+  children,
+}: {
+  label: string;
+  hint: string;
+  onPress: () => void;
+  onLongPress?: () => void;
+  /** Defined while a selection is under way: whether this row is in it. */
+  selected?: boolean;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
   const { palette } = useTheme();
+  const press = useRowPress(onLongPress);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={hint}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
       disabled={disabled}
       onPress={onPress}
+      {...press}
       style={(state) => ({
         flex: 1,
         minWidth: 0,
@@ -590,7 +651,7 @@ export function RowOpen({ label, hint, onPress, disabled = false, children }: { 
         padding: density.list.cardPadding,
         borderTopLeftRadius: radius.lg,
         borderBottomLeftRadius: radius.lg,
-        ...interactionSurface(palette, state),
+        ...interactionSurface(palette, state, { base: selected ? palette.primarySoft : undefined }),
       })}
     >
       {children}
@@ -598,18 +659,37 @@ export function RowOpen({ label, hint, onPress, disabled = false, children }: { 
   );
 }
 
-/** A row card's tick at its trailing edge, a checkbox that Space presses on the web. */
-export function RowTick({ checked, label, onToggle, disabled = false }: { checked: boolean; label: string; onToggle: () => void; disabled?: boolean }) {
+/**
+ * A row card's tick at its trailing edge, a checkbox that Space presses on the
+ * web. While a selection is under way, `selected` is what it ticks, in the
+ * accent; a row with nothing to finish, Kiler's, has a tick only then.
+ */
+export function RowTick({
+  checked = false,
+  selected,
+  label,
+  onToggle,
+  disabled = false,
+}: {
+  checked?: boolean;
+  selected?: boolean;
+  label: string;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
   const { palette } = useTheme();
+  const choosing = selected !== undefined;
+  const ticked = selected ?? checked;
+  const off = disabled && !choosing;
   return (
     <Pressable
       accessibilityRole="checkbox"
-      aria-checked={checked}
-      accessibilityState={{ checked, disabled }}
+      aria-checked={ticked}
+      accessibilityState={{ checked: ticked, disabled: off }}
       accessibilityLabel={label}
-      disabled={disabled}
+      disabled={off}
       onPress={onToggle}
-      {...(disabled ? null : webKeys({ " ": onToggle }, { repeats: false }))}
+      {...(off ? null : webKeys({ " ": onToggle }, { repeats: false }))}
       style={(state) => ({
         minWidth: controlSize.minimumTarget,
         paddingHorizontal: spacing.md,
@@ -620,7 +700,7 @@ export function RowTick({ checked, label, onToggle, disabled = false }: { checke
         ...interactionSurface(palette, state),
       })}
     >
-      <CheckMark checked={checked} />
+      <CheckMark checked={ticked} tone={choosing ? "select" : "done"} />
     </Pressable>
   );
 }
@@ -715,7 +795,12 @@ export function LinkCard({
   badge,
   hint,
   onOpen,
+  onLongPress,
+  selected,
 }: {
+  onLongPress?: () => void;
+  /** Defined while a selection is under way: the chevron gives way to the circle that says whether this card is in it. */
+  selected?: boolean;
   figure?: string;
   /** Beside the title, in the accent: what is new on a shared list (SPEC 1.9). */
   badge?: string | null;
@@ -730,18 +815,21 @@ export function LinkCard({
   onOpen: () => void;
 }) {
   const { palette } = useTheme();
+  const press = useRowPress(onLongPress);
   return (
     <Press
       accessibilityRole="button"
       accessibilityLabel={tr.common.withDetail(title, tr.common.withDetail(badge ?? "", tr.common.withDetail(detail, figure ?? "")))}
       accessibilityHint={hint}
+      accessibilityState={{ selected }}
       onPress={onOpen}
+      {...press}
       style={(state) => ({
         ...cardEdge(palette),
         flexDirection: "row",
         alignItems: "center",
         gap: spacing.md,
-        ...interactionSurface(palette, state, { base: palette.surface }),
+        ...interactionSurface(palette, state, { base: selected ? palette.primarySoft : palette.surface }),
       })}
     >
       <Tile id={tileId} name={title} size={listCard.tile} color={look?.color} icon={look?.icon} />
@@ -763,7 +851,11 @@ export function LinkCard({
         <Text style={[type.small, { color: palette.textSecondary }]}>{detail}</Text>
       </View>
       {accessory}
-      <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
+      {selected === undefined ? (
+        <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
+      ) : (
+        <CheckMark checked={selected} tone="select" />
+      )}
     </Press>
   );
 }

@@ -51,3 +51,14 @@ export function addDaysISO(date: ISODate, delta: number): ISODate {
   d.setUTCDate(d.getUTCDate() + delta);
   return d.toISOString().slice(0, 10);
 }
+
+export type PartOfDay = "night" | "morning" | "day" | "evening";
+
+/** Helix's greeting hours, on the device's clock: before 6 is still night. */
+export function partOfDay(now: Date = new Date()): PartOfDay {
+  const hour = now.getHours();
+  if (hour < 6) return "night";
+  if (hour < 12) return "morning";
+  if (hour < 18) return "day";
+  return "evening";
+}

@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { friendlyAuthError } from "../../src/auth/auth-errors";
-import { loadPreviousLogin, recordSuccessfulLogin, seedCurrentLogin, startLoginHistory, type LoginHistoryStorage } from "../../src/auth/login-history";
+import { loadPreviousLogin, recordSuccessfulLogin, startLoginHistory, type LoginHistoryStorage } from "../../src/auth/login-history";
 import { HOSTED_RECOVERY_PAGE, parseRecoveryLink, recoveryPage, recoveryRedirect } from "../../src/auth/recovery";
 import {
   IDLE_BRAKE,
@@ -45,11 +45,6 @@ describe("the previous sign-in", () => {
     await startLoginHistory(fresh, "u1", "2026-09-26T08:00:00.000Z");
     expect(await loadPreviousLogin(fresh, "u1")).toBeNull();
     expect(await recordSuccessfulLogin(fresh, "u1", "2026-09-27T09:00:00.000Z")).toBe("2026-09-26T08:00:00.000Z");
-
-    const open = memoryStorage();
-    await seedCurrentLogin(open, "u1", "2026-09-26T08:00:00.000Z");
-    await seedCurrentLogin(open, "u1", "2026-09-26T09:00:00.000Z");
-    expect(await recordSuccessfulLogin(open, "u1", "2026-09-27T10:00:00.000Z")).toBe("2026-09-26T08:00:00.000Z");
   });
 });
 
@@ -58,6 +53,8 @@ describe("Auth's errors, in Turkish", () => {
     expect(friendlyAuthError("Invalid login credentials")).toBe(tr.auth.errInvalidCredentials);
     expect(friendlyAuthError("User already registered")).toBe(tr.auth.errUserExists);
     expect(friendlyAuthError("Request rate limit reached")).toBe(tr.auth.errRateLimit);
+    // GoTrue's per-address throttle, measured: no "rate limit" in the words.
+    expect(friendlyAuthError("For security purposes, you can only request this after 41 seconds.")).toBe(tr.auth.errRateLimit);
     expect(friendlyAuthError("TypeError: Network request failed")).toBe(tr.auth.errNetwork);
     expect(friendlyAuthError("Failed to fetch")).toBe(tr.auth.errNetwork);
     expect(friendlyAuthError("Password should be at least 8 characters")).toBe(tr.auth.errWeakPassword);
@@ -223,8 +220,13 @@ describe("the device's key-value store", () => {
   it("holds only named, non-secret keys", () => {
     const src = join(process.cwd(), "src");
     const sources = readdirSync(src, { recursive: true }).map(String).filter((name) => /\.tsx?$/.test(name)).map((name) => join(src, name));
+    // `kvSwitch` forwards its key to `kv.set`, so its own forwarding is the
+    // one variable allowed, and each switch's key is read where it is made.
+    const forwarding = join(src, "services/kv.ts");
     const keys = sources.flatMap((file) =>
-      [...readFileSync(file, "utf8").matchAll(/kv\.set\(\s*([^,]+),/g)].map((match) => match[1]!.trim()),
+      [...readFileSync(file, "utf8").matchAll(/(?<!function )(?:kv\.set|kvSwitch)\(\s*([^,)]+)[,)]/g)]
+        .map((match) => match[1]!.trim())
+        .filter((key) => !(file === forwarding && key === "key")),
     );
     // An empty sweep would pass everything below.
     expect(keys.length).toBeGreaterThanOrEqual(10);
