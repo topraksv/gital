@@ -14,7 +14,7 @@
  */
 
 import { useState, type ReactElement } from "react";
-import { Pressable, ScrollView, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, ScrollView, Text, View, type PressableStateCallbackType, type StyleProp, type ViewStyle } from "react-native";
 
 import Plus from "lucide-react-native/icons/plus";
 import Search from "lucide-react-native/icons/search";
@@ -138,7 +138,10 @@ function SearchField({ value, onChangeText }: { value: string; onChangeText: (ty
           <X accessible={false} size={iconSize.compact} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
         </Press>
       ) : (
-        <View pointerEvents="none" style={fieldAccessoryStyle(palette, { pressed: false, hovered: false })}>
+        // Cast because Expo's generated `expo-env.d.ts` adds `hovered` to the
+        // state on a machine that has run Expo, and CI has not: one literal
+        // has to satisfy both.
+        <View pointerEvents="none" style={fieldAccessoryStyle(palette, { pressed: false } as PressableStateCallbackType)}>
           <Search accessible={false} size={iconSize.compact} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
         </View>
       )}
