@@ -1,9 +1,8 @@
-# Row-level security, asserted: Helix's, ported 2026-09-27.
+# Row-level security, asserted. Helix and Gital run this same file.
 #
 # `supabase/tests/*.sql` is the pgTAP suite, the only executable proof that
-# one person cannot read or write another's rows, a list's children follow
-# their list, and a delete generation cannot be rolled back. The client's
-# checks are defence in depth; RLS is the authority.
+# one account cannot read or write another's rows. The client's checks are
+# defence in depth; RLS is the authority.
 #
 # It runs against a local stack, never the linked project, so it holds no
 # credential and writes nowhere. Triggers: the migrations or tests changed,
@@ -42,7 +41,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Only Postgres, Auth, PostgREST and Storage: the suite reads nothing else.
+      # Off: the dashboard, logs, image and edge runtimes, the pooler and the
+      # metadata API, none of which the suite reaches.
       - run: $SUPABASE start -x studio,logflare,vector,imgproxy,edge-runtime,supavisor,postgres-meta
       # Before the assertions, so a schema fault reads as one rather than as a
       # page of failed tests. The `extensions` schema holds pgTAP's internals,

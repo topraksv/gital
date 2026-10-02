@@ -1,0 +1,100 @@
+# What no push asks: whether the live surfaces are what `main` says they
+# should be. Helix and Gital run this same file.
+#
+# It deploys nothing. A red nightly is a bug report, not a rollback trigger.
+name: nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  # Is the site serving what `main` says it should be?
+  #
+  # Nothing has ever asked. A green `main` and a stale production are the same
+  # picture from inside this repository, and the two have come apart for a real
+  # reason rather than a hypothetical one: a failed gate on an app-bearing push
+  # followed by a test-only fix classifies light, skips the deploy, and leaves
+  # the site on the previous version with every check green above it. That was
+  # recovered by hand, after someone happened to look.
+  #
+  # This is the cheapest possible detector: fetch the shell, follow it to the
+  # entry bundle, and look for the version `app.json` claims. It runs in the
+  # nightly because a red nightly is a bug report and this is exactly that —
+  # it publishes nothing and rolls nothing back.
+  published-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      # The same script `deploy-web` runs the moment it publishes, asked here of
+      # whatever is live without an expected bundle name. The escaped-manifest
+      # trap that once made this check fail identically on a healthy site is
+      # recorded beside `appVersionOf`, where it is now tested.
+      - name: Compare the live bundle against app.json
+        run: node scripts/check-published.mjs web https://topraksv.github.io/gital
+
+  # Has everything on `main` reached a surface?
+  #
+  # Only a green push run publishes, so while the newest one is behind `main`,
+  # what changed since is on neither surface — and the version check above sees
+  # that only when a release moved the version, never for the Expo Go update.
+  # Replaying 100 runs found eight such windows per surface, the longest 2.6
+  # days. A push or a re-run of the head's run closes one (docs/RELEASE.md).
+  main-published:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Compare main with the newest green push run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)
+          # Unfiltered and filtered by jq, as the ci base is: see the note there.
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?per_page=100" \
+            --jq '[.workflow_runs[] | select(.event == "push" and .head_branch == "main")]')
+          green=$(jq -r '[.[] | select(.conclusion == "success")][0].head_sha // ""' <<<"$runs")
+          open=$(jq --arg head "$head" '[.[] | select(.head_sha == $head and .status != "completed")] | length' <<<"$runs")
+          if [ "$green" != "$head" ] && [ "$open" = "0" ]; then
+            echo "::error::main is at $head and the newest green push run is at ${green:-nothing}; what changed since is on no surface"
+            exit 1
+          fi
+
+  # Can anyone open what `deploy-mobile` publishes?
+  #
+  # Expo Go runs one SDK — the one the stores carry — and an update for any
+  # other SDK still publishes green and opens on no up-to-date phone. That
+  # happened once: the repository sat three SDKs behind the store's client with
+  # every run green, and the runbook's manual check was the only thing that
+  # could have said so. Expo's newest listed SDK is not the answer on its own,
+  # because a preview is listed before any store carries it; the script reads
+  # the newest RELEASED one. Like the job above, it reports and changes nothing.
+  expo-go-reach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Compare this project's SDK with the stores' Expo Go
+        run: node scripts/check-published.mjs expo-go

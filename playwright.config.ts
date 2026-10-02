@@ -12,7 +12,8 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: process.env.CI ? [["github"], ["line"]] : "list",
+  // The html report is what `ci.yml` keeps from a failed run, beside the traces.
+  reporter: process.env.CI ? [["github"], ["line"], ["html", { open: "never" }]] : "list",
   expect: { timeout: 15_000 },
   use: {
     baseURL: "http://127.0.0.1:4173",

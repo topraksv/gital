@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -7,6 +9,7 @@ import { evaluate } from "../scripts/check-lint-ratchet.mjs";
 import { evaluate as evaluateMutation, scoreOf } from "../scripts/check-mutation-ratchet.mjs";
 import { appVersionOf, entryOf, otaRecord, titleOf } from "../scripts/check-published.mjs";
 import { notesFor } from "../scripts/release-notes.mjs";
+import { selectMutationScope, shardOfScope } from "../stryker.ci.config.mjs";
 
 const root = join(import.meta.dirname, "..");
 
@@ -19,10 +22,10 @@ describe("classify-changes", () => {
     ["the dependency tree moved", ["package-lock.json"], true],
     ["the root layout moved", ["src/app/_layout.tsx"], true],
     ["a script the gate runs moved", ["scripts/check-web-budget.mjs"], true],
-    ["the browser suite moved", ["e2e/first-list.spec.ts"], true],
     ["a path nobody classified appeared", ["babel.config.js", "somewhere/new.ts"], true],
     ["a screen moved", ["src/app/index.tsx"], false],
     ["a token moved", ["src/ui/theme.ts"], false],
+    ["the browser suite moved", ["e2e/first-list.spec.ts"], false],
     ["only prose moved", ["docs/BACKLOG.md", "AGENTS.md", ".claude/hooks/stop-gate.sh"], false],
     ["nothing moved", [], false],
   ])("full gate when %s", (_, files, full) => {
@@ -56,6 +59,19 @@ describe("classify-changes", () => {
     expect(classify(files).deploy_mobile).toBe(publishes);
   });
 
+  // The whole suite, on every push that can change what it renders or how it
+  // is tested, on either tier.
+  it.each([
+    ["no diff could be taken", null, true],
+    ["a screen moved", ["src/app/index.tsx"], true],
+    ["the browser suite moved", ["e2e/first-list.spec.ts"], true],
+    ["the server it drives moved", ["scripts/serve-web-export.mjs"], true],
+    ["only a unit test moved", ["tests/gates.test.ts"], false],
+    ["only the database moved", ["supabase/migrations/0002_lists.sql"], false],
+  ])("runs the browser suite when %s", (_, files, runs) => {
+    expect(classify(files).run_e2e).toBe(runs);
+  });
+
   it("escalates a mixed push by its riskiest path", () => {
     expect(classify(["docs/UI.md", "src/ui/theme.ts", "src/data/lists.ts"])).toMatchObject({
       full_gate: true,
@@ -63,23 +79,96 @@ describe("classify-changes", () => {
     });
   });
 
-  // A script that becomes part of the gate must not stay on the light tier by
-  // being forgotten: follow every `run:` through `npm run` to `node scripts/`.
-  it("knows every script ci.yml can reach", () => {
+  /**
+   * Every script ci.yml can reach, followed rather than listed: its `run:`
+   * lines, the `npm run` targets they name, the hooks `npm ci` runs, and the
+   * configs those commands load — `playwright.config.ts` starts the web server
+   * and `stryker.config.mjs` loads the runner, and neither is a `run:`.
+   * A script named in a comment is not run, so only `node scripts/…` and a
+   * quoted `./scripts/…` count.
+   */
+  it("escalates exactly the scripts ci.yml can reach, and no more", () => {
     const scripts: Record<string, string> = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts;
+    const configFor: Record<string, string[]> = {
+      "playwright test": ["playwright.config.ts"],
+      "stryker run": ["stryker.config.mjs", "stryker.ci.config.mjs"],
+    };
     const reached = new Set<string>();
-    const walk = (command: string) => {
-      for (const [, path] of command.matchAll(/node (scripts\/[\w.-]+\.mjs)/g)) reached.add(path!);
-      for (const [, name] of command.matchAll(/npm (?:run )?([\w:-]+)/g)) {
-        const target = name === "test" ? scripts.test : scripts[name!];
-        if (target) walk(target);
+    const visited = new Set<string>();
+    const walk = (text: string) => {
+      for (const [, path] of text.matchAll(/(?:node |"\.\/)(scripts\/[\w.-]+\.mjs)/g)) reached.add(path!);
+      for (const [command, configs] of Object.entries(configFor)) {
+        if (!text.includes(command)) continue;
+        for (const config of configs) {
+          if (visited.has(config)) continue;
+          visited.add(config);
+          walk(readFileSync(join(root, config), "utf8"));
+        }
+      }
+      for (const [, name, noHooks] of text.matchAll(/npm (?:run )?([\w:-]+)( --ignore-scripts)?/g)) {
+        const targets = name === "ci" ? (noHooks ? [] : ["preinstall", "install", "postinstall", "prepare"]) : [name!];
+        for (const target of targets) {
+          if (visited.has(target) || scripts[target] == null) continue;
+          visited.add(target);
+          walk(scripts[target]!);
+        }
       }
     };
-    const workflow = readFileSync(join(root, ".github/workflows/ci.yml"), "utf8");
-    for (const [, command] of workflow.matchAll(/run: (.+)/g)) walk(command!);
+    walk(readFileSync(join(root, ".github/workflows/ci.yml"), "utf8"));
 
-    expect(reached.size).toBeGreaterThan(0);
-    expect([...reached].filter((path) => !CI_EXECUTED_SCRIPTS.includes(path))).toEqual([]);
+    expect(reached.size).toBeGreaterThan(3);
+    expect([...CI_EXECUTED_SCRIPTS].sort()).toEqual([...reached].sort());
+  });
+
+  // Unfiltered, then filtered by jq: the note above `ci.yml`'s base step says
+  // which run search answered weeks stale, and what that cost.
+  it("never asks GitHub's run search, which has answered weeks stale", () => {
+    for (const name of ["ci.yml", "nightly.yml", "release.yml"]) {
+      const text = readFileSync(join(root, ".github/workflows", name), "utf8");
+      const queries = text.split("/runs?").length - 1;
+      expect(queries, name).toBeGreaterThan(0);
+      expect(text.split('actions/workflows/ci.yml/runs?per_page=100"').length - 1, name).toBe(queries);
+    }
+  });
+});
+
+describe("mutation scope", () => {
+  it("mutates the domain files the range changed", () => {
+    const repository = mkdtempSync(join(tmpdir(), "gital-mutation-scope-"));
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: repository, encoding: "utf8" }).trim();
+    try {
+      git("init", "--quiet");
+      git("config", "user.email", "mutation@example.invalid");
+      git("config", "user.name", "Mutation Test");
+      mkdirSync(join(repository, "src/domain"), { recursive: true });
+      writeFileSync(join(repository, "src/domain/list.ts"), "export const size = 1;\n");
+      git("add", ".");
+      git("commit", "--quiet", "-m", "base");
+      const base = git("rev-parse", "HEAD");
+      writeFileSync(join(repository, "src/domain/list.ts"), "export const size = 2;\n");
+      writeFileSync(join(repository, "README.md"), "prose\n");
+      git("add", ".");
+      git("commit", "--quiet", "-m", "change");
+      expect(selectMutationScope({ base, head: git("rev-parse", "HEAD"), cwd: repository })).toEqual(["src/domain/list.ts"]);
+    } finally {
+      rmSync(repository, { recursive: true, force: true });
+    }
+  });
+
+  // A push must name a range it can resolve; only a dispatch falls back to
+  // the sentinels without one.
+  it("fails closed on a push it cannot measure", () => {
+    expect(() => selectMutationScope({ base: "0".repeat(40), head: "HEAD", cwd: root })).toThrow(/zero SHA/);
+    expect(() => selectMutationScope({ base: "", head: "HEAD", eventName: "push", cwd: root })).toThrow(/missing mutation diff/i);
+    expect(selectMutationScope({ base: "", head: "", eventName: "workflow_dispatch", cwd: root })).toContain("src/domain/names.ts");
+  });
+
+  it("deals every file to exactly one shard, heaviest first", () => {
+    const sizes: Record<string, number> = { "a.ts": 900, "b.ts": 500, "c.ts": 400, "d.ts": 300, "e.ts": 100 };
+    const files = Object.keys(sizes);
+    const shards = [1, 2, 3].map((shard) => shardOfScope(files, `${shard}/3`, (file: string) => sizes[file]!));
+    expect(shards).toEqual([["a.ts"], ["b.ts", "e.ts"], ["c.ts", "d.ts"]]);
+    expect(() => shardOfScope(files, "4/3", () => 1)).toThrow(/MUTATION_SHARD/);
   });
 });
 
