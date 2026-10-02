@@ -43,11 +43,11 @@ const MARK_DRAW_MS = brandMark.leafAt + brandMark.leaf;
  * than an animated value: a mask's stroke is not a prop the native driver can
  * reach, and a second of re-renders on one small tree costs nothing.
  */
-function useIntro(duration: number): number | null {
+function useIntro(duration: number | undefined): number | null {
   const reducedMotion = useReducedMotion();
   const [elapsed, setElapsed] = useState<number | null>(0);
   useEffect(() => {
-    if (reducedMotion) return;
+    if (reducedMotion || duration === undefined) return;
     const start = Date.now();
     let frame = 0;
     const tick = () => {
@@ -59,7 +59,7 @@ function useIntro(duration: number): number | null {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [reducedMotion, duration]);
-  return reducedMotion ? null : elapsed;
+  return reducedMotion || duration === undefined ? null : elapsed;
 }
 
 /**
@@ -93,11 +93,13 @@ function Name({ id, ink, written }: { id: string; ink: string; written: number |
   );
 }
 
-/** `duration` is the whole intro, the kit's timeline scaled evenly to fit, as Helix's mark takes it. */
-export function BrandMark({ height, duration = MARK_DRAW_MS, named = false }: { height: number; duration?: number; named?: boolean }) {
+/** `duration` is the whole intro, the kit's timeline scaled evenly to fit, as Helix's mark takes it.
+ *  Omitted, the mark is drawn at rest: the owner wants it to draw itself on a
+ *  cold start and nowhere else (2026-10-02). */
+export function BrandMark({ height, duration, named = false }: { height: number; duration?: number; named?: boolean }) {
   const { palette, paletteId } = useTheme();
   const elapsed = useIntro(duration);
-  const pace = duration / MARK_DRAW_MS;
+  const pace = (duration ?? MARK_DRAW_MS) / MARK_DRAW_MS;
   // `useId` answers with colons, which a `url(#…)` reference cannot hold.
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   const progress = (start: number, length: number) => (elapsed === null ? 1 : easeOut(Math.min(1, Math.max(0, (elapsed - start * pace) / (length * pace)))));

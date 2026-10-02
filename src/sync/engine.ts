@@ -379,19 +379,36 @@ async function localMergeState(
 }
 
 /** One table from `from` on, or with `list` one list's rows from the beginning, which moves no cursor. `owner` is `pushTable`'s. */
-async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullCursor, owner: string, token: SessionEpochToken, list?: string): Promise<void> {
+function fetchPage(supabase: Supabase, table: SyncedTableName, cursor: PullCursor, first: boolean, token: SessionEpochToken, list?: string) {
+  let query = supabase.from(table).select("*").order("updated_at", { ascending: true }).order("id", { ascending: true }).limit(PULL_PAGE);
+  if (list) query = query.eq(table === "lists" ? "id" : "list_id", list);
+  const page = first
+    ? query.gte("updated_at", new Date(Date.parse(cursor.ts) - PULL_OVERLAP_MS).toISOString())
+    : query.or(`updated_at.gt.${cursor.ts},and(updated_at.eq.${cursor.ts},id.gt.${cursor.id})`);
+  return Promise.resolve(page.abortSignal(token.signal));
+}
+
+type Page = ReturnType<typeof fetchPage>;
+
+/**
+ * Every table's first page asked for at once; only the merge stays in order,
+ * so a pull cut short still never leaves a child ahead of its list. One after
+ * another, a first pull was a round trip per table before anything showed. A
+ * page never merged — the pull stopped at an earlier table — is dropped; it
+ * cannot reject unobserved, since PostgREST without `throwOnError` answers a
+ * failed or aborted fetch with `{ error }`.
+ */
+function prefetch(tables: readonly SyncedTableName[], cursorFor: (table: SyncedTableName) => PullCursor, supabase: Supabase, token: SessionEpochToken, list?: string): Map<SyncedTableName, Page> {
+  return new Map(tables.map((table) => [table, fetchPage(supabase, table, cursorFor(table), true, token, list)] as const));
+}
+
+async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullCursor, owner: string, token: SessionEpochToken, firstPage: Page, list?: string): Promise<void> {
   const sqlite = await getSqliteAsync();
   let cursor = from;
-  let first = true;
+  let next = firstPage;
   for (;;) {
     assertActive(token);
-    let query = supabase.from(table).select("*").order("updated_at", { ascending: true }).order("id", { ascending: true }).limit(PULL_PAGE);
-    if (list) query = query.eq(table === "lists" ? "id" : "list_id", list);
-    const page = first
-      ? query.gte("updated_at", new Date(Date.parse(cursor.ts) - PULL_OVERLAP_MS).toISOString())
-      : query.or(`updated_at.gt.${cursor.ts},and(updated_at.eq.${cursor.ts},id.gt.${cursor.id})`);
-    first = false;
-    const { data, error } = await page.abortSignal(token.signal);
+    const { data, error } = await next;
     if (error) throw new Error(`pull ${table}: ${error.message}`);
     if (!data || data.length === 0) return;
     assertActive(token);
@@ -422,6 +439,7 @@ async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullC
       );
     });
     if (data.length < PULL_PAGE) return;
+    next = fetchPage(supabase, table, cursor, false, token, list);
   }
 }
 
@@ -439,10 +457,11 @@ async function pullAll(supabase: Supabase, userId: string, token: SessionEpochTo
   const stored = await sqlite.getAllAsync<{ table_name: string; last_pulled_at: string }>("SELECT table_name, last_pulled_at FROM sync_state");
   const cursors = new Map(stored.map((row) => [row.table_name, parsePullCursor(row.last_pulled_at)]));
   const cursorFor = (table: SyncedTableName) => cursors.get(table) ?? parsePullCursor(null);
-  // One after another, parents first, so a pull cut short never leaves a child ahead of its list.
-  for (const table of TABLES) {
-    if (probe?.heads.has(table) && cursorIsAtServerHead(cursorFor(table), probe.heads.get(table) ?? null)) continue;
-    await pullTable(supabase, table, cursorFor(table), PANTRY.has(table) ? pantry : userId, token);
+  // Merged parents first, so a pull cut short never leaves a child ahead of its list.
+  const pending = TABLES.filter((table) => !(probe?.heads.has(table) && cursorIsAtServerHead(cursorFor(table), probe.heads.get(table) ?? null)));
+  const pages = prefetch(pending, cursorFor, supabase, token);
+  for (const table of pending) {
+    await pullTable(supabase, table, cursorFor(table), PANTRY.has(table) ? pantry : userId, token, pages.get(table)!);
   }
 }
 
@@ -456,6 +475,7 @@ const LIST_SCOPED: readonly (readonly [SyncedTableName, string])[] = [
   ["wish_links", "list_id"],
 ];
 const FETCHED = "list:";
+const FROM_START = parsePullCursor(null);
 
 /**
  * Joining and leaving (SPEC 1.2). A list shared with this person has rows
@@ -478,7 +498,9 @@ async function followMemberships(supabase: Supabase, userId: string, token: Sess
     if (left) {
       await forgetList(sqlite, list);
     } else if (!fetched.has(FETCHED + list)) {
-      for (const [table] of LIST_SCOPED) await pullTable(supabase, table, parsePullCursor(null), userId, token, list);
+      const tables = LIST_SCOPED.map(([table]) => table);
+      const pages = prefetch(tables, () => FROM_START, supabase, token, list);
+      for (const table of tables) await pullTable(supabase, table, FROM_START, userId, token, pages.get(table)!, list);
       await sqlite.runAsync("INSERT OR REPLACE INTO sync_state (table_name, last_pulled_at) VALUES (?, ?)", [FETCHED + list, nowIso()]);
     }
   }

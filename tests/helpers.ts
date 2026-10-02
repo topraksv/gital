@@ -50,6 +50,7 @@ export function sqliteClientMock(db: () => DatabaseSync) {
       getFirstAsync: async (sql: string, args: Bind = []) => db().prepare(sql).get(...args) ?? null,
       getAllAsync: async (sql: string, args: Bind = []) => db().prepare(sql).all(...args),
       runAsync: async (sql: string, args: Bind = []) => ({ changes: Number(db().prepare(sql).run(...args).changes) }),
+      execAsync: async (sql: string) => void db().exec(sql),
     }),
     withTransaction: (task: () => Promise<void>) => {
       const run = chain.then(async () => {

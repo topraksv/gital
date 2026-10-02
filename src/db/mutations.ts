@@ -286,9 +286,8 @@ export async function pendingOutboxCount(): Promise<number> {
  */
 export async function resetLocalWorkspace(): Promise<void> {
   const sqlite = await getSqliteAsync();
-  await withTransaction(async () => {
-    for (const table of [...Object.keys(SYNCED_TABLES), "photos", "outbox", "sync_dead_letters", "sync_state"]) {
-      await sqlite.runAsync(`DELETE FROM ${table}`);
-    }
-  });
+  // One script rather than a statement per table: on the web every call is a
+  // round trip to the SQLite worker, and a sign-out waited on each of them.
+  const tables = [...Object.keys(SYNCED_TABLES), "photos", "outbox", "sync_dead_letters", "sync_state"];
+  await withTransaction(() => sqlite.execAsync(tables.map((table) => `DELETE FROM ${table};`).join("\n")));
 }

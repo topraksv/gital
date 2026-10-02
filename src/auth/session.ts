@@ -395,16 +395,13 @@ export const useSession = create<SessionStore>((set, get) => ({
       if (userId) await flushOutbox(userId);
       if (!options?.force && (await pendingOutboxCount()) > 0) return SIGN_OUT_PENDING_CHANGES;
       await stopSyncSession();
-      await cancelReminders().catch(ignore);
-      try {
-        await resetLocalWorkspace();
-      } catch {
+      const [, wiped] = await Promise.all([cancelReminders().catch(ignore), resetLocalWorkspace().then(() => true, () => false)]);
+      if (!wiped) {
         if (userId) startSyncSession(userId);
         return tr.auth.errWorkspaceReset;
       }
       set(signedOut);
-      await endAuthSession(supabase, "local");
-      await forgetAccount();
+      await Promise.all([endAuthSession(supabase, "local"), forgetAccount()]);
       return null;
     }),
 
@@ -443,12 +440,14 @@ export const useSession = create<SessionStore>((set, get) => ({
         const friendly = friendlyAuthError(error.message);
         return friendly === tr.auth.errSessionExpired ? friendly : tr.account.deleteCloudFailed;
       }
-      await cancelReminders().catch(ignore);
-      // The identity is gone, so every device's session goes with it: the one global revoke.
-      await endAuthSession(supabase, "global");
-      try {
-        await resetLocalWorkspace();
-      } catch {
+      // The identity is gone, so every device's session goes with it: the one
+      // global revoke. A round trip beside a local wipe that does not need it.
+      const [, , wiped] = await Promise.all([
+        cancelReminders().catch(ignore),
+        endAuthSession(supabase, "global"),
+        resetLocalWorkspace().then(() => true, () => false),
+      ]);
+      if (!wiped) {
         set(signedOut);
         await kv.set(OWNER_KEY, WIPE_PENDING).catch(ignore);
         await kv.remove(LAST_USER_KEY).catch(ignore);

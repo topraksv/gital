@@ -8,6 +8,14 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.7.1
+
+### Patch Changes
+
+- Logo yalnızca uygulama açılırken kendini çiziyor; giriş ekranında ve Ayarlar'da sabit duruyor.
+- Girişten sonraki ilk eşitleme kısaldı: tablolar tek tek değil aynı anda isteniyor.
+- Çıkış ve hesap silme daha çabuk bitiyor.
+
 ## 1.7.0
 
 ### Minor Changes
