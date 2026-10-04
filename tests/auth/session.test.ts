@@ -195,6 +195,7 @@ const { deviceId } = await import("../../src/auth/login-history");
 const { lastLogin } = await import("../../src/domain/logins");
 const { kv: harnessKv } = await import("../../src/services/kv");
 const { tr } = await import("../../src/i18n/tr");
+const { pulledOnce, useSyncStatus } = await import("../../src/sync/status");
 const { migratedDatabase } = await import("../helpers");
 
 const OWNER = "gital.auth.owner";
@@ -497,8 +498,10 @@ describe("signing out", () => {
   it("signs out without asking when nothing is waiting", async () => {
     await session().signIn(A.email, A.password);
     sent();
+    useSyncStatus.getState().set({ state: "idle", error: null, lastSyncAt: "2026-10-04T10:00:00.000Z" });
     expect(await session().signOut()).toBeNull();
     expect(session().userId).toBeNull();
+    expect(pulledOnce(useSyncStatus.getState()), "the emptied copy has pulled nothing yet").toBe(false);
   });
 });
 

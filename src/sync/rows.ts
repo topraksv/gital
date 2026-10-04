@@ -16,11 +16,21 @@ import { isUuidShaped } from "./merge-policy";
  */
 export const PERSONAL_TABLES: ReadonlySet<SyncedTableName> = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
 
+/**
+ * The columns a row's server key is made of. A shop's or item's id is a hash
+ * of its list's id, so anyone who knows the list could mint it elsewhere;
+ * keyed by the list too (migration 14), that copy is another row.
+ */
+export function keyColumns(table: SyncedTableName): readonly string[] {
+  if (PERSONAL_TABLES.has(table)) return ["user_id", "id"];
+  return table === "shops" || table === "items" ? ["list_id", "id"] : ["id"];
+}
+
 interface Column {
   kind: "text" | "integer" | "boolean";
   notNull: boolean;
-  /** What a column missing from an older event is sent as, in the driver's shape. */
-  fallback: unknown;
+  /** Whether the schema gives a column a value when an insert names none. */
+  defaulted: boolean;
 }
 
 const COLUMNS = new Map<SyncedTableName, Map<string, Column>>(
@@ -32,7 +42,7 @@ const COLUMNS = new Map<SyncedTableName, Map<string, Column>>(
         {
           kind: column.columnType === "SQLiteBoolean" ? "boolean" : column.columnType === "SQLiteInteger" ? "integer" : "text",
           notNull: column.notNull,
-          fallback: column.default == null ? null : column.mapToDriverValue(column.default),
+          defaulted: column.default != null,
         },
       ]),
     ),
@@ -48,15 +58,22 @@ function fits(column: Column, value: unknown): boolean {
 
 /**
  * An outbox payload as PostgREST takes it, or `null` for one the schema could
- * not have written. Every column is named: an event queued before a column
- * existed sends its default, which is what the migration gave the row.
+ * not have written. A column an event queued before it existed does not carry
+ * is left out, never sent as its default: the server keeps what it holds,
+ * which may be what another device wrote since (a photo, a receipt), and a new
+ * row takes the server's default. Every column the server has no default for
+ * was there from the table's first migration, so every event carries it.
  */
 export function toServerRow(table: SyncedTableName, payload: Record<string, unknown>, owner: string): Record<string, unknown> | null {
   const columns = COLUMNS.get(table)!;
   if (Object.keys(payload).some((key) => !columns.has(key)) || !isUuidShaped(payload.id)) return null;
   const out: Record<string, unknown> = {};
   for (const [name, column] of columns) {
-    const value = name in payload ? payload[name] : column.fallback;
+    if (!(name in payload)) {
+      if (column.notNull && !column.defaulted) return null;
+      continue;
+    }
+    const value = payload[name];
     if (!fits(column, value)) return null;
     out[name] = column.kind === "boolean" && value != null ? Boolean(value) : value;
   }

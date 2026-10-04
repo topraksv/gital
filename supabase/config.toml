@@ -159,10 +159,10 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
+# Only the page `recoveryRedirect` sends: a reset link carries its token unspent,
+# and an address nothing here uses — a custom scheme any app may claim — would hand it over.
 additional_redirect_urls = [
-  "http://127.0.0.1:3000/reset-password",
   "https://topraksv.github.io/gital/reset-password",
-  "gital://reset-password",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600

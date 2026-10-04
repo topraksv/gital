@@ -76,7 +76,8 @@ export function linkIn(input: string): { url: string; said: string } | null {
 const SHOPS: readonly [RegExp, string][] = [
   [/(^|\.)(trendyol\.com|ty\.gl)$/, "Trendyol"],
   [/(^|\.)hepsiburada\.com$/, "Hepsiburada"],
-  [/(^|\.)(amazon\.[a-z.]+|amzn\.[a-z.]+|a\.co)$/, "Amazon"],
+  // Amazon's own domains by name: `amazon.` and any ending would take a look-alike host as the shop, and read it unasked.
+  [/(^|\.)(amazon\.(com|com\.tr|de|co\.uk|fr|it|es|nl|pl|se|ca|com\.au|co\.jp|in|ae|sa|com\.be|com\.mx|com\.br|sg|eg)|amzn\.(to|eu|com|asia)|a\.co)$/, "Amazon"],
   [/(^|\.)n11\.com$/, "n11"],
 ];
 

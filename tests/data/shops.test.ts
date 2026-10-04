@@ -224,6 +224,19 @@ describe("readShops", () => {
     await deleteLists([other]);
     expect((await readShops()).map((shop) => shop.id)).toEqual([first]);
   });
+
+  it("counts only the shop's own list's items, whatever shop another list's row names", async () => {
+    await shopFor("süt", ["Süt"]);
+    const shopId = await finish();
+    // A shop's id is a hash of its list's: a co-member writing into a list they share can name it.
+    const other = await createList("Ev");
+    const [planted] = await addItems(other, "altın");
+    harness.db!.prepare("UPDATE items SET shop_id = ?, price_minor = 500000 WHERE id = ?").run(shopId, planted!);
+    expect((await readShops()).map((shop) => [shop.id, shop.bought, shop.spentMinor])).toEqual([[shopId, 1, null]]);
+    expect((await readShopItems(shopId)).map((item) => item.name)).toEqual(["Süt"]);
+    expect((await readPurchases(listId)).map((item) => item.name)).toEqual(["Süt"]);
+    expect(await readPricedSince(T0.toISOString())).toEqual([]);
+  });
 });
 
 describe("a shop's total corrected to the receipt", () => {

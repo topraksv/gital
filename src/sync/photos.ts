@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSqliteAsync } from "../db/client";
+import type { SyncedTableName } from "../db/schema";
 import { nowIso } from "../db/mutations";
 import { isUuidShaped } from "./merge-policy";
 import { SessionEpochCancelledError } from "./session-epoch";
@@ -18,15 +19,16 @@ const SIZES = [
   ["thumb", "thumb"],
 ] as const;
 
-/** The photos a live item, wish or shop's receipt names. */
-const NAMED = [
-  "SELECT photo_id FROM items WHERE deleted_at IS NULL",
-  "SELECT photo_id FROM wishes WHERE deleted_at IS NULL",
-  "SELECT photo_id FROM shops WHERE deleted_at IS NULL",
-].join(" UNION ");
+/** The tables whose rows name a photo: an item, a wish, a shop's receipt. */
+export const PHOTO_TABLES: ReadonlySet<SyncedTableName> = new Set(["items", "wishes", "shops"]);
+
+/** The photos a live row of those tables names. */
+const NAMED = [...PHOTO_TABLES].map((table) => `SELECT photo_id FROM ${table} WHERE deleted_at IS NULL`).join(" UNION ");
 
 /** Photos Storage answered for with no file, not asked again until the next launch. */
 const unavailable = new Set<string>();
+/** Photos Storage refused for good, not offered again until the next launch. */
+const refused = new Set<string>();
 
 function bytesOf(dataUri: string): Uint8Array {
   const binary = atob(dataUri.slice(dataUri.indexOf(",") + 1));
@@ -61,7 +63,37 @@ function checkActive(signal: AbortSignal): void {
   if (signal.aborted) throw new SessionEpochCancelledError();
 }
 
-/** Send every photo a live row names and Storage does not have yet. */
+/**
+ * Storage answering that this photo is not this person's to place (403), or
+ * is someone else's already (409): asking again changes nothing. An expired
+ * token, a timeout or a rate limit does, and so does a network failure;
+ * Storage has answered a bad token with 400 or 403, so its message decides.
+ */
+export function refusedForGood(error: { status?: number; message: string }): boolean {
+  if (error.status == null || error.status < 400 || error.status >= 500 || [401, 408, 429].includes(error.status)) return false;
+  return !/jwt|token|expired|unauthori[sz]ed|signature/i.test(error.message);
+}
+
+/** Both sizes of one photo; false when Storage refuses it for good. */
+async function sendPhoto(supabase: SupabaseClient, photo: { id: string; data: string; thumb: string }, signal: AbortSignal): Promise<boolean> {
+  for (const [size, column] of SIZES) {
+    checkActive(signal);
+    // `upsert`, so a send cut short between the two sizes is finished by the next.
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(`${photo.id}/${size}.jpg`, bytesOf(photo[column]), { contentType: "image/jpeg", upsert: true });
+    if (error && refusedForGood(error)) return false;
+    if (error) throw new Error(`photo upload: ${error.message}`);
+  }
+  return true;
+}
+
+/**
+ * Send every photo a live row names and Storage does not have yet. One Storage
+ * refuses for good is passed over, still unsent, so it cannot stop every other
+ * change from syncing; a row naming it then goes up without it, which is what
+ * the server would hold either way.
+ */
 export async function sendPendingPhotos(supabase: SupabaseClient, signal: AbortSignal): Promise<void> {
   const sqlite = await getSqliteAsync();
   const pending = await sqlite.getAllAsync<{ id: string; data: string; thumb: string }>(
@@ -69,15 +101,9 @@ export async function sendPendingPhotos(supabase: SupabaseClient, signal: AbortS
   );
   // Every id here is the device's own, or one a fetch below checked.
   for (const photo of pending) {
-    for (const [size, column] of SIZES) {
-      checkActive(signal);
-      // `upsert`, so a send cut short between the two sizes is finished by the next.
-      const { error } = await supabase.storage
-        .from(BUCKET)
-        .upload(`${photo.id}/${size}.jpg`, bytesOf(photo[column]), { contentType: "image/jpeg", upsert: true });
-      if (error) throw new Error(`photo upload: ${error.message}`);
-    }
-    await sqlite.runAsync("UPDATE photos SET uploaded_at = ? WHERE id = ?", [nowIso(), photo.id]);
+    if (refused.has(photo.id)) continue;
+    if (await sendPhoto(supabase, photo, signal)) await sqlite.runAsync("UPDATE photos SET uploaded_at = ? WHERE id = ?", [nowIso(), photo.id]);
+    else refused.add(photo.id);
   }
 }
 
@@ -115,8 +141,10 @@ export async function fetchMissingPhotos(supabase: SupabaseClient, signal: Abort
 /**
  * Remove every photo the account sent, before the account goes: Storage keeps
  * a file its owner no longer exists for, and nothing cascades to it. The
- * device's copies are marked unsent, so if the account then survives, the
- * next sync sends them again.
+ * device's copies of those are marked unsent, so if the account then
+ * survives, the next sync sends them again. Only those: a photo fetched from
+ * another member is theirs to update, and a send of it would be refused at
+ * every sync, before any row went.
  */
 export async function purgeOwnPhotos(): Promise<void> {
   const supabase = getSupabase();
@@ -129,5 +157,6 @@ export async function purgeOwnPhotos(): Promise<void> {
     if (removal) throw new Error(`photo purge: ${removal.message}`);
   }
   const sqlite = await getSqliteAsync();
-  await sqlite.runAsync("UPDATE photos SET uploaded_at = NULL");
+  const removed = [...new Set(paths.map((path) => path.split("/")[0]))];
+  await sqlite.runAsync("UPDATE photos SET uploaded_at = NULL WHERE id IN (SELECT value FROM json_each(?))", [JSON.stringify(removed)]);
 }

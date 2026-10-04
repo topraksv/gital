@@ -180,7 +180,7 @@ export function ItemSheet({
       titleRef={titleRef}
       onDismiss={close}
       dirty={dirty}
-      action={<IconButton icon={Star} label={tr.items.favourite} on={starred} onPress={star} />}
+      action={<IconButton icon={Star} label={tr.common.withDetail(item.name, tr.items.favourite)} on={starred} onPress={star} />}
     >
       <TextField
         value={name}

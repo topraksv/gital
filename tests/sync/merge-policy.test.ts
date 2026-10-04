@@ -150,7 +150,7 @@ describe("a row crossing to the server and back", () => {
   };
 
   it("sends a list's row as it is, its booleans as booleans", () => {
-    expect(toServerRow("items", item, USER)).toEqual({ ...item, urgent: true, not_found: false, added_by: null, checked_by: null });
+    expect(toServerRow("items", item, USER)).toEqual({ ...item, urgent: true, not_found: false });
   });
 
   it("puts the person into a personal row's key", () => {
@@ -158,9 +158,11 @@ describe("a row crossing to the server and back", () => {
     expect(toServerRow("products", product, USER)).toEqual({ ...product, starred: true, user_id: USER });
   });
 
-  it("gives a column an event from before it existed its default", () => {
+  it("leaves out a column an event from before it existed does not carry, so the server keeps what it holds", () => {
     const { pantry: _, ...old } = { id: ID, created_at: STAMP, updated_at: STAMP, deleted_at: null, tombstone_version: 0, name: "Market", color: null, icon: null, kind: "shop", pantry: 1 };
-    expect(toServerRow("lists", old, USER)).toMatchObject({ pantry: true });
+    expect(toServerRow("lists", old, USER)).toEqual(old);
+    const { name: __, ...nameless } = old;
+    expect(toServerRow("lists", nameless, USER), "but not one the server has no value for").toBeNull();
   });
 
   it("refuses what the schema could not have written", () => {

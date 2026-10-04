@@ -9,7 +9,7 @@ import type { PantryItem } from "../data/pantry";
 import { memberNameOf, setMemberName } from "../data/settings";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
-import { syncNow } from "../sync/engine";
+import { pantryToBring, syncNow } from "../sync/engine";
 import { acceptInvite, answerOffer, inviteFromPage, inviteTokenFrom, peekInvite, useOffers, type InvitePeek, type ListOffer } from "../sync/sharing";
 import { Body, Button, ChoiceTile, Notice, Screen, TextField } from "../ui/components";
 import { appError } from "../ui/dialog";
@@ -173,7 +173,9 @@ function Join({ invite, accept, decline, onJoined }: { invite: InvitePeek; accep
   const join = async () => {
     if (!known) await setMemberName(name);
     // Each product goes as the stock the device counted; joining empty sends none.
-    const answer = await accept(name, invite.kind === "pantry" ? (bring ? own.data : []) : undefined);
+    const counted = invite.kind !== "pantry" ? undefined : bring ? await pantryToBring(userId) : [];
+    if (counted === null) return void appError(tr.sharing.errGeneric);
+    const answer = await accept(name, counted);
     if ("refused" in answer) return void appError(answer.refused);
     successNotice();
     await syncNow(userId).catch(() => false);

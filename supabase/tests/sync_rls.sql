@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(52);
+select extensions.plan(60);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -189,12 +189,27 @@ select is(
   null::timestamptz,
   'the probe reports no list head to B'
 );
+-- Migration 14: a shop's or item's id is a hash of its list's id, so B,
+-- knowing A's list, can mint A's next shop. Keyed by list and id, B's copy
+-- in B's own list leaves A's free.
+select lives_ok(
+  $$insert into public.lists (id, name) values ('b4000000-0000-7000-8000-00000000000b', 'B''nin')$$,
+  'B makes a list of its own'
+);
+select lives_ok(
+  $$insert into public.shops (id, list_id, number, finished_at) values
+    ('a3000000-0000-8000-8000-00000000000a', 'b4000000-0000-7000-8000-00000000000b', 2, now())$$,
+  'B claims the id A''s next shop will have, in B''s list'
+);
 
 -- Photos: read by whoever can read a row naming them, and by the uploader.
 set local role postgres;
 insert into storage.objects (bucket_id, name, owner_id) values
   ('photos', 'f0000000-0000-7000-8000-00000000000f/full.jpg', '10000000-0000-4000-8000-000000000001'),
   ('photos', 'f1000000-0000-7000-8000-00000000000f/full.jpg', '10000000-0000-4000-8000-000000000001');
+insert into public.items (id, list_id, name, photo_id) values
+  ('a4000000-0000-7000-8000-00000000000a', 'a0000000-0000-7000-8000-00000000000a', 'peynir', 'f2000000-0000-7000-8000-00000000000f'),
+  ('a5000000-0000-7000-8000-00000000000a', 'a0000000-0000-7000-8000-00000000000a', 'zeytin', 'f4000000-0000-7000-8000-00000000000f');
 set local role authenticated;
 
 select is(
@@ -213,6 +228,28 @@ select is(
   0::bigint,
   'B owns no photo'
 );
+select is(
+  pg_temp.exec_sqlstate($$insert into storage.objects (bucket_id, name, owner_id) values
+    ('photos', 'f2000000-0000-7000-8000-00000000000f/full.jpg', '20000000-0000-4000-8000-000000000002')$$),
+  '42501',
+  'B cannot place a photo at an id A''s row names (migration 14)'
+);
+select lives_ok(
+  $$insert into public.items (id, list_id, name, photo_id) values
+    ('b5000000-0000-7000-8000-00000000000b', 'b4000000-0000-7000-8000-00000000000b', 'zeytin', 'f4000000-0000-7000-8000-00000000000f')$$,
+  'B names the id of A''s photo on a row of its own list'
+);
+select is(
+  pg_temp.exec_sqlstate($$insert into storage.objects (bucket_id, name, owner_id) values
+    ('photos', 'f4000000-0000-7000-8000-00000000000f/full.jpg', '20000000-0000-4000-8000-000000000002')$$),
+  '42501',
+  'which does not let B place it: A''s row names it too'
+);
+select lives_ok(
+  $$insert into storage.objects (bucket_id, name, owner_id) values
+    ('photos', 'f3000000-0000-7000-8000-00000000000f/full.jpg', '20000000-0000-4000-8000-000000000002')$$,
+  'B places a photo no row names yet: the app sends it before its row'
+);
 
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
 select is(
@@ -224,6 +261,16 @@ select is(
   (select count(*) from public.own_photo_objects()),
   2::bigint,
   'A''s own photos are listed for its deletion'
+);
+select lives_ok(
+  $$insert into storage.objects (bucket_id, name, owner_id) values
+    ('photos', 'f2000000-0000-7000-8000-00000000000f/full.jpg', '10000000-0000-4000-8000-000000000001')$$,
+  'A places the photo its own row names'
+);
+select lives_ok(
+  $$insert into public.shops (id, list_id, number, finished_at) values
+    ('a3000000-0000-8000-8000-00000000000a', 'a0000000-0000-7000-8000-00000000000a', 2, now())$$,
+  'A writes its next shop although B claimed the id first'
 );
 select ok(public.can_see_photo('f0000000-0000-7000-8000-00000000000f'), 'A can see the photo its item names');
 select ok(not public.can_see_photo('f1000000-0000-7000-8000-00000000000f'), 'no row names the other photo');

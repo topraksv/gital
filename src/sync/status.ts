@@ -39,3 +39,12 @@ export const useSyncStatus = create<SyncStatusStore>((set) => ({
   error: null,
   set: (patch) => set(patch),
 }));
+
+/**
+ * Whether "nothing here" can be said yet: a device signed in again starts
+ * empty, and until its first pull has answered — or failed — an empty screen
+ * would tell a returning account it has nothing, and invite a duplicate.
+ */
+export function pulledOnce(status: Pick<SyncStatusStore, "state" | "lastSyncAt">): boolean {
+  return status.lastSyncAt != null || status.state === "error" || status.state === "attention";
+}

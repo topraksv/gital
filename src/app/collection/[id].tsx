@@ -21,7 +21,7 @@ import { appError } from "../../ui/dialog";
 import { mediumImpact, selectionTap } from "../../ui/haptics";
 import type { MemberRole } from "../../db/schema";
 import { ListSheet } from "../../ui/list-sheet";
-import { EditorsOnly, PeopleActions, useShare } from "../../ui/members-sheet";
+import { EditorsOnly, PeopleActions, emptyHintFor, useShare } from "../../ui/members-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
@@ -106,7 +106,7 @@ export default function CollectionScreen() {
         </RowMotion>
       );
     }
-    const right = { icon: wish.boughtAt != null ? Undo2 : Check, tone: "secondary" as const, label: tr.common.withDetail(wish.name, tr.wishes.bought), run: () => void toggle(wish) };
+    const right = { icon: wish.boughtAt != null ? Undo2 : Check, tone: "secondary" as const, label: wish.boughtAt != null ? tr.wishes.markNotBought(wish.name) : tr.wishes.markBought(wish.name), run: () => void toggle(wish) };
     const left = { icon: Trash, tone: "destructive" as const, label: tr.wishes.deleteWish(wish.name), run: () => void removeWish(wish) };
     return (
       <RowMotion key={wish.id}>
@@ -159,7 +159,7 @@ export default function CollectionScreen() {
           </EditorsOnly>
           {collection.openTotalMinor == null ? null : <OpenTotal totalMinor={collection.openTotalMinor} />}
           {wishes.data.length === 0 ? (
-            <EmptyState icon={Gift} title={tr.wishes.itemsEmptyTitle} hint={tr.wishes.itemsEmptyHint} />
+            <EmptyState icon={Gift} title={tr.wishes.itemsEmptyTitle} hint={emptyHintFor(viewer, tr.wishes.itemsEmptyHint)} />
           ) : (
             <View style={{ gap: density.list.rowGap }}>
               {[

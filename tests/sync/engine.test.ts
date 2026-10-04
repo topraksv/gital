@@ -23,6 +23,8 @@ vi.mock("expo-crypto", () => ({
   CryptoDigestAlgorithm: { SHA256: "SHA256" },
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
+// The update's own migration is the test's; what `migrateDb` does after any is the code's.
+vi.mock("../../src/db/migrations/migrations", () => ({ default: { journal: { entries: [{ idx: 0, when: 1, tag: "update" }] }, migrations: { m0000: "SELECT 1" } } }));
 vi.mock("../../src/sync/supabase", () => ({ getSupabase: () => harness.cloud.client() }));
 vi.mock("../../src/services/kv", () => ({
   kv: {
@@ -45,7 +47,7 @@ const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry, stockPantry } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { readCollections } = await import("../../src/data/wishes");
-const { finishShop, readShops, reopenShop, setShopReceipt } = await import("../../src/data/shops");
+const { finishShop, readShops, reopenShop, setShopReceipt, setShopTotal } = await import("../../src/data/shops");
 const { countDataReset, resetData } = await import("../../src/data/reset");
 const { readPhoto } = await import("../../src/data/photos");
 const { isFrozen, memberNameOf, readSettings, setAccountFrozen, setMemberName } = await import("../../src/data/settings");
@@ -67,12 +69,14 @@ const {
   peekInvite,
   useOffers,
 } = await import("../../src/sync/sharing");
-const { flushOutbox, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
+const { flushOutbox, pantryToBring, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
-const { purgeOwnPhotos } = await import("../../src/sync/photos");
-const { useSyncStatus } = await import("../../src/sync/status");
+const { purgeOwnPhotos, refusedForGood } = await import("../../src/sync/photos");
+const { pulledOnce, useSyncStatus } = await import("../../src/sync/status");
 const { tr } = await import("../../src/i18n/tr");
 const { migratedDatabase } = await import("../helpers");
+const { migrateDb } = await import("../../src/db/migrate");
+const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 
 const USER = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
@@ -1499,5 +1503,238 @@ describe("photos", () => {
       expect(cloud.objects.size).toBe(0);
       expect(devices.A.prepare("SELECT uploaded_at FROM photos").all()).toEqual([{ uploaded_at: null }]);
     });
+  });
+});
+
+describe("what one copy must not do to another's", () => {
+  const pantry = async () => (await readPantry()).map((item) => `${item.name} ${item.quantityMilli}`).sort();
+
+  it("joins a household with what the server holds of the joiner's Kiler, not this device's stale copy", async () => {
+    await on("A", async () => {
+      await stockPantry(parseEntry("2 lt süt"));
+      await sync();
+    });
+    await on("C", async () => {
+      await stockPantry(parseEntry("ekmek"));
+      await sync();
+    });
+    await on("D", async () => {
+      await sync();
+      await stockPantry(parseEntry("yağ"));
+      await sync();
+    });
+    const token = await on("A", async () => {
+      const made = await createInvite(USER, "editor", "Ömer");
+      if ("refused" in made) throw new Error(made.refused);
+      return made.token;
+    });
+    await on("C", async () => {
+      expect(await acceptInvite(token, "Deniz", (await pantryToBring(OTHER))!)).toEqual({ listId: USER });
+      await sync();
+      expect(await pantry(), "what D stocked and C had not pulled").toEqual(["Ekmek 1000", "Süt 2000", "Yağ 1000"]);
+    });
+  });
+
+  it("keeps syncing after an account deletion that failed once its photo purge had run", async () => {
+    const listId = await sharedMarket();
+    await on("A", async () => {
+      await addScanned(listId, { name: "çay", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      await purgeOwnPhotos();
+      await add(listId, "şeker");
+      expect(await sync()).toBe(true);
+    });
+    expect(cloud.rows("items").map((row) => row.name)).toContain("şeker");
+  });
+
+  it("says a device signed in again has nothing only once its first pull has answered", async () => {
+    await on("A", async () => {
+      await createList("Market");
+      await sync();
+    });
+    useSyncStatus.getState().set({ state: "idle", error: null, lastSyncAt: null });
+    await on("B", async () => {
+      expect(await readLists()).toEqual([]);
+      expect(pulledOnce(useSyncStatus.getState()), "an empty copy before the pull is not an empty account").toBe(false);
+      await sync();
+      expect(pulledOnce(useSyncStatus.getState())).toBe(true);
+      expect((await readLists()).map((list) => list.name)).toEqual(["Market"]);
+    });
+    useSyncStatus.getState().set({ state: "error", error: "offline", lastSyncAt: null });
+    expect(pulledOnce(useSyncStatus.getState()), "a pull that failed says what the device holds").toBe(true);
+  });
+
+  it("drops a shared list whose owner deleted their account", async () => {
+    const listId = await sharedMarket();
+    // `delete_own_account`'s cascade: hard deletes, which no pull sees as a change.
+    for (const table of ["lists", "items", "list_members"]) {
+      for (const [key, row] of cloud.tables.get(table)!) if (row.list_id === listId || row.id === listId || row.user_id === USER) cloud.tables.get(table)!.delete(key);
+    }
+    await on("C", async () => {
+      await sync();
+      expect((await readLists()).map((list) => list.name)).toEqual(["Kendi"]);
+    });
+  });
+
+  it("drops a member who deleted their account from the owner's sheet", async () => {
+    const listId = await sharedMarket();
+    await on("A", async () => {
+      await sync();
+      expect((await readMembers(listId)).map((member) => member.name)).toEqual(["Ömer", "Deniz"]);
+    });
+    for (const [key, row] of cloud.tables.get("list_members")!) if (row.user_id === OTHER) cloud.tables.get("list_members")!.delete(key);
+    await on("A", async () => {
+      await sync();
+      expect((await readMembers(listId)).map((member) => member.name)).toEqual(["Ömer"]);
+    });
+  });
+
+  it("keeps a column a device pulled before its build knew it", async () => {
+    const shopId = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await toggleChecked(item!);
+      await finishShop(id);
+      const [shop] = await readShops();
+      await setShopReceipt(shop!.id, { data: JPEG, thumb: JPEG });
+      await sync();
+      return shop!.id;
+    });
+    await on("B", async () => {
+      await sync();
+      // What a build before 0021 holds after the update: it pulled the shop without the column, and the migration added it empty.
+      devices.B.prepare("UPDATE shops SET photo_id = NULL").run();
+      await migrateDb();
+      await sync();
+      await setShopTotal(shopId, 12_345);
+      await sync();
+    });
+    expect(serverRow("shops", shopId)?.photo_id).not.toBeNull();
+  });
+
+  it("finishes a shop whose id another account claimed first in a list of its own", async () => {
+    const [listId, itemId] = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await sync();
+      return [id, item!] as const;
+    });
+    const claimed = await deterministicId(naturalKeys.shop(listId, 1));
+    await on("C", async () => {
+      const own = await createList("Kendi");
+      await sync();
+      const { error } = await cloud
+        .client()
+        .from("shops")
+        .upsert([{ id: claimed, list_id: own, number: 1, finished_at: new Date().toISOString() }], { onConflict: "list_id,id" })
+        .select()
+        .abortSignal(new AbortController().signal);
+      expect(error).toBeNull();
+    });
+    await on("A", async () => {
+      await toggleChecked(itemId);
+      await finishShop(listId);
+      expect(await sync()).toBe(true);
+      expect(await readDeadLetters()).toEqual([]);
+    });
+    expect(cloud.rows("shops").filter((row) => row.id === claimed).map((row) => row.list_id).sort()).toEqual(
+      [listId, (cloud.rows("lists").find((row) => row.name === "Kendi")!.id as string)].sort(),
+    );
+  });
+
+  it("keeps a column an event queued before the update does not carry", async () => {
+    const [listId, itemId] = await on("A", async () => {
+      const id = await createList("Market");
+      const item = await addScanned(id, { name: "çay", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await sync();
+      return [id, item] as const;
+    });
+    await on("B", async () => {
+      await sync();
+      await toggleChecked(itemId);
+      // What a build before the column queued: the same edit without it.
+      devices.B.prepare("UPDATE outbox SET payload = json_remove(payload, '$.photo_id') WHERE table_name = 'items'").run();
+      await add(listId, "şeker");
+      expect(await sync()).toBe(true);
+    });
+    expect(serverRow("items", itemId)).toMatchObject({ photo_id: expect.any(String), checked_at: expect.any(String) });
+  });
+
+  it("keeps syncing when Storage refuses a photo for good", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      await addScanned(listId, { name: "çay", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await sync();
+      // A deletion that removed C's photos and then failed, after which A made C a viewer.
+      await purgeOwnPhotos();
+    });
+    await on("A", async () => {
+      await sync();
+      await setMemberRole((await readMembers(listId)).find((member) => member.userId === OTHER)!.id, "viewer");
+      await sync();
+    });
+    await on("C", async () => {
+      const own = (await readLists()).find((list) => list.name === "Kendi")!.id;
+      await add(own, "şeker");
+      expect(await sync()).toBe(true);
+      expect(await sync(), "and on the next run").toBe(true);
+    });
+    expect(cloud.rows("items").map((row) => row.name)).toContain("şeker");
+  });
+
+  it("tells a photo refused for good from a token Storage would take once renewed", () => {
+    expect(refusedForGood({ status: 403, message: "new row violates row-level security policy" })).toBe(true);
+    expect(refusedForGood({ status: 409, message: "The resource already exists" })).toBe(true);
+    expect(refusedForGood({ status: 400, message: "jwt expired" })).toBe(false);
+    expect(refusedForGood({ status: 403, message: "invalid signature" })).toBe(false);
+    for (const status of [401, 408, 429, 500]) expect(refusedForGood({ status, message: "x" })).toBe(false);
+    expect(refusedForGood({ message: "Failed to fetch" })).toBe(false);
+  });
+
+  it("keeps its own item where it is when a list it joined holds a copy of the id", async () => {
+    const [mine, itemId] = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await sync();
+      return [id, item!] as const;
+    });
+    const theirs = await on("C", async () => {
+      const id = await createList("Kendi");
+      await sync();
+      const { error } = await cloud
+        .client()
+        .from("items")
+        .upsert([{ id: itemId, list_id: id, name: "Süt", created_at: new Date().toISOString(), deleted_at: null, tombstone_version: 0 }], { onConflict: "list_id,id" })
+        .select()
+        .abortSignal(new AbortController().signal);
+      expect(error).toBeNull();
+      const made = await createInvite(id, "editor", "Deniz");
+      if ("refused" in made) throw new Error(made.refused);
+      return made.token;
+    });
+    await on("A", async () => {
+      await acceptInvite(theirs, "Ömer");
+      expect(await sync()).toBe(true);
+      expect((await readItems(mine)).map((item) => item.id)).toEqual([itemId]);
+    });
+  });
+
+  it("never lets a row naming a photo reach the server before the photo", async () => {
+    const listId = await sharedMarket("viewer");
+    await on("A", async () => {
+      await editList(listId, { name: "Pazar", color: null, icon: null });
+      const release = cloud.hold("upsert lists");
+      const running = sync();
+      await vi.waitFor(() => expect(cloud.requests).toContain("upsert lists"));
+      await addScanned(listId, { name: "çay", note: null, photo: { data: JPEG, thumb: JPEG } });
+      release();
+      await running;
+    });
+    const named = cloud.rows("items").filter((row) => row.photo_id != null);
+    expect(named, "the scanned row went up in that run").toHaveLength(1);
+    expect([...cloud.objects.keys()], "so its photo must be up too").toContain(`${String(named[0]!.photo_id)}/full.jpg`);
   });
 });

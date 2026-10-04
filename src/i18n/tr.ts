@@ -334,6 +334,8 @@ export const tr = {
     itemsEmptyHint: "Beğendiğin bir şeyin adını ya da mağazadaki sayfasının bağlantısını yukarıya yapıştır.",
     openTotal: (totalMinor: number) => `Açık isteklerin toplamı: ${formatMinor(totalMinor)}`,
     bought: "Alındı",
+    markBought: (name: string) => `${name} isteğini alındı say`,
+    markNotBought: (name: string) => `${name} isteğini alınmadı say`,
     openWishHint: "Düzenlemek için aç",
     priority: "Öncelik",
     priorities: ["Düşük", "Normal", "Yüksek"] as const,
@@ -708,6 +710,8 @@ export const tr = {
     leaveHouseholdMessage: "Evin kileri tüm cihazlarından kalkar ve boş bir kilerle devam edersin. Geri dönmek için yeni bir davet gerekir.",
     leftHousehold: "Evden ayrıldın",
     viewOnly: "Bunu yalnız görebilirsin; değiştiremezsin.",
+    /** An empty list or collection to someone who can only look: the hint to write above would point at a field they do not have. */
+    emptyToViewer: "Düzenleyebilenler ekledikçe burada görünecek.",
     join: "Davetle katıl",
     /** Beside the join button's mark in a tab's header, where "Davetle katıl" would squeeze the title. */
     joinShort: "Katıl",

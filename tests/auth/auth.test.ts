@@ -121,6 +121,12 @@ describe("the reset link", () => {
     expect(recoveryRedirect({ origin: "http://localhost:8081", baseUrl: "" })).toBe("http://localhost:8081/reset-password");
   });
 
+  it("is the only address Auth may send a reset to, since the link carries its token unspent", () => {
+    const config = readFileSync(join(import.meta.dirname, "../../supabase/config.toml"), "utf8");
+    const allowed = /additional_redirect_urls = \[([^\]]*)\]/.exec(config)![1]!.match(/"[^"]+"/g)!.map((url) => JSON.parse(url) as string);
+    expect(allowed).toEqual([HOSTED_RECOVERY_PAGE]);
+  });
+
   it("holds an unspent recovery token, and only a recovery one", () => {
     expect(parseRecoveryLink(`${page}?token_hash=abc&type=recovery`, page)).toEqual({ kind: "tokenHash", tokenHash: "abc" });
     expect(parseRecoveryLink(`${page}?token_hash=abc&type=signup`, page)).toEqual({ kind: "invalid" });

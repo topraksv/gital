@@ -1309,7 +1309,8 @@ export function IconButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       aria-pressed={on}
-      accessibilityState={{ disabled }}
+      // A phone has no `aria-pressed` (React Native 0.86 maps none): there the state is `selected`.
+      accessibilityState={Platform.OS === "web" ? { disabled } : { disabled, selected: on }}
       disabled={disabled}
       onPress={onPress}
       style={{ minWidth: controlSize.minimumTarget, minHeight: controlSize.minimumTarget, alignItems: "center", justifyContent: "center" }}

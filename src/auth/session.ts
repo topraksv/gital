@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { recordDeviceLogin, setAccountFrozen } from "../data/settings";
 import { pendingOutboxCount, resetLocalWorkspace } from "../db/mutations";
+import { useSyncStatus } from "../sync/status";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
 import { cancelReminders } from "../services/reminders";
@@ -29,6 +30,12 @@ import { deviceName } from "../domain/logins";
 import { deviceId, loadPreviousLogin, recordSuccessfulLogin, startLoginHistory } from "./login-history";
 import { HOSTED_RECOVERY_PAGE, parseRecoveryLink, recoveryPage, recoveryRedirect } from "./recovery";
 import { IDLE_BRAKE, isVerificationBlocked, recordVerificationFailure, recordVerificationSuccess } from "./verification-brake";
+
+/** The local copy emptied, and with it what was pulled into it: "nothing here" waits for the next pull (`pulledOnce`). */
+async function wipeWorkspace(): Promise<void> {
+  await resetLocalWorkspace();
+  useSyncStatus.getState().set({ state: "idle", error: null, lastSyncAt: null });
+}
 
 /** The one account of a build with no Supabase, which runs on the device alone. */
 export const LOCAL_USER_ID = "local";
@@ -116,7 +123,7 @@ async function ensureWorkspaceFor(userId: string): Promise<string | null> {
       // is a deleted account's: nobody is left to send them to.
       if (owner !== WIPE_PENDING && (await pendingOutboxCount()) > 0) return tr.auth.errOtherAccountPending;
       await cancelReminders().catch(ignore);
-      await resetLocalWorkspace();
+      await wipeWorkspace();
     } catch {
       return tr.auth.errWorkspaceReset;
     }
@@ -178,7 +185,7 @@ async function closeEndedSession(): Promise<void> {
   await kv.remove(LAST_USER_KEY).catch(ignore);
   await cancelReminders().catch(ignore);
   // A count that fails is not a zero.
-  if ((await pendingOutboxCount().catch(ignore)) === 0) await resetLocalWorkspace().then(forgetAccount, ignore);
+  if ((await pendingOutboxCount().catch(ignore)) === 0) await wipeWorkspace().then(forgetAccount, ignore);
 }
 
 function listenForEndedSessions(): void {
@@ -395,7 +402,7 @@ export const useSession = create<SessionStore>((set, get) => ({
       if (userId) await flushOutbox(userId);
       if (!options?.force && (await pendingOutboxCount()) > 0) return SIGN_OUT_PENDING_CHANGES;
       await stopSyncSession();
-      const [, wiped] = await Promise.all([cancelReminders().catch(ignore), resetLocalWorkspace().then(() => true, () => false)]);
+      const [, wiped] = await Promise.all([cancelReminders().catch(ignore), wipeWorkspace().then(() => true, () => false)]);
       if (!wiped) {
         if (userId) startSyncSession(userId);
         return tr.auth.errWorkspaceReset;
@@ -445,7 +452,7 @@ export const useSession = create<SessionStore>((set, get) => ({
       const [, , wiped] = await Promise.all([
         cancelReminders().catch(ignore),
         endAuthSession(supabase, "global"),
-        resetLocalWorkspace().then(() => true, () => false),
+        wipeWorkspace().then(() => true, () => false),
       ]);
       if (!wiped) {
         set(signedOut);

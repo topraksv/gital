@@ -197,7 +197,7 @@ export async function settleArrivals(userId: string): Promise<void> {
   await writeRows(async () => {
     const bought = await sqlite.getAllAsync<RowSnapshot>(
       `SELECT items.*, items.deleted_at IS NULL AND shops.deleted_at IS NULL AS home FROM items
-         JOIN shops ON shops.id = items.shop_id
+         JOIN shops ON shops.id = items.shop_id AND shops.list_id = items.list_id
          JOIN lists ON lists.id = items.list_id
        WHERE items.checked_by = ? AND lists.pantry = 1 AND shops.finished_at > ?
          AND EXISTS (SELECT 1 FROM list_members WHERE list_members.list_id = items.list_id)`,

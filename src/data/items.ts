@@ -114,7 +114,7 @@ export async function readBought(exceptId: string): Promise<Bought[]> {
 }
 
 export function readShopItems(shopId: string): Promise<Item[]> {
-  return readItemsWhere(eq(items.shopId, shopId));
+  return readItemsWhere(and(eq(items.shopId, shopId), sql`${items.listId} = (SELECT list_id FROM shops WHERE id = ${shopId})`));
 }
 
 /** A product's row on a list: bought and needed again, it comes back under the same id. */

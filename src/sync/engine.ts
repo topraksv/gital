@@ -22,7 +22,7 @@ import Constants from "expo-constants";
 import { getSqliteAsync, withTransaction } from "../db/client";
 import { fromDbShape, nowIso, onLocalWrite, setActor, writeRows, type RowWrite } from "../db/mutations";
 import { SYNCED_TABLES, type SyncedTableName } from "../db/schema";
-import { HELD_PANTRY, heldPantry, settleArrivals } from "../data/pantry";
+import { HELD_PANTRY, heldPantry, readPantry, settleArrivals, type PantryItem } from "../data/pantry";
 import { tr } from "../i18n/tr";
 import { retryDeadLetter } from "./dead-letters";
 import {
@@ -39,8 +39,8 @@ import {
   type PullCursor,
   type RejectedOutboxEvent,
 } from "./merge-policy";
-import { fetchMissingPhotos, sendPendingPhotos } from "./photos";
-import { PERSONAL_TABLES, toLocalRow, toServerRow } from "./rows";
+import { fetchMissingPhotos, PHOTO_TABLES, sendPendingPhotos } from "./photos";
+import { keyColumns, toLocalRow, toServerRow } from "./rows";
 import { SessionEpoch, SessionEpochCancelledError, type SessionEpochToken } from "./session-epoch";
 import { forgetOffers, listOffers, useOffers } from "./sharing";
 import { classifyRefreshFailure, completedSyncState, isNetworkFailure, useSyncStatus, type RefreshOutcome } from "./status";
@@ -116,7 +116,9 @@ async function atServerGeneration(
   row: Record<string, unknown>,
   token: SessionEpochToken,
 ): Promise<Record<string, unknown> | null> {
-  const { data, error } = await supabase.from(table).select("tombstone_version").eq("id", String(row.id)).limit(1).abortSignal(token.signal);
+  let query = supabase.from(table).select("tombstone_version");
+  for (const column of keyColumns(table)) query = query.eq(column, String(row[column]));
+  const { data, error } = await query.limit(1).abortSignal(token.signal);
   if (error) throw new Error(`push ${table}: ${error.message}`);
   const held = (data as { tombstone_version: number }[] | null)?.[0];
   return held && held.tombstone_version < Number(row.tombstone_version) ? { ...row, tombstone_version: held.tombstone_version } : null;
@@ -151,11 +153,18 @@ async function assertSessionIs(supabase: Supabase, userId: string): Promise<void
  * row added again carries a new one, and a device that kept the old would
  * push its next edit as if that too were made afresh (`isAddedAgain`).
  */
+/**
+ * The device keys every row by id alone; the server keys a shop or item by its
+ * list too (migration 14). So a row from another list under an id this device
+ * already holds is someone's copy of that id, and never moves the row here
+ * into their list.
+ */
 async function upsertLocal(sqlite: LocalDatabase, table: SyncedTableName, row: Record<string, unknown>): Promise<void> {
   const keys = Object.keys(row);
+  const sameKey = keyColumns(table).includes("list_id") ? ` WHERE ${table}.list_id = excluded.list_id` : "";
   await sqlite.runAsync(
     `INSERT INTO ${table} (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})
-     ON CONFLICT(id) DO UPDATE SET ${keys.filter((key) => key !== "id").map((key) => `${key} = excluded.${key}`).join(", ")}`,
+     ON CONFLICT(id) DO UPDATE SET ${keys.filter((key) => key !== "id").map((key) => `${key} = excluded.${key}`).join(", ")}${sameKey}`,
     keys.map((key) => row[key] as string | number | null),
   );
 }
@@ -200,7 +209,7 @@ async function sendRows(
   rows: Record<string, unknown>[],
   token: SessionEpochToken,
 ): Promise<{ acknowledged: Acknowledged[]; refused: RejectedOutboxEvent[] }> {
-  const onConflict = PERSONAL_TABLES.has(table) ? "user_id,id" : "id";
+  const onConflict = keyColumns(table).join(",");
   const send = (batch: Record<string, unknown>[]) =>
     supabase.from(table).upsert(batch, { onConflict }).select("*").abortSignal(token.signal);
   const acknowledged: Acknowledged[] = [];
@@ -233,20 +242,32 @@ async function pushTable(supabase: Supabase, table: SyncedTableName, owner: stri
       [table],
     );
     if (events.length === 0) return;
+    // After the batch is read, not once before the push: a row naming a photo
+    // must never reach a device before the photo can, and one written while
+    // this run was pushing an earlier table would otherwise go up without it.
+    if (PHOTO_TABLES.has(table)) await sendPendingPhotos(supabase, token.signal);
     const { latestByRow, rejected } = classifyOutboxBatch(events);
-    const pushed: ParsedOutboxEvent[] = [];
-    const rows: Record<string, unknown>[] = [];
+    // By the columns each row names: one statement gives every row the same
+    // columns, and PostgREST would write null into one an older event lacks.
+    const shapes = new Map<string, { events: ParsedOutboxEvent[]; rows: Record<string, unknown>[] }>();
     for (const event of latestByRow.values()) {
       const row = toServerRow(table, event.row, owner);
-      if (row) {
-        pushed.push(event);
-        rows.push(row);
-      } else {
+      if (!row) {
         rejected.push({ ...event, reason: "invalid_row" });
+        continue;
       }
+      const shape = Object.keys(row).sort().join();
+      const group = shapes.get(shape) ?? { events: [], rows: [] };
+      group.events.push(event);
+      group.rows.push(row);
+      shapes.set(shape, group);
     }
-    const { acknowledged, refused } = await sendRows(supabase, table, pushed, rows, token);
-    rejected.push(...refused);
+    const acknowledged: Acknowledged[] = [];
+    for (const group of shapes.values()) {
+      const sent = await sendRows(supabase, table, group.events, group.rows, token);
+      acknowledged.push(...sent.acknowledged);
+      rejected.push(...sent.refused);
+    }
     // A sign-out or another account may have come while PostgREST was
     // answering: the outbox is never cleared for a session that has ended.
     assertActive(token);
@@ -284,8 +305,6 @@ async function pushTable(supabase: Supabase, table: SyncedTableName, owner: stri
 }
 
 async function pushOutbox(supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
-  // Before the rows: a row naming a photo must never reach a device before the photo can.
-  await sendPendingPhotos(supabase, token.signal);
   const pantry = (await heldPantry(userId)).id;
   for (const table of PUSHED) await pushTable(supabase, table, PANTRY.has(table) ? pantry : userId, token);
 }
@@ -486,6 +505,10 @@ const FROM_START = parsePullCursor(null);
  */
 async function followMemberships(supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
   const sqlite = await getSqliteAsync();
+  if (membershipsSweptFor !== userId) {
+    await sweepMemberships(sqlite, supabase, userId, token);
+    membershipsSweptFor = userId;
+  }
   const mine = await sqlite.getAllAsync<{ list_id: string; deleted_at: string | null }>(
     "SELECT list_id, deleted_at FROM list_members WHERE user_id = ? AND role <> 'owner'",
     [userId],
@@ -503,6 +526,32 @@ async function followMemberships(supabase: Supabase, userId: string, token: Sess
       for (const table of tables) await pullTable(supabase, table, FROM_START, userId, token, pages.get(table)!, list);
       await sqlite.runAsync("INSERT OR REPLACE INTO sync_state (table_name, last_pulled_at) VALUES (?, ?)", [FETCHED + list, nowIso()]);
     }
+  }
+}
+
+/** Once a session: the sweep costs a request that the 30 s poll need not repeat. */
+let membershipsSweptFor: string | null = null;
+const SWEEP_LIMIT = 1000;
+
+/**
+ * An account deleted takes its lists and memberships with it by cascade: hard
+ * deletes, which no keyset pull ever sees. So the memberships the server still
+ * holds are asked for whole, and one this device holds that is gone from it
+ * goes here too — the person's own drops its list, as a removal does; another's
+ * leaves the members sheet.
+ */
+async function sweepMemberships(sqlite: LocalDatabase, supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
+  const { data, error } = await supabase.from("list_members").select("id").limit(SWEEP_LIMIT).abortSignal(token.signal);
+  if (error) throw new Error(`memberships: ${error.message}`);
+  const held = new Set((data as { id: string }[]).map((row) => row.id));
+  // A page that may not be all of them proves nothing gone.
+  if (held.size >= SWEEP_LIMIT) return;
+  assertActive(token);
+  const local = await sqlite.getAllAsync<{ id: string; list_id: string; user_id: string; role: string }>("SELECT id, list_id, user_id, role FROM list_members");
+  for (const row of local) {
+    if (held.has(row.id)) continue;
+    if (row.user_id === userId && row.role !== "owner") await forgetList(sqlite, row.list_id);
+    else await sqlite.runAsync("DELETE FROM list_members WHERE id = ?", [row.id]);
   }
 }
 
@@ -610,6 +659,7 @@ async function runSync(userId: string, token: SessionEpochToken, allowRefresh: b
 /** Open sync for the signed-in account; only `src/auth/session.ts` calls it. */
 export function startSyncSession(userId: string): void {
   sessionEpoch.start(userId);
+  membershipsSweptFor = null;
   setActor(userId);
   changeProbeUnavailable = false;
   clearScheduledSync();
@@ -639,6 +689,18 @@ export async function flushOutbox(userId: string): Promise<void> {
   } catch {
     // Counted by the caller.
   }
+}
+
+/**
+ * What joining a household brings: the person's own Kiler as the server holds
+ * it once this device has sent and pulled, or null when it could not. The join
+ * empties that Kiler on the server, so a count missing what another device of
+ * theirs stocked would lose it. Twice, because a run already in flight may
+ * have pulled before that device's write landed.
+ */
+export async function pantryToBring(userId: string): Promise<PantryItem[] | null> {
+  await syncNow(userId);
+  return (await syncNow(userId)) ? readPantry() : null;
 }
 
 export async function syncNow(userId: string, allowRefresh = true): Promise<boolean> {

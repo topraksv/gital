@@ -62,7 +62,17 @@ export class FakeCloud {
   }
 
   private keyOf(table: string, row: Row): string {
-    return PERSONAL.has(table) ? `${String(row.user_id)}|${String(row.id)}` : String(row.id);
+    return this.keyColumns(table).map((column) => String(row[column])).join("|");
+  }
+
+  /**
+   * Migration 14: shops and items are keyed by their list too. Written again
+   * rather than imported from `src/sync/rows.ts`, so a key the client gets
+   * wrong is one this server does not have.
+   */
+  keyColumns(table: string): string[] {
+    if (PERSONAL.has(table)) return ["user_id", "id"];
+    return table === "shops" || table === "items" ? ["list_id", "id"] : ["id"];
   }
 
   private readonly invites = new Map<string, { list: string; role: string }>();
@@ -148,8 +158,11 @@ export class FakeCloud {
     const staged = new Map(stored);
     const now = this.now();
     const answer: Row[] = [];
+    // PostgREST's bulk insert names the union of the rows' keys, and a row
+    // that lacks one writes null into it (supabase-js's `defaultToNull`).
+    const named = [...new Set(rows.flatMap((row) => Object.keys(row)))];
     for (const incoming of rows) {
-      const row = { ...incoming };
+      const row: Row = { ...Object.fromEntries(named.map((column) => [column, null])), ...incoming };
       if (table === "lists") row.owner_id ??= uid;
       if (PERSONAL.has(table)) row.user_id ??= uid;
       const key = this.keyOf(table, row);
@@ -190,11 +203,11 @@ export class FakeCloud {
     return { data: answer, error: null };
   }
 
-  private select(table: string, filter: { after?: { us: number; id: string }; from?: number; limit: number; eq?: [string, string] }): Reply {
+  private select(table: string, filter: { after?: { us: number; id: string }; from?: number; limit: number; eq?: [string, string][] }): Reply {
     const uid = this.user;
     if (!uid) return { data: null, error: { message: "permission denied for table " + table, code: "42501" } };
     const sorted = this.rows(table)
-      .filter((row) => this.visible(table, row, uid) && (!filter.eq || row[filter.eq[0]] === filter.eq[1]))
+      .filter((row) => this.visible(table, row, uid) && (filter.eq ?? []).every(([column, value]) => row[column] === value))
       .map((row) => ({ row, us: micros(String(row.updated_at)) }))
       .filter(({ row, us }) =>
         filter.after
@@ -392,8 +405,14 @@ export class FakeCloud {
   }
 
   private canSeePhoto(photo: string, uid: string): boolean {
-    return ["items", "wishes"].some((table) =>
+    return ["items", "wishes", "shops"].some((table) =>
       this.rows(table).some((row) => row.photo_id === photo && this.visible(table, row, uid)));
+  }
+
+  /** `private.can_place_photo` (migration 14): where the uploader may write every list a row naming it is on. */
+  private canPlacePhoto(photo: string, uid: string): boolean {
+    return ["items", "wishes", "shops"].every((table) =>
+      this.rows(table).every((row) => row.photo_id !== photo || this.canWrite(row.list_id, uid)));
   }
 
   /** Keep the next `request` (`"upsert lists"`) unanswered until the returned release, so a test can act while it is in flight. */
@@ -421,7 +440,7 @@ export class FakeCloud {
     const from = (table: string) => {
       let upserting: Row[] | null = null;
       let conflict: string | undefined;
-      const filter: { after?: { us: number; id: string }; from?: number; limit: number; eq?: [string, string] } = { limit: 1000 };
+      const filter: { after?: { us: number; id: string }; from?: number; limit: number; eq?: [string, string][] } = { limit: 1000 };
       const builder = {
         upsert(rows: Row[], options: { onConflict?: string }) {
           upserting = rows;
@@ -431,7 +450,7 @@ export class FakeCloud {
         select: () => builder,
         order: () => builder,
         eq(column: string, value: string) {
-          filter.eq = [column, value];
+          filter.eq = [...(filter.eq ?? []), [column, value]];
           return builder;
         },
         limit(count: number) {
@@ -451,7 +470,7 @@ export class FakeCloud {
         abortSignal(signal: AbortSignal) {
           return cloud.answer(`${upserting ? "upsert" : "select"} ${table}`, signal, () => {
             if (!upserting) return cloud.select(table, filter);
-            const expected = PERSONAL.has(table) ? "user_id,id" : "id";
+            const expected = cloud.keyColumns(table).join(",");
             if (conflict !== expected) throw new Error(`upsert ${table} on ${conflict}, not ${expected}`);
             return cloud.upsert(table, upserting);
           });
@@ -485,10 +504,11 @@ export class FakeCloud {
               cloud.answer(`upload ${path}`, undefined, () => {
                 const uid = cloud.user;
                 const existing = cloud.objects.get(path);
-                if (!uid || !PHOTO_OBJECT.test(path) || options.contentType !== "image/jpeg") {
-                  return { data: null, error: { message: "new row violates row-level security policy" } };
-                }
-                if (existing && (!options.upsert || existing.owner !== uid)) return { data: null, error: { message: "The resource already exists" } };
+                const photo = PHOTO_OBJECT.exec(path)?.[1];
+                const refused = { data: null, error: { message: "new row violates row-level security policy", status: 403 } };
+                if (!uid || !photo || options.contentType !== "image/jpeg") return refused;
+                if (existing && (!options.upsert || existing.owner !== uid)) return { data: null, error: { message: "The resource already exists", status: 409 } };
+                if (!existing && !cloud.canPlacePhoto(photo, uid)) return refused;
                 cloud.objects.set(path, { owner: uid, bytes: new Uint8Array(body) });
                 return { data: { path }, error: null };
               }),

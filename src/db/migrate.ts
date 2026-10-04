@@ -7,6 +7,7 @@
 
 import { getSqliteAsync, withTransaction } from "./client";
 import migrations from "./migrations/migrations";
+import { SYNCED_TABLES } from "./schema";
 
 export async function migrateDb(): Promise<void> {
   const db = await getSqliteAsync();
@@ -18,6 +19,7 @@ export async function migrateDb(): Promise<void> {
   );
   const appliedUpTo = Number(last?.created_at ?? 0);
 
+  let applied = 0;
   for (const entry of migrations.journal.entries) {
     if (entry.when <= appliedUpTo) continue;
     const key = `m${String(entry.idx).padStart(4, "0")}` as keyof typeof migrations.migrations;
@@ -31,5 +33,13 @@ export async function migrateDb(): Promise<void> {
       }
       await db.runAsync(`INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)`, ["", entry.when]);
     });
+    applied += 1;
+  }
+  // Every row is pulled again after an update: one pulled before a column
+  // existed here lost that column's value, the cursor has moved past it, and
+  // the next edit of it would send the migration's empty value over the server's.
+  if (applied > 0) {
+    const tables = Object.keys(SYNCED_TABLES);
+    await db.runAsync(`DELETE FROM sync_state WHERE table_name IN (${tables.map(() => "?").join(", ")})`, tables);
   }
 }

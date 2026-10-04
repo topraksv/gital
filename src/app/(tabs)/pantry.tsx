@@ -34,6 +34,7 @@ import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
 import { showNotice, showUndo } from "../../ui/undo";
 import { density, motion, spacing, type, useTheme } from "../../ui/theme";
+import { usePulledOnce } from "../../ui/tour";
 
 /** The Listeler tab's route, where a finished product goes back onto its list. */
 const LISTS_TAB = "index";
@@ -46,6 +47,7 @@ const LISTS_TAB = "index";
  * (SPEC 12.13).
  */
 export default function Pantry() {
+  const pulled = usePulledOnce();
   const userId = useSession((s) => s.userId) ?? "";
   const pantry = usePantry();
   const moved = useMovedAisles();
@@ -144,7 +146,7 @@ export default function Pantry() {
       ) : pantry.updatedAt != null ? (
         <ArrivalScope>
           {pantry.data.length === 0 ? (
-            <EmptyState icon={Refrigerator} title={tr.pantry.emptyTitle} hint={tr.pantry.emptyHint} />
+            pulled && <EmptyState icon={Refrigerator} title={tr.pantry.emptyTitle} hint={tr.pantry.emptyHint} />
           ) : sorting ? (
             <SortPantry sections={sections} row={row} onDragging={setDragging} />
           ) : (

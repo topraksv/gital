@@ -80,6 +80,7 @@ describe("isUnread", () => {
     expect(isUnread(made({ links: [] }), later)).toBe(false);
     expect(isUnread(made({ links: [{ id: "k", url: "https://a.com/x", priceMinor: null }, { id: "l", url: "https://ty.gl/abc", priceMinor: null }] }), later), "every link is read, so every one is at a named shop").toBe(false);
     expect(isUnread(made({ name: "A.com", links: [{ id: "l", url: "https://a.com/x", priceMinor: null }] }), later), "a shop not named here is read only when its wish is saved").toBe(false);
+    expect(isUnread(made({ name: "Amazon", links: [{ id: "l", url: "https://amazon.attacker.example/x", priceMinor: null }] }), later), "a look-alike of a named shop is not that shop").toBe(false);
   });
 });
 
@@ -92,6 +93,14 @@ describe("shopOf", () => {
     expect(shopOf("https://amzn.eu/d/x")).toBe("Amazon");
     expect(shopOf("https://www.n11.com/urun")).toBe("n11");
     expect(shopOf("https://shop.example.co.uk/x")).toBe("shop.example.co.uk");
+  });
+
+  it("names a shop by its own domain only, so a co-member's look-alike host is never read unasked", () => {
+    expect(shopOf("https://amazon.attacker.example/x")).toBe("amazon.attacker.example");
+    expect(shopOf("https://amzn.evil.io/x")).toBe("amzn.evil.io");
+    for (const host of ["trendyol.com.evil.io", "ty.gl.evil.io", "hepsiburada.com.evil.io", "n11.com.evil.io", "amazon.com.tr.evil.io"]) {
+      expect(shopOf(`https://${host}/x`)).toBe(host);
+    }
   });
 });
 

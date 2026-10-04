@@ -51,6 +51,9 @@ export function useShare(listId: string) {
   return { members, userId, role, viewer: role === "viewer" };
 }
 
+/** An empty list's hint: an editor's points at the field above, which a viewer has not got. */
+export const emptyHintFor = (viewer: boolean, editorHint: string) => (viewer ? tr.sharing.emptyToViewer : editorHint);
+
 /** What only an editor or the owner is offered; a viewer sees `fallback` in its place. */
 export function EditorsOnly({ viewer, fallback = null, children }: { viewer: boolean; fallback?: ReactNode; children: ReactNode }) {
   return viewer ? fallback : children;

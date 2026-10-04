@@ -22,7 +22,7 @@ import Plus from "lucide-react-native/icons/plus";
 import { tr } from "../i18n/tr";
 import { readLists } from "../data/lists";
 import { kv } from "../services/kv";
-import { useSyncStatus } from "../sync/status";
+import { pulledOnce, useSyncStatus } from "../sync/status";
 import { isSupabaseConfigured } from "../sync/supabase";
 import { useModalAccessibility } from "./accessibility";
 import { Button, SlideUp } from "./components";
@@ -32,9 +32,14 @@ import { circle, font, iconSize, iconStroke, motion, radius, spacing, tour, type
 const SEEN_KEY = "gital.tour.seen";
 const SLIDES = tr.tour.slides;
 
+/** `pulledOnce` on screen; a build with no server has nothing to wait for. */
+export function usePulledOnce(): boolean {
+  return useSyncStatus(pulledOnce) || !isSupabaseConfigured;
+}
+
 /** Mounted on Listeler: the one screen every first open reaches. */
 export function FirstRunTour() {
-  const settled = useSyncStatus((s) => s.lastSyncAt != null) || !isSupabaseConfigured;
+  const settled = usePulledOnce();
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!settled) return;

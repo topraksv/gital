@@ -39,7 +39,7 @@ import { CarrySheet, ItemSheet, type ItemDestination } from "../../ui/item-sheet
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import type { MemberRole } from "../../db/schema";
 import { ListSheet } from "../../ui/list-sheet";
-import { EditorsOnly, PeopleActions, ShoppersNote, useShare } from "../../ui/members-sheet";
+import { EditorsOnly, PeopleActions, ShoppersNote, emptyHintFor, useShare } from "../../ui/members-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
 import { navigateBack } from "../../ui/navigation";
@@ -213,7 +213,7 @@ export default function ListScreen() {
           </EditorsOnly>
           {/* The card stays in the one keyed array when the finish empties the list, so a last row deleted under it never mounts it again. */}
           {items.data.length === 0 && !finishing.card ? (
-            <EmptyState icon={ListPlus} title={tr.items.emptyTitle} hint={tr.items.emptyHint} />
+            <EmptyState icon={ListPlus} title={tr.items.emptyTitle} hint={emptyHintFor(viewer, tr.items.emptyHint)} />
           ) : (
             <>
               <Progress done={basket.length} total={items.data.length} />

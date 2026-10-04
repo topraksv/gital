@@ -42,7 +42,7 @@ export function readPurchases(listId: string): Promise<Purchase[]> {
   return getDb()
     .select({ name: items.name, quantityMilli: items.quantityMilli, unit: items.unit, boughtAt: shops.finishedAt })
     .from(items)
-    .innerJoin(shops, and(eq(shops.id, items.shopId), isNull(shops.deletedAt)))
+    .innerJoin(shops, and(eq(shops.id, items.shopId), eq(shops.listId, items.listId), isNull(shops.deletedAt)))
     .where(and(eq(shops.listId, listId), isNull(items.deletedAt)))
     .orderBy(desc(shops.finishedAt), asc(items.id));
 }
@@ -66,7 +66,8 @@ export async function readShops(): Promise<Shop[]> {
     })
     .from(shops)
     .innerJoin(lists, and(eq(lists.id, shops.listId), isNull(lists.deletedAt)))
-    .leftJoin(items, and(eq(items.shopId, shops.id), isNull(items.deletedAt)))
+    // The same list too: a shop id is a hash of its list's, so a co-member can name another list's shop on a row of theirs.
+    .leftJoin(items, and(eq(items.shopId, shops.id), eq(items.listId, shops.listId), isNull(items.deletedAt)))
     .leftJoin(photos, eq(photos.id, shops.photoId))
     .where(isNull(shops.deletedAt))
     .groupBy(shops.id)
@@ -79,7 +80,7 @@ export async function readPricedSince(since: string): Promise<{ name: string; pr
   const rows = await getDb()
     .select({ name: items.name, priceMinor: items.priceMinor })
     .from(items)
-    .innerJoin(shops, and(eq(shops.id, items.shopId), isNull(shops.deletedAt), gte(shops.finishedAt, since)))
+    .innerJoin(shops, and(eq(shops.id, items.shopId), eq(shops.listId, items.listId), isNull(shops.deletedAt), gte(shops.finishedAt, since)))
     .innerJoin(lists, and(eq(lists.id, shops.listId), isNull(lists.deletedAt)))
     .where(and(isNull(items.deletedAt), isNotNull(items.priceMinor)));
   return rows.map(({ name, priceMinor }) => ({ name, priceMinor: priceMinor! }));
@@ -188,7 +189,7 @@ export async function reopenShop(shopId: string): Promise<void> {
     const listId = String(shop.list_id);
     await readLiveRow("lists", listId);
     const now = nowIso();
-    const moved = await sqlite.getAllAsync<RowSnapshot>("SELECT * FROM items WHERE shop_id = ? AND deleted_at IS NULL", [shopId]);
+    const moved = await sqlite.getAllAsync<RowSnapshot>("SELECT * FROM items WHERE shop_id = ? AND list_id = ? AND deleted_at IS NULL", [shopId, listId]);
     const ids = await Promise.all(moved.map((row) => openItemId(listId, String(row.name))));
     const gone = await sqlite.getAllAsync<RowSnapshot>(
       `SELECT * FROM items WHERE id IN (${ids.map(() => "?").join(", ")}) AND deleted_at IS NOT NULL`,
