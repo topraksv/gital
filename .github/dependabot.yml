@@ -58,9 +58,10 @@ updates:
         update-types: ["version-update:semver-patch", "version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
-      # Vitest's major moves with the mutation gate, which is not built yet:
-      # Helix measured Vitest 5 breaking Stryker's per-test attribution, and
-      # Gital already runs 5 (docs/BACKLOG.md "Mutation testing").
+      # Vitest's major moves with the mutation gate: Stryker reruns a mutant's
+      # tests by name and Vitest 5 joins names differently, so a major here is
+      # re-measured against scripts/stryker-vitest-files.mjs first
+      # (docs/ARCHITECTURE.md "A mutation gate over `src/domain`").
       - dependency-name: "vitest"
         update-types: ["version-update:semver-major"]
       - dependency-name: "@vitest/coverage-v8"
