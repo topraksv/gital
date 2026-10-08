@@ -70,7 +70,8 @@ export function useItems(listId: string) {
 
 // Lists, because a shop's card names its list. Not items: what a shop counts
 // changes only when it is finished or undone, which writes the shop as well,
-// and a tick on a list must not re-read every shop.
+// and a tick on a list must not re-read every shop. A co-member's shop pulled
+// before what it bought is told by the pull (`src/sync/engine.ts` `pullTable`).
 const shopsStore = liveStore(readShops, ["shops", "lists"]);
 
 export function useShops() {

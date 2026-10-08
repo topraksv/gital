@@ -23,6 +23,9 @@ describe("classify-changes", () => {
     ["the root layout moved", ["src/app/_layout.tsx"], true],
     ["a script the gate runs moved", ["scripts/check-web-budget.mjs"], true],
     ["a path nobody classified appeared", ["babel.config.js", "somewhere/new.ts"], true],
+    ["a test behind a floor moved", ["tests/domain/lists.test.ts"], true],
+    ["the tests' shared harness moved", ["tests/helpers.ts"], true],
+    ["a test of the delivery itself moved", ["tests/gates.test.ts"], false],
     ["a screen moved", ["src/app/index.tsx"], false],
     ["a token moved", ["src/ui/theme.ts"], false],
     ["the browser suite moved", ["e2e/first-list.spec.ts"], false],
@@ -140,6 +143,8 @@ describe("mutation scope", () => {
       git("init", "--quiet");
       git("config", "user.email", "mutation@example.invalid");
       git("config", "user.name", "Mutation Test");
+      // A signing key in the global config would ask for its passphrase here.
+      git("config", "commit.gpgsign", "false");
       mkdirSync(join(repository, "src/domain"), { recursive: true });
       writeFileSync(join(repository, "src/domain/list.ts"), "export const size = 1;\n");
       git("add", ".");
@@ -150,10 +155,27 @@ describe("mutation scope", () => {
       git("add", ".");
       git("commit", "--quiet", "-m", "change");
       expect(selectMutationScope({ base, head: git("rev-parse", "HEAD"), cwd: repository })).toEqual(["src/domain/list.ts"]);
+
+      // A file's tests or its recorded floor decide its score as much as its source.
+      writeFileSync(join(repository, "src/domain/item.ts"), "export const kind = 1;\n");
+      writeFileSync(join(repository, "mutation-baseline.json"), JSON.stringify({ files: { "src/domain/item.ts": 80, "src/domain/list.ts": 90 } }));
+      git("add", ".");
+      git("commit", "--quiet", "-m", "floors");
+      const floors = git("rev-parse", "HEAD");
+      mkdirSync(join(repository, "tests/domain"), { recursive: true });
+      // Named for what it checks, not for the file it imports.
+      writeFileSync(join(repository, "tests/domain/size-bounds.test.ts"), 'import { size } from "../../src/domain/list";\n// fewer cases\n');
+      writeFileSync(join(repository, "mutation-baseline.json"), JSON.stringify({ files: { "src/domain/item.ts": 85, "src/domain/list.ts": 90 } }));
+      git("add", ".");
+      git("commit", "--quiet", "-m", "raise");
+      expect(selectMutationScope({ base: floors, head: git("rev-parse", "HEAD"), cwd: repository })).toEqual([
+        "src/domain/item.ts",
+        "src/domain/list.ts",
+      ]);
     } finally {
       rmSync(repository, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   // A push must name a range it can resolve; only a dispatch falls back to
   // the sentinels without one.

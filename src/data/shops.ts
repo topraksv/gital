@@ -10,7 +10,7 @@ import { deterministicId, naturalKeys } from "../db/ids";
 import { editRow, fromDbShape, nowIso, readLiveRow, actingUser, writeRows, type RowSnapshot, type RowWrite } from "../db/mutations";
 import { items, lists, photos, shops } from "../db/schema";
 import { foldName } from "../domain/items";
-import { isPrice } from "../domain/money";
+import { isPrice, spentOn } from "../domain/money";
 import { lookOf, type ListLook } from "../domain/lists";
 import type { Purchase } from "../domain/restock";
 import { openItemId } from "./items";
@@ -131,12 +131,15 @@ async function lastShopNumber(listId: string): Promise<number> {
  * `stocked` is how many went to the pantry (SPEC 12.5), for the celebration:
  * this person's ticks only, since a pantry is its owner's to write, and each
  * other member's device brings theirs home (`settleArrivals`). `stayed` is
- * what the shop left on the list, read inside the same write: a tick that
- * lands as Bitir is pressed is bought, which the screen's snapshot was not.
+ * what the shop left on the list, and `spentMinor` what it paid, both read
+ * inside the same write: a tick that lands as Bitir is pressed is bought,
+ * which the screen's snapshot was not.
  */
-export async function finishShop(listId: string): Promise<{ id: string; bought: number; stocked: number; stayed: string[] } | null> {
+type FinishedShop = { id: string; bought: number; spentMinor: number | null; stocked: number; stayed: string[] };
+
+export async function finishShop(listId: string): Promise<FinishedShop | null> {
   const sqlite = await getSqliteAsync();
-  let finished: { id: string; bought: number; stocked: number; stayed: string[] } | null = null;
+  let finished: FinishedShop | null = null;
   await writeRows(async () => {
     const list = fromDbShape("lists", await readLiveRow("lists", listId));
     const bought = await sqlite.getAllAsync<RowSnapshot>(
@@ -154,7 +157,6 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
       "SELECT id FROM items WHERE list_id = ? AND shop_id IS NULL AND checked_at IS NULL AND deleted_at IS NULL",
       [listId],
     );
-    finished = { id, bought: bought.length, stocked: home.length, stayed: stayed.map((row) => row.id) };
     const copies = await Promise.all(
       bought.map(async (row) => ({
         ...fromDbShape("items", row),
@@ -163,6 +165,7 @@ export async function finishShop(listId: string): Promise<{ id: string; bought: 
         tombstoneVersion: 0,
       })),
     );
+    finished = { id, bought: bought.length, spentMinor: spentOn(bought.map((row) => ({ priceMinor: row.price_minor as number | null }))), stocked: home.length, stayed: stayed.map((row) => row.id) };
     const moves = bought.map((row, at): RowWrite[] => [...editRow("items", row, { deletedAt: now }), { table: "items", row: copies[at]! }]);
     // What was bought comes home in the same write, unless the list's switch says not (SPEC 12.5).
     const arrivals = await arrivalRows(

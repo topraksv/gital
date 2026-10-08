@@ -266,8 +266,8 @@ function SetRow({ set, onAdd, onDelete }: { set: ProductSet; onAdd: () => void; 
         onPress={onAdd}
         style={(state) => ({ flex: 1, minWidth: 0, padding: spacing.md, gap: offset.tight, ...interactionSurface(palette, state) })}
       >
-        <Text numberOfLines={1} style={[type.body, { fontFamily: font.semibold, color: palette.textStrong }]}>{set.name}</Text>
-        <Text numberOfLines={1} style={[type.small, { color: palette.textSecondary }]}>{holds}</Text>
+        <Text style={[type.body, { fontFamily: font.semibold, color: palette.textStrong }]}>{set.name}</Text>
+        <Text style={[type.small, { color: palette.textSecondary }]}>{holds}</Text>
       </Pressable>
       <View style={{ paddingRight: spacing.sm }}>
         <IconButton icon={Trash} label={tr.sets.delete(set.name)} tone="danger" onPress={onDelete} />

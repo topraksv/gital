@@ -6,8 +6,12 @@
 
 import { foldName, quantityOrOne, type Quantity, type Unit } from "./items";
 
-/** Helix's largest amount, 999.999.999.999,99: exact in integer kuruş. */
-export const MAX_PRICE_MINOR = 99_999_999_999_999;
+/**
+ * 1.000.000.000,00, the check every money column carries on the server
+ * (`00000000000003_sync.sql`). Helix's larger bound let a device keep a price
+ * the server refused, and the whole row with it never reached the list.
+ */
+export const MAX_PRICE_MINOR = 100_000_000_000;
 
 export function isPrice(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0 && value <= MAX_PRICE_MINOR;

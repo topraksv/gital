@@ -45,14 +45,21 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
       .leftJoin(photos, eq(photos.id, wishes.photoId))
       .where(and(inArray(wishes.listId, [...listIds]), isNull(wishes.deletedAt))),
     db
-      .select({ id: wishLinks.id, wishId: wishLinks.wishId, url: wishLinks.url, priceMinor: wishLinks.priceMinor })
+      .select({ id: wishLinks.id, listId: wishLinks.listId, wishId: wishLinks.wishId, url: wishLinks.url, priceMinor: wishLinks.priceMinor })
       .from(wishLinks)
       .where(and(inArray(wishLinks.listId, [...listIds]), isNull(wishLinks.deletedAt)))
       .orderBy(asc(wishLinks.createdAt), asc(wishLinks.id)),
   ]);
-  // Not `Map.groupBy`, which Hermes may not have.
+  // Not `Map.groupBy`, which Hermes may not have. By list as well as wish: a
+  // link names its wish by id alone, and an editor of another list this device
+  // reads can write one there naming a wish here.
   const links = new Map<string, typeof linkRows>();
-  for (const link of linkRows) links.set(link.wishId, [...(links.get(link.wishId) ?? []), link]);
+  for (const link of linkRows) {
+    const key = `${link.listId}|${link.wishId}`;
+    const held = links.get(key);
+    if (held) held.push(link);
+    else links.set(key, [link]);
+  }
   for (const { wish: row, photo } of wishRows) {
     byList.get(row.listId)?.push({
       id: row.id,
@@ -65,7 +72,7 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
       photoId: row.photoId,
       photo,
       dueOn: row.dueOn != null && isISODate(row.dueOn) ? row.dueOn : null,
-      links: (links.get(row.id) ?? []).map(({ id, url, priceMinor }) => ({ id, url, priceMinor })),
+      links: (links.get(`${row.listId}|${row.id}`) ?? []).map(({ id, url, priceMinor }) => ({ id, url, priceMinor })),
     });
   }
   return byList;
@@ -162,7 +169,7 @@ export async function saveWish(id: string, change: WishChange): Promise<void> {
     await readCollection(listId);
     const sqlite = await getSqliteAsync();
     const held = new Map(
-      (await sqlite.getAllAsync<RowSnapshot>("SELECT * FROM wish_links WHERE wish_id = ? AND deleted_at IS NULL", [id])).map((row) => [row.id as string, row]),
+      (await sqlite.getAllAsync<RowSnapshot>("SELECT * FROM wish_links WHERE list_id = ? AND wish_id = ? AND deleted_at IS NULL", [listId, id])).map((row) => [row.id as string, row]),
     );
     const writes: RowWrite[] = editRow("wishes", stored, { name, note: noteFrom(change.note), priority: change.priority, estimateMinor, dueOn: change.dueOn, ...(await photoColumn(change.photo)) });
     for (const link of links) {
@@ -186,6 +193,7 @@ export async function unpricedLinksOf(wishId: string): Promise<{ id: string; url
   return getDb()
     .select({ id: wishLinks.id, url: wishLinks.url })
     .from(wishLinks)
+    .innerJoin(wishes, and(eq(wishes.id, wishLinks.wishId), eq(wishes.listId, wishLinks.listId)))
     .where(and(eq(wishLinks.wishId, wishId), isNull(wishLinks.priceMinor), isNull(wishLinks.deletedAt)))
     .orderBy(asc(wishLinks.createdAt), asc(wishLinks.id));
 }
@@ -200,7 +208,7 @@ export async function fillFromPage(linkId: string, found: { name?: string | null
   await writeRows(async () => {
     const link = await findLiveRow("wish_links", linkId);
     const wish = link && (await findLiveRow("wishes", String(link.wish_id)));
-    if (!link || !wish) return [];
+    if (!link || !wish || wish.list_id !== link.list_id) return [];
     const name = found.name != null && isNamedByLink(String(wish.name), String(link.url)) ? itemNameFrom(found.name) : null;
     const photo = found.photo != null && wish.photo_id == null ? await photoColumn(found.photo) : {};
     return [

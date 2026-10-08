@@ -21,7 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import Constants from "expo-constants";
 import { getSqliteAsync, withTransaction } from "../db/client";
 import { fromDbShape, nowIso, onLocalWrite, setActor, writeRows, type RowWrite } from "../db/mutations";
-import { SYNCED_TABLES, type SyncedTableName } from "../db/schema";
+import { SYNCED_TABLES, UNPULLED, type SyncedTableName } from "../db/schema";
 import { HELD_PANTRY, heldPantry, readPantry, settleArrivals, type PantryItem } from "../data/pantry";
 import { tr } from "../i18n/tr";
 import { retryDeadLetter } from "./dead-letters";
@@ -40,7 +40,7 @@ import {
   type RejectedOutboxEvent,
 } from "./merge-policy";
 import { fetchMissingPhotos, PHOTO_TABLES, sendPendingPhotos } from "./photos";
-import { keyColumns, toLocalRow, toServerRow } from "./rows";
+import { cursorInstant, keyColumns, toLocalRow, toServerRow } from "./rows";
 import { SessionEpoch, SessionEpochCancelledError, type SessionEpochToken } from "./session-epoch";
 import { forgetOffers, listOffers, useOffers } from "./sharing";
 import { classifyRefreshFailure, completedSyncState, isNetworkFailure, useSyncStatus, type RefreshOutcome } from "./status";
@@ -235,6 +235,9 @@ async function sendRows(
 /** `owner` is whose a personal row is: the person, or for a pantry row the Kiler this device holds. */
 async function pushTable(supabase: Supabase, table: SyncedTableName, owner: string, token: SessionEpochToken): Promise<void> {
   const sqlite = await getSqliteAsync();
+  // Read with the table's first batch: only a migration writes the mark, and
+  // only the pull after this push clears it.
+  let unpulledColumns: Set<string> | undefined;
   for (;;) {
     assertActive(token);
     const events = await sqlite.getAllAsync<OutboxEvent>(
@@ -247,11 +250,15 @@ async function pushTable(supabase: Supabase, table: SyncedTableName, owner: stri
     // this run was pushing an earlier table would otherwise go up without it.
     if (PHOTO_TABLES.has(table)) await sendPendingPhotos(supabase, token.signal);
     const { latestByRow, rejected } = classifyOutboxBatch(events);
+    if (!unpulledColumns) {
+      const marked = await sqlite.getFirstAsync<{ last_pulled_at: string }>("SELECT last_pulled_at FROM sync_state WHERE table_name = ?", [UNPULLED + table]);
+      unpulledColumns = new Set<string>(marked ? JSON.parse(marked.last_pulled_at) : []);
+    }
     // By the columns each row names: one statement gives every row the same
     // columns, and PostgREST would write null into one an older event lacks.
     const shapes = new Map<string, { events: ParsedOutboxEvent[]; rows: Record<string, unknown>[] }>();
     for (const event of latestByRow.values()) {
-      const row = toServerRow(table, event.row, owner);
+      const row = toServerRow(table, event.row, owner, unpulledColumns);
       if (!row) {
         rejected.push({ ...event, reason: "invalid_row" });
         continue;
@@ -441,16 +448,23 @@ async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullC
       // decides, and taking the server's copy meanwhile would show the older
       // value until then — for ever, if that push is refused.
       const unsent = await newestOutboxIds(sqlite, table, ids);
+      const shops = new Set<string>();
       for (const remote of remotes) {
         assertActive(token);
         const held = local.get(String(remote.id));
         if (unsent.has(String(remote.id))) continue;
         if (remoteWinsLww(held?.updated_at ?? null, String(remote.updated_at), held?.tombstone_version ?? 0, Number(remote.tombstone_version))) {
           await upsertLocal(sqlite, table, remote);
+          if (table === "items" && remote.shop_id != null) shops.add(String(remote.shop_id));
         }
       }
-      const last = remotes.at(-1)!;
-      cursor = { ts: String(last.updated_at), id: String(last.id) };
+      // A shop lands a write before what it bought, and its readers watch
+      // `shops`, not every tick of `items`: the items that name it tell them.
+      for (const chunk of chunks([...shops])) {
+        await sqlite.runAsync(`UPDATE shops SET updated_at = updated_at WHERE id IN (${chunk.map(() => "?").join(", ")})`, chunk);
+      }
+      const last = (data as Record<string, unknown>[]).at(-1)!;
+      cursor = { ts: cursorInstant(last.updated_at), id: String(last.id) };
       if (list) return;
       await sqlite.runAsync(
         `INSERT INTO sync_state (table_name, last_pulled_at) VALUES (?, ?) ON CONFLICT(table_name) DO UPDATE SET last_pulled_at = excluded.last_pulled_at`,
@@ -482,6 +496,13 @@ async function pullAll(supabase: Supabase, userId: string, token: SessionEpochTo
   for (const table of pending) {
     await pullTable(supabase, table, cursorFor(table), PANTRY.has(table) ? pantry : userId, token, pages.get(table)!);
   }
+  // Every row is now the server's, except one with an edit still to send,
+  // which the pull skipped, or refused and held to retry: its table stays
+  // unpulled until that edit is sent or let go.
+  await sqlite.runAsync(
+    "DELETE FROM sync_state WHERE table_name LIKE ? AND substr(table_name, ?) NOT IN (SELECT table_name FROM outbox UNION SELECT table_name FROM sync_dead_letters)",
+    [`${UNPULLED}%`, UNPULLED.length + 1],
+  );
 }
 
 /** The tables a list's membership opens, with the column that names the list. */

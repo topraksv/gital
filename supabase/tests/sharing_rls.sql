@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(43);
+select extensions.plan(45);
 
 create function pg_temp.exec_sqlstate(command text)
 returns text
@@ -186,6 +186,16 @@ select is(
 
 -- The owner changes C's role and removes C, as a device sends it; C cannot come back by itself.
 select pg_temp.act_as('10000000-0000-4000-8000-000000000001');
+select is(
+  pg_temp.push_member((select id from public.list_members where user_id = '30000000-0000-4000-8000-000000000003'), false, 'owner'),
+  null,
+  'a push naming a second owner is taken'
+);
+select is(
+  (select role from public.list_members where user_id = '30000000-0000-4000-8000-000000000003'),
+  'viewer',
+  'but makes none: an owner row can never leave or be removed'
+);
 select is(
   pg_temp.push_member((select id from public.list_members where user_id = '30000000-0000-4000-8000-000000000003'), false, 'editor'),
   null,

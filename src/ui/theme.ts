@@ -386,8 +386,12 @@ export const motion = {
   travel: { rise: 10, bar: 24, sheet: 40 },
   /** A row flying to another tab shrinks to `shrink` on the way; the tab's icon lands at `bounce` and springs home. */
   landing: { shrink: 0.2, bounce: 1.3 },
-  /** An account operation's medallion breathing in and out, Helix's `OperationFlow`; shown only past `reveal`, so a quick one never flashes. */
-  operation: { breath: 1100, reveal: 350 },
+  /** A wait shows nothing before this, so a quick one never flashes (`docs/UI.md` §7). */
+  reveal: 350,
+  /** An account operation's medallion breathing in and out, Helix's `OperationFlow`. */
+  operation: { breath: 1100 },
+  /** Helix's skeleton: a slow, shallow pulse. */
+  skeleton: { pulse: 1200, opacity: [1, 0.55] as const, lines: ["60%", "40%"] as const },
 } as const;
 
 /**

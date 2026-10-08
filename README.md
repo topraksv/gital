@@ -126,9 +126,9 @@ Her sürümün ne getirdiği [Releases](https://github.com/topraksv/gital/releas
 sayfasında, tag'iyle birlikte duruyor; aynı notlar [CHANGELOG.md](CHANGELOG.md)
 içinde.
 
-EAS Build, development client, TestFlight ve store submission bu teslim yolunun
-parçası **değil**. Mobil kullanım Expo Go'nun SDK 57 ile sunduğu native
-kütüphanelerle sınırlı.
+Telefonlar uygulamayı Expo Go'da açar; development client yok ve mobil kullanım
+Expo Go'nun SDK 57 ile sunduğu native kütüphanelerle sınırlı. TestFlight için
+bir EAS Build profili (`eas.json` `production`) hazır, henüz hiç koşmadı.
 
 ---
 
@@ -203,12 +203,13 @@ Bir sürüm tag'i ancak CI'ı yeşil bir commit'i gösterebilir; tag
 | `package.json`, `package-lock.json`, `.npmrc`, `.nvmrc` | npm ve Node sürüm kilidi |
 | `app.json`, `eas.json`, `metro.config.js`, `babel.config.js` | Expo derleme zinciri |
 | `tsconfig.json`, `eslint.config.js` | Tip ve biçim |
-| `vitest.config.mts`, `vitest.mutation.config.mts`, `stryker.config.mjs` | Test ve mutasyon koşuları |
+| `vitest.config.mts`, `vitest.mutation.config.mts`, `stryker.config.mjs`, `stryker.ci.config.mjs` | Test ve mutasyon koşuları |
 | `playwright.config.ts` | Tarayıcı süiti |
-| `lint-baseline.json`, `mutation-baseline.json` | Cırcır tabanları — sayı düşebilir, yükselemez |
+| `lint-baseline.json`, `mutation-baseline.json` | Cırcır tabanları — lint sayısı düşebilir, yükselemez; mutasyon puanı yükselebilir, düşemez |
 | `knip.json` | Ölü kod |
 | `drizzle.config.ts` | SQLite şema üretimi |
 | `README.md`, `CHANGELOG.md`, `LICENSE` | Depoyu açan insan |
+| `.env.example`, `.gitignore`, `.mcp.json` | Yerel ortam değişkenleri, git, ajanların salt-okur Supabase MCP sunucuları |
 
 | Klasör | Sorumluluk |
 |---|---|

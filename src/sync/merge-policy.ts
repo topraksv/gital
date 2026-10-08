@@ -120,9 +120,9 @@ export function formatPullCursor(cursor: PullCursor): string {
 /**
  * Whether the cursor stands on the newest row the server holds, so the table
  * can be skipped. Only an exact match on both halves: Postgres keeps
- * microseconds and the cursor milliseconds, so "not greater" would skip a row
- * written 400µs after the cursor's for ever (Helix measured it). A table the
- * probe reports empty (`null`) has nothing to pull.
+ * microseconds and a cursor written before 2026-10-07 milliseconds, so "not
+ * greater" would skip a row written 400µs after the cursor's for ever (Helix
+ * measured it). A table the probe reports empty (`null`) has nothing to pull.
  */
 export function cursorIsAtServerHead(cursor: PullCursor, head: PullCursor | null): boolean {
   if (head == null) return true;

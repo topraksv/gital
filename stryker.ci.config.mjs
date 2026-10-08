@@ -1,12 +1,13 @@
 import broadConfig from "./stryker.config.mjs";
 import { execFileSync } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
  * The delivery gate's mutation scope, Helix's shape: the domain files a push
- * changed, measured from the last green run, dealt to the runners the matrix
- * holds. `npm run test:mutation` keeps the whole domain for a local audit.
+ * changed — in source, in its tests or in its recorded floor — measured from
+ * the last green run, dealt to the runners the matrix holds.
+ * `npm run test:mutation` keeps the whole domain for a local audit.
  *
  * The whole domain on every full gate was the first choice, at 8 min 35 s on
  * GitHub's runner; on 2026-10-02 it took 16 min 19 s, every other job of the
@@ -20,6 +21,20 @@ import { resolve } from "node:path";
  */
 const SENTINEL_SCOPE = ["src/domain/feedback.ts", "src/domain/names.ts", "src/domain/shopping.ts"];
 
+/**
+ * The `src/` modules a test imports — not those it mocks, which it does not
+ * test — by path without extension: a test's name need not be its source's
+ * (Helix's mostly are not), and a deleted test has none. Read from the
+ * checkout, which is `head` on a runner.
+ */
+function importedSources(test, cwd) {
+  try {
+    return [...readFileSync(resolve(cwd, test), "utf8").matchAll(/(?:from\s+|import\(\s*)["'](?:\.\.\/)+(src\/[\w./-]+?)(?:\.[cm]?[jt]sx?)?["']/g)].map((match) => match[1]);
+  } catch {
+    return [];
+  }
+}
+
 export function selectMutationScope({ base, head, eventName = "local", cwd = process.cwd() }) {
   if (!base || !head) {
     if (eventName === "push") throw new Error("Missing mutation diff base or head for a push event.");
@@ -27,14 +42,25 @@ export function selectMutationScope({ base, head, eventName = "local", cwd = pro
   }
   if (/^0+$/.test(base)) throw new Error("Mutation diff base is the zero SHA; refusing a sentinel-only push gate.");
   try {
-    const changed = execFileSync("git", ["diff", "--no-renames", "--name-only", `${base}..${head}`], {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter((file) => /^src\/domain\/.*\.ts$/.test(file) && existsSync(resolve(cwd, file)));
-    return changed.length > 0 ? changed.sort() : SENTINEL_SCOPE;
+    const git = (...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const paths = git("diff", "--no-renames", "--name-only", `${base}..${head}`).split("\n");
+    // A score moves with its file, its tests, or its recorded floor: 581bb68
+    // raised wishes.ts's floor and CI mutated the sentinels instead.
+    const floors = (ref) => {
+      try {
+        return JSON.parse(git("show", `${ref}:mutation-baseline.json`)).files ?? {};
+      } catch {
+        return {};
+      }
+    };
+    const [before, after] = paths.includes("mutation-baseline.json") ? [floors(base), floors(head)] : [{}, {}];
+    const changed = new Set([
+      ...paths.filter((file) => /^src\/domain\/.*\.ts$/.test(file)),
+      ...paths.filter((file) => file.startsWith("tests/")).flatMap((file) => importedSources(file, cwd).map((source) => `${source}.ts`)),
+      ...Object.keys(after).filter((file) => before[file] !== after[file]),
+    ]);
+    const scope = [...changed].filter((file) => /^src\/domain\/.*\.ts$/.test(file) && existsSync(resolve(cwd, file))).sort();
+    return scope.length > 0 ? scope : SENTINEL_SCOPE;
   } catch (error) {
     throw new Error(`Mutation diff base could not be resolved; refusing a sentinel-only push gate: ${error}`);
   }

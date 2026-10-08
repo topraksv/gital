@@ -21,8 +21,9 @@ describe("readPrice", () => {
   it("reads nothing typed as no price, and refuses what is not one", () => {
     expect(readPrice("  ")).toEqual({ ok: true, minor: null });
     for (const typed of [",5", "1,234", "12.34", "-5", "1+2", "abc", "1.23,00"]) expect(readPrice(typed), typed).toEqual({ ok: false });
-    expect(readPrice("999.999.999.999,99")).toEqual({ ok: true, minor: MAX_PRICE_MINOR });
-    expect(readPrice("1.000.000.000.000")).toEqual({ ok: false });
+    // The server's check on every money column (`00000000000003_sync.sql`).
+    expect(readPrice("1.000.000.000,00")).toEqual({ ok: true, minor: 100_000_000_000 });
+    expect(readPrice("1.000.000.000,01")).toEqual({ ok: false });
   });
 });
 

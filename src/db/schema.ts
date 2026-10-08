@@ -293,6 +293,13 @@ export const syncState = sqliteTable("sync_state", {
   lastPulledAt: text("last_pulled_at").notNull(),
 });
 
+/**
+ * The `sync_state` key under which `migrateDb` names the columns an update
+ * added, as a JSON list, until the pull after it has finished: the push leaves
+ * such a column out while it holds the migration's empty value.
+ */
+export const UNPULLED = "unpulled:";
+
 /** Parents before children, the order a push sends them in: the server checks an item's list. */
 export const SYNCED_TABLES = { lists, list_members: listMembers, shops, items, wishes, wish_links: wishLinks, products, sets, set_items: setItems, pantry_items: pantryItems, pantry_moves: pantryMoves, settings } as const;
 

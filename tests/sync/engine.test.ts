@@ -9,11 +9,12 @@
  */
 
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeCloud } from "./fake-cloud";
 
-const harness = vi.hoisted(() => ({ db: null as DatabaseSync | null, cloud: null as unknown as { client(): unknown }, version: "1.4.1", kv: new Map<string, string>() }));
+const harness = vi.hoisted(() => ({ db: null as DatabaseSync | null, cloud: null as unknown as { client(): unknown }, version: "1.4.1", kv: new Map<string, string>(), update: "SELECT 1" }));
 
 vi.mock("../../src/db/client", async () => {
   const { sqliteClientMock } = await import("../helpers");
@@ -24,7 +25,7 @@ vi.mock("expo-crypto", () => ({
   digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
 }));
 // The update's own migration is the test's; what `migrateDb` does after any is the code's.
-vi.mock("../../src/db/migrations/migrations", () => ({ default: { journal: { entries: [{ idx: 0, when: 1, tag: "update" }] }, migrations: { m0000: "SELECT 1" } } }));
+vi.mock("../../src/db/migrations/migrations", () => ({ default: { journal: { entries: [{ idx: 0, when: 1, tag: "update" }] }, migrations: { get m0000() { return harness.update; } } } }));
 vi.mock("../../src/sync/supabase", () => ({ getSupabase: () => harness.cloud.client() }));
 vi.mock("../../src/services/kv", () => ({
   kv: {
@@ -111,6 +112,7 @@ beforeEach(() => {
   cloud.user = USER;
   harness.cloud = cloud;
   harness.version = "1.4.1";
+  harness.update = "SELECT 1";
   devices ={ A: migratedDatabase(), B: migratedDatabase(), C: migratedDatabase(), D: migratedDatabase() };
   useSyncStatus.getState().set({ state: "idle", error: null, lastSyncAt: null });
 });
@@ -353,6 +355,31 @@ describe("two people sharing a list", () => {
       const fresh = await createList("Ev");
       expect(await inviteToList(fresh, "editor", "Ömer", sent)).toHaveProperty("token");
       expect(sent).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Why the shops stores watch `items` (`src/data/hooks.ts`): here a shop
+  // arrives before what it bought, each table in its own write.
+  it("brings a co-member's shop before the items it bought", async () => {
+    const listId = await sharedMarket();
+    await on("A", async () => {
+      const sut = (await readItems(listId)).find((item) => item.name === "süt")!;
+      await updateItem(sut.id, { name: "süt", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: 4590 });
+      await finishShop(listId);
+      await sync();
+    });
+    await on("C", async () => {
+      const release = cloud.hold("select items");
+      const run = sync();
+      await vi.waitFor(() => expect(cloud.requests).toContain("select items"));
+      await vi.waitFor(async () => expect(await readShops()).toHaveLength(1));
+      expect(await readShops(), "the shop is in, its items are not").toMatchObject([{ bought: 0, spentMinor: null }]);
+      // The screen's change listener and this trigger hear the same update hook.
+      devices.C.exec("CREATE TEMP TABLE told (id TEXT); CREATE TEMP TRIGGER tell AFTER UPDATE ON shops BEGIN INSERT INTO told VALUES (new.id); END;");
+      release();
+      await run;
+      expect(await readShops()).toMatchObject([{ bought: 1, spentMinor: 4590 }]);
+      expect(devices.C.prepare("SELECT id FROM told").all(), "the shops screen hears its items land").toHaveLength(1);
     });
   });
 
@@ -1605,14 +1632,81 @@ describe("what one copy must not do to another's", () => {
     });
     await on("B", async () => {
       await sync();
-      // What a build before 0021 holds after the update: it pulled the shop without the column, and the migration added it empty.
-      devices.B.prepare("UPDATE shops SET photo_id = NULL").run();
+      // A build before 0021: it pulled the shop without the column, and the update adds it empty.
+      devices.B.exec("ALTER TABLE shops DROP COLUMN photo_id");
+      harness.update = readFileSync("src/db/migrations/0021_shop_receipt.sql", "utf8");
       await migrateDb();
       await sync();
       await setShopTotal(shopId, 12_345);
       await sync();
     });
     expect(serverRow("shops", shopId)?.photo_id).not.toBeNull();
+  });
+
+  it("keeps that column when the edit comes before the re-pull, as on an offline launch", async () => {
+    const shopId = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await toggleChecked(item!);
+      await finishShop(id);
+      const [shop] = await readShops();
+      await setShopReceipt(shop!.id, { data: JPEG, thumb: JPEG });
+      await sync();
+      return shop!.id;
+    });
+    await on("B", async () => {
+      await sync();
+      devices.B.exec("ALTER TABLE shops DROP COLUMN photo_id");
+      harness.update = readFileSync("src/db/migrations/0021_shop_receipt.sql", "utf8");
+      await migrateDb();
+      await setShopTotal(shopId, 12_345);
+      await sync();
+      expect(devices.B.prepare("SELECT table_name FROM sync_state WHERE table_name LIKE 'unpulled:%'").all(), "the pull after it finished").toEqual([]);
+      expect(devices.B.prepare("SELECT total_minor, photo_id FROM shops").get(), "the server's answer, taken").toMatchObject({ total_minor: 12_345, photo_id: expect.any(String) });
+    });
+    expect(serverRow("shops", shopId)).toMatchObject({ total_minor: 12_345, photo_id: expect.any(String) });
+  });
+
+  it("keeps that column unpulled while a refused edit of it waits to be retried", async () => {
+    const shopId = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await toggleChecked(item!);
+      await finishShop(id);
+      const [shop] = await readShops();
+      await sync();
+      return shop!.id;
+    });
+    await on("B", async () => {
+      await sync();
+      devices.B.exec("ALTER TABLE shops DROP COLUMN photo_id");
+      harness.update = readFileSync("src/db/migrations/0021_shop_receipt.sql", "utf8");
+      await migrateDb();
+      expect(devices.B.prepare("SELECT table_name FROM sync_state WHERE table_name IN ('lists', 'shops')").all(), "only the table given a column is pulled again").toEqual([
+        { table_name: "lists" },
+      ]);
+      devices.B.prepare("INSERT INTO sync_dead_letters (outbox_id, table_name, row_id, payload, reason, quarantined_at) VALUES (1, 'shops', ?, '{}', 'refused', ?)").run(shopId, new Date().toISOString());
+      await sync();
+      const marks = () => devices.B.prepare("SELECT table_name FROM sync_state WHERE table_name LIKE 'unpulled:%'").all();
+      expect(marks(), "a retry would send the empty column").toEqual([{ table_name: "unpulled:shops" }]);
+      await dismissDeadLetter((await readDeadLetters())[0]!.id);
+      await sync();
+      expect(marks()).toEqual([]);
+    });
+  });
+
+  // One statement stamps every row it writes with one now(), `join_household`
+  // a Kiler's worth; a cursor cut to the millisecond matched them all again.
+  it("pulls past a full page of rows one statement stamped", async () => {
+    const at = "2030-01-01T00:00:00.123456+00:00";
+    for (let n = 0; n < 1001; n++) {
+      const id = `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+      cloud.tables.get("products")!.set(`${USER}|${id}`, { user_id: USER, id, name: `ürün ${n}`, starred: false, aisle: null, created_at: at, updated_at: at, deleted_at: null, tombstone_version: 0 });
+    }
+    const outcome = await on("A", () => Promise.race([sync(), new Promise((resolve) => setTimeout(() => resolve("still pulling"), 3000))]));
+    expect(outcome).toBe(true);
+    expect(cloud.requests.filter((request) => request === "select products")).toHaveLength(2);
+    expect(devices.A.prepare("SELECT count(*) AS n FROM products").get()).toEqual({ n: 1001 });
   });
 
   it("finishes a shop whose id another account claimed first in a list of its own", async () => {

@@ -42,6 +42,8 @@ import { formatMinor } from "../domain/money";
 import type { ListColor, ListIcon } from "../domain/lists";
 import { initialOf, tileTone } from "../domain/names";
 import { tr } from "../i18n/tr";
+import { pulledOnce, useSyncStatus } from "../sync/status";
+import { isSupabaseConfigured } from "../sync/supabase";
 import { selectionTap } from "./haptics";
 import type { RowAction } from "./list-motion";
 import { interactionSurface } from "./interaction";
@@ -50,7 +52,7 @@ import { webKeys } from "./keys";
 import { KeyboardSafeScrollView } from "./keyboard-safe";
 import { LIST_PICTURES } from "./list-look";
 import { PRODUCT_IMAGES } from "./product-pictures";
-import { useReducedMotion, useSpringTo } from "./motion";
+import { useReducedMotion, useSpringTo, useWaitBreath } from "./motion";
 import { navigateBack } from "./navigation";
 import { useRotatingPlaceholder } from "./placeholders";
 import { shouldUseWideGutter } from "./responsive";
@@ -72,6 +74,7 @@ import {
   LIST_HUES,
   listCard,
   maxFontScale,
+  motion,
   navigationInset,
   offset,
   progressBar,
@@ -1359,6 +1362,42 @@ export function ReadFailed({ queries }: { queries: readonly { retry: () => void 
   );
 }
 
+/** `pulledOnce` on screen; a build with no server has nothing to wait for. */
+export function usePulledOnce(): boolean {
+  return useSyncStatus(pulledOnce) || !isSupabaseConfigured;
+}
+
+/**
+ * The shape a tab's cards keep while a signed-in device's first pull runs,
+ * where "nothing yet" would be a lie (`docs/UI.md` §7 rule 4). Helix's
+ * `Skeleton` and `CardListSkeleton` in one: nothing for 350 ms, then three
+ * cards that pulse slowly, held still under Reduce Motion, since the shape is
+ * the message. Scenery to a screen reader.
+ */
+function CardsSkeleton({ tile }: { tile: number }) {
+  const { palette } = useTheme();
+  const pulse = useWaitBreath(motion.skeleton.pulse, 0);
+  if (!pulse) return null;
+  const block = (width: number | `${number}%`, height: number, corner: number) => (
+    <Animated.View
+      style={{ width, height, borderRadius: corner, backgroundColor: palette.surfaceAlt, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [...motion.skeleton.opacity] }) }}
+    />
+  );
+  return (
+    <View accessible={false} aria-hidden style={{ gap: density.list.rowGap }}>
+      {[0, 1, 2].map((row) => (
+        <View key={row} style={{ ...cardEdge(palette), flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          {block(tile, tile, tileRadius(tile))}
+          <View style={{ flex: 1, gap: spacing.xs }}>
+            {block(motion.skeleton.lines[0], type.body.fontSize, radius.sm)}
+            {block(motion.skeleton.lines[1], type.small.fontSize, radius.sm)}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
  * What a screen says when it has nothing to show, and the way out of it. It
  * grows to centre itself, so on a tall window the sentence is not left against
@@ -1371,13 +1410,18 @@ export function EmptyState({
   title,
   hint,
   action,
+  skeleton,
 }: {
   icon: LucideIcon;
   title: string;
   hint: string;
   action?: ReactNode;
+  /** A tab's card tile: until this device's first pull, the cards it waits for, not "nothing". */
+  skeleton?: number;
 }) {
   const { palette } = useTheme();
+  const pulled = usePulledOnce();
+  if (skeleton != null && !pulled) return <CardsSkeleton tile={skeleton} />;
   return (
     <View style={{ flexGrow: 1, justifyContent: "center", padding: spacing.xxl, alignItems: "center", gap: spacing.sm }}>
       <View

@@ -80,7 +80,7 @@ describe("finishShop", () => {
     await toggleChecked(peynir!);
     later(60_000);
     const shop = await finishShop(listId);
-    expect(shop).toEqual({ id: expect.any(String), bought: 2, stocked: 2, stayed: [ekmek] });
+    expect(shop).toEqual({ id: expect.any(String), bought: 2, spentMinor: null, stocked: 2, stayed: [ekmek] });
     expect(await readItems(listId)).toMatchObject([{ id: ekmek, name: "Ekmek", checkedAt: null }]);
     expect(await history(shop!.id)).toEqual([
       { name: "Peynir", quantityMilli: null, checkedAt: new Date(T0.getTime() + 1000).toISOString() },
@@ -98,6 +98,21 @@ describe("finishShop", () => {
     expect((await readShopItems(first)).map((item) => item.id)).toEqual([await deterministicId(naturalKeys.boughtItem(first, "sut"))]);
     await shopFor("ekmek", ["Ekmek"]);
     expect(await finish()).toBe(await deterministicId(naturalKeys.shop(listId, 2)));
+  });
+
+  // The finish card's total: a tick that lands as Bitir is pressed is bought,
+  // so a sum of the screen's last basket would miss it.
+  it("spends what it filed, a tick the screen had not drawn included", async () => {
+    const [sut, ekmek] = await addItems(listId, "süt, ekmek");
+    // A price puts an item in the basket (SPEC 3.7).
+    const paid = (name: string, priceMinor: number) => ({ name, quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor });
+    await updateItem(sut!, paid("Süt", 1000));
+    const drawn = (await readItems(listId)).filter((item) => item.checkedAt != null);
+    await updateItem(ekmek!, paid("Ekmek", 500));
+    const shop = await finishShop(listId);
+    expect(drawn).toHaveLength(1);
+    expect(shop).toMatchObject({ bought: 2, spentMinor: 1500 });
+    expect((await readShops())[0]!.spentMinor).toBe(1500);
   });
 
   it("finishes nothing while the basket is empty", async () => {

@@ -14,7 +14,7 @@ import { useMovedAisles, usePantry } from "../../data/hooks";
 import { finishPantryItem, removePantryItems, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
 import { listSections, type Section } from "../../domain/catalogue";
 import { todayISO } from "../../domain/dates";
-import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, type ListedEntry } from "../../domain/items";
+import { ENTRY_MAX, LIST_TEXT_MAX, foldName, formatList, parseEntry, parseList, type ListedEntry } from "../../domain/items";
 import { expiryOf, leavesSome } from "../../domain/pantry";
 import { shareText } from "../../services/share";
 import { tr } from "../../i18n/tr";
@@ -33,8 +33,7 @@ import { ProductSuggestions } from "../../ui/suggestions";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
 import { showNotice, showUndo } from "../../ui/undo";
-import { density, motion, spacing, type, useTheme } from "../../ui/theme";
-import { usePulledOnce } from "../../ui/tour";
+import { density, itemRow, motion, spacing, type, useTheme } from "../../ui/theme";
 
 /** The Listeler tab's route, where a finished product goes back onto its list. */
 const LISTS_TAB = "index";
@@ -47,7 +46,6 @@ const LISTS_TAB = "index";
  * (SPEC 12.13).
  */
 export default function Pantry() {
-  const pulled = usePulledOnce();
   const userId = useSession((s) => s.userId) ?? "";
   const pantry = usePantry();
   const moved = useMovedAisles();
@@ -146,7 +144,7 @@ export default function Pantry() {
       ) : pantry.updatedAt != null ? (
         <ArrivalScope>
           {pantry.data.length === 0 ? (
-            pulled && <EmptyState icon={Refrigerator} title={tr.pantry.emptyTitle} hint={tr.pantry.emptyHint} />
+            <EmptyState icon={Refrigerator} title={tr.pantry.emptyTitle} hint={tr.pantry.emptyHint} skeleton={itemRow.tile} />
           ) : sorting ? (
             <SortPantry sections={sections} row={row} onDragging={setDragging} />
           ) : (
@@ -231,6 +229,16 @@ function PantryAdd({ held }: { held: readonly PantryItem[] }) {
       void appError(tr.errors.saveFailed);
     }
   };
+  const another = async (name: string) => {
+    const again = held.some((item) => foldName(item.name) === foldName(name));
+    try {
+      const written = await stockPantry([{ name, quantityMilli: null, unit: null }]);
+      selectionTap();
+      if (again) showUndo(tr.pantry.another(name), () => undoFinish(written));
+    } catch {
+      void appError(tr.errors.saveFailed);
+    }
+  };
   return (
     <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
@@ -254,8 +262,9 @@ function PantryAdd({ held }: { held: readonly PantryItem[] }) {
         <CatalogueSheet
           items={held}
           open={held.map(listed)}
-          // A tile already at home adds another: nothing here takes one back but its panel.
-          onAdd={(product) => void add([{ name: product.name, quantityMilli: null, unit: null }])}
+          // A tile already at home adds another: nothing here takes one back but
+          // its panel. The tile looks the same after, so the undo bar says so.
+          onAdd={(product) => void another(product.name)}
           addSet={async (entries) => {
             const written = await stockPantry(entries);
             return () => undoFinish(written);

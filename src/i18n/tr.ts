@@ -400,6 +400,7 @@ export const tr = {
     paste: "Kilere metinden ekle",
     pasteMessage: "Bir listeyi yapıştır: her satır ya da virgül bir ürün, miktarıyla.",
     pasted: (count: number) => `${count} ürün kilere eklendi`,
+    another: (name: string) => `Kilere bir ${name} daha eklendi`,
     share: "Kileri paylaş",
     copied: "Kiler panoya kopyalandı",
     remove: "Kilerden çıkar",

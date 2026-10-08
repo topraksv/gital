@@ -14,12 +14,10 @@ import { appError, appPrompt } from "../../ui/dialog";
 import { selectionTap } from "../../ui/haptics";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
-import { density, motion } from "../../ui/theme";
-import { usePulledOnce } from "../../ui/tour";
+import { density, listCard, motion } from "../../ui/theme";
 
 /** İstekler (SPEC 7): the wish collections, drawn as Listeler draws its lists. */
 export default function Wishes() {
-  const pulled = usePulledOnce();
   const collections = useCollections();
   const router = useRouter();
   // Only collections the person owns can be deleted, so only they swipe or are chosen.
@@ -63,11 +61,12 @@ export default function Wishes() {
       ) : answered ? (
         <ArrivalScope>
           {collections.data.length === 0 ? (
-            pulled && <EmptyState
+            <EmptyState
               icon={Gift}
               title={tr.wishes.emptyTitle}
               hint={tr.wishes.emptyHint}
               action={<Button label={tr.wishes.create} icon={Plus} onPress={create} />}
+              skeleton={listCard.tile}
             />
           ) : (
             <View style={{ gap: density.list.rowGap }}>

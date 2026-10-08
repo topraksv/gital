@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(60);
+select extensions.plan(61);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -249,6 +249,12 @@ select lives_ok(
   $$insert into storage.objects (bucket_id, name, owner_id) values
     ('photos', 'f3000000-0000-7000-8000-00000000000f/full.jpg', '20000000-0000-4000-8000-000000000002')$$,
   'B places a photo no row names yet: the app sends it before its row'
+);
+select is(
+  pg_temp.exec_sqlstate($$update storage.objects set name = 'f2000000-0000-7000-8000-00000000000f/full.jpg'
+    where bucket_id = 'photos' and name = 'f3000000-0000-7000-8000-00000000000f/full.jpg'$$),
+  '42501',
+  'nor moves it to an id A''s row names: a move is an update'
 );
 
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);

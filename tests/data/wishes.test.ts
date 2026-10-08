@@ -261,4 +261,23 @@ describe("a link's page (SPEC 7.2)", () => {
     await fillFromPage(links[0]!.id, found);
     expect(live("wishes")).toEqual([]);
   });
+
+  // A link names its wish by id alone, and any editor of another list the
+  // device reads can write one there naming this wish (SECURITY.md).
+  it("belong to a wish only in the wish's own collection", async () => {
+    const id = await addWish(collection, "Kahve makinesi");
+    const elsewhere = await createList("Başkası", "wish");
+    const at = T0.toISOString();
+    for (const [link, price] of [["0190a000-0000-7000-8000-000000000001", 777_700], ["0190a000-0000-7000-8000-000000000002", null]] as const) {
+      harness.db!
+        .prepare("INSERT INTO wish_links (id, created_at, updated_at, list_id, wish_id, url, price_minor) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(link, at, at, elsewhere, id, "https://example.com/p", price);
+    }
+    expect((await readCollections()).find((held) => held.id === collection)).toMatchObject({ openTotalMinor: null });
+    expect(await unpricedLinksOf(id)).toEqual([]);
+    await fillFromPage("0190a000-0000-7000-8000-000000000002", found);
+    expect(await readWishes(collection)).toMatchObject([{ name: "Kahve makinesi", photo: null }]);
+    await saveWish(id, change());
+    expect(live("wish_links")).toHaveLength(2);
+  });
 });

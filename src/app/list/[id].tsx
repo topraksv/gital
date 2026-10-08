@@ -358,8 +358,6 @@ function useFinish(listId: string, open: readonly Item[], basket: readonly Item[
   const finish = async (carryTo: string) => {
     setAsking(false);
     try {
-      // Read before the finish: the basket leaves the list with it.
-      const spentMinor = spentOn(basket);
       const carried = await carryNotFound(listId, carryTo);
       const shop = await finishShop(listId);
       if (!shop) {
@@ -376,7 +374,7 @@ function useFinish(listId: string, open: readonly Item[], basket: readonly Item[
           void appError(tr.errors.undoFailed);
         }
       };
-      setFinished({ summary: { bought: shop.bought, spentMinor, stayed: shop.stayed.length, stocked: shop.stocked }, stayed: new Set(shop.stayed), undo });
+      setFinished({ summary: { bought: shop.bought, spentMinor: shop.spentMinor, stayed: shop.stayed.length, stocked: shop.stocked }, stayed: new Set(shop.stayed), undo });
     } catch {
       void appError(tr.errors.saveFailed);
     }
@@ -675,11 +673,9 @@ function BasketHeader({ spentMinor }: { spentMinor: number | null }) {
 /**
  * What is left to buy, sorted by its grips (SPEC 4.1). Urgent items stay on
  * top and those not found at the bottom, so each run of them sorts on its own:
- * a row dragged past the edge of its run would jump back on release.
- */
-/**
- * Each section drags on its own, so a row stays with its aisle and its kind;
- * the whole order is written, so the stored one is the order drawn.
+ * a row dragged past the edge of its run would jump back on release. Each
+ * section drags on its own, so a row stays with its aisle and its kind; the
+ * whole order is written, so the stored one is the order drawn.
  */
 function SortOpen({
   listId,

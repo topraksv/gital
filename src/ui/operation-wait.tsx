@@ -7,8 +7,7 @@
  * that the operation is busy on; reduced motion holds it still.
  */
 
-import { useEffect, useState } from "react";
-import { Animated, Easing, Platform, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
 import KeyRound from "lucide-react-native/icons/key-round";
 import LogOut from "lucide-react-native/icons/log-out";
@@ -17,7 +16,7 @@ import Trash from "lucide-react-native/icons/trash";
 
 import type { AccountOperation } from "../auth/session";
 import { tr } from "../i18n/tr";
-import { useReducedMotion } from "./motion";
+import { useWaitBreath } from "./motion";
 import { borderWidth, circle, motion, operationWait, spacing, type, useTheme, type Palette } from "./theme";
 
 const VISUALS: Record<AccountOperation, readonly [LucideIcon, (palette: Palette) => string]> = {
@@ -29,23 +28,8 @@ const VISUALS: Record<AccountOperation, readonly [LucideIcon, (palette: Palette)
 
 export function OperationWait({ operation }: { operation: AccountOperation }) {
   const { palette } = useTheme();
-  const reducedMotion = useReducedMotion();
-  const [breath] = useState(() => new Animated.Value(0));
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setShown(true), motion.operation.reveal);
-    return () => clearTimeout(timer);
-  }, []);
-  useEffect(() => {
-    if (!shown) return;
-    if (reducedMotion) return void breath.setValue(0.7);
-    const step = (toValue: number) =>
-      Animated.timing(breath, { toValue, duration: motion.operation.breath, easing: Easing.inOut(Easing.quad), useNativeDriver: Platform.OS !== "web" });
-    const loop = Animated.loop(Animated.sequence([step(1), step(0)]));
-    loop.start();
-    return () => loop.stop();
-  }, [shown, reducedMotion, breath]);
-  if (!shown) return null;
+  const breath = useWaitBreath(motion.operation.breath, 0.7);
+  if (!breath) return null;
 
   const [Icon, ink] = VISUALS[operation];
   const color = ink(palette);

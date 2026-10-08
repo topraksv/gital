@@ -33,6 +33,29 @@ export function useReducedMotion(): boolean {
 }
 
 /**
+ * A wait's breath: nothing before `motion.reveal`, then 0 → 1 → 0 over twice
+ * `period`, held at `still` under Reduce Motion. `null` while hidden.
+ */
+export function useWaitBreath(period: number, still: number): Animated.Value | null {
+  const reduced = useReducedMotion();
+  const [breath] = useState(() => new Animated.Value(0));
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setShown(true), motion.reveal);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!shown) return;
+    if (reduced) return void breath.setValue(still);
+    const step = (toValue: number) => Animated.timing(breath, { toValue, duration: period, easing: Easing.inOut(Easing.quad), useNativeDriver: Platform.OS !== "web" });
+    const loop = Animated.loop(Animated.sequence([step(1), step(0)]));
+    loop.start();
+    return () => loop.stop();
+  }, [shown, reduced, breath, period, still]);
+  return shown ? breath : null;
+}
+
+/**
  * The same answer without subscribing, for a style a Pressable already
  * re-renders to produce: a hook there adds a subscriber per control on screen.
  */

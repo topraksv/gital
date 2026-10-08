@@ -8,11 +8,9 @@ import { spentByMonth } from "../../domain/money";
 import { tr } from "../../i18n/tr";
 import { AisleShares, MONTHS, MonthBars } from "../../ui/charts";
 import { ArrivalScope, Card, EmptyState, LinkCard, ReadFailed, Screen, SectionHeader, SlideUp } from "../../ui/components";
-import { density, motion } from "../../ui/theme";
-import { usePulledOnce } from "../../ui/tour";
+import { density, listCard, motion } from "../../ui/theme";
 
 export default function History() {
-  const pulled = usePulledOnce();
   const shops = useShops();
   const router = useRouter();
   const months = spentByMonth(shops.data, new Date(), MONTHS);
@@ -26,7 +24,7 @@ export default function History() {
       ) : shops.updatedAt != null && priced.updatedAt != null ? (
         <ArrivalScope>
           {shops.data.length === 0 ? (
-            pulled && <EmptyState icon={ReceiptTurkishLira} title={tr.history.emptyTitle} hint={tr.history.emptyHint} />
+            <EmptyState icon={ReceiptTurkishLira} title={tr.history.emptyTitle} hint={tr.history.emptyHint} skeleton={listCard.tile} />
           ) : (
             <View style={{ gap: density.list.rowGap }}>
               {months.some((month) => month.spentMinor != null) ? (

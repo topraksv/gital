@@ -29,8 +29,8 @@ export function keyColumns(table: SyncedTableName): readonly string[] {
 interface Column {
   kind: "text" | "integer" | "boolean";
   notNull: boolean;
-  /** Whether the schema gives a column a value when an insert names none. */
-  defaulted: boolean;
+  /** What an insert naming the column not, or a migration adding it, gives a row. */
+  empty: unknown;
 }
 
 const COLUMNS = new Map<SyncedTableName, Map<string, Column>>(
@@ -42,7 +42,7 @@ const COLUMNS = new Map<SyncedTableName, Map<string, Column>>(
         {
           kind: column.columnType === "SQLiteBoolean" ? "boolean" : column.columnType === "SQLiteInteger" ? "integer" : "text",
           notNull: column.notNull,
-          defaulted: column.default != null,
+          empty: column.default ?? null,
         },
       ]),
     ),
@@ -56,6 +56,11 @@ function fits(column: Column, value: unknown): boolean {
   return value === true || value === false || value === 0 || value === 1;
 }
 
+/** SQLite stores a boolean as 0 or 1; PostgREST takes it as one. */
+function asSent(column: Column, value: unknown): unknown {
+  return column.kind === "boolean" && value != null ? Boolean(value) : value;
+}
+
 /**
  * An outbox payload as PostgREST takes it, or `null` for one the schema could
  * not have written. A column an event queued before it existed does not carry
@@ -63,19 +68,30 @@ function fits(column: Column, value: unknown): boolean {
  * which may be what another device wrote since (a photo, a receipt), and a new
  * row takes the server's default. Every column the server has no default for
  * was there from the table's first migration, so every event carries it.
+ *
+ * `unpulled` names the columns a migration added before the pull after it
+ * finished: a row holding such a column's empty value may hold it only
+ * because the device has not pulled the row since, so it is left out too.
  */
-export function toServerRow(table: SyncedTableName, payload: Record<string, unknown>, owner: string): Record<string, unknown> | null {
+export function toServerRow(
+  table: SyncedTableName,
+  payload: Record<string, unknown>,
+  owner: string,
+  unpulled: ReadonlySet<string> = new Set(),
+): Record<string, unknown> | null {
   const columns = COLUMNS.get(table)!;
   if (Object.keys(payload).some((key) => !columns.has(key)) || !isUuidShaped(payload.id)) return null;
   const out: Record<string, unknown> = {};
   for (const [name, column] of columns) {
     if (!(name in payload)) {
-      if (column.notNull && !column.defaulted) return null;
+      if (column.notNull && column.empty == null) return null;
       continue;
     }
     const value = payload[name];
     if (!fits(column, value)) return null;
-    out[name] = column.kind === "boolean" && value != null ? Boolean(value) : value;
+    const sent = asSent(column, value);
+    if (unpulled.has(name) && (sent ?? null) === column.empty) continue;
+    out[name] = sent;
   }
   if (Number(out.tombstone_version) < 0) return null;
   if (PERSONAL_TABLES.has(table)) out.user_id = owner;
@@ -88,6 +104,17 @@ function canonicalTimestamp(value: unknown): unknown {
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
   if (!Number.isFinite(parsed)) throw new Error("invalid server timestamp");
   return new Date(parsed).toISOString();
+}
+
+/**
+ * A pull cursor's instant, `…00.123456Z`: the server's own precision in the
+ * device's form. Cut to the millisecond, `updated_at.gt` matched every row of
+ * that millisecond again, and a statement that stamped a page's worth with one
+ * `now()` sent the pull round the same page for ever.
+ */
+export function cursorInstant(value: unknown): string {
+  const sub = typeof value === "string" ? (/T[\d:]+\.\d{3}(\d{1,3})/.exec(value)?.[1] ?? "") : "";
+  return String(canonicalTimestamp(value)).replace("Z", `${sub}Z`);
 }
 
 /**

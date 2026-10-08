@@ -19,8 +19,8 @@ import { selectionTap } from "../../ui/haptics";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useShoppingNotices, useShoppingNow } from "../../ui/members-sheet";
 import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
-import { FirstRunTour, usePulledOnce } from "../../ui/tour";
-import { density, motion } from "../../ui/theme";
+import { FirstRunTour } from "../../ui/tour";
+import { density, listCard, motion } from "../../ui/theme";
 
 /** Offers waiting on this person (SPEC 1.4); each opens the invitation screen, where it is joined or declined. */
 function OffersWaiting() {
@@ -49,7 +49,6 @@ function OffersWaiting() {
 }
 
 export default function Lists() {
-  const pulled = usePulledOnce();
   const lists = useLists();
   const router = useRouter();
   const fresh = new Map(useFresh(useSession((s) => s.userId) ?? "").data.map((row) => [row.listId, row.count]));
@@ -105,11 +104,12 @@ export default function Lists() {
         <ArrivalScope>
           <OffersWaiting />
           {lists.data.length === 0 ? (
-            pulled && <EmptyState
+            <EmptyState
               icon={ShoppingBasket}
               title={tr.lists.emptyTitle}
               hint={tr.lists.emptyHint}
               action={<Button label={tr.lists.create} icon={Plus} onPress={create} />}
+              skeleton={listCard.tile}
             />
           ) : (
             <View style={{ gap: density.list.rowGap }}>
