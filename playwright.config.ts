@@ -24,7 +24,17 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Pixel 7"], browserName: "chromium" } }],
+  // Helix's pair: every test in Chromium, the `@cross-browser` ones again in
+  // Firefox. Firefox has no mobile emulation, so it gets the phone's viewport
+  // and touch without the user agent.
+  projects: [
+    { name: "chromium", use: { ...devices["Pixel 7"], browserName: "chromium" } },
+    {
+      name: "firefox-critical",
+      grep: /@cross-browser/,
+      use: { browserName: "firefox", viewport: devices["Pixel 7"].viewport, hasTouch: true },
+    },
+  ],
   webServer: {
     command: "node scripts/serve-web-export.mjs dist-e2e",
     env: { PORT: "4173" },

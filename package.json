@@ -76,7 +76,7 @@
     "verify": "npm run typecheck && npm run test:coverage && npm run lint:ratchet",
     "web:export": "expo export -p web --clear",
     "web:preview": "npm run web:export && node scripts/serve-web-export.mjs dist",
-    "bundle:check": "node scripts/check-web-budget.mjs dist",
+    "bundle:check": "node scripts/check-web-budget.mjs dist --require-supabase-config",
     "verify:full": "npm run verify && npm run web:export && npm run bundle:check && npm run test:e2e",
     "test:e2e:export": "node scripts/export-e2e-web.mjs",
     "test:e2e": "npm run test:e2e:export && playwright test",

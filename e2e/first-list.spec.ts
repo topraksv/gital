@@ -21,7 +21,7 @@ async function watchFailures(page: Page): Promise<string[]> {
   return failures;
 }
 
-test("a first list is made, written on, ticked and kept", async ({ page }) => {
+test("a first list is made, written on, ticked and kept @cross-browser", async ({ page }) => {
   const failures = await watchFailures(page);
   await page.goto("/gital/");
 

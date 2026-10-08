@@ -1,20 +1,535 @@
 {
   "files": {
-    "src/domain/calculator.ts": 79.33,
-    "src/domain/catalogue.ts": 95.52,
-    "src/domain/dates.ts": 88.89,
-    "src/domain/feedback.ts": 95.65,
-    "src/domain/items.ts": 84.09,
-    "src/domain/lists.ts": 100,
-    "src/domain/logins.ts": 94.95,
-    "src/domain/money.ts": 95.49,
-    "src/domain/names.ts": 96.67,
-    "src/domain/pantry.ts": 92.86,
-    "src/domain/product-page.ts": 85.93,
-    "src/domain/reminders.ts": 79.59,
-    "src/domain/restock.ts": 91.8,
-    "src/domain/shopping.ts": 97.62,
-    "src/domain/web-security.ts": 81.82,
-    "src/domain/wishes.ts": 89.71
+    "src/auth/auth-errors.ts": {
+      "score": 81.25,
+      "killed": 26,
+      "timeout": 0,
+      "survived": 6,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/auth/login-history.ts": {
+      "score": 84.62,
+      "killed": 11,
+      "timeout": 0,
+      "survived": 2,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/auth/recovery.ts": {
+      "score": 93.59,
+      "killed": 73,
+      "timeout": 0,
+      "survived": 5,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/auth/session.ts": {
+      "score": 86.17,
+      "killed": 355,
+      "timeout": 0,
+      "survived": 53,
+      "noCoverage": 4,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/auth/verification-brake.ts": {
+      "score": 95.65,
+      "killed": 22,
+      "timeout": 0,
+      "survived": 1,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/items.ts": {
+      "score": 91.19,
+      "killed": 237,
+      "timeout": 1,
+      "survived": 21,
+      "noCoverage": 2,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/lists.ts": {
+      "score": 92.31,
+      "killed": 36,
+      "timeout": 0,
+      "survived": 3,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/live-query.ts": {
+      "score": 93.55,
+      "killed": 85,
+      "timeout": 2,
+      "survived": 6,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/members.ts": {
+      "score": 83.53,
+      "killed": 71,
+      "timeout": 0,
+      "survived": 14,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/pantry.ts": {
+      "score": 87.73,
+      "killed": 193,
+      "timeout": 0,
+      "survived": 27,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/photos.ts": {
+      "score": 88.46,
+      "killed": 23,
+      "timeout": 0,
+      "survived": 3,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/products.ts": {
+      "score": 90,
+      "killed": 27,
+      "timeout": 0,
+      "survived": 3,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/reset.ts": {
+      "score": 96.55,
+      "killed": 84,
+      "timeout": 0,
+      "survived": 3,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/sets.ts": {
+      "score": 92.31,
+      "killed": 48,
+      "timeout": 0,
+      "survived": 4,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/settings.ts": {
+      "score": 92.98,
+      "killed": 53,
+      "timeout": 0,
+      "survived": 4,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/shops.ts": {
+      "score": 97.09,
+      "killed": 97,
+      "timeout": 3,
+      "survived": 3,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/data/wishes.ts": {
+      "score": 87.24,
+      "killed": 171,
+      "timeout": 0,
+      "survived": 22,
+      "noCoverage": 3,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/db/client.ts": {
+      "score": 0,
+      "killed": 0,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 73,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/db/ids.ts": {
+      "score": 92.59,
+      "killed": 25,
+      "timeout": 0,
+      "survived": 2,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/db/migrate.ts": {
+      "score": 75.93,
+      "killed": 41,
+      "timeout": 0,
+      "survived": 11,
+      "noCoverage": 2,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/db/mutations.ts": {
+      "score": 83.68,
+      "killed": 157,
+      "timeout": 2,
+      "survived": 28,
+      "noCoverage": 3,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/calculator.ts": {
+      "score": 79.33,
+      "killed": 238,
+      "timeout": 0,
+      "survived": 58,
+      "noCoverage": 4,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/catalogue.ts": {
+      "score": 95.52,
+      "killed": 128,
+      "timeout": 0,
+      "survived": 6,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/dates.ts": {
+      "score": 88.89,
+      "killed": 88,
+      "timeout": 0,
+      "survived": 11,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/feedback.ts": {
+      "score": 95.65,
+      "killed": 22,
+      "timeout": 0,
+      "survived": 1,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/items.ts": {
+      "score": 84.09,
+      "killed": 332,
+      "timeout": 1,
+      "survived": 63,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/lists.ts": {
+      "score": 100,
+      "killed": 126,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/logins.ts": {
+      "score": 94.95,
+      "killed": 94,
+      "timeout": 0,
+      "survived": 5,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/money.ts": {
+      "score": 95.08,
+      "killed": 232,
+      "timeout": 0,
+      "survived": 12,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/names.ts": {
+      "score": 96.67,
+      "killed": 28,
+      "timeout": 1,
+      "survived": 1,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/pantry.ts": {
+      "score": 92.86,
+      "killed": 65,
+      "timeout": 0,
+      "survived": 5,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/product-page.ts": {
+      "score": 85.93,
+      "killed": 171,
+      "timeout": 0,
+      "survived": 27,
+      "noCoverage": 1,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/reminders.ts": {
+      "score": 79.59,
+      "killed": 75,
+      "timeout": 3,
+      "survived": 20,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/restock.ts": {
+      "score": 91.8,
+      "killed": 56,
+      "timeout": 0,
+      "survived": 5,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/shopping.ts": {
+      "score": 97.62,
+      "killed": 41,
+      "timeout": 0,
+      "survived": 1,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/web-security.ts": {
+      "score": 81.82,
+      "killed": 45,
+      "timeout": 0,
+      "survived": 10,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/domain/wishes.ts": {
+      "score": 89.71,
+      "killed": 218,
+      "timeout": 0,
+      "survived": 25,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/barcode-scan.native.ts": {
+      "score": 95.83,
+      "killed": 23,
+      "timeout": 0,
+      "survived": 1,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/barcode-scan.ts": {
+      "score": 0,
+      "killed": 0,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 4,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/barcode.ts": {
+      "score": 72,
+      "killed": 54,
+      "timeout": 0,
+      "survived": 21,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/clipboard-link.native.ts": {
+      "score": 96.3,
+      "killed": 26,
+      "timeout": 0,
+      "survived": 1,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/clipboard-link.ts": {
+      "score": 0,
+      "killed": 0,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 1,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/feedback.ts": {
+      "score": 83.33,
+      "killed": 45,
+      "timeout": 0,
+      "survived": 8,
+      "noCoverage": 1,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/kv.ts": {
+      "score": 31.11,
+      "killed": 14,
+      "timeout": 0,
+      "survived": 16,
+      "noCoverage": 15,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/reminder-preferences.ts": {
+      "score": 56.25,
+      "killed": 18,
+      "timeout": 0,
+      "survived": 12,
+      "noCoverage": 2,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/reminders.native.ts": {
+      "score": 49.4,
+      "killed": 41,
+      "timeout": 0,
+      "survived": 20,
+      "noCoverage": 22,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/reminders.ts": {
+      "score": 0,
+      "killed": 0,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 3,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/services/share.ts": {
+      "score": 0,
+      "killed": 0,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 25,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/dead-letters.ts": {
+      "score": 100,
+      "killed": 27,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/engine.ts": {
+      "score": 78.1,
+      "killed": 458,
+      "timeout": 27,
+      "survived": 125,
+      "noCoverage": 11,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/live.ts": {
+      "score": 89.8,
+      "killed": 44,
+      "timeout": 0,
+      "survived": 5,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/merge-policy.ts": {
+      "score": 89.76,
+      "killed": 114,
+      "timeout": 0,
+      "survived": 13,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/photos.ts": {
+      "score": 82.67,
+      "killed": 119,
+      "timeout": 5,
+      "survived": 24,
+      "noCoverage": 2,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/rows.ts": {
+      "score": 87.05,
+      "killed": 157,
+      "timeout": 11,
+      "survived": 22,
+      "noCoverage": 3,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/secure-chunked-storage.ts": {
+      "score": 77.27,
+      "killed": 65,
+      "timeout": 3,
+      "survived": 17,
+      "noCoverage": 3,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/session-epoch.ts": {
+      "score": 61.9,
+      "killed": 26,
+      "timeout": 0,
+      "survived": 16,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/sharing.ts": {
+      "score": 84.96,
+      "killed": 113,
+      "timeout": 0,
+      "survived": 20,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/status.ts": {
+      "score": 90,
+      "killed": 27,
+      "timeout": 0,
+      "survived": 3,
+      "noCoverage": 0,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    },
+    "src/sync/supabase.ts": {
+      "score": 0,
+      "killed": 0,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 52,
+      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
+      "measuredDate": "2026-10-08"
+    }
   }
 }

@@ -2,16 +2,21 @@
 /**
  * Fail when a mutated file detects fewer mutants than it did last time.
  *
- * Helix's ratchet, and Helix's reason for it: an absolute threshold no real
- * change can meet is a step everyone routes around. What is worth enforcing
- * is that a file never gets worse, and that no file enters unmeasured: a
- * mutated file with no recorded score fails rather than being adopted at
- * whatever it happens to score.
+ * Helix and Gital run this same file. It replaced an absolute threshold of 98
+ * that no real change could meet: measured on 2026-08-19 against the first
+ * product diff to reach it, Helix's sixteen selected files scored 54.22, and
+ * the release before it had shipped from a `workflow_dispatch` that ran
+ * sentinels. A gate no change can pass is one everyone routes around. What is
+ * worth enforcing is that a file never gets worse, and that no file enters
+ * unmeasured: a mutated file with no recorded score fails rather than being
+ * adopted at whatever it happens to score.
  *
- * `--record` adopts the last run's scores, like the lint ratchet's. It is a
- * decision made after reading what survived, which is why nothing here adopts
- * on its own. Helix's separate writer is folded in here.
+ * `--record` adopts the last run's scores into `mutation-baseline.json`,
+ * merged over what is there, since a run covers only the scope it was given.
+ * It is a decision made after reading what survived, which is why nothing
+ * here adopts on its own.
  */
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -21,19 +26,29 @@ const BASELINE = "mutation-baseline.json";
 /**
  * How far a score may fall before it counts. Not slack: Stryker's timeout is
  * wall-clock and counts as detected, so how many mutants tip over it moves a
- * score with no code changed. Helix measured the drift under half a point.
+ * score with no code changed. Helix measured 5, 36 and 72 timeouts across
+ * three runs of one tree, and the per-file drift stayed under half a point
+ * once the static-only schema left the scope.
+ *
+ * So record from a quiet machine. A run with more timeouts scores higher, and
+ * adopting it leaves the next quieter run failing an honest commit.
  */
 const TOLERANCE = 0.5;
 
+// A compile or runtime error is not a mutant the tests could have detected.
+const COUNTED = { Killed: "killed", Timeout: "timeout", Survived: "survived", NoCoverage: "noCoverage" };
+
+function countsOf(mutants) {
+  const counts = { killed: 0, timeout: 0, survived: 0, noCoverage: 0 };
+  for (const { status } of mutants) if (status in COUNTED) counts[COUNTED[status]] += 1;
+  return counts;
+}
+
 /** Stryker's own definition: detected over everything that could be detected. */
 export function scoreOf(mutants) {
-  let detected = 0;
-  let valid = 0;
-  for (const { status } of mutants) {
-    if (status === "Killed" || status === "Timeout") detected += 1;
-    if (status === "Killed" || status === "Timeout" || status === "Survived" || status === "NoCoverage") valid += 1;
-  }
-  return valid === 0 ? 100 : Number(((detected / valid) * 100).toFixed(2));
+  const { killed, timeout, survived, noCoverage } = countsOf(mutants);
+  const valid = killed + timeout + survived + noCoverage;
+  return valid === 0 ? 100 : Number((((killed + timeout) / valid) * 100).toFixed(2));
 }
 
 export function scoresFromReport(report) {
@@ -41,8 +56,20 @@ export function scoresFromReport(report) {
 }
 
 /**
+ * The entries `--record` writes: the counts behind each score, so a number can
+ * be re-derived, and the tree it was measured on, per file, because a run
+ * covers only its scope and one stamp for the document would claim the rest.
+ */
+export function recordedFrom(report, measuredOn, measuredDate) {
+  return Object.fromEntries(Object.entries(report.files ?? {}).map(([file, entry]) => {
+    const mutants = entry.mutants ?? [];
+    return [file, { score: scoreOf(mutants), ...countsOf(mutants), measuredOn, measuredDate }];
+  }));
+}
+
+/**
  * @param {Record<string, number>} measured file -> score from this run
- * @param {{ files: Record<string, number> }} baseline
+ * @param {{ files: Record<string, { score: number }> }} baseline
  * @param {(file: string) => boolean} exists injected so a stale entry is testable
  */
 export function evaluate(measured, baseline, exists = existsSync) {
@@ -50,9 +77,9 @@ export function evaluate(measured, baseline, exists = existsSync) {
   const problems = [];
   const improvements = [];
   for (const [file, score] of Object.entries(measured)) {
-    const previous = recorded[file];
+    const previous = recorded[file]?.score;
     if (previous === undefined) problems.push(`UNRECORDED ${file} scored ${score.toFixed(2)}: read what survived, then \`npm run mutation:record\`.`);
-    else if (score < previous - TOLERANCE) problems.push(`WORSE ${file}: ${previous.toFixed(2)} -> ${score.toFixed(2)}.`);
+    else if (score < previous - TOLERANCE) problems.push(`WORSE ${file}: ${previous.toFixed(2)} -> ${score.toFixed(2)}. Kill what now survives, or say in the commit why the file covers less.`);
     else if (score > previous + TOLERANCE) improvements.push(`${file}: ${previous.toFixed(2)} -> ${score.toFixed(2)}`);
   }
   for (const file of Object.keys(recorded)) {
@@ -61,21 +88,28 @@ export function evaluate(measured, baseline, exists = existsSync) {
   return { problems, improvements };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!existsSync(REPORT)) {
-    console.error(`No mutation report at ${REPORT}. Run \`npx stryker run\` first.`);
+    console.error(`No mutation report at ${REPORT}. Run the mutation gate first.`);
     process.exit(1);
   }
-  const measured = scoresFromReport(JSON.parse(readFileSync(REPORT, "utf8")));
+  const report = JSON.parse(readFileSync(REPORT, "utf8"));
+  const baseline = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : { files: {} };
 
   if (process.argv.includes("--record")) {
-    const sorted = Object.fromEntries(Object.entries(measured).sort(([a], [b]) => a.localeCompare(b)));
-    writeFileSync(BASELINE, `${JSON.stringify({ files: sorted }, null, 2)}\n`);
-    console.log(`Recorded ${Object.keys(sorted).length} file(s) into ${BASELINE}.`);
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const entries = recordedFrom(report, head, new Date().toISOString().slice(0, 10));
+    const merged = Object.entries({ ...baseline.files, ...entries }).sort(([a], [b]) => a.localeCompare(b));
+    writeFileSync(BASELINE, `${JSON.stringify({ files: Object.fromEntries(merged) }, null, 2)}\n`);
+    for (const [file, { score }] of Object.entries(entries)) {
+      const before = baseline.files?.[file]?.score;
+      console.log(`${score.toFixed(2).padStart(6)}  ${before === undefined ? "new" : `was ${before.toFixed(2)}`}  ${file}`);
+    }
+    console.log(`Recorded ${Object.keys(entries).length} file(s) into ${BASELINE}.`);
     process.exit(0);
   }
 
-  const { problems, improvements } = evaluate(measured, JSON.parse(readFileSync(BASELINE, "utf8")));
+  const { problems, improvements } = evaluate(scoresFromReport(report), baseline);
   if (improvements.length > 0) {
     console.log(`Above the recorded score, record only if tests you added earned it:\n  ${improvements.join("\n  ")}`);
   }
