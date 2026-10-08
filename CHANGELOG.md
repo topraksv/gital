@@ -8,6 +8,20 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.7.2
+
+### Patch Changes
+
+- İlk eşitleme sürerken Listeler, İstekler, Geçmiş ve Kiler "henüz bir şey yok" demiyor; gelecek kartların yerini gösteriyor.
+- Bitir'e basıldığı anda işaretlenen ürün de kutlama kartındaki toplama giriyor.
+- Bir ortak üyenin bitirdiği alışveriş, aldıkları ondan sonra gelse de Geçmiş'te doğru sayıyla görünüyor.
+- Kiler'de zaten olan bir ürün yeniden eklenince "bir tane daha eklendi" deniyor; hazır set kartlarında uzun adlar kesilmiyor.
+- Güncellemeden sonraki ilk eşitlemeden önce yapılan bir düzenleme, başka bir cihazın eklediği fiş fotoğrafını silmiyor.
+- Aynı anda yazılmış çok sayıda kayıtta eşitleme takılıp kalmıyor.
+- 1.000.000.000,00 TL'den büyük fiyat yazılamıyor; önceden cihazda kalıp hiç eşitlenmiyordu.
+- Bir isteğin bağlantıları yalnızca kendi koleksiyonundan geliyor.
+- Bir listenin sahibi başka birini ikinci sahip yapamıyor; bir fotoğraf başkasının kaydına taşınamıyor.
+
 ## 1.7.1
 
 ### Patch Changes
