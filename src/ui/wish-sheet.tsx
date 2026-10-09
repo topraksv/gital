@@ -15,7 +15,7 @@ import X from "lucide-react-native/icons/x";
 import type { PhotoChange } from "../data/photos";
 import type { WishChange } from "../data/wishes";
 import { NOTE_MAX } from "../domain/items";
-import { formatMinorInput, readPrice } from "../domain/money";
+import { formatMinor, formatMinorInput, readPrice } from "../domain/money";
 import { NAME_MAX } from "../domain/names";
 import { LINK_MAX, PRIORITIES, leadOf, linkFrom, shopOf, type Priority, type Wish } from "../domain/wishes";
 import { tr } from "../i18n/tr";
@@ -190,6 +190,45 @@ export function WishSheet({
         </View>
         <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={close} />
         <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
+      </Actions>
+    </DialogShell>
+  );
+}
+
+/**
+ * The panel as a viewer has it: what to buy and where, nothing to change. A
+ * viewer is the one buying a gift, and the links are what they need.
+ */
+export function WishView({ wish, onClose }: { wish: Wish; onClose: () => void }) {
+  const { palette } = useTheme();
+  const titleRef = useModalAccessibility(true, wish.id);
+  const lead = leadOf(wish.links.map((link) => ({ key: link.id, priceMinor: link.priceMinor })));
+  return (
+    <DialogShell title={wish.name} message={wish.note ?? undefined} titleRef={titleRef} onDismiss={onClose}>
+      {wish.links.length > 0 ? (
+        <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+          <Body>{tr.wishes.links}</Body>
+          {wish.links.map((link) => {
+            const shop = shopOf(link.url);
+            const price = link.priceMinor == null ? null : formatMinor(link.priceMinor);
+            return (
+              <View key={link.id} style={{ ...cardEdge(palette), flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[type.body, { color: palette.textStrong, fontFamily: font.medium }]}>{shop}</Text>
+                  {price ? (
+                    <Text style={[type.small, { color: palette.textSecondary }]}>
+                      {wish.links.length > 1 && lead?.key === link.id ? tr.common.joined(tr.wishes.cheapest, price) : price}
+                    </Text>
+                  ) : null}
+                </View>
+                <IconButton icon={ExternalLink} label={tr.wishes.linkOpen(shop)} onPress={() => openLink(link.url)} />
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+      <Actions>
+        <Button label={tr.common.close} size="sm" onPress={onClose} />
       </Actions>
     </DialogShell>
   );

@@ -100,6 +100,8 @@ export const tr = {
     title: "Hata",
     bootFailedTitle: "Listeler açılamadı",
     bootFailedHint: "Listelerin cihazında duruyor. Tekrar denemek çoğu zaman yeterli olur; sürerse uygulamayı kapatıp açmayı dene.",
+    bootHeldElsewhere: "Gital başka bir sekmede açık. O sekmeyi kapatınca bu sayfa kendiliğinden açılır.",
+    databaseRebuilt: "Cihazdaki kopya bozulmuştu, yeniden kuruldu. Listelerin hesabından geri geliyor; internete çıkmadan yaptığın son değişiklikler kaybolmuş olabilir.",
     readFailedTitle: "Listeler okunamadı",
     readFailedHint: "Yeniden deneniyor. Beklemek istemezsen şimdi dene.",
     saveFailed: "Kaydedilemedi. Lütfen tekrar dene.",
@@ -213,8 +215,11 @@ export const tr = {
     /** The tick's swipe, as a screen reader is offered it. */
     toBasket: (name: string) => `${name} ürününü sepete at`,
     fromBasket: (name: string) => `${name} ürününü sepetten çıkar`,
+    /** A tick taken back with its price, offered back. */
+    unticked: (name: string) => `${name} sepetten çıktı`,
     suggestion: (name: string) => `${name} ürününü ekle`,
     restockTitle: "Bitmiş olabilir",
+    restockAside: (name: string) => `${name} önerisini şimdilik kaldır`,
     restockChip: (name: string, everyDays: number) => `${name} · ${everyDays === 1 ? "her gün" : `${everyDays} günde bir`}`,
     restock: (name: string, everyDays: number) =>
       `${name} ürününü ekle, genelde ${everyDays === 1 ? "her gün" : `${everyDays} günde bir`} alınıyor`,
@@ -224,6 +229,7 @@ export const tr = {
     pastePlaceholder: "• 2 kg domates\n• süt (Pınar olsun)",
     pasted: (count: number) => `${count} ürün listeye eklendi`,
     pastedNothing: "Eklenecek yeni ürün yok",
+    alreadyListed: (names: readonly string[]) => `${names.join(", ")} zaten listede`,
     finish: "Alışverişi Bitir",
     carryTitle: "Bulunamayanlar",
     carryMessage: (names: readonly string[]) =>
@@ -337,6 +343,7 @@ export const tr = {
     markBought: (name: string) => `${name} isteğini alındı say`,
     markNotBought: (name: string) => `${name} isteğini alınmadı say`,
     openWishHint: "Düzenlemek için aç",
+    viewWishHint: "Bağlantılarını gör",
     priority: "Öncelik",
     priorities: ["Düşük", "Normal", "Yüksek"] as const,
     wanted: "Öncelikli",
@@ -367,6 +374,7 @@ export const tr = {
     /** What a shop's priced items cost (SPEC 3.8); nothing when none was priced, which is not ₺0. */
     spent: (spentMinor: number | null) => (spentMinor == null ? undefined : formatMinor(spentMinor)),
     openHint: "Alınanları gör",
+    older: "Daha eski alışverişler",
     total: "Alışverişin toplamı",
     totalHint: "Fişteki tutarı yaz. Boş bırakırsan girilen fiyatların toplamı kalır.",
     addBack: (name: string) => `${name} ürününü listeye geri ekle`,
@@ -511,7 +519,8 @@ export const tr = {
     errSamePassword: "Yeni şifren eskisiyle aynı olamaz.",
     errEmailNotConfirmed: "E-posta adresin henüz doğrulanmamış; gelen kutuna gelen bağlantıya dokun.",
     errInvalidEmail: "Geçerli bir e-posta adresi gir.",
-    errEmailDelivery: "E-posta şu anda gönderilemiyor. Birazdan tekrar dene; sürerse Geri bildirim'den haber ver.",
+    errEmailDelivery: "E-posta şu anda gönderilemiyor. Birazdan tekrar dene; sürerse aşağıdan haber ver.",
+    reportProblem: "Sorunu bildir",
     errSessionExpired: "Oturumun sona ermiş. Yeniden giriş yap; listelerin kaybolmadı.",
     errService: "Sunucu şu anda yanıt vermiyor. Birazdan tekrar dene.",
     errGeneric: "İşlem tamamlanamadı. Lütfen tekrar dene.",
@@ -562,7 +571,7 @@ export const tr = {
     transfers: [
       "**Supabase** — barındırma Amazon Web Services, **Frankfurt / Almanya**. Hesap açtığınızda ve her eşitlemede. Aktarılan veri: kimlik ve iletişim, alışveriş, görsel ve paylaşım verisi. Hesap doğrulama ve şifre yenileme e-postalarını Supabase tetikler; e-postaların kendisi Gmail üzerinden gönderilir. Verilerinizin asıl bulunduğu yer burasıdır.",
       "**Paylaştığınız kişiler** — bir listeyi paylaştığınızda o listenin satırları, fotoğrafları, adınız ve kimin neyi eklediği o listenin üyelerine görünür. Kileriniz, hafızanız ve setleriniz kimseye görünmez.",
-      "**Google (Gmail)** — Amerika Birleşik Devletleri. Gital'ın e-postalarını gönderen servistir. Şifre yenileme, e-posta doğrulama ve e-posta değişikliği iletilerinde aktarılan veri: e-posta adresiniz ve iletideki tek kullanımlık bağlantı. Geri bildirim gönderdiğinizde aktarılan veri: mesajınız, kategori, ekran görüntüleriniz, size dönülebilmesi için e-posta adresiniz, cihazınızın platformu ve uygulama sürümü.",
+      "**Google (Gmail)** — Amerika Birleşik Devletleri. Gital'ın e-postalarını gönderen servistir. Şifre yenileme, e-posta doğrulama ve e-posta değişikliği iletilerinde aktarılan veri: e-posta adresiniz ve iletideki tek kullanımlık bağlantı. Geri bildirim gönderdiğinizde aktarılan veri: mesajınız, kategori, ekran görüntüleriniz, size dönülebilmesi için e-posta adresiniz (giriş yapmadan gönderdiyseniz formda yazdığınız adres), cihazınızın platformu ve uygulama sürümü.",
       "**Open Food Facts** — Fransa. Yalnız telefonda bir barkod okuttuğunuzda. Aktarılan veri: barkod numarası ve bağlantı bilgisi; hesabınız ve listeleriniz gönderilmez.",
       "**Bağlantısını eklediğiniz mağaza** — Trendyol, Hepsiburada, Amazon ya da başka bir site. Yalnız telefonda, bir isteğe bağlantı eklediğinizde: ürünün adı, resmi ve fiyatı için telefon o sayfayı sizin yerinize, görünmeden açar. Mağaza, sayfayı tarayıcınızda açmışsınız gibi bağlantı bilgisini (IP adresi, tarayıcı bilgisi) görür; hesabınız ve listeleriniz gönderilmez.",
       "**GitHub Pages** — Amerika Birleşik Devletleri. Web sürümünü, bir davet ya da şifre yenileme sayfasını açtığınızda. Aktarılan veri: bağlantı bilgisi (IP adresi, tarayıcı bilgisi).",
@@ -656,6 +665,8 @@ export const tr = {
     rateLimited: "Kısa sürede çok fazla bildirim gönderildi. Bir süre sonra tekrar dene; yazdıkların burada duruyor.",
     unconfigured: "Bu kurulum buluta bağlı değil, bu yüzden geri bildirim gönderilemiyor.",
     privacy: "Yalnızca yazdığın metin, seçtiğin kategori, eklediğin görseller ve hesabının e-posta adresi gönderilir. Listelerinin hiçbiri gitmez.",
+    privacySignedOut: "Yalnızca yazdığın metin, seçtiğin kategori ve sana dönebilmem için yazdığın e-posta adresi gönderilir.",
+    replyToLabel: "Sana nereden döneyim?",
   },
   sharing: {
     errNotOwner: "Liste henüz sunucuya ulaşmadı. İnternete bağlanınca tekrar dene.",

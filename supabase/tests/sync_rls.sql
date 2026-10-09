@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(61);
+select extensions.plan(75);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -79,6 +79,12 @@ select lives_ok(
   $$insert into public.items (id, list_id, name, photo_id) values
     ('a1000000-0000-7000-8000-00000000000a', 'a0000000-0000-7000-8000-00000000000a', 'süt', 'f0000000-0000-7000-8000-00000000000f')$$,
   'A puts an item with a photo on the list'
+);
+select is(
+  pg_temp.exec_sqlstate($$insert into public.items (id, list_id, name, sort_order) values
+    ('a1100000-0000-7000-8000-00000000000a', 'a0000000-0000-7000-8000-00000000000a', 'ayran', 1152921504606846976)$$),
+  '23514',
+  'but not one in a place no device can hold, which would stop every member''s pull'
 );
 select lives_ok(
   $$insert into public.shops (id, list_id, number, finished_at) values
@@ -245,6 +251,18 @@ select is(
   '42501',
   'which does not let B place it: A''s row names it too'
 );
+insert into public.items (id, list_id, name, photo_id) values
+  ('b6000000-0000-7000-8000-00000000000b', 'b4000000-0000-7000-8000-00000000000b', 'peynir', 'f0000000-0000-7000-8000-00000000000f');
+select is(
+  (select photo_id from public.items where id = 'b6000000-0000-7000-8000-00000000000b'),
+  null::uuid,
+  'B cannot name a photo it cannot read to read it: an id once seen is not a key'
+);
+select is(
+  (select count(*) from storage.objects where bucket_id = 'photos'),
+  0::bigint,
+  'and still reads no photo of A''s'
+);
 select lives_ok(
   $$insert into storage.objects (bucket_id, name, owner_id) values
     ('photos', 'f3000000-0000-7000-8000-00000000000f/full.jpg', '20000000-0000-4000-8000-000000000002')$$,
@@ -280,8 +298,59 @@ select lives_ok(
 );
 select ok(public.can_see_photo('f0000000-0000-7000-8000-00000000000f'), 'A can see the photo its item names');
 select ok(not public.can_see_photo('f1000000-0000-7000-8000-00000000000f'), 'no row names the other photo');
+
+-- Migration 17: what no row names goes, a month on, by its uploader's hand.
+select is((select count(*) from public.unnamed_photos()), 0::bigint, 'a photo no row names yet is kept while it is new');
+set local role postgres;
+update storage.objects set created_at = now() - interval '31 days' where bucket_id = 'photos';
+set local role authenticated;
+select is(
+  (select array_agg(n) from public.unnamed_photos() n),
+  array['f1000000-0000-7000-8000-00000000000f/full.jpg'],
+  'a month on, the uploader is given it to remove, and only it'
+);
+
+-- And each account's photos weigh 100 MB at most, as Storage writes them.
+set local role postgres;
+select lives_ok(
+  $$insert into storage.objects (bucket_id, name, owner_id, metadata) values
+    ('photos', 'f5000000-0000-7000-8000-00000000000f/full.jpg', '20000000-0000-4000-8000-000000000002', '{"size": 104857600}')$$,
+  'an account fills its photo budget'
+);
+select is(
+  pg_temp.exec_sqlstate($$insert into storage.objects (bucket_id, name, owner_id, metadata) values
+    ('photos', 'f6000000-0000-7000-8000-00000000000f/full.jpg', '20000000-0000-4000-8000-000000000002', '{"size": 1}')$$),
+  '42501',
+  'and is refused a byte past it'
+);
+select lives_ok(
+  $$insert into storage.objects (bucket_id, name, owner_id, metadata) values
+    ('photos', 'f6000000-0000-7000-8000-00000000000f/full.jpg', '10000000-0000-4000-8000-000000000001', '{"size": 1}')$$,
+  'while another account''s is its own'
+);
+set local role authenticated;
 update public.shops set photo_id = 'f1000000-0000-7000-8000-00000000000f' where id = 'a2000000-0000-7000-8000-00000000000a';
 select ok(public.can_see_photo('f1000000-0000-7000-8000-00000000000f'), 'a shop naming it as its receipt makes it seen');
+-- A device that never pulled that shop finishes the same number: its row is made afresh (migration 16).
+insert into public.shops (id, list_id, created_at, number, finished_at, total_minor, photo_id)
+  values ('a2000000-0000-7000-8000-00000000000a', 'a0000000-0000-7000-8000-00000000000a', now() + interval '1 minute', 1, now(), null, null)
+  on conflict (list_id, id) do update set created_at = excluded.created_at, number = excluded.number,
+    finished_at = excluded.finished_at, total_minor = excluded.total_minor, photo_id = excluded.photo_id;
+select is(
+  (select photo_id from public.shops where id = 'a2000000-0000-7000-8000-00000000000a'),
+  'f1000000-0000-7000-8000-00000000000f'::uuid,
+  'a shop made afresh over a live one keeps its receipt'
+);
+-- A row the server made carries microseconds a device cuts; its edit is no fresh row.
+reset role;
+update public.shops set created_at = '2026-10-09 10:00:00.123456+00', total_minor = 500 where id = 'a2000000-0000-7000-8000-00000000000a';
+set local role authenticated;
+update public.shops set created_at = '2026-10-09 10:00:00.123+00', total_minor = null where id = 'a2000000-0000-7000-8000-00000000000a';
+select is(
+  (select total_minor from public.shops where id = 'a2000000-0000-7000-8000-00000000000a'),
+  null::bigint,
+  'an edit from a device that cut the microseconds still clears a value'
+);
 select is(public.photo_of_object('f0000000-0000-7000-8000-00000000000f/thumb.jpg'), 'f0000000-0000-7000-8000-00000000000f'::uuid, 'a thumbnail''s name gives its photo');
 select is(public.photo_of_object('../f0000000-0000-7000-8000-00000000000f/full.jpg'), null::uuid, 'a path that climbs gives none');
 
@@ -299,6 +368,27 @@ select is(
 select set_config('request.jwt.claim.sub', '20000000-0000-4000-8000-000000000002', true);
 select ok(public.record_feedback_send(), 'B''s limit is B''s own');
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+
+-- Migration 17: signed out, ten reports a day between everyone.
+set local role anon;
+select set_config('request.jwt.claim.sub', '', true);
+select ok(
+  (select bool_and(public.record_signed_out_feedback_send()) from generate_series(1, 10)),
+  'ten reports a day reach the owner from people signed out'
+);
+select ok(not public.record_signed_out_feedback_send(), 'but not an eleventh');
+select is(
+  pg_temp.exec_sqlstate($$select public.record_feedback_send()$$),
+  '42501',
+  'and signed out, an account''s own limit cannot be called'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+select is(
+  pg_temp.exec_sqlstate($$select public.record_signed_out_feedback_send()$$),
+  '42501',
+  'an account sends as itself, not from the shared ten'
+);
 
 -- Deleting the account takes every row it owns.
 select lives_ok($$select public.delete_own_account()$$, 'A deletes its account');

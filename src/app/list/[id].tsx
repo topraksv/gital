@@ -11,16 +11,18 @@ import Plus from "lucide-react-native/icons/plus";
 import ScanBarcode from "lucide-react-native/icons/scan-barcode";
 import Trash from "lucide-react-native/icons/trash";
 import Undo2 from "lucide-react-native/icons/undo-2";
+import X from "lucide-react-native/icons/x";
 import Share from "lucide-react-native/icons/share";
 
 
-import { useItems, useLasted, useLists, useMovedAisles, usePurchases } from "../../data/hooks";
+import { useItems, useLasted, useLists, useMovedAisles, usePurchases, useSettings } from "../../data/hooks";
+import { putRestockAside, restockAsideOf } from "../../data/settings";
 import { addEntries, addScanned, carryNotFound, deleteItems, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
 import { deleteLists, editList, restoreList, type ListSummary } from "../../data/lists";
 import { markSeen, rowPeople, type Member, type RowPeople } from "../../data/members";
 import { readPantry } from "../../data/pantry";
 import { finishShop, reopenShop } from "../../data/shops";
-import { catalogueNamed, listSections, nearMiss, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
+import { catalogueNamed, knowsProduct, listSections, nearMiss, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, type Entry } from "../../domain/items";
 import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
@@ -30,7 +32,7 @@ import { tr } from "../../i18n/tr";
 import { lookUpBarcode, type ScannedProduct } from "../../services/barcode";
 import { canScan, launchScanner, onScanned } from "../../services/barcode-scan";
 import { shareText } from "../../services/share";
-import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, cardEdge, RowOpen, RowTick } from "../../ui/components";
+import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, announce, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
 import { FinishedCard, type ShopSummary } from "../../ui/celebration";
@@ -69,6 +71,7 @@ export default function ListScreen() {
   const open = items.data.filter((item) => item.checkedAt == null);
   const basket = items.data.filter((item) => item.checkedAt != null);
   const selection = useSelection(items.data);
+  const ticking = useTicking();
   // Where an item can be sent: never a list this person only views, whose server refuses it.
   const destinations = lists.data.filter((candidate) => !candidate.viewer || candidate.id === id);
   const finishing = useFinish(id, open, basket, destinations);
@@ -122,9 +125,12 @@ export default function ListScreen() {
 
   // The circle's tap plays its own touch; a swipe has already played one at its threshold.
   const toggle = async (item: Item) => {
+    ticking.press(item);
     try {
-      await toggleChecked(item.id);
+      const taken = await toggleChecked(item.id);
+      if (taken) showUndo(tr.items.unticked(item.name), () => restoreItem(taken));
     } catch {
+      ticking.release(item.id);
       void appError(tr.errors.saveFailed);
     }
   };
@@ -132,11 +138,14 @@ export default function ListScreen() {
   // Sent elsewhere, the row leaves or is copied, so the save says where and can be taken back.
   const save = async (item: Item, change: ItemSave, to: ItemDestination | null) => {
     setEditing(null);
+    // Decided before `try`: the React Compiler lowers no conditional inside one.
+    const destination = to ? { listId: to.list.id, keep: to.keep } : undefined;
+    const said = to && ((name: string) => (to.keep ? tr.items.copied : tr.items.moved)(name, to.list.name));
     try {
-      const saved = await updateItem(item.id, change, to ? { listId: to.list.id, keep: to.keep } : undefined);
-      if (!to) return;
+      const saved = await updateItem(item.id, change, destination, item);
+      if (!said) return;
       selectionTap();
-      showUndo((to.keep ? tr.items.copied : tr.items.moved)(saved.name, to.list.name), () => undoSave(saved.written, id));
+      showUndo(said(saved.name), () => undoSave(saved.written, id));
     } catch {
       void appError(tr.errors.saveFailed);
     }
@@ -160,7 +169,7 @@ export default function ListScreen() {
         ) : (
           <RowSwipe right={selection.active ? undefined : right} left={selection.active ? undefined : left}>
             <ItemRow
-              item={item}
+              item={ticking.shown(item)}
               people={rowPeople(item, members.data, userId)}
               onOpen={() => (selection.active ? selection.toggle(item.id) : setEditing(item))}
               // Choosing and sorting exclude each other, as on Kiler: the grips draw no circle.
@@ -188,6 +197,7 @@ export default function ListScreen() {
         list?.name,
         <ListActions
           list={leaving ? undefined : list}
+          roleKnown={members.updatedAt != null}
           userId={userId}
           role={role}
           viewer={viewer}
@@ -275,9 +285,10 @@ export default function ListScreen() {
   );
 }
 
-/** The header's actions outside choosing; none while the list is not there or is going. */
+/** The header's actions outside choosing; none while the list is not there or is going, or its people are unread: everyone would be drawn as its owner. */
 function ListActions({
   list,
+  roleKnown,
   userId,
   role,
   viewer,
@@ -290,6 +301,7 @@ function ListActions({
   onRemove,
 }: {
   list: ListSummary | undefined;
+  roleKnown: boolean;
   userId: string;
   role: MemberRole;
   viewer: boolean;
@@ -301,7 +313,7 @@ function ListActions({
   onShare: (list: ListSummary) => void;
   onRemove: (list: ListSummary) => void;
 }) {
-  if (!list) return null;
+  if (!list || !roleKnown) return null;
   return (
     <>
       <EditorsOnly viewer={viewer}>
@@ -323,6 +335,22 @@ function ListActions({
  * only when something was, or the person had never looked, so an ordinary
  * visit sends nothing.
  */
+/**
+ * The circle fills at the touch: the write and its read-back took about 60 ms,
+ * felt in the aisle. A press is shown while the item still reads as it did when
+ * pressed; the read-back, or any other change, ends it, and the row moves to
+ * the basket then. A write that fails ends it at once.
+ */
+function useTicking() {
+  const [pressed, setPressed] = useState<Readonly<Record<string, string | null>>>({});
+  return {
+    shown: (item: Item): Item =>
+      Object.hasOwn(pressed, item.id) && pressed[item.id] === item.checkedAt ? { ...item, checkedAt: item.checkedAt == null ? new Date().toISOString() : null } : item,
+    press: (item: Item) => setPressed((held) => ({ ...held, [item.id]: item.checkedAt })),
+    release: (id: string) => setPressed((held) => Object.fromEntries(Object.entries(held).filter(([key]) => key !== id))),
+  };
+}
+
 function useSeenOnLeave(listId: string, userId: string, items: readonly Item[], members: readonly Member[]) {
   const mine = members.find((member) => member.userId === userId);
   const due = mine != null && (mine.seenAt == null || items.some((item) => rowPeople(item, members, userId).fresh));
@@ -435,11 +463,15 @@ function QuickAdd({
     for (let at = from; at < entries.length; at++) {
       if (!nearMiss(entries[at]!.name, [])) continue;
       const product = nearMiss(entries[at]!.name, await readKnownProducts());
-      if (product) return setAsking({ entries, at, product, typed });
+      if (product) {
+        announce(tr.catalogue.didYouMean(product.name));
+        return setAsking({ entries, at, product, typed });
+      }
     }
     setAsking(null);
     try {
-      await addEntries(listId, entries);
+      const { unchanged } = await addEntries(listId, entries);
+      if (unchanged.length === entries.length) return showNotice(tr.items.alreadyListed(unchanged));
       selectionTap();
       // Read once the add is written, so a slow read never holds it up, and
       // a failed one costs only the sentence.
@@ -475,7 +507,7 @@ function QuickAdd({
           ref={field}
           value={text}
           onChangeText={setText}
-          onSubmitEditing={() => add(parseEntry(text))}
+          onSubmitEditing={() => add(parseEntry(text, knowsProduct([...items, ...purchases])))}
           // Enter adds and keeps the keyboard up (SPEC 2.1). React Native Web
           // reads `blurOnSubmit` and not `submitBehavior`, so the older prop.
           blurOnSubmit={false}
@@ -487,7 +519,7 @@ function QuickAdd({
         />
         {canScan ? <ScanButton listId={listId} /> : null}
         <IconButton icon={LayoutGrid} label={tr.catalogue.open} field onPress={() => setBrowsing(true)} />
-        <IconButton icon={Plus} label={tr.items.add} tone="primary" field onPress={() => add(parseEntry(text))} />
+        <IconButton icon={Plus} label={tr.items.add} tone="primary" field onPress={() => add(parseEntry(text, knowsProduct([...items, ...purchases])))} />
       </View>
       {asking ? (
         <SlideUp distance={motion.travel.rise}>
@@ -506,7 +538,7 @@ function QuickAdd({
           open={items.filter((item) => item.checkedAt == null)}
           addSet={async (entries) => {
             const written = await importEntries(listId, entries);
-            return written && (() => undoSave(written, listId));
+            return written && { count: written.writes.length, undo: () => undoSave(written, listId) };
           }}
           onAdd={(product) => add([{ name: product.name, quantityMilli: null, unit: null }])}
           onRemove={onRemove}
@@ -526,7 +558,7 @@ function QuickAdd({
           }}
         />
       ) : (
-        <Restock purchases={purchases} items={items} onPick={(entry) => add([entry])} />
+        <Restock listId={listId} purchases={purchases} items={items} onPick={(entry) => add([entry])} />
       )}
     </View>
   );
@@ -568,27 +600,35 @@ function ScanButton({ listId }: { listId: string }) {
 
 /**
  * What the list's rhythm says has run out (SPEC 2.7), while nothing is typed:
- * it offers and never asks, and leaves once the product is on the list.
+ * it offers and never asks, and leaves once the product is on the list, or
+ * once put aside until it is next bought.
  */
-function Restock({ purchases, items, onPick }: { purchases: readonly Purchase[]; items: readonly Item[]; onPick: (entry: Entry) => void }) {
+function Restock({ listId, purchases, items, onPick }: { listId: string; purchases: readonly Purchase[]; items: readonly Item[]; onPick: (entry: Entry) => void }) {
   const { palette } = useTheme();
   // How long things last at home is the better rhythm, once measured (SPEC 12.7).
   const lasted = useLasted();
-  const due = restockDue(purchases, items, new Date(), new Map(lasted.data));
+  const aside = restockAsideOf(useSettings().data, listId);
+  const due = restockDue(purchases, items, new Date(), new Map(lasted.data), aside);
+  const putAside = (key: string) => {
+    selectionTap();
+    putRestockAside(listId, key).catch(() => void appError(tr.errors.saveFailed));
+  };
   if (due.length === 0) return null;
   return (
     <View style={{ gap: spacing.xs }}>
       <Text style={[type.small, { color: palette.textSecondary }]}>{tr.items.restockTitle}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
         {due.map(({ key, name, quantityMilli, unit, everyDays }) => (
-          <IconButton
-            key={key}
-            icon={Plus}
-            text={tr.items.restockChip(name, everyDays)}
-            label={tr.items.restock(name, everyDays)}
-            tone="primary"
-            onPress={() => onPick({ name, quantityMilli, unit })}
-          />
+          <View key={key} style={{ flexDirection: "row" }}>
+            <IconButton
+              icon={Plus}
+              text={tr.items.restockChip(name, everyDays)}
+              label={tr.items.restock(name, everyDays)}
+              tone="primary"
+              onPress={() => onPick({ name, quantityMilli, unit })}
+            />
+            <IconButton icon={X} label={tr.items.restockAside(name)} onPress={() => putAside(key)} />
+          </View>
         ))}
       </ScrollView>
     </View>

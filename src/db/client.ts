@@ -3,17 +3,16 @@
  * platform, with Drizzle over it through the generic sqlite-proxy driver.
  * Ported from Helix's `src/db/client.ts`; `docs/ARCHITECTURE.md` "Local storage
  * is Helix's" says why the synchronous web bridge is ruled out.
- *
- * Helix also moves a corrupt database aside and reports it on the next launch.
- * That is not ported yet (`docs/BACKLOG.md`): until it is, a database that will
- * not open is left untouched on disk and the boot screen says so.
  */
 
-import { openDatabaseAsync, type SQLiteBindParams, type SQLiteDatabase } from "expo-sqlite";
+import { deleteDatabaseAsync, openDatabaseAsync, type SQLiteBindParams, type SQLiteDatabase } from "expo-sqlite";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import { Platform } from "react-native";
+import { kv } from "../services/kv";
 
 const DB_NAME = "gital.db";
+/** Set when a corrupt copy was replaced, until the person has been told. */
+const REBUILT_KEY = "gital.database-rebuilt";
 
 let handle: Promise<SQLiteDatabase> | null = null;
 
@@ -35,24 +34,56 @@ async function open(): Promise<SQLiteDatabase> {
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+function isCorrupt(error: unknown): boolean {
+  const code = typeof error === "object" && error != null && "code" in error ? String(error.code) : "";
+  const details = `${code} ${error instanceof Error ? error.message : String(error)}`.toLowerCase();
+  return ["sqlite_corrupt", "not a database", "database disk image is malformed"].some((signal) => details.includes(signal));
+}
+
+/**
+ * A corrupt copy is deleted and opened afresh, and the next pull brings the
+ * account's rows back. Helix renames it aside instead, because a Helix ledger
+ * may live on one device only; every Gital row but the unsent ones is in the
+ * account, and a file kept in an app's sandbox is one nobody here would
+ * recover by hand. What may be lost is said once (`takeDatabaseRebuilt`).
+ */
+async function rebuild(): Promise<void> {
+  await deleteDatabaseAsync(DB_NAME);
+  await kv.set(REBUILT_KEY, "1").catch(() => {});
+}
+
 /**
  * On the web the previous page's worker can still hold OPFS's exclusive access
  * handle for a moment after a refresh. Helix measured that as an intermittent
  * "Tekrar dene" screen a plain reload could not clear, so opening backs off and
- * tries again, about two seconds in all, before it reports a failure.
+ * tries again, about two seconds in all, before it reports a failure. A
+ * corrupt file is rebuilt once and opened again at once.
  */
 async function openWithRetry(): Promise<SQLiteDatabase> {
   const attempts = 6;
   let lastError: unknown;
+  let rebuilt = false;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       return await open();
     } catch (error) {
       lastError = error;
+      if (isCorrupt(error) && !rebuilt) {
+        rebuilt = true;
+        await rebuild();
+        continue;
+      }
       if (attempt < attempts - 1) await delay(150 * (attempt + 1));
     }
   }
   throw lastError;
+}
+
+/** Whether a corrupt copy was replaced and the person not yet told; reading it is the telling. */
+export async function takeDatabaseRebuilt(): Promise<boolean> {
+  const rebuilt = (await kv.get(REBUILT_KEY).catch(() => null)) != null;
+  if (rebuilt) await kv.remove(REBUILT_KEY).catch(() => {});
+  return rebuilt;
 }
 
 export function getSqliteAsync(): Promise<SQLiteDatabase> {

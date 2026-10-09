@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 import ReceiptTurkishLira from "lucide-react-native/icons/receipt-turkish-lira";
@@ -7,11 +8,19 @@ import { aisleShares } from "../../domain/catalogue";
 import { spentByMonth } from "../../domain/money";
 import { tr } from "../../i18n/tr";
 import { AisleShares, MONTHS, MonthBars } from "../../ui/charts";
-import { ArrivalScope, Card, EmptyState, LinkCard, ReadFailed, Screen, SectionHeader, SlideUp } from "../../ui/components";
+import { ArrivalScope, Button, Card, EmptyState, LinkCard, ReadFailed, Screen, SectionHeader, SlideUp } from "../../ui/components";
 import { density, listCard, motion } from "../../ui/theme";
+
+/**
+ * Shops drawn a page at a time. The read stays whole: the month chart and the
+ * shop page read the same query, and a shop's row is small; what grew with
+ * the years was the cards, each one animated, mounted at once.
+ */
+const PAGE = 30;
 
 export default function History() {
   const shops = useShops();
+  const [shown, setShown] = useState(PAGE);
   const router = useRouter();
   const months = spentByMonth(shops.data, new Date(), MONTHS);
   const priced = usePricedSince(months.at(-1)!.start);
@@ -39,7 +48,7 @@ export default function History() {
                   <AisleShares rows={aisles} />
                 </Card>
               ) : null}
-              {shops.data.map((shop) => (
+              {shops.data.slice(0, shown).map((shop) => (
                 <SlideUp key={shop.id} distance={motion.travel.bar}>
                   <LinkCard
                     tileId={shop.listId}
@@ -52,6 +61,9 @@ export default function History() {
                   />
                 </SlideUp>
               ))}
+              {shops.data.length > shown ? (
+                <Button variant="secondary" label={tr.history.older} onPress={() => setShown((count) => count + PAGE)} />
+              ) : null}
             </View>
           )}
         </ArrivalScope>

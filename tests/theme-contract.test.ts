@@ -113,6 +113,9 @@ describe.each(schemes)("%s", (_, p) => {
     ["successText", "surface"],
     ["errorText", "surface"],
     ["warningText", "surface"],
+    // The mark in a ticked item's circle, and any text drawn on `secondary`
+    // later: Helix's 3.89 and 3.85 were corrected on 2026-10-09.
+    ["onSecondary", "secondary"],
   ] as const)("%s on %s reaches 4.5:1", (fg, bg) => {
     expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(TEXT);
   });
@@ -124,9 +127,8 @@ describe.each(schemes)("%s", (_, p) => {
     ["focus", "surface"],
     ["focus", "surfaceAlt"],
     ["primary", "surface"],
-    // A ticked item's circle, and the mark drawn in it: graphics, not text.
+    // A ticked item's circle: a graphic, not text.
     ["secondary", "surface"],
-    ["onSecondary", "secondary"],
   ] as const)("%s on %s reaches 3:1", (fg, bg) => {
     expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(NON_TEXT);
   });

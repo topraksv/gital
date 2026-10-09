@@ -13,9 +13,10 @@ import * as Notifications from "expo-notifications";
 import { readItems } from "../data/items";
 import { readLists } from "../data/lists";
 import { readLasted, readPantry } from "../data/pantry";
+import { readSettings, restockAsideOf } from "../data/settings";
 import { readDueWishes } from "../data/wishes";
 import { readPurchases } from "../data/shops";
-import { planReminders, type Reminder } from "../domain/reminders";
+import { planReminders, routeOf, tapRoute, type Reminder, type ReminderRoute } from "../domain/reminders";
 import { tr } from "../i18n/tr";
 import { readReminderPreferences, saveRemindersOn } from "./reminder-preferences";
 
@@ -78,9 +79,16 @@ function wordsOf(reminder: Reminder): { title: string; body: string } {
 
 async function planned(): Promise<Reminder[]> {
   const { day } = await readReminderPreferences();
-  const [lists, pantry, lasted, wishes] = await Promise.all([readLists(), readPantry(), readLasted(), readDueWishes()]);
+  const [lists, pantry, lasted, wishes, settings] = await Promise.all([readLists(), readPantry(), readLasted(), readDueWishes(), readSettings()]);
   const restock = await Promise.all(
-    lists.map(async (list) => ({ listName: list.name, purchases: await readPurchases(list.id), onList: await readItems(list.id), lasted: new Map(lasted) })),
+    lists.map(async (list) => ({
+      listId: list.id,
+      listName: list.name,
+      purchases: await readPurchases(list.id),
+      onList: await readItems(list.id),
+      lasted: new Map(lasted),
+      aside: restockAsideOf(settings, list.id),
+    })),
   );
   return planReminders({
     now: new Date(),
@@ -121,8 +129,39 @@ async function replace(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
   for (const reminder of next) {
     await Notifications.scheduleNotificationAsync({
-      content: wordsOf(reminder),
+      content: { ...wordsOf(reminder), data: { route: routeOf(reminder) } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminder.at, ...(Platform.OS === "android" ? { channelId: CHANNEL } : {}) },
     });
   }
+}
+
+/**
+ * A tap on a reminder opens what it is about, Helix's
+ * `useNotificationTapRouting`: the launch response is the tap that started a
+ * cold app, the listener the taps that come while it runs. A handled launch
+ * response is cleared, or it is replayed on every later read, after a sign-in
+ * to another account too. Returns the unsubscribe.
+ */
+export function followReminderTaps(open: (route: ReminderRoute) => void): () => void {
+  const handled = new Set<string>();
+  const take = (response: Notifications.NotificationResponse | null) => {
+    if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const key = response.notification.request.identifier;
+    const route = tapRoute(response.notification.request.content.data);
+    if (!route || handled.has(key)) return;
+    handled.add(key);
+    try {
+      Notifications.clearLastNotificationResponse();
+    } catch {
+      // Nothing to clear is no reason to stay where the tap did not mean.
+    }
+    open(route);
+  };
+  try {
+    take(Notifications.getLastNotificationResponse());
+  } catch {
+    // An OS that keeps no launch response still delivers the next tap.
+  }
+  const subscription = Notifications.addNotificationResponseReceivedListener(take);
+  return () => subscription.remove();
 }

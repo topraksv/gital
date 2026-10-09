@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { REMINDER_HOUR, REMINDERS_MAX, planReminders, type ReminderInput } from "../../src/domain/reminders";
+import { REMINDER_HOUR, REMINDERS_MAX, planReminders, routeOf, tapRoute, type Reminder, type ReminderInput } from "../../src/domain/reminders";
 
 // Wednesday 2026-09-23, 20:00 local.
 const now = new Date(2026, 8, 23, 20, 0);
@@ -19,6 +19,14 @@ describe("the shopping day", () => {
     expect(planned).toEqual([
       { kind: "shopping", at: at(26, 10, 30), lists: [{ name: "Market", open: 12 }] },
       { kind: "shopping", at: at(3 + 30, 10, 30), lists: null },
+    ]);
+  });
+
+  it("is next week when its moment is this very one, still saying what the lists hold, and keeps the one on the horizon's edge", () => {
+    const planned = planReminders({ ...base, shoppingDay: { weekday: 3, hour: 20, minute: 0 }, lists: [{ name: "Market", open: 2 }] });
+    expect(planned).toEqual([
+      { kind: "shopping", at: at(30, 20), lists: [{ name: "Market", open: 2 }] },
+      { kind: "shopping", at: at(37, 20), lists: null },
     ]);
   });
 
@@ -35,6 +43,11 @@ describe("a pantry date", () => {
       { kind: "expiry", at: at(24), name: "Süt", days: 0 },
       { kind: "expiry", at: at(25), name: "Yoğurt", days: 1 },
     ]);
+  });
+
+  it("is said that morning when the morning before is this very moment, and not at all past the horizon", () => {
+    const planned = planReminders({ ...base, now: at(23), pantry: [{ name: "Süt", expiresOn: "2026-09-24" }, { name: "Bal", expiresOn: "2026-12-01" }] });
+    expect(planned).toEqual([{ kind: "expiry", at: at(24), name: "Süt", days: 0 }]);
   });
 });
 
@@ -62,9 +75,37 @@ describe("a restock", () => {
   it("is said the first morning its rhythm says it has run out, once, and not for what is due already or on the list", () => {
     const planned = planReminders({
       ...base,
-      restock: [{ listName: "Market", purchases: [...weekly("Süt", 20), ...weekly("Ekmek", 16)], onList: [], lasted: new Map() }, { listName: "Eczane", purchases: weekly("Vitamin", 20), onList: [{ name: "vitamin" }], lasted: new Map() }],
+      restock: [
+        { listId: "m", listName: "Market", purchases: [...weekly("Süt", 20), ...weekly("Ekmek", 16)], onList: [], lasted: new Map(), aside: new Map() },
+        { listId: "e", listName: "Eczane", purchases: weekly("Vitamin", 20), onList: [{ name: "vitamin" }], lasted: new Map(), aside: new Map() },
+      ],
     });
-    expect(planned).toEqual([{ kind: "restock", at: at(28), name: "Süt", listName: "Market" }]);
+    expect(planned).toEqual([{ kind: "restock", at: at(28), name: "Süt", listId: "m", listName: "Market" }]);
+  });
+
+  it("is not said for a product put aside on the list since it was last bought", () => {
+    const aside = new Map([["sut", new Date(2026, 8, 21).toISOString()]]);
+    const planned = planReminders({ ...base, restock: [{ listId: "m", listName: "Market", purchases: weekly("Süt", 20), onList: [], lasted: new Map(), aside }] });
+    expect(planned).toEqual([]);
+  });
+
+  it("is still said on the last morning of the horizon", () => {
+    const fortnightly = [0, 14, 28].map((back) => ({ name: "Peynir", quantityMilli: null, unit: null, boughtAt: new Date(2026, 8, 22 - back, 12).toISOString() }));
+    const planned = planReminders({ ...base, restock: [{ listId: "m", listName: "Market", purchases: fortnightly, onList: [], lasted: new Map(), aside: new Map() }] });
+    expect(planned).toEqual([{ kind: "restock", at: at(37), name: "Peynir", listId: "m", listName: "Market" }]);
+  });
+});
+
+describe("a tap", () => {
+  it("opens what each reminder is about, and nothing for a payload this build did not write", () => {
+    const routes = (["shopping", "expiry", "wish"] as const).map((kind) => routeOf({ kind, at: now, name: "x", days: 0, lists: null } as Reminder));
+    expect(routes).toEqual([{ pathname: "/" }, { pathname: "/pantry" }, { pathname: "/wishes" }]);
+    const restock = routeOf({ kind: "restock", at: now, name: "Süt", listId: "m", listName: "Market" });
+    expect(restock).toEqual({ pathname: "/list/[id]", params: { id: "m" } });
+    for (const route of [...routes, restock]) expect(tapRoute({ route })).toEqual(route);
+    for (const data of [null, undefined, "x", {}, { route: null }, { route: { pathname: "/settings" } }, { route: { pathname: "/list/[id]" } }, { route: { pathname: "/list/[id]", params: { id: "" } } }, { route: { pathname: "/list/[id]", params: { id: 7 } } }]) {
+      expect(tapRoute(data), JSON.stringify(data)).toBeNull();
+    }
   });
 });
 

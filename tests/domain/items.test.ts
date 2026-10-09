@@ -118,6 +118,22 @@ describe("parseEntry", () => {
     ]);
   });
 
+  it("gives a quantity said after the last product to it", () => {
+    expect(parseEntry("domates, iki kilo")).toEqual([{ name: "Domates", quantityMilli: 2000, unit: "kg" }]);
+    expect(parseEntry("3 limon, iki kilo")).toEqual([{ name: "Limon", quantityMilli: 3000, unit: "adet" }]);
+    expect(parseEntry("iki kilo")).toEqual([]);
+  });
+
+  it("keeps a product the household knows whole, number word and all", () => {
+    const known = (name: string) => foldName(name) === foldName("Yarım yağlı süt");
+    expect(parseEntry("yarım yağlı süt, iki ekmek", known)).toEqual([
+      { name: "Yarım yağlı süt", quantityMilli: null, unit: null },
+      { name: "Ekmek", quantityMilli: 2000, unit: "adet" },
+    ]);
+    expect(parseEntry("yarım yağlı süt")[0]).toEqual({ name: "Yağlı süt", quantityMilli: 500, unit: "adet" });
+    expect(parseEntry("2 yarım yağlı süt", known)[0]?.quantityMilli).toBe(2000);
+  });
+
   it("rounds a quantity to thousandths", () => {
     expect(parseEntry("0,3333 kg biber")[0]?.quantityMilli).toBe(333);
   });
@@ -196,6 +212,12 @@ describe("parseList", () => {
       item("Kalem 2", { quantityMilli: 3000, unit: "paket" }),
     ];
     expect(parseList(formatList("Market", items))).toEqual(items);
+  });
+
+  it("writes a name that opens with a number as the one piece it shows, so it comes back whole", () => {
+    const text = formatList("Market", [item("7 tahıllı ekmek")]);
+    expect(text).toBe("Market\n• 1 adet 7 tahıllı ekmek");
+    expect(parseList(text)).toEqual([item("7 tahıllı ekmek", { quantityMilli: 1000, unit: "adet" })]);
   });
 
   it("takes only the bulleted lines of a list with bullets, whatever the bullet", () => {

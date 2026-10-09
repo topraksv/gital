@@ -189,8 +189,9 @@ npm run verify:full   # + production export, bundle bütçesi, tüm Playwright
 
 CI, bir push'un dokunduğu yolları okur ve testin ağırlığını ona göre seçer.
 Mutasyon testi kodu kasıtlı olarak bozar ve testlerin bunu fark edip etmediğini
-ölçer; `mutation-baseline.json` her `src/domain` dosyasının en son ne kadarını
-yakaladığını tutar. `lint-baseline.json` her lint kuralının kaç kez
+ölçer; `mutation-baseline.json` kapsamdaki her dosyanın (`src/domain`,
+`src/data`, `src/db`, `src/sync`, `src/auth`, `src/services`) en son ne
+kadarını yakaladığını tutar. `lint-baseline.json` her lint kuralının kaç kez
 tetiklendiğini kaydeder ve daha sık tetiklenmesi push'u düşürür.
 
 Bir sürüm tag'i ancak CI'ı yeşil bir commit'i gösterebilir; tag

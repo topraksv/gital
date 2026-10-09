@@ -24,7 +24,7 @@ vi.mock("expo-crypto", () => ({
 const { addEntries, deleteItems, readItems, readShopItems, toggleChecked, updateItem } = await import("../../src/data/items");
 const { parseEntry } = await import("../../src/domain/items");
 /** The quick-add field's Enter. */
-const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
+const addItems = async (list: string, text: string) => (await addEntries(list, parseEntry(text))).ids;
 const { finishShop, readPricedSince, readPurchases, readShops, reopenShop, setShopReceipt, setShopTotal } = await import("../../src/data/shops");
 const { readPhoto } = await import("../../src/data/photos");
 const { createList, deleteLists, readLists } = await import("../../src/data/lists");
@@ -324,7 +324,7 @@ describe("addEntries from history", () => {
   it("puts a bought product back on its list with its quantity", async () => {
     await shopFor("2 lt süt", ["Süt"]);
     const [item] = await readShopItems(await finish());
-    const [back] = await addEntries(listId, [item!]);
+    const [back] = (await addEntries(listId, [item!])).ids;
     expect(await readItems(listId)).toEqual([{ id: back, name: "Süt", quantityMilli: 2000, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) }]);
     expect(back).not.toBe(item!.id);
   });
@@ -397,7 +397,7 @@ describe("readPricedSince", () => {
     await updateItem(ayran!, priced("Ayran", 900));
     await finish();
     const other = await createList("Eczane");
-    const [pil] = await addEntries(other, parseEntry("pil"));
+    const [pil] = (await addEntries(other, parseEntry("pil"))).ids;
     await updateItem(pil!, priced("Pil", 5000));
     await finishShop(other);
     await deleteLists([other]);

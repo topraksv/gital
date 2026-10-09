@@ -59,6 +59,15 @@ describe("sending a report", () => {
     expect(await sendFeedback(report)).toBe("unconfigured");
   });
 
+  it("posts signed out with the address to answer and no screenshot", async () => {
+    cloud.session = false;
+    expect(await sendFeedback({ ...report, images: [], replyTo: " ayse@ev.com " })).toBe("sent");
+    expect(cloud.sent).toEqual([expect.objectContaining({ images: [], replyTo: "ayse@ev.com" })]);
+    expect(await sendFeedback({ ...report, replyTo: "ayse@ev.com" }), "a screenshot needs an account").toBe("unauthenticated");
+    expect(await sendFeedback({ ...report, images: [], replyTo: "ayse" })).toBe("unauthenticated");
+    expect(cloud.sent).toHaveLength(1);
+  });
+
   it("posts nothing the rules refuse", async () => {
     expect(await sendFeedback({ ...report, message: "kısa" })).toBe("failed");
     expect(await sendFeedback({ ...report, category: "bug" as never })).toBe("failed");

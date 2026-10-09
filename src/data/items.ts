@@ -5,7 +5,6 @@ import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
 import {
   editRow,
-  findLiveRow,
   fromDbShape,
   nowIso,
   deleteRows,
@@ -128,12 +127,20 @@ export function openItemId(listId: string, name: string): Promise<string> {
  * is merged into its row rather than added again, and one deleted from it, or
  * bought, comes back on top.
  */
-export async function addEntries(listId: string, added: readonly Entry[]): Promise<string[]> {
+export async function addEntries(listId: string, added: readonly Entry[]): Promise<{ ids: string[]; unchanged: string[] }> {
   // An item from history also carries its id and tick, and the note and
   // urgency a product added again comes back without.
   const entries = await byProduct(listId, added.map(bareEntry));
-  if (entries.size > 0) await writeRows(() => landEntries(listId, entries));
-  return [...entries.keys()];
+  const wrote = new Set<unknown>();
+  if (entries.size > 0) {
+    await writeRows(async () => {
+      const writes = await landEntries(listId, entries);
+      for (const { row } of writes) wrote.add(row.id);
+      return writes;
+    });
+  }
+  // What the list already held as it is: an add that changes nothing must say so, or it reads as lost.
+  return { ids: [...entries.keys()], unchanged: [...entries].flatMap(([id, entry]) => (wrote.has(id) ? [] : [entry.name])) };
 }
 
 /**
@@ -166,14 +173,17 @@ export async function importEntries(listId: string, added: readonly ListedEntry[
 }
 
 /** What adding `added` writes, for a write that adds to a list among other things; run inside it. */
-export async function entryRows(listId: string, added: readonly ListedEntry[]): Promise<RowWrite[]> {
+export async function entryRows(listId: string, added: readonly Landing[]): Promise<RowWrite[]> {
   return landEntries(listId, await byProduct(listId, added));
 }
 
+/** What lands on a list: an entry, and the photo an item sent from another list brings. */
+type Landing = ListedEntry & { photoId?: string | null };
+
 /** One per product: named twice, it keeps its first place and takes the last quantity and note given. */
-async function byProduct(listId: string, added: readonly ListedEntry[]): Promise<Map<string, ListedEntry>> {
+async function byProduct(listId: string, added: readonly Landing[]): Promise<Map<string, Landing>> {
   const ids = await Promise.all(added.map((entry) => openItemId(listId, entry.name)));
-  const entries = new Map<string, ListedEntry>();
+  const entries = new Map<string, Landing>();
   added.forEach((entry, at) => {
     const id = ids[at]!;
     const held = entries.get(id);
@@ -189,15 +199,15 @@ async function byProduct(listId: string, added: readonly ListedEntry[]): Promise
   return entries;
 }
 
-async function landEntries(listId: string, entries: ReadonlyMap<string, ListedEntry>): Promise<RowWrite[]> {
+async function landEntries(listId: string, entries: ReadonlyMap<string, Landing>): Promise<RowWrite[]> {
   await readLiveRow("lists", listId);
   const unique = [...entries.keys()];
   const sqlite = await getSqliteAsync();
   const live = new Map(
     (
       await sqlite.getAllAsync<RowSnapshot>(
-        `SELECT * FROM items WHERE id IN (${unique.map(() => "?").join(", ")}) AND deleted_at IS NULL`,
-        unique,
+        `SELECT * FROM items WHERE id IN (${unique.map(() => "?").join(", ")}) AND list_id = ? AND deleted_at IS NULL`,
+        [...unique, listId],
       )
     ).map((row) => [row.id, row]),
   );
@@ -217,6 +227,16 @@ async function topPlace(listId: string): Promise<number> {
     [listId],
   );
   return top?.low ?? 0;
+}
+
+/**
+ * A product's live row on this list. Never by id alone: the server keys items
+ * by list too (migration 14), so another list's member can write a row under
+ * the id this list's product hashes to, and an add found by id would land on
+ * their list.
+ */
+function liveItemOn(listId: string, id: string): Promise<RowSnapshot | null> {
+  return getSqliteAsync().then((sqlite) => sqlite.getFirstAsync<RowSnapshot>("SELECT * FROM items WHERE id = ? AND list_id = ? AND deleted_at IS NULL", [id, listId]));
 }
 
 /** A stale screen must not edit an item whose list is gone, nor make one under it. */
@@ -267,11 +287,19 @@ function land(id: string, there: RowSnapshot | null, arriving: Record<string, un
  * it back rather than repeating it. Taken back out, what was bought in its
  * place, and what was paid, was not after all.
  */
-export function toggleChecked(id: string): Promise<void> {
-  return writeRows(async () => {
+/**
+ * A tick, or taking one back. Taking back a tick takes its price and what was
+ * bought instead with it, so that one returns what undo needs; any other, null.
+ */
+export async function toggleChecked(id: string): Promise<RowsWritten | null> {
+  let lost = false;
+  const written = await writeUndoable(async () => {
     const stored = await readLiveItem(id);
-    return editItem(stored, stored.checked_at == null ? { checkedAt: nowIso() } : { checkedAt: null, boughtInstead: null, priceMinor: null });
+    if (stored.checked_at == null) return editItem(stored, { checkedAt: nowIso() });
+    lost = stored.price_minor != null || stored.bought_instead != null;
+    return editItem(stored, { checkedAt: null, boughtInstead: null, priceMinor: null });
   });
+  return lost ? written : null;
 }
 
 /**
@@ -317,6 +345,7 @@ export async function updateItem(
   id: string,
   change: ItemSave,
   to?: { listId: string; keep: boolean },
+  opened?: Partial<ItemChange>,
 ): Promise<{ name: string; written: RowsWritten }> {
   const name = itemNameFrom(change.name);
   if (name == null) throw new Error("An item needs a name");
@@ -325,32 +354,21 @@ export async function updateItem(
   const { priceMinor } = change;
   if (priceMinor != null && !isPrice(priceMinor)) throw new Error("A price is whole kuruş");
   const saved = { name, quantityMilli: change.quantityMilli, unit: change.unit, note, urgent: change.urgent, notFound: change.notFound, boughtInstead, priceMinor };
+  // Only what the panel changed from what it opened with: a field left alone
+  // keeps what another member wrote to it meanwhile (ARCHITECTURE "Tables").
+  const edits: Partial<typeof saved> = opened
+    ? Object.fromEntries(Object.entries(saved).filter(([key, value]) => opened[key as keyof ItemChange] !== value))
+    : saved;
   const written = await writeUndoable(async () => {
     const stored = await readLiveItem(id);
     const { photoId = stored.photo_id as string | null } = await photoColumn(change.photo);
-    const here = !to || to.keep ? await saveHere(stored, { ...saved, photoId }) : editRow("items", stored, { deletedAt: nowIso() });
+    const current = { ...(fromDbShape("items", stored) as unknown as typeof saved), ...edits, photoId };
+    const here = !to || to.keep ? await saveHere(stored, { ...edits, name: current.name, photoId }) : editRow("items", stored, { deletedAt: nowIso() });
     if (!to) return here;
     if (to.listId === stored.list_id) throw new Error("An item is sent to another list");
-    const { quantityMilli, unit, urgent } = saved;
-    return [...here, ...(await sendTo(to.listId, [{ name, quantityMilli, unit, note, urgent, photoId }]))];
+    return [...here, ...(await entryRows(to.listId, [{ name: current.name, quantityMilli: current.quantityMilli, unit: current.unit, note: current.note, urgent: current.urgent, photoId }]))];
   });
   return { name, written };
-}
-
-/**
- * Items landing on another list as adding them there would (SPEC 4.3): on
- * top, in the order given, with what each needs to be bought. Its tick, what
- * was or was not found and its price were the left list's shop, and do not go.
- */
-async function sendTo(listId: string, sent: readonly ({ name: string } & Record<string, unknown>)[]): Promise<RowWrite[]> {
-  await readLiveRow("lists", listId);
-  const top = await topPlace(listId);
-  const writes: RowWrite[] = [];
-  for (const [at, item] of sent.entries()) {
-    const target = await openItemId(listId, item.name);
-    writes.push(...land(target, await findLiveRow("items", target), { listId, ...item, sortOrder: top - sent.length + at, checkedAt: null }));
-  }
-  return writes;
 }
 
 /**
@@ -368,10 +386,10 @@ export async function carryNotFound(listId: string, toListId: string): Promise<R
     if (toListId === listId) return missed.flatMap((row) => editItem(row, { notFound: false }));
     const now = nowIso();
     const sent = missed.map((row) => {
-      const { quantityMilli, unit, note, urgent, photoId } = fromDbShape("items", row);
+      const { quantityMilli = null, unit = null, note = null, urgent = false, photoId = null } = fromDbShape("items", row) as Partial<Landing>;
       return { name: String(row.name), quantityMilli, unit, note, urgent, photoId };
     });
-    return [...missed.flatMap((row) => editRow("items", row, { deletedAt: now })), ...(await sendTo(toListId, sent))];
+    return [...missed.flatMap((row) => editRow("items", row, { deletedAt: now })), ...(await entryRows(toListId, sent))];
   });
   return written.writes.length > 0 ? written : null;
 }
@@ -381,7 +399,7 @@ async function saveHere(stored: RowSnapshot, saved: Record<string, unknown>): Pr
   if (target === stored.id) return editItem(stored, saved);
   return [
     ...editRow("items", stored, { deletedAt: nowIso() }),
-    ...land(target, await findLiveRow("items", target), { ...fromDbShape("items", stored), ...saved, tombstoneVersion: 0 }),
+    ...land(target, await liveItemOn(String(stored.list_id), target), { ...fromDbShape("items", stored), ...saved, tombstoneVersion: 0 }),
   ];
 }
 

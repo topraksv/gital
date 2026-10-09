@@ -129,8 +129,8 @@ async function lastShopNumber(listId: string): Promise<number> {
  * a tombstone, which every edit refuses and sync's delete generation settles,
  * instead of taking the item back out of history with a whole-row write.
  * `stocked` is how many went to the pantry (SPEC 12.5), for the celebration:
- * this person's ticks only, since a pantry is its owner's to write, and each
- * other member's device brings theirs home (`settleArrivals`). `stayed` is
+ * this person's ticks only: each other member's device brings theirs home
+ * (`settleArrivals`). `stayed` is
  * what the shop left on the list, and `spentMinor` what it paid, both read
  * inside the same write: a tick that lands as Bitir is pressed is bought,
  * which the screen's snapshot was not.
@@ -162,6 +162,9 @@ export async function finishShop(listId: string): Promise<FinishedShop | null> {
         ...fromDbShape("items", row),
         id: await deterministicId(naturalKeys.boughtItem(id, foldName(String(row.name)))),
         shopId: id,
+        // A row made now, not the list row's: one another device finished
+        // under this number and took back is then this one added again.
+        createdAt: now,
         tombstoneVersion: 0,
       })),
     );
@@ -195,8 +198,8 @@ export async function reopenShop(shopId: string): Promise<void> {
     const moved = await sqlite.getAllAsync<RowSnapshot>("SELECT * FROM items WHERE shop_id = ? AND list_id = ? AND deleted_at IS NULL", [shopId, listId]);
     const ids = await Promise.all(moved.map((row) => openItemId(listId, String(row.name))));
     const gone = await sqlite.getAllAsync<RowSnapshot>(
-      `SELECT * FROM items WHERE id IN (${ids.map(() => "?").join(", ")}) AND deleted_at IS NOT NULL`,
-      ids,
+      `SELECT * FROM items WHERE id IN (${ids.map(() => "?").join(", ")}) AND list_id = ? AND deleted_at IS NOT NULL`,
+      [...ids, listId],
     );
     return [
       ...moved.flatMap((row) => editRow("items", row, { deletedAt: now })),

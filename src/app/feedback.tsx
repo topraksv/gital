@@ -3,16 +3,19 @@
  * a category among tiles, since each carries the sentence that makes the
  * reporter and the owner mean one thing by it; a description; screenshots.
  * Each refusal is said inline, beside what caused it. Opened from Ayarlar, a
- * root route, so closing it returns there.
+ * root route, so closing it returns there; or signed out from the sign-in
+ * screen when it failed, with an address to answer and no screenshots.
  */
 
 import { useState } from "react";
 import { Image, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import ImagePlus from "lucide-react-native/icons/image-plus";
 import Send from "lucide-react-native/icons/send";
 import X from "lucide-react-native/icons/x";
 
+import { useSession } from "../auth/session";
+import { isEmail } from "../domain/names";
 import { FEEDBACK_CATEGORIES, FEEDBACK_MESSAGE_MAX, FEEDBACK_MESSAGE_MIN, MAX_FEEDBACK_IMAGES, feedbackMessageRejection, type FeedbackCategory } from "../domain/feedback";
 import { tr } from "../i18n/tr";
 import { sendFeedback, type FeedbackResult } from "../services/feedback";
@@ -34,6 +37,9 @@ const REFUSED: Record<Exclude<FeedbackResult, "sent">, string> = {
 
 export default function FeedbackScreen() {
   const router = useRouter();
+  const signedIn = useSession((s) => s.userId != null);
+  const home = signedIn ? "/settings" : "/sign-in";
+  const [replyTo, setReplyTo] = useState(useLocalSearchParams<{ email?: string }>().email ?? "");
   const [category, setCategory] = useState<FeedbackCategory>("functional");
   const [message, setMessage] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -57,18 +63,18 @@ export default function FeedbackScreen() {
 
   const submit = async () => {
     setAttempted(true);
-    if (rejection) return;
+    if (rejection || (!signedIn && !isEmail(replyTo))) return;
     setBusy(true);
     setRefusal(null);
-    const result = await sendFeedback({ category, message, images });
+    const result = await sendFeedback(signedIn ? { category, message, images } : { category, message, images: [], replyTo });
     setBusy(false);
     if (result !== "sent") return setRefusal(REFUSED[result]);
     showNotice(tr.feedback.sent);
-    allowExit(() => navigateBack(router, "/settings"));
+    allowExit(() => navigateBack(router, home));
   };
 
   return (
-    <Screen back="/settings" title={tr.feedback.title} width="form">
+    <Screen back={home} title={tr.feedback.title} width="form">
       <Body muted style={{ marginBottom: spacing.lg }}>{tr.feedback.intro}</Body>
       <SectionHeader>{tr.feedback.categoryLabel}</SectionHeader>
       <View role="radiogroup" {...radioGroupKeys()} accessibilityLabel={tr.feedback.categoryLabel} style={{ gap: spacing.sm }}>
@@ -97,12 +103,30 @@ export default function FeedbackScreen() {
         examples={tr.placeholders.feedback}
       />
       {attempted && rejection ? <FieldError text={tr.feedback.rejected[rejection](FEEDBACK_MESSAGE_MIN, message.trim().length)} /> : null}
-      <SectionHeader>{tr.feedback.imageTitle}</SectionHeader>
-      <Body muted>{tr.feedback.imageHint(MAX_FEEDBACK_IMAGES)}</Body>
-      <Shots images={images} onRemove={(at) => setImages((current) => current.filter((_, position) => position !== at))} />
-      <Button label={tr.feedback.imageAdd} icon={ImagePlus} variant="ghost" disabled={busy || full} onPress={() => void pick()} />
+      {signedIn ? (
+        <>
+          <SectionHeader>{tr.feedback.imageTitle}</SectionHeader>
+          <Body muted>{tr.feedback.imageHint(MAX_FEEDBACK_IMAGES)}</Body>
+          <Shots images={images} onRemove={(at) => setImages((current) => current.filter((_, position) => position !== at))} />
+          <Button label={tr.feedback.imageAdd} icon={ImagePlus} variant="ghost" disabled={busy || full} onPress={() => void pick()} />
+        </>
+      ) : (
+        <>
+          <SectionHeader>{tr.feedback.replyToLabel}</SectionHeader>
+          <TextField
+            value={replyTo}
+            onChangeText={setReplyTo}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            accessibilityLabel={tr.feedback.replyToLabel}
+            placeholder={tr.placeholders.email}
+          />
+          {attempted && !isEmail(replyTo) ? <FieldError text={tr.auth.emailInvalid} /> : null}
+        </>
+      )}
       {refusal ? <Notice tone="error" text={refusal} /> : null}
-      <Body muted style={{ marginTop: spacing.lg }}>{tr.feedback.privacy}</Body>
+      <Body muted style={{ marginTop: spacing.lg }}>{signedIn ? tr.feedback.privacy : tr.feedback.privacySignedOut}</Body>
       <View style={{ alignItems: "flex-start", marginBottom: spacing.lg }}>
         <Button label={tr.legal.open} variant="ghost" size="sm" onPress={() => router.push("/privacy")} />
       </View>

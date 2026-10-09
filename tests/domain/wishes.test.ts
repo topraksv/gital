@@ -61,26 +61,25 @@ describe("isUnread", () => {
   const at = (ms: number) => Date.parse(added) + ms;
   const made = (over: Partial<Wish> = {}): Wish => wish({ name: "Trendyol", createdAt: added, links: [{ id: "l", url: "https://ty.gl/abc", priceMinor: null }], ...over });
 
-  it("is a wish still named after its link's shop, once the phone that added it has had its minute", () => {
+  it("is a wish with a link no phone has read, once the phone that added it has had its minute", () => {
     expect(isUnread(made(), at(60_001))).toBe(true);
     expect(isUnread(made(), at(60_000)), "still the adding phone's turn").toBe(false);
-    expect(isUnread(made(), at(7 * 86_400_000)), "for a week").toBe(true);
-    expect(isUnread(made(), at(7 * 86_400_000 + 1)), "a page that gave nothing is not loaded at every launch for good").toBe(false);
-    expect(isUnread(made({ name: "N11", links: [{ id: "l", url: "https://www.n11.com/urun", priceMinor: null }] }), at(60_001)), "named as the add named it").toBe(true);
+    expect(isUnread(made(), at(30 * 86_400_000)), "however long it waited").toBe(true);
+    expect(isUnread(made({ name: "Krups Kahve Makinesi", photoId: "p" }), at(60_001)), "named and pictured, its price may still come").toBe(true);
     expect(isUnread(made({ links: [{ id: "k", url: "https://www.n11.com/x", priceMinor: null }, { id: "l", url: "https://ty.gl/abc", priceMinor: null }] }), at(60_001)), "any of its links").toBe(true);
+    expect(isUnread(made({ links: [{ id: "k", url: "https://a.com/x", priceMinor: null, readAt: added }, { id: "l", url: "https://ty.gl/abc", priceMinor: null }] }), at(60_001)), "a link read already is not asked again").toBe(true);
   });
 
-  it("is never one a page or the person has already filled, nor one with nothing to read", () => {
+  it("is never one whose links were read or priced, nor one with nothing to read", () => {
     const later = at(3_600_000);
-    expect(isUnread(made({ name: "Krups Kahve Makinesi" }), later)).toBe(false);
-    expect(isUnread(made({ photoId: "p" }), later)).toBe(false);
+    expect(isUnread(made({ links: [{ id: "l", url: "https://ty.gl/abc", priceMinor: null, readAt: added }] }), later), "a page that gave nothing is loaded once").toBe(false);
     expect(isUnread(made({ boughtAt: added }), later)).toBe(false);
     expect(isUnread(made({ links: [{ id: "l", url: "https://ty.gl/abc", priceMinor: 100 }] }), later)).toBe(false);
-    expect(isUnread(made({ links: [{ id: "k", url: "https://ty.gl/abc", priceMinor: null }, { id: "l", url: "https://a.com/x", priceMinor: 100 }] }), later)).toBe(false);
     expect(isUnread(made({ links: [] }), later)).toBe(false);
-    expect(isUnread(made({ links: [{ id: "k", url: "https://a.com/x", priceMinor: null }, { id: "l", url: "https://ty.gl/abc", priceMinor: null }] }), later), "every link is read, so every one is at a named shop").toBe(false);
+    expect(isUnread(made({ links: [{ id: "k", url: "https://a.com/x", priceMinor: null }, { id: "l", url: "https://ty.gl/abc", priceMinor: null }] }), later), "every unread link is read, so every one is at a named shop").toBe(false);
     expect(isUnread(made({ name: "A.com", links: [{ id: "l", url: "https://a.com/x", priceMinor: null }] }), later), "a shop not named here is read only when its wish is saved").toBe(false);
     expect(isUnread(made({ name: "Amazon", links: [{ id: "l", url: "https://amazon.attacker.example/x", priceMinor: null }] }), later), "a look-alike of a named shop is not that shop").toBe(false);
+    expect(isUnread(made({ links: [{ id: "l", url: "intent:.trendyol.com", priceMinor: null }] }), later), "an address that is not the web's is at no shop").toBe(false);
   });
 });
 
@@ -93,6 +92,7 @@ describe("shopOf", () => {
     expect(shopOf("https://amzn.eu/d/x")).toBe("Amazon");
     expect(shopOf("https://www.n11.com/urun")).toBe("n11");
     expect(shopOf("https://shop.example.co.uk/x")).toBe("shop.example.co.uk");
+    expect(shopOf("Intent:.Trendyol.com"), "an address that is not the web's is at no shop").toBe("intent:.trendyol.com");
   });
 
   it("names a shop by its own domain only, so a co-member's look-alike host is never read unasked", () => {

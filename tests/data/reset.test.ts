@@ -32,7 +32,7 @@ const { isFrozen, readSettings, setAccountFrozen } = await import("../../src/dat
 const { countDataReset, resetData } = await import("../../src/data/reset");
 const { migratedDatabase } = await import("../helpers");
 
-const add = (listId: string, ...names: string[]) => addEntries(listId, names.map((name) => ({ name, quantityMilli: null, unit: null })));
+const add = async (listId: string, ...names: string[]) => (await addEntries(listId, names.map((name) => ({ name, quantityMilli: null, unit: null })))).ids;
 const live = (table: string) => Number((harness.db!.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE deleted_at IS NULL`).get() as { n: number }).n);
 
 /** A list with one shop behind it and one product still to buy, a collection with a linked wish, a star, a set, a pantry. */

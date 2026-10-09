@@ -21,18 +21,29 @@ export interface Member {
 }
 
 /** The owner first, then in the order they joined. */
+const MEMBER = {
+  id: listMembers.id,
+  userId: listMembers.userId,
+  role: listMembers.role,
+  name: listMembers.name,
+  seenAt: listMembers.seenAt,
+};
+
 export function readMembers(listId: string): Promise<Member[]> {
   return getDb()
-    .select({
-      id: listMembers.id,
-      userId: listMembers.userId,
-      role: listMembers.role,
-      name: listMembers.name,
-      seenAt: listMembers.seenAt,
-    })
+    .select(MEMBER)
     .from(listMembers)
     .where(and(eq(listMembers.listId, listId), isNull(listMembers.deletedAt)))
     .orderBy(desc(sql`${listMembers.role} = 'owner'`), asc(listMembers.createdAt), asc(listMembers.id));
+}
+
+/** One person's place in every list this device holds, for the person screen: one query, not one per list. */
+export function readPlaces(userId: string): Promise<(Member & { listId: string })[]> {
+  return getDb()
+    .select({ ...MEMBER, listId: listMembers.listId })
+    .from(listMembers)
+    .where(and(eq(listMembers.userId, userId), isNull(listMembers.deletedAt)))
+    .orderBy(asc(listMembers.listId));
 }
 
 /** A list nobody else is in has no rows yet, and is its maker's. */

@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Animated, Modal, Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Modal, Platform, Pressable, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 import { tr } from "../i18n/tr";
@@ -109,6 +109,7 @@ export function appPrompt(
 
 const useOpenModals = create<{ open: OpenModal[] }>(() => ({ open: [] }));
 let modalId = 0;
+const nextModalId = () => (modalId += 1);
 /** Longer than iOS takes to fade a modal out; a modal that reported itself gone is let go at once. */
 const LEAVE_MS = 500;
 
@@ -119,7 +120,7 @@ const LEAVE_MS = 500;
  * leaving until it has, and nothing is presented beside it meanwhile.
  */
 export function useModalSlot(kind: OpenModal["kind"]): { slot: ReactNode; onGone: () => void } {
-  const [id] = useState(() => ++modalId);
+  const [id] = useState(nextModalId);
   const gone = useRef(false);
   useEffect(() => {
     gone.current = false;
@@ -219,43 +220,52 @@ export function DialogShell({
     {
       backgroundColor: palette.surface,
       padding: spacing.lg,
-      // A sheet is attached to the bottom edge: only its top corners round,
-      // and its padding carries the home indicator.
-      ...(asSheet
-        ? { borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingBottom: spacing.lg + insets.bottom }
-        : { borderRadius: radius.lg }),
+      borderRadius: radius.lg,
       borderCurve: "continuous" as const,
     },
     themeShadow.card(palette),
   ];
-  const content = (
-    <>
-      <View {...(asSheet ? panHandlers : {})}>
-        {asSheet ? (
-          // The grab handle every bottom sheet wears: pulled down, it closes the sheet.
-          <View
-            accessible={false}
-            style={{
-              alignSelf: "center",
-              width: dialog.handle.width,
-              height: dialog.handle.height,
-              borderRadius: circle(dialog.handle.height),
-              backgroundColor: palette.surfaceStrong,
-              marginBottom: spacing.md,
-            }}
-          />
-        ) : null}
-        {lead}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm }}>
-          <View ref={titleRef} accessible accessibilityRole="header" aria-level={2} tabIndex={-1} style={{ flex: 1 }}>
-            <Text style={[type.heading, { color: palette.text }]}>{title}</Text>
-          </View>
-          {action}
+  const header = (
+    <View {...(asSheet ? panHandlers : {})}>
+      {asSheet ? (
+        // The grab handle every bottom sheet wears: pulled down, it closes the sheet.
+        <View
+          accessible={false}
+          style={{
+            alignSelf: "center",
+            width: dialog.handle.width,
+            height: dialog.handle.height,
+            borderRadius: circle(dialog.handle.height),
+            backgroundColor: palette.surfaceStrong,
+            marginBottom: spacing.md,
+          }}
+        />
+      ) : null}
+      {lead}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm }}>
+        <View ref={titleRef} accessible accessibilityRole="header" aria-level={2} tabIndex={-1} style={{ flex: 1 }}>
+          <Text style={[type.heading, { color: palette.text }]}>{title}</Text>
         </View>
+        {action}
       </View>
+    </View>
+  );
+  const body = (
+    <>
       {message ? <Body muted>{message}</Body> : null}
       {children}
     </>
+  );
+  const travel = asSheet ? motion.travel.sheet : motion.travel.rise;
+  // A tap on the panel is the panel's, not the scrim's behind it.
+  const part = (style: StyleProp<ViewStyle>, inner: ReactNode) => (
+    <Animated.View style={{ transform: [{ translateY: dragY }] }}>
+      <Pressable accessible={false} tabIndex={-1} onPress={() => {}}>
+        <SlideUp distance={travel} style={style}>
+          {inner}
+        </SlideUp>
+      </Pressable>
+    </Animated.View>
   );
   return (
     // On the web the Modal is the element with `role="dialog"`, and takes the
@@ -278,13 +288,20 @@ export function DialogShell({
         onPress={onDismiss}
       >
         <KeyboardSafeScrollView
+          // The panel carries the dialog's name on a phone, or a screen reader
+          // announces an anonymous dialog as it takes focus.
+          accessibilityViewIsModal
+          aria-label={title}
           // A sheet taller than the window stops short of the status bar, with
           // the page showing above it: flush with the top edge, its handle sat
-          // under the notch, where a pull is the phone's own (the owner, 2026-09-30).
-          contentContainerStyle={{
-            flexGrow: 1,
-            ...(asSheet ? { justifyContent: "flex-end", paddingTop: insets.top + spacing.xl } : { justifyContent: "center", padding: spacing.lg }),
-          }}
+          // under the notch, where a pull is the phone's own (the owner,
+          // 2026-09-30). A margin rather than padding, so the handle and title,
+          // held at the top as its body scrolls, stop there too.
+          style={asSheet ? { marginTop: insets.top + spacing.xl } : undefined}
+          contentContainerStyle={{ flexGrow: 1, ...(asSheet ? { justifyContent: "flex-end" } : { justifyContent: "center", padding: spacing.lg }) }}
+          // A sheet's handle and title stay in reach however far its body is
+          // scrolled: they are what pulls it away (2026-10-09).
+          stickyHeaderIndices={asSheet ? [0] : undefined}
           bottomOffset={Math.min(dialog.keyboardGap, Math.round(height * dialog.keyboardGapShare))}
           extraKeyboardSpace={spacing.lg}
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
@@ -293,24 +310,42 @@ export function DialogShell({
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* The modal surface carries the dialog's name on a phone, or a
-              screen reader announces an anonymous dialog as it takes focus. */}
-          <Pressable
-            accessible={false}
-            tabIndex={-1}
-            accessibilityViewIsModal
-            aria-label={title}
-            onPress={() => {}}
-            style={{ alignSelf: "center", width: "100%", maxWidth: asSheet ? undefined : dialog.maxWidth }}
-          >
-            <Animated.View style={{ transform: [{ translateY: dragY }] }}>
+          {asSheet ? (
+            // Two parts of one surface, attached to the bottom edge: only the
+            // top corners round, and the body's padding carries the home
+            // indicator. The shadow is the body's, under the header, which
+            // the sticky header is drawn above.
+            [
+              <View key="header" style={{ zIndex: 1 }}>
+                {part(
+                  {
+                    backgroundColor: palette.surface,
+                    padding: spacing.lg,
+                    paddingBottom: dialog.seam,
+                    marginBottom: -dialog.seam,
+                    borderTopLeftRadius: radius.xl,
+                    borderTopRightRadius: radius.xl,
+                    borderCurve: "continuous",
+                  },
+                  header,
+                )}
+              </View>,
+              <PanelMotion key="body">
+                {part([{ backgroundColor: palette.surface, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg + insets.bottom }, themeShadow.card(palette)], body)}
+              </PanelMotion>,
+            ]
+          ) : (
+            <View style={{ alignSelf: "center", width: "100%", maxWidth: dialog.maxWidth }}>
               <PanelMotion>
-                <SlideUp distance={asSheet ? motion.travel.sheet : motion.travel.rise} style={surface}>
-                  {content}
-                </SlideUp>
+                {part(surface, (
+                  <>
+                    {header}
+                    {body}
+                  </>
+                ))}
               </PanelMotion>
-            </Animated.View>
-          </Pressable>
+            </View>
+          )}
         </KeyboardSafeScrollView>
       </Pressable>
       {modal.slot}

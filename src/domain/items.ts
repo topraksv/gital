@@ -92,7 +92,7 @@ const TRAILING = new RegExp(`^(.+?)\\s+(${DIGITS})(?:\\s*(${UNIT}))?$`, "u");
 // A written list's quantity: digits, and first — what `formatList` writes —
 // so a bulleted "Yarım yağlı süt" or "Pil 4" stays the product it names.
 const WRITTEN = new RegExp(`^(${DIGITS})(?:\\s*(${UNIT}))?\\s+(.+)$`, "u");
-const QUANTITY_ONLY = new RegExp(`^(?:${NUMBER})(?:\\s*(?:${UNIT}))?$`, "u");
+const QUANTITY_ONLY = new RegExp(`^(${NUMBER})(?:\\s*(${UNIT}))?$`, "u");
 
 // Dictation joins items with "ve" and "bir de"; a comma between digits is a
 // decimal comma, not a break.
@@ -105,6 +105,8 @@ const BULLET = /^(?:[•*\-–]|(❗)\uFE0F?)(?:\s+|$)/u;
 // A bracket closing a bulleted line is its note, from the first opening one,
 // so a note may hold brackets of its own: "Peynir (Ezine (tam yağlı))".
 const LINE_NOTE = /\s*\((.*)\)$/u;
+// Matches nothing, for a name read whole.
+const NOTHING = /$^/u;
 
 function quantityFrom(number: string, unit: string | undefined): Quantity | null {
   // A dot before three digits is Turkish for thousands; any other is a decimal point.
@@ -171,9 +173,12 @@ export function bareEntry({ name, quantityMilli, unit }: Entry): ListedEntry {
 
 /**
  * The items one entry in the quick-add field names (`docs/SPEC.md` 2.1–2.3):
- * `2 kg domates, 1,5 lt süt ve ekmek` is three.
+ * `2 kg domates, 1,5 lt süt ve ekmek` is three. `isProduct` names what the
+ * household or the catalogue already knows, so "yarım yağlı süt" is that
+ * product rather than half of "Yağlı süt": a leading number word is a
+ * quantity only when the whole is no product.
  */
-export function parseEntry(text: string): Entry[] {
+export function parseEntry(text: string, isProduct: (name: string) => boolean = () => false): Entry[] {
   const entries: Entry[] = [];
   // A quantity said alone, where dictation wrote a pause as a comma, goes to
   // the product after it when that names none of its own.
@@ -185,12 +190,23 @@ export function parseEntry(text: string): Entry[] {
       held = segment;
       continue;
     }
-    const own = entryFrom(segment);
+    const own = /^\p{L}/u.test(segment) && isProduct(segment) ? entryFrom(segment, NOTHING, null) : entryFrom(segment);
     const entry = held && own?.quantityMilli == null ? entryFrom(`${held} ${segment}`) : own;
     if (entry) entries.push(entry);
     held = "";
   }
-  return entries;
+  return withTrailing(entries, held);
+}
+
+/**
+ * A quantity said after the last product is that product's: "domates, iki
+ * kilo". Joined to the name it would be read in digits only, as a name's end is.
+ */
+function withTrailing(entries: Entry[], held: string): Entry[] {
+  const last = entries.at(-1);
+  const alone = QUANTITY_ONLY.exec(held.toLocaleLowerCase("tr-TR"));
+  const quantity = alone && last?.quantityMilli === null ? quantityFrom(alone[1]!, alone[2]) : null;
+  return quantity ? [...entries.slice(0, -1), { ...last!, ...quantity }] : entries;
 }
 
 /**
@@ -243,7 +259,10 @@ export function formatQuantity({ quantityMilli, unit }: Quantity): string {
  */
 export function formatList(name: string, items: readonly ListedEntry[]): string {
   const lines = items.map((item) => {
-    const text = [formatQuantity(item), item.name].filter(Boolean).join(" ");
+    // "7 tahıllı ekmek" with no quantity would come back as 7 of "Tahıllı
+    // ekmek", so it is written as the one piece it is shown as.
+    const quantity = item.quantityMilli == null && WRITTEN.test(item.name.toLocaleLowerCase("tr-TR")) ? quantityOrOne(item) : item;
+    const text = [formatQuantity(quantity), item.name].filter(Boolean).join(" ");
     return `${item.urgent ? "❗" : "•"} ${text}${item.note ? ` (${item.note})` : ""}`;
   });
   return [name, ...lines].join("\n");

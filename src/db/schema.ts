@@ -121,6 +121,8 @@ export const shops = sqliteTable(
     totalMinor: integer("total_minor"),
     /** The receipt's photo (the owner asked 2026-09-27), in `photos`. */
     photoId: text("photo_id"),
+    /** Set with the tombstone when a history reset took it, which is no undo: a Kiler keeps what it brought. */
+    clearedAt: text("cleared_at"),
   },
   (t) => [index("idx_shops_list_id").on(t.listId)],
 );
@@ -154,6 +156,8 @@ export const wishLinks = sqliteTable(
     wishId: text("wish_id").notNull(),
     url: text("url").notNull(),
     priceMinor: integer("price_minor"),
+    /** When a phone last read its page, whatever it found (SPEC 7.2). */
+    readAt: text("read_at"),
   },
   (t) => [index("idx_wish_links_wish_id").on(t.wishId)],
 );

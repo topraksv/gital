@@ -43,9 +43,8 @@ export default function SyncIssuesScreen() {
       if (userId) void syncNow(userId);
     } catch {
       void appError(tr.errors.saveFailed);
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
 
   const retryAll = act(async () => {

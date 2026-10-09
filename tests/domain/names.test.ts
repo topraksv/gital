@@ -60,6 +60,9 @@ describe("tileTone", () => {
   it("spreads lists over every tone", () => {
     const tones = new Set(["a", "b", "c", "d", "e", "f"].map((id) => tileTone(id, 3)));
     expect(tones.size).toBe(3);
-    for (const tone of tones) expect(tone).toBeLessThan(3);
+    for (const tone of tones) {
+      expect(tone).toBeLessThan(3);
+      expect(tone, "an index, never below the first tone").toBeGreaterThanOrEqual(0);
+    }
   });
 });

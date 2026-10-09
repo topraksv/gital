@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AISLES, CATALOGUE, aisleShares, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, listSections, nearMiss, searchCatalogue, withCatalogue } from "../../src/domain/catalogue";
+import { AISLES, CATALOGUE, aisleShares, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, knowsProduct, listSections, nearMiss, searchCatalogue, withCatalogue } from "../../src/domain/catalogue";
 import { foldName, parseEntry, suggestProducts, typedProduct } from "../../src/domain/items";
 
 describe("the catalogue", () => {
@@ -42,6 +42,12 @@ describe("the catalogue", () => {
     expect(names("sut")[0]).toBe("Süt");
     expect(names("domtes")).toContain("Domates");
     expect(names("peynr")).toContain("Beyaz peynir");
+  });
+
+  it("knows a product by the catalogue or by the rows given, however typed", () => {
+    const knows = knowsProduct([{ name: "Yarım yağlı süt" }]);
+    expect(["yarim yagli sut", "süt", "Domates"].map(knows)).toEqual([true, true, true]);
+    expect(knows("yağlı süt")).toBe(false);
   });
 
   describe("searchCatalogue", () => {

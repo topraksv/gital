@@ -4,7 +4,7 @@ import { and, asc, eq, inArray, isNull, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb, getSqliteAsync } from "../db/client";
 import { deterministicId, naturalKeys } from "../db/ids";
-import { editRow, findLiveRow, findRow, nowIso, readLiveRow, writeRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
+import { editRow, findRow, fromDbShape, nowIso, readLiveRow, writeRows, writeUndoable, type RowSnapshot, type RowWrite, type RowsWritten } from "../db/mutations";
 import { lists, pantryItems, pantryMoves } from "../db/schema";
 import { isISODate, type ISODate } from "../domain/dates";
 import { foldName, quantityOrOne, type Entry, type Unit } from "../domain/items";
@@ -116,11 +116,12 @@ export function reorderPantry(orderedIds: readonly string[]): Promise<void> {
 async function pantryItemRows(name: string, change: { listId?: string }): Promise<{ pantryItemId: string; rows: RowWrite[] }> {
   const pantryItemId = await deterministicId(naturalKeys.pantryItem(foldName(name)));
   const there = await findRow("pantry_items", pantryItemId);
+  // Written each time, as a row made now: a device that never saw a reset
+  // empty this product holds it live, and its move alone would land under the
+  // server's tombstone, unseen. Over a live row it is an edit (migration 16).
   return {
     pantryItemId,
-    rows: there
-      ? editRow("pantry_items", there, { ...change, deletedAt: null })
-      : [{ table: "pantry_items", row: { id: pantryItemId, name, listId: change.listId ?? null, deletedAt: null } }],
+    rows: [{ table: "pantry_items", row: { ...(there && fromDbShape("pantry_items", there)), id: pantryItemId, name: there ? String(there.name) : name, ...change, deletedAt: null, createdAt: nowIso() } }],
   };
 }
 
@@ -185,8 +186,9 @@ const SETTLE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
  * arrival's id is the bought row's, so a shop seen twice, or on a second
  * device, adds nothing twice; a list never shared is left to its own finish,
  * which stocked it. An arrival an undo took back returns with the shop only
- * while its product is still at home, since a pantry reset takes both. A shop
- * finished before this device changed Kiler belongs to the one it had: joined
+ * when the shop was finished again after it went: one a pantry reset took
+ * stays gone, whatever comes home later, and a shop a history reset cleared
+ * is left as it is: clearing history is no undo. A shop finished before this device changed Kiler belongs to the one it had: joined
  * empty, or gone from a household, the person starts with nothing.
  */
 export async function settleArrivals(userId: string): Promise<void> {
@@ -196,10 +198,10 @@ export async function settleArrivals(userId: string): Promise<void> {
   const since = switched != null && switched > window ? switched : window;
   await writeRows(async () => {
     const bought = await sqlite.getAllAsync<RowSnapshot>(
-      `SELECT items.*, items.deleted_at IS NULL AND shops.deleted_at IS NULL AS home FROM items
+      `SELECT items.*, items.deleted_at IS NULL AND shops.deleted_at IS NULL AS home, shops.finished_at AS shop_finished_at FROM items
          JOIN shops ON shops.id = items.shop_id AND shops.list_id = items.list_id
          JOIN lists ON lists.id = items.list_id
-       WHERE items.checked_by = ? AND lists.pantry = 1 AND shops.finished_at > ?
+       WHERE items.checked_by = ? AND lists.pantry = 1 AND shops.finished_at > ? AND shops.cleared_at IS NULL
          AND EXISTS (SELECT 1 FROM list_members WHERE list_members.list_id = items.list_id)`,
       [userId, since],
     );
@@ -211,7 +213,7 @@ export async function settleArrivals(userId: string): Promise<void> {
         if (home) writes.push(...(await arrivalRows(String(row.list_id), [boughtEntry(row)])));
       } else if (arrival.deleted_at == null && !home) {
         writes.push(...editRow("pantry_moves", arrival, { deletedAt: nowIso() }));
-      } else if (arrival.deleted_at != null && home && (await findLiveRow("pantry_items", String(arrival.pantry_item_id)))) {
+      } else if (arrival.deleted_at != null && home && String(arrival.deleted_at) < String(row.shop_finished_at)) {
         writes.push(...editRow("pantry_moves", arrival, { deletedAt: null }));
       }
     }

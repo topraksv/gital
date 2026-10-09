@@ -70,7 +70,9 @@ describe("the draft guard's wiring", () => {
   });
 
   it("the send leaves the feedback form without asking", () => {
-    expect(read("src/app/feedback.tsx")).toMatch(/allowExit\(\(\) => navigateBack\(router, "\/settings"\)\)/);
+    const screen = read("src/app/feedback.tsx");
+    expect(screen).toMatch(/allowExit\(\(\) => navigateBack\(router, home\)\)/);
+    expect(screen).toContain('const home = signedIn ? "/settings" : "/sign-in";');
   });
 });
 

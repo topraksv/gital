@@ -71,7 +71,7 @@ describe("live lists", () => {
     expect(client().endpoint).toBe("https://x.supabase.co/realtime/v1");
     expect(client().options.params.apikey).toBe("anon");
     expect(await client().options.accessToken()).toBe("jwt");
-    expect(client().channels.map((c) => c.topic)).toEqual(["list:a", "list:b"]);
+    expect(client().channels.map((c) => c.topic)).toEqual([`user:${ME}`, "list:a", "list:b"]);
     expect(channelOf("a").options).toEqual({ config: { private: true } });
   });
 
@@ -79,7 +79,7 @@ describe("live lists", () => {
     await start();
     followLists(["a", "b"]);
     followLists(["b", "c"]);
-    expect(client().channels.map((c) => c.topic)).toEqual(["list:a", "list:b", "list:c"]);
+    expect(client().channels.map((c) => c.topic)).toEqual([`user:${ME}`, "list:a", "list:b", "list:c"]);
     expect(client().removed.map((c) => c.topic)).toEqual(["list:a"]);
   });
 
@@ -89,6 +89,15 @@ describe("live lists", () => {
     channelOf("a").emit("broadcast:moved", { by: HER });
     channelOf("a").emit("broadcast:moved", { by: ME });
     channelOf("a").emit("broadcast:moved");
+    expect(onMoved).toHaveBeenCalledTimes(2);
+  });
+
+  it("pulls when the person's place in a list changed, told on their own channel, by whichever of their devices", async () => {
+    await start();
+    const own = client().channels.find((c) => c.topic === `user:${ME}`)!;
+    expect(own.options).toEqual({ config: { private: true } });
+    own.emit("broadcast:moved", { by: HER, list: "a" });
+    own.emit("broadcast:moved", { by: ME, list: "a" });
     expect(onMoved).toHaveBeenCalledTimes(2);
   });
 
@@ -103,7 +112,7 @@ describe("live lists", () => {
     expect(first.disconnected).toBe(true);
     expect(clients).toHaveLength(1);
     followLists(["b"]);
-    expect(first.channels).toHaveLength(1);
+    expect(first.channels).toHaveLength(2);
   });
 
   it("starts again cleanly, following what it was told before", async () => {
@@ -111,7 +120,7 @@ describe("live lists", () => {
     followLists(["a"]);
     await start();
     expect(clients[0]!.disconnected).toBe(true);
-    expect(client().channels.map((c) => c.topic)).toEqual(["list:a"]);
+    expect(client().channels.map((c) => c.topic)).toEqual([`user:${ME}`, "list:a"]);
   });
 
   it("lets a refusal on the way pass quietly: the half-minute pull still comes", async () => {

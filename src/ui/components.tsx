@@ -7,8 +7,10 @@
 
 import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Animated,
+  Easing,
   Image,
   Platform,
   Pressable,
@@ -83,6 +85,7 @@ import {
   sectionMark,
   spacing,
   stateOpacity,
+  strike,
   themeShadow,
   tileRadius,
   toggleSize,
@@ -520,18 +523,7 @@ export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: 
     <>
       <Tile id={foldName(item.name)} name={item.name} picture={catalogueProduct(item.name)?.picture} photo={item.photo} size={itemRow.tile} />
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
-        <Text
-          style={[
-            type.body,
-            {
-              fontFamily: font.medium,
-              color: struck ? palette.textSecondary : palette.textStrong,
-              textDecorationLine: struck ? "line-through" : "none",
-            },
-          ]}
-        >
-          {item.name}
-        </Text>
+        <ItemName name={item.name} struck={struck} checkedAt={item.checkedAt} />
         {parts.length > 0 ? (
           <Text style={[type.small, { color: palette.textSecondary }]}>
             {parts.map((part, at) => (
@@ -544,6 +536,64 @@ export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: 
         ) : null}
       </View>
     </>
+  );
+}
+
+type TextLine = { x: number; y: number; width: number; height: number };
+
+/**
+ * The name, and its strike drawn across each line it wraps to (`docs/UI.md`
+ * section 7). The phone measures each line; the web does not, and sets the
+ * strike at once there, as with reduced motion.
+ */
+function ItemName({ name, struck, checkedAt }: { name: string; struck: boolean; checkedAt: string | null }) {
+  const { palette } = useTheme();
+  const reduced = useReducedMotion();
+  const [lines, setLines] = useState<readonly TextLine[]>([]);
+  const [drawn] = useState(() => new Animated.Value(1));
+  const measured = Platform.OS !== "web";
+  useEffect(() => {
+    if (!struck || reduced || checkedAt == null || Date.now() - Date.parse(checkedAt) > strike.freshMs) return drawn.setValue(1);
+    drawn.setValue(0);
+    Animated.timing(drawn, { toValue: 1, duration: motion.standard, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [struck, reduced, checkedAt, drawn]);
+  return (
+    <View>
+      <Text
+        onTextLayout={(event) => {
+          const next = event.nativeEvent.lines.map(({ x, y, width, height }) => ({ x, y, width, height }));
+          if (JSON.stringify(next) !== JSON.stringify(lines)) setLines(next);
+        }}
+        style={[
+          type.body,
+          {
+            fontFamily: font.medium,
+            color: struck ? palette.textSecondary : palette.textStrong,
+            textDecorationLine: struck && !measured ? "line-through" : "none",
+          },
+        ]}
+      >
+        {name}
+      </Text>
+      {struck && measured
+        ? lines.map((line, at) => (
+            <Animated.View
+              key={at}
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                left: line.x,
+                top: line.y + line.height * strike.at,
+                width: line.width,
+                height: strike.thickness,
+                backgroundColor: palette.textSecondary,
+                transformOrigin: "left",
+                transform: [{ scaleX: drawn }],
+              }}
+            />
+          ))
+        : null}
+    </View>
   );
 }
 
@@ -956,7 +1006,9 @@ export function FieldLabel({ children }: { children: string }) {
  * that thickens to the focus colour, an error under it read out as it
  * appears, and an eye on a password. `examples` is Helix's rotating
  * placeholder (`placeholders.ts`), shown while the field is empty. A caller's
- * `style` places the input.
+ * `style` places the input. `maxLength` counts characters, as `nameFrom`
+ * stores them: the input's own counts UTF-16 units, which stopped a name of
+ * emoji at half its length, so it only bounds a paste at twice that.
  */
 export function TextField({
   style,
@@ -964,6 +1016,8 @@ export function TextField({
   error,
   secure = false,
   examples,
+  maxLength,
+  onChangeText,
   ...props
 }: TextInputProps & { ref?: Ref<TextInput>; label?: string; error?: string | null; secure?: boolean; examples?: readonly string[] }) {
   const { palette } = useTheme();
@@ -976,6 +1030,8 @@ export function TextField({
       placeholderTextColor={palette.textSecondary}
       autoCapitalize="sentences"
       {...props}
+      maxLength={maxLength == null ? undefined : maxLength * 2}
+      onChangeText={(text) => onChangeText?.(maxLength == null ? text : Array.from(text).slice(0, maxLength).join(""))}
       placeholder={examples ? sample : props.placeholder}
       accessibilityLabel={props.accessibilityLabel ?? label}
       secureTextEntry={secure ? hidden : props.secureTextEntry}
@@ -1035,8 +1091,17 @@ export function FieldError({ text }: { text: string }) {
  * Helix's notice: a tinted box with its mark, so an answer reads as one and
  * not as another paragraph. An error is announced at once, a success politely.
  */
+/**
+ * Said aloud on iOS, where React Native 0.86 reads no live region and maps the
+ * `alert` role to no trait; Android and the web announce the region itself.
+ */
+export function announce(text: string): void {
+  if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(text);
+}
+
 export function Notice({ tone, text }: { tone: "error" | "success"; text: string }) {
   const { palette } = useTheme();
+  useEffect(() => announce(text), [text]);
   const Icon = tone === "success" ? CheckCircle2 : AlertCircle;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: palette[tone] + alpha.noticeTint, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md }}>

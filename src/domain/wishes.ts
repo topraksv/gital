@@ -18,6 +18,8 @@ interface WishLink {
   id: string;
   url: string;
   priceMinor: number | null;
+  /** When a phone read its page, whatever it found; until then it may be read unasked. */
+  readAt?: string | null;
 }
 
 export interface Wish {
@@ -81,8 +83,16 @@ const SHOPS: readonly [RegExp, string][] = [
   [/(^|\.)n11\.com$/, "n11"],
 ];
 
-const hostOf = (url: string) => (WEB.exec(url)?.[2] ?? url).toLowerCase().replace(/:\d+$/, "").replace(/^www\./, "");
-const namedShop = (url: string) => SHOPS.find(([pattern]) => pattern.test(hostOf(url)))?.[1] ?? null;
+const webHost = (url: string) => {
+  const host = WEB.exec(url)?.[2];
+  return host == null ? null : host.toLowerCase().replace(/:\d+$/, "").replace(/^www\./, "");
+};
+const hostOf = (url: string) => webHost(url) ?? url.toLowerCase();
+// Only a web address is at a shop: someone else's link reaches here unchecked, and `x:.trendyol.com` is no host.
+const namedShop = (url: string) => {
+  const host = webHost(url);
+  return host == null ? null : (SHOPS.find(([pattern]) => pattern.test(host))?.[1] ?? null);
+};
 
 /** The shop a link is at: its name when it is one the owner uses, else its address's host. */
 export function shopOf(url: string): string {
@@ -94,30 +104,24 @@ export function isNamedByLink(name: string, url: string): boolean {
   return name === itemNameFrom(shopOf(url));
 }
 
-/**
- * When a link is read unasked: after the adding phone's minute, and for a week.
- * Nothing records that a page was tried and had no product in it, so without
- * an end a dead link would be loaded at every launch for good.
- */
+/** The adding phone reads its own link at once; another waits this long before reading it unasked. */
 const READ_GRACE_MS = 60_000;
-const READ_WINDOW_MS = 7 * 86_400_000;
 
 /**
- * A wish still as its link made it — the shop's name, no price, no photo —
- * and past the adding phone's turn: added on the web, which can read no page
- * (SPEC 7.2), or on a phone whose read failed. Only when every link is at a shop
- * named here: all of a wish's links are read, without being asked, and in a
- * shared collection they may be someone else's, who must not be able to send
- * this phone to any address.
+ * A wish with a link no phone has read, past the adding phone's turn: added on
+ * the web, which can read no page (SPEC 7.2), or on a phone whose read was cut
+ * short. A read is stamped whatever it found, so a page with nothing in it is
+ * loaded once. Only when every such link is at a shop named here: they are
+ * read without being asked, and in a shared collection they may be someone
+ * else's, who must not be able to send this phone to any address.
  */
 export function isUnread(wish: Wish, now: number): boolean {
+  const unread = wish.links.filter((link) => link.readAt == null && link.priceMinor == null);
   return (
     wish.boughtAt == null &&
-    wish.photoId == null &&
     now - Date.parse(wish.createdAt) > READ_GRACE_MS &&
-    now - Date.parse(wish.createdAt) <= READ_WINDOW_MS &&
-    wish.links.every((link) => link.priceMinor == null && namedShop(link.url) != null) &&
-    wish.links.some((link) => isNamedByLink(wish.name, link.url))
+    unread.length > 0 &&
+    unread.every((link) => namedShop(link.url) != null)
   );
 }
 

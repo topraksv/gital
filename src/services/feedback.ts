@@ -2,12 +2,14 @@
  * Posting a report to the function that mails it (SPEC 13.1), Helix's
  * `services/feedback.ts`. What it owns is telling apart the answers a person
  * can act on: a build with no cloud, a session gone, a limit to wait out, and
- * everything else, which keeps the draft for another try.
+ * everything else, which keeps the draft for another try. Signed out, a report
+ * carries the address to answer and no screenshot (migration 17).
  */
 
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
+import { isEmail } from "../domain/names";
 import { feedbackMessageRejection, isFeedbackCategory, MAX_FEEDBACK_IMAGES, type FeedbackCategory } from "../domain/feedback";
 import { getSupabase } from "../sync/supabase";
 
@@ -18,18 +20,26 @@ export interface FeedbackSubmission {
   message: string;
   /** Screenshots as the photo picker gives them: JPEG data URIs. */
   images: readonly string[];
+  /** Signed out only: where the answer goes. */
+  replyTo?: string;
 }
 
 const DATA_URI = /^data:(image\/jpeg);base64,(.+)$/;
 
+/** Checked again here: the form is not the only thing that could call this. */
+function refusalOf(submission: FeedbackSubmission, images: readonly unknown[], signedIn: boolean): FeedbackResult | null {
+  if (!isFeedbackCategory(submission.category) || feedbackMessageRejection(submission.message) !== null) return "failed";
+  if (images.length > MAX_FEEDBACK_IMAGES || images.some((image) => !image)) return "failed";
+  return signedIn || (submission.replyTo != null && isEmail(submission.replyTo) && images.length === 0) ? null : "unauthenticated";
+}
+
 export async function sendFeedback(submission: FeedbackSubmission): Promise<FeedbackResult> {
   const supabase = getSupabase();
   if (!supabase) return "unconfigured";
-  // Checked again here: the form is not the only thing that could call this.
-  if (!isFeedbackCategory(submission.category) || feedbackMessageRejection(submission.message) !== null) return "failed";
   const images = submission.images.map((uri) => DATA_URI.exec(uri));
-  if (images.length > MAX_FEEDBACK_IMAGES || images.some((image) => !image)) return "failed";
-  if (!(await supabase.auth.getSession()).data.session) return "unauthenticated";
+  const signedIn = (await supabase.auth.getSession()).data.session != null;
+  const refused = refusalOf(submission, images, signedIn);
+  if (refused) return refused;
   try {
     const { error } = await supabase.functions.invoke("send-feedback", {
       body: {
@@ -38,6 +48,7 @@ export async function sendFeedback(submission: FeedbackSubmission): Promise<Feed
         platform: Platform.OS,
         appVersion: Constants.expoConfig?.version ?? "bilinmiyor",
         images: images.map((image, at) => ({ mimeType: image![1], filename: `ekran-goruntusu-${at + 1}.jpg`, base64: image![2] })),
+        ...(signedIn ? {} : { replyTo: submission.replyTo!.trim() }),
       },
     });
     if (!error) return "sent";

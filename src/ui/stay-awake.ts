@@ -8,18 +8,10 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
-import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { kvSwitch } from "../services/kv";
-
-const TAG = "gital";
+import { stayAwake } from "./screen-hold";
 
 export const stayAwakeAvailable = Platform.OS !== "web";
-
-/** Holds the screen on until the returned function lets it go. Either can be refused, with no activity to hold. */
-export function stayAwake(): () => void {
-  void activateKeepAwakeAsync(TAG).catch(() => {});
-  return () => void deactivateKeepAwake(TAG).catch(() => {});
-}
 
 /**
  * Whether the screen is kept on at all, Ayarlar's switch (the owner asked

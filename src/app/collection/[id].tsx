@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Text, View, type TextInput } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
@@ -30,7 +30,7 @@ import { density, font, itemRow, motion, offset, spacing, type, useTheme } from 
 import { WishSuggestions } from "../../ui/suggestions";
 import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
 import { showUndo } from "../../ui/undo";
-import { WishSheet } from "../../ui/wish-sheet";
+import { WishSheet, WishView } from "../../ui/wish-sheet";
 
 /** One wish collection (SPEC 7): what is wished, the most wanted first, and what it comes to. */
 export default function CollectionScreen() {
@@ -101,7 +101,7 @@ export default function CollectionScreen() {
       return (
         <RowMotion key={wish.id}>
           <SlideUp distance={motion.travel.bar}>
-            <WishRow wish={wish} onOpen={() => undefined} onToggle={() => undefined} readOnly />
+            <WishRow wish={wish} onOpen={() => setEditing(wish)} onToggle={() => undefined} readOnly />
           </SlideUp>
         </RowMotion>
       );
@@ -139,6 +139,7 @@ export default function CollectionScreen() {
         collection?.name,
         <CollectionActions
           collection={leaving ? undefined : collection}
+          roleKnown={members.updatedAt != null}
           userId={userId}
           role={role}
           viewer={viewer}
@@ -178,8 +179,9 @@ export default function CollectionScreen() {
         </ArrivalScope>
       ) : null}
       {editing ? (
-        <WishSheet
+        <WishPanel
           key={editing.id}
+          viewer={viewer}
           wish={editing}
           onSave={(change) => save(editing, change)}
           onDelete={() => removeWish(editing)}
@@ -190,9 +192,15 @@ export default function CollectionScreen() {
   );
 }
 
+/** A wish opened: the panel to change it, or for a viewer the one to read it. */
+function WishPanel({ viewer, ...sheet }: ComponentProps<typeof WishSheet> & { viewer: boolean }) {
+  return viewer ? <WishView wish={sheet.wish} onClose={sheet.onClose} /> : <WishSheet {...sheet} />;
+}
+
 /** The header's actions outside choosing; none while the collection is not there or is going. */
 function CollectionActions({
   collection,
+  roleKnown,
   userId,
   role,
   viewer,
@@ -202,6 +210,7 @@ function CollectionActions({
   onRemove,
 }: {
   collection: Collection | undefined;
+  roleKnown: boolean;
   userId: string;
   role: MemberRole;
   viewer: boolean;
@@ -210,7 +219,7 @@ function CollectionActions({
   onOrder: (order: WishOrder) => void;
   onRemove: (collection: Collection) => void;
 }) {
-  if (!collection) return null;
+  if (!collection || !roleKnown) return null;
   return (
     <>
       <IconButton
@@ -318,7 +327,7 @@ function WishRow({
   if (useReadingWish(wish.id)) parts.push({ text: tr.wishes.reading });
   return (
     <View style={{ ...cardEdge(palette), padding: 0, flexDirection: "row", backgroundColor: palette.surface, overflow: "hidden" }}>
-      <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={tr.wishes.openWishHint} onPress={onOpen} onLongPress={onLongPress} selected={selected} disabled={readOnly}>
+      <RowOpen label={tr.common.withDetail(wish.name, parts.map((part) => part.text).join(", "))} hint={readOnly ? tr.wishes.viewWishHint : tr.wishes.openWishHint} onPress={onOpen} onLongPress={onLongPress} selected={selected}>
         <Tile id={wish.id} name={wish.name} photo={wish.photo} size={itemRow.tile} />
         <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
           <Text

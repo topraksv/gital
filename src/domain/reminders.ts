@@ -29,14 +29,52 @@ export interface ReminderInput {
   pantry: readonly { name: string; expiresOn: ISODate | null }[];
   /** A wish's "şu tarihe kadar" (SPEC 7.1); one bought is past wanting. */
   wishes: readonly { name: string; dueOn: ISODate | null; boughtAt: string | null }[];
-  restock: readonly { listName: string; purchases: readonly Purchase[]; onList: readonly { name: string }[]; lasted: ReadonlyMap<string, readonly number[]> }[];
+  restock: readonly {
+    listId: string;
+    listName: string;
+    purchases: readonly Purchase[];
+    onList: readonly { name: string }[];
+    lasted: ReadonlyMap<string, readonly number[]>;
+    /** Offers put aside on the list (SPEC 2.7): not rung either. */
+    aside: ReadonlyMap<string, string>;
+  }[];
 }
 
 export type Reminder =
   /** `lists` is what each list holds when planned: only the first can know, so later weeks carry none. */
   | { kind: "shopping"; at: Date; lists: { name: string; open: number }[] | null }
   | { kind: "expiry" | "wish"; at: Date; name: string; days: 0 | 1 }
-  | { kind: "restock"; at: Date; name: string; listName: string };
+  | { kind: "restock"; at: Date; name: string; listId: string; listName: string };
+
+/** Where a tap on a reminder opens: what it is about, as Helix's `notificationRoute`. */
+export type ReminderRoute = { pathname: "/" | "/pantry" | "/wishes" } | { pathname: "/list/[id]"; params: { id: string } };
+
+export function routeOf(reminder: Reminder): ReminderRoute {
+  switch (reminder.kind) {
+    case "shopping":
+      return { pathname: "/" };
+    case "expiry":
+      return { pathname: "/pantry" };
+    case "wish":
+      return { pathname: "/wishes" };
+    case "restock":
+      return { pathname: "/list/[id]", params: { id: reminder.listId } };
+  }
+}
+
+const TABS: ReadonlySet<unknown> = new Set(["/", "/pantry", "/wishes"]);
+
+/**
+ * The route a tapped notification carries, read as the OS hands it back: a
+ * payload this build did not write, or an older one's, opens nothing. A list
+ * gone since opens its screen, which goes back to the lists.
+ */
+export function tapRoute(data: unknown): ReminderRoute | null {
+  const route = (data as { route?: { pathname?: unknown; params?: { id?: unknown } } } | null)?.route;
+  if (TABS.has(route?.pathname)) return { pathname: route!.pathname as "/" | "/pantry" | "/wishes" };
+  const id = route?.params?.id;
+  return route?.pathname === "/list/[id]" && typeof id === "string" && id !== "" ? { pathname: "/list/[id]", params: { id } } : null;
+}
 
 function morningOf(day: ISODate): Date {
   const [year, month, date] = day.split("-").map(Number) as [number, number, number];
@@ -69,15 +107,15 @@ function dated(kind: "expiry" | "wish", now: Date, dates: readonly { name: strin
 /** Each morning ahead, what has newly run out by then; what is due already was offered on the list. */
 function restocks({ now, restock }: ReminderInput): Reminder[] {
   const today = todayISO(now);
-  return restock.flatMap(({ listName, purchases, onList, lasted }): Reminder[] => {
-    const said = new Set(restockDue(purchases, onList, now, lasted).map((due) => due.key));
+  return restock.flatMap(({ listId, listName, purchases, onList, lasted, aside }): Reminder[] => {
+    const said = new Set(restockDue(purchases, onList, now, lasted, aside).map((due) => due.key));
     const planned: Reminder[] = [];
     for (let day = 1; day <= HORIZON_DAYS; day += 1) {
       const at = morningOf(addDaysISO(today, day));
-      for (const due of restockDue(purchases, onList, at, lasted)) {
+      for (const due of restockDue(purchases, onList, at, lasted, aside)) {
         if (said.has(due.key)) continue;
         said.add(due.key);
-        planned.push({ kind: "restock", at, name: due.name, listName });
+        planned.push({ kind: "restock", at, name: due.name, listId, listName });
       }
     }
     return planned;

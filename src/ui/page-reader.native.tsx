@@ -18,7 +18,7 @@ import { WebView } from "react-native-webview";
 
 import { fillFromPage, unpricedLinksOf } from "../data/wishes";
 import { productFromPage, type PageProduct } from "../domain/product-page";
-import { isUnread, type Wish } from "../domain/wishes";
+import { isUnread, linkFrom, type Wish } from "../domain/wishes";
 import { photoFromWeb } from "./photo-take";
 import { pageReader } from "./theme";
 
@@ -93,6 +93,8 @@ export function PageReaderHost() {
         }}
         onError={() => finish(job, null)}
         // A shop's page may send the phone to its app; only the web, and a frame's blank start, is followed.
+        // Every address is asked here: one outside `originWhitelist` goes to `Linking.openURL` unasked.
+        originWhitelist={["*"]}
         onShouldStartLoadWithRequest={(request) => /^(https?:|about:blank$)/i.test(request.url)}
         // No shop's cookie outlives the reading, nor meets the person's own browsing.
         incognito
@@ -124,10 +126,12 @@ export function readLinkPages(wishId: string): void {
     try {
       for (; link; link = await unread()) {
         seen.add(link.id);
+        // A link another member wrote reaches this phone as they wrote it; only a web address is loaded.
+        if (linkFrom(link.url) == null) continue;
         const product = await readProduct(link.url);
-        if (!product) continue;
         // The name and the price first: the picture is a second download, and they need not wait for it.
-        await fillFromPage(link.id, { name: product.name, priceMinor: product.priceMinor });
+        await fillFromPage(link.id, { name: product?.name, priceMinor: product?.priceMinor });
+        if (!product) continue;
         const photo = product.image ? await photoFromWeb(product.image).catch(() => null) : null;
         if (photo) await fillFromPage(link.id, { photo });
       }
@@ -144,7 +148,7 @@ export function readLinkPages(wishId: string): void {
  * The wishes no phone has read yet (`isUnread`), as their collection opens:
  * one added on the web waited until its panel was saved on a phone, which the
  * owner met as a link that showed nothing (2026-09-30). Once a launch each,
- * since a page with no product in it would be loaded at every visit.
+ * so a read cut short is tried again at the next.
  */
 export function readUnreadPages(wishes: readonly Wish[]): void {
   const now = Date.now();

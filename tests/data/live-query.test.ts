@@ -75,7 +75,19 @@ describe("liveStore", () => {
     expect(query).toHaveBeenCalledTimes(2);
   });
 
-  it("says it is refreshing, not loading, while an answered query re-runs", async () => {
+  it("tells nobody when a re-run answers what it answered before", async () => {
+    const store = liveStore(async () => [{ name: "Market" }], ["lists"]);
+    let told = 0;
+    store.subscribe(() => (told += 1));
+    await flush();
+    const before = told;
+    change("lists");
+    await vi.advanceTimersByTimeAsync(60);
+    await flush();
+    expect(told - before).toBe(0);
+  });
+
+  it("keeps saying ready, not loading, while an answered query re-runs", async () => {
     let resolve!: (rows: string[]) => void;
     const store = liveStore(() => new Promise<string[]>((done) => (resolve = done)), ["lists"]);
     store.subscribe(() => {});
@@ -83,7 +95,7 @@ describe("liveStore", () => {
     await flush();
     change("lists");
     await vi.advanceTimersByTimeAsync(60);
-    expect(store.getSnapshot()).toMatchObject({ status: "refreshing", data: ["Market"] });
+    expect(store.getSnapshot()).toMatchObject({ status: "ready", data: ["Market"] });
   });
 
   it("ignores a change to a table it does not read, and re-runs on one that is not named", async () => {

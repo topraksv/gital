@@ -79,7 +79,7 @@ describe("createList", () => {
   });
 
   it("refuses a name with nothing in it, and writes nothing", async () => {
-    await expect(createList("   ")).rejects.toThrow();
+    await expect(createList("   ")).rejects.toThrow("A list needs a name");
     expect(harness.db!.prepare("SELECT COUNT(*) AS n FROM lists").get()).toEqual({ n: 0 });
     expect(outbox()).toHaveLength(0);
   });
@@ -129,6 +129,15 @@ describe("readLists", () => {
     const second = await createList("İki");
     expect((await readLists()).map((list) => list.id)).toEqual([first, second].sort());
   });
+
+  it("keeps the person's own order, and puts a list it does not name after it in the order made", async () => {
+    const first = await createList("Bir");
+    const second = await createList("İki");
+    // As `setListOrder` writes it; its module's ids need expo-crypto, which Node has not.
+    await writeRows([{ table: "settings", row: { id: "order", key: "list_order", value: JSON.stringify([second, first]), deletedAt: null } }]);
+    const third = await createList("Üç");
+    expect((await readLists()).map((list) => list.id)).toEqual([second, first, third]);
+  });
 });
 
 describe("editList", () => {
@@ -152,7 +161,7 @@ describe("editList", () => {
 
   it("stores only a colour and a picture this build knows, and reads an unknown one as none", async () => {
     const id = await createList("Market");
-    await expect(editList(id, { name: "Market", color: "gold" as never, icon: null })).rejects.toThrow();
+    await expect(editList(id, { name: "Market", color: "gold" as never, icon: null })).rejects.toThrow("An unknown look");
     await expect(editList(id, { name: "Market", color: null, icon: "rocket" as never })).rejects.toThrow();
     expect(stored(id)).toMatchObject({ color: null, icon: "cart" });
     // A newer device's colour or picture, arrived by sync, draws as the default.

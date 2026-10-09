@@ -4,6 +4,8 @@
  * there that the list moved, and the rows still come by the pull, so a nudge
  * lost to a dropped socket costs only the wait for the half-minute poll. Who is
  * shopping is not said here: it is read from ticks (`src/domain/shopping.ts`).
+ * Each person also hears `user:<id>` (migration 17), where they are told that
+ * their place in a list changed: removed, they no longer hear the list's own.
  *
  * The transport loads when a shared list first needs it, in a chunk of its
  * own: `metro.config.js` keeps supabase-js's eager copy out of the entry.
@@ -16,8 +18,8 @@ export interface LiveOptions {
   apiKey: string;
   accessToken: () => Promise<string | null>;
   userId: string;
-  /** Someone else moved the list: time to pull. */
-  onMoved: (listId: string) => void;
+  /** Someone else moved a list, or the person's place in one: time to pull. */
+  onMoved: () => void;
 }
 
 let session: { client: RealtimeClient; options: LiveOptions; channels: Map<string, RealtimeChannel> } | null = null;
@@ -59,19 +61,22 @@ function close(): void {
 function follow(): void {
   if (!session) return;
   const { client, channels, options } = session;
-  for (const [listId, channel] of channels) {
-    if (wanted.includes(listId)) continue;
-    channels.delete(listId);
+  const own = `user:${options.userId}`;
+  const topics = [own, ...wanted.map((listId) => `list:${listId}`)];
+  for (const [topic, channel] of channels) {
+    if (topics.includes(topic)) continue;
+    channels.delete(topic);
     quietly(client.removeChannel(channel));
   }
-  for (const listId of wanted) {
-    if (channels.has(listId)) continue;
-    const channel = client.channel(`list:${listId}`, { config: { private: true } });
+  for (const topic of topics) {
+    if (channels.has(topic)) continue;
+    const channel = client.channel(topic, { config: { private: true } });
     channel
       .on("broadcast", { event: "moved" }, ({ payload }) => {
-        if (payload?.by !== options.userId) options.onMoved(listId);
+        // On their own channel, the person's other device left or was moved too.
+        if (topic === own || payload?.by !== options.userId) options.onMoved();
       })
       .subscribe();
-    channels.set(listId, channel);
+    channels.set(topic, channel);
   }
 }

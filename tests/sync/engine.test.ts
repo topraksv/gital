@@ -43,17 +43,17 @@ vi.mock("expo-constants", () => ({
 }));
 
 const { addEntries, addScanned, deleteItems, readItems, restoreItem, toggleChecked, updateItem } = await import("../../src/data/items");
-const { createList, editList, readLists } = await import("../../src/data/lists");
+const { createList, deleteLists, editList, readLists } = await import("../../src/data/lists");
 const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry, stockPantry } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
 const { readCollections } = await import("../../src/data/wishes");
-const { finishShop, readShops, reopenShop, setShopReceipt, setShopTotal } = await import("../../src/data/shops");
+const { finishShop, readPurchases, readShops, reopenShop, setShopReceipt, setShopTotal } = await import("../../src/data/shops");
 const { countDataReset, resetData } = await import("../../src/data/reset");
 const { readPhoto } = await import("../../src/data/photos");
-const { isFrozen, memberNameOf, readSettings, setAccountFrozen, setMemberName } = await import("../../src/data/settings");
+const { RESTOCK_ASIDE_MAX, isFrozen, memberNameOf, putRestockAside, readSettings, restockAsideOf, setAccountFrozen, setListOrder, setMemberName } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
-const { leaveList, markSeen, readFresh, readMembers, readSharedLists, readShoppingTicks, removeMember, roleOf, rowPeople, setMemberRole } = await import(
+const { leaveList, markSeen, readFresh, readMembers, readPlaces, readSharedLists, readShoppingTicks, removeMember, roleOf, rowPeople, setMemberRole } = await import(
   "../../src/data/members"
 );
 const {
@@ -101,7 +101,7 @@ async function on<T>(device: keyof typeof devices, work: () => Promise<T>): Prom
 
 let signedIn = USER;
 const sync = () => syncNow(signedIn);
-const add = (listId: string, ...names: string[]) => addEntries(listId, names.map((name) => ({ name, quantityMilli: null, unit: null })));
+const add = async (listId: string, ...names: string[]) => (await addEntries(listId, names.map((name) => ({ name, quantityMilli: null, unit: null })))).ids;
 const names = async (listId: string) => (await readItems(listId)).map((item) => item.name).sort();
 const serverRow = (table: string, id: string) => cloud.rows(table).find((row) => row.id === id);
 /** A JPEG as far as its first bytes go, which is as far as anything here reads. */
@@ -634,6 +634,8 @@ describe("two people sharing a list", () => {
       await sync();
       expect(await pantry()).toEqual([]);
     });
+    // The shop comes home after its arrival went: on one clock, a millisecond later.
+    await new Promise((resolve) => setTimeout(resolve, 2));
     await on("A", async () => {
       await sync();
       await finishShop(listId);
@@ -655,6 +657,35 @@ describe("two people sharing a list", () => {
       await toggleChecked((await readItems(kendi))[0]!.id);
       await finishShop(kendi);
       expect((await readPantry()).map((item) => [item.name, item.quantityMilli])).toEqual([["elma", 1000]]);
+      await sync();
+      expect((await readPantry()).map((item) => [item.name, item.quantityMilli]), "and the next sync does not bring the emptied ones back").toEqual([["elma", 1000]]);
+    });
+  });
+
+  it("keeps in each member's Kiler what a shop brought when its owner clears the history", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      await toggleChecked((await readItems(listId)).find((item) => item.name === "elma")!.id);
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      await finishShop(listId);
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      await sync();
+      expect((await readPantry()).map((item) => item.name)).toEqual(["elma"]);
+    });
+    await on("A", async () => {
+      await resetData(["history"]);
+      await sync();
+    });
+    await on("C", async () => {
+      await sync();
+      await sync();
+      expect((await readPantry()).map((item) => item.name), "clearing history is no undo").toEqual(["elma"]);
     });
   });
 
@@ -757,6 +788,51 @@ describe("two people sharing a list", () => {
     await expect(setMemberName("   ")).rejects.toThrow();
   });
 
+  it("keeps the person's own order of their lists, on every device", async () => {
+    const order = await on("A", async () => {
+      const market = await createList("Market");
+      const bakkal = await createList("Bakkal");
+      const before = (await readLists()).map((list) => list.id);
+      await setListOrder([...before].reverse());
+      expect((await readLists()).map((list) => list.id)).toEqual([...before].reverse());
+      expect([market, bakkal]).toContain(before[0]);
+      await sync();
+      return [...before].reverse();
+    });
+    await on("B", async () => {
+      await sync();
+      expect((await readLists()).map((list) => list.id)).toEqual(order);
+    });
+  });
+
+  it("keeps what each device put aside, and only the newest the server can hold", async () => {
+    const listId = "019f6bba-2c65-7ea8-a6c9-96d891155e0a";
+    await on("A", async () => {
+      await putRestockAside(listId, "süt");
+      await sync();
+    });
+    await on("B", async () => {
+      await sync();
+      await putRestockAside(listId, "elma");
+      expect([...restockAsideOf(await readSettings(), listId).keys()].sort(), "read inside the write").toEqual(["elma", "süt"]);
+      expect(restockAsideOf(await readSettings(), "another list").size).toBe(0);
+
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        for (let at = 0; at <= RESTOCK_ASIDE_MAX; at++) {
+          vi.setSystemTime(new Date(Date.UTC(2030, 0, 1, 0, 0, at)));
+          await putRestockAside(listId, `ürün ${at}`);
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+      const aside = restockAsideOf(await readSettings(), listId);
+      expect(aside.size).toBe(RESTOCK_ASIDE_MAX);
+      expect(aside.has("ürün 0"), "the oldest goes").toBe(false);
+      expect(aside.get(`ürün ${RESTOCK_ASIDE_MAX}`)).toBe("2030-01-01T00:01:20.000Z");
+    });
+  });
+
   it("carries a corrected name to every list the person already shares", async () => {
     const listId = await sharedMarket();
     await on("C", async () => {
@@ -773,6 +849,27 @@ describe("two people sharing a list", () => {
     await on("C", async () => {
       await sync();
       expect((await readMembers(listId)).map(({ name }) => name)).toEqual(["Toprak", "Betül"]);
+      // The person screen's one read: their place in each list, by list.
+      expect((await readPlaces(USER)).map(({ listId: list, role, name }) => [list, role, name])).toEqual([[listId, "owner", "Toprak"]]);
+    });
+  });
+
+  it("brings back a name a device behind on the rename sent old", async () => {
+    const listId = await sharedMarket();
+    await on("D", () => sync());
+    await on("C", async () => {
+      await setMemberName("Betül");
+      await sync();
+    });
+    // D still holds the row as "Deniz", and marking the list seen sends it whole.
+    await on("D", async () => {
+      await markSeen(listId, OTHER);
+      await sync();
+      await sync();
+    });
+    await on("A", async () => {
+      await sync();
+      expect((await readMembers(listId)).map(({ name }) => name)).toEqual(["Ömer", "Betül"]);
     });
   });
 
@@ -1053,6 +1150,28 @@ describe("what the server will not take", () => {
       await sync();
       expect(cloud.requests.slice(before).filter((request) => request === "upsert items"), "no refusal to work around").toHaveLength(1);
       expect(serverRow("items", undone!)?.checked_at).not.toBeNull();
+    });
+  });
+
+  it("does not bring back, by stepping down, a row another device deleted", async () => {
+    const [listId, itemId] = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await sync();
+      return [id, item!];
+    });
+    await on("B", async () => {
+      await sync();
+      await deleteItems([itemId]);
+      await sync();
+    });
+    await on("A", async () => {
+      // Offline, A never saw B's delete, and took back its own twice.
+      await restoreItem((await deleteItems([itemId]))!);
+      await restoreItem((await deleteItems([itemId]))!);
+      await sync();
+      expect(serverRow("items", itemId)?.deleted_at, "B's delete stands").not.toBeNull();
+      expect(await names(listId)).toEqual([]);
     });
   });
 
@@ -1393,6 +1512,43 @@ describe("photos", () => {
     });
   });
 
+  it("removes, a month on, the photos no row names any more, from Storage and from the device", async () => {
+    const { listId, photoId } = await on("A", async () => {
+      const id = await createList("Market");
+      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await sync();
+      return { listId: id, photoId: (await readItems(id))[0]!.photoId! };
+    });
+    const kept = await on("A", async () => {
+      await deleteItems([(await readItems(listId))[0]!.id]);
+      await addScanned(listId, { name: "elma", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await sync();
+      return (await readItems(listId))[0]!.photoId!;
+    });
+    expect(devices.A.prepare("SELECT id FROM photos WHERE id = ?").all(photoId), "within the month, the device keeps it").toHaveLength(1);
+    for (const object of cloud.objects.values()) object.at -= 31 * 86_400_000;
+    devices.A.prepare("UPDATE photos SET created_at = ?").run(new Date(Date.now() - 31 * 86_400_000).toISOString());
+    await on("A", () => sync());
+    expect([...cloud.objects.keys()].sort(), "an object its row named a month ago goes; a named one stays").toEqual([`${kept}/full.jpg`, `${kept}/thumb.jpg`]);
+    expect(devices.A.prepare("SELECT id FROM photos").all(), "and the device's copy").toEqual([{ id: kept }]);
+  });
+
+  it("forgets, a week on, a deleted list with what stayed under it", async () => {
+    const listId = await on("A", async () => {
+      const id = await createList("Market");
+      await addEntries(id, [{ name: "süt", quantityMilli: null, unit: null }]);
+      await sync();
+      await deleteLists([id]);
+      return id;
+    });
+    await on("A", () => sync());
+    expect(devices.A.prepare("SELECT id FROM items WHERE list_id = ?").all(listId), "kept within the week").toHaveLength(1);
+    devices.A.prepare("UPDATE lists SET deleted_at = ?").run(new Date(Date.now() - 8 * 86_400_000).toISOString());
+    await on("A", () => sync());
+    expect(devices.A.prepare("SELECT id FROM items WHERE list_id = ?").all(listId)).toEqual([]);
+    expect(devices.A.prepare("SELECT id FROM lists WHERE id = ?").all(listId)).toEqual([]);
+  });
+
   it("asks again for a photo that the network, not Storage, kept from arriving", async () => {
     const { listId } = await on("A", async () => {
       const id = await createList("Market");
@@ -1616,6 +1772,73 @@ describe("what one copy must not do to another's", () => {
     await on("A", async () => {
       await sync();
       expect((await readMembers(listId)).map((member) => member.name)).toEqual(["Ömer"]);
+    });
+  });
+
+  it("keeps a finished shop's receipt and total when a device that never saw it finishes the same shop", async () => {
+    const listId = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await toggleChecked(item!);
+      await sync();
+      return id;
+    });
+    await on("B", sync);
+    const shopId = await on("A", async () => {
+      await finishShop(listId);
+      const [shop] = await readShops();
+      await setShopReceipt(shop!.id, { data: JPEG, thumb: JPEG });
+      await setShopTotal(shop!.id, 12_345);
+      await sync();
+      return shop!.id;
+    });
+    await on("B", async () => {
+      await finishShop(listId);
+      await sync();
+    });
+    expect(serverRow("shops", shopId)).toMatchObject({ total_minor: 12_345, photo_id: expect.any(String) });
+  });
+
+  it("shows what a device that never saw the Kiler reset brought home after it", async () => {
+    await on("A", async () => {
+      await stockPantry(parseEntry("süt"));
+      await sync();
+    });
+    await on("B", sync);
+    await on("A", async () => {
+      await resetData(["pantry"]);
+      await sync();
+    });
+    await on("B", async () => {
+      await stockPantry(parseEntry("süt"));
+      await sync();
+      expect((await readPantry()).map((item) => item.name)).toEqual(["Süt"]);
+    });
+    await on("A", async () => {
+      await sync();
+      expect((await readPantry()).map((item) => item.name)).toEqual(["Süt"]);
+    });
+  });
+
+  it("files what a device bought into a shop number another device finished and took back", async () => {
+    const listId = await on("A", async () => {
+      const id = await createList("Market");
+      const [item] = await add(id, "süt");
+      await toggleChecked(item!);
+      await sync();
+      return id;
+    });
+    await on("B", sync);
+    await on("A", async () => {
+      const finished = await finishShop(listId);
+      await sync();
+      await reopenShop(finished!.id);
+      await sync();
+    });
+    await on("B", async () => {
+      await finishShop(listId);
+      await sync();
+      expect((await readPurchases(listId)).map((bought) => bought.name)).toEqual(["süt"]);
     });
   });
 

@@ -166,9 +166,8 @@ function Join({ invite, accept, decline, onJoined }: { invite: InvitePeek; accep
       await work();
     } catch {
       void appError(tr.sharing.errGeneric);
-    } finally {
-      setBusy(null);
     }
+    setBusy(null);
   };
   const join = async () => {
     if (!known) await setMemberName(name);

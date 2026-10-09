@@ -36,8 +36,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "node scripts/serve-web-export.mjs dist-e2e",
-    env: { PORT: "4173" },
+    command: "node scripts/serve-web-export.mjs dist-e2e 4173",
     url: "http://127.0.0.1:4173/gital/",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

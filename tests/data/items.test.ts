@@ -25,7 +25,7 @@ const { addEntries, addScanned, carryNotFound, deleteItems, importEntries, readI
 const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
-const addItems = (list: string, text: string) => addEntries(list, parseEntry(text));
+const addItems = async (list: string, text: string) => (await addEntries(list, parseEntry(text))).ids;
 const { finishShop, readShops } = await import("../../src/data/shops");
 const { createList, deleteLists, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
@@ -115,6 +115,13 @@ describe("addItems", () => {
     await toggleChecked(id!);
     await addItems(listId, "2 süt");
     expect(stored(id!)).toMatchObject({ checked_at: T0.toISOString(), quantity_milli: 2000 });
+  });
+
+  it("names what the list already held as it is, so an add that changes nothing can say so", async () => {
+    const [id] = await addItems(listId, "süt");
+    await toggleChecked(id!);
+    expect(await addEntries(listId, parseEntry("süt, ekmek"))).toMatchObject({ unchanged: ["Süt"] });
+    expect(await addEntries(listId, parseEntry("2 süt"))).toMatchObject({ unchanged: [] });
   });
 
   it("brings a deleted product back on top with what was typed, as one row", async () => {
@@ -220,11 +227,31 @@ describe("toggleChecked", () => {
     await deleteItems([id!]);
     await expect(toggleChecked(id!)).rejects.toThrow();
   });
+
+  it("gives back what taking a tick back took with it: its price, and only then", async () => {
+    const [id] = await addItems(listId, "süt");
+    expect(await toggleChecked(id!), "a tick takes nothing").toBeNull();
+    expect(await toggleChecked(id!), "nor does taking back one with no price").toBeNull();
+    await toggleChecked(id!);
+    await updateItem(id!, { ...as("süt"), priceMinor: 4_250 });
+    const taken = await toggleChecked(id!);
+    expect(stored(id!)).toMatchObject({ checked_at: null, price_minor: null });
+    await restoreItem(taken!);
+    expect(stored(id!)).toMatchObject({ price_minor: 4_250 });
+    expect(stored(id!).checked_at).not.toBeNull();
+  });
 });
 
 const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => ({ name, quantityMilli, unit, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null });
 
 describe("updateItem", () => {
+  it("writes only what the panel changed: a note another phone wrote meanwhile stays", async () => {
+    const [id] = await addItems(listId, "süt");
+    const opened = (await readItems(listId))[0]!;
+    await updateItem(id!, { ...as("süt"), note: "Pınar olsun" });
+    await updateItem(id!, as("süt", 2000, "lt"), undefined, opened);
+    expect(await readItems(listId)).toMatchObject([{ id, name: "Süt", quantityMilli: 2000, unit: "lt", note: "Pınar olsun" }]);
+  });
 
   it("saves the name and the stepped quantity in place when the product stays the same", async () => {
     const [id] = await addItems(listId, "sut");
@@ -804,5 +831,24 @@ describe("a pasted list, and its undo", () => {
     expect(outboxCount()).toBe(1);
     await deleteLists([listId]);
     await expect(importEntries(listId, parseList("• süt"))).rejects.toThrow();
+  });
+});
+
+describe("a product's id held by another list's row", () => {
+  // The server keys items by (list_id, id) (migration 14), so another list's
+  // member can write a row under the id this list's product hashes to, and a
+  // pull lands it here first.
+  it("lands on this list, not on the row that took the id", async () => {
+    const other = await createList("Ev");
+    const planted = await (await import("../../src/data/items")).openItemId(listId, "Süt");
+    const [plantedFrom] = await addItems(other, "Ayran");
+    harness.db!.prepare("UPDATE items SET id = ? WHERE id = ?").run(planted, plantedFrom!);
+
+    await addItems(listId, "2 Süt");
+
+    expect(await names(listId)).toEqual(["Süt"]);
+    // The other copy stays the server's, under its own list; this one goes up under this list.
+    const sent = harness.db!.prepare("SELECT payload FROM outbox WHERE row_id = ? ORDER BY id DESC LIMIT 1").get(planted) as { payload: string };
+    expect(JSON.parse(sent.payload).list_id).toBe(listId);
   });
 });

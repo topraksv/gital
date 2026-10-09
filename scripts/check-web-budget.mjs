@@ -35,9 +35,17 @@ const root = process.argv[2] ?? "dist";
 // is weighed apart rather than WebP alone. Measured: entry 2_315_088, all JS
 // 2_553_353, export without pictures 4_362_520, pictures 397_225, 4 font
 // files of 615_272 bytes.
+// 2026-10-09: entry 2_333_525, all JS 2_571_791, export 4_380_958. 17_938 of
+// the entry's 18_437 new bytes are the React Compiler's memoisation of the
+// eleven components it had skipped (devil round 2026-10-09-2), measured
+// minified file by file; the ceilings keep their headroom.
+// 2026-10-09, the owner's backlog pass: entry 2_348_545, all JS 2_586_814,
+// export 4_395_981. 15_020 entry bytes, no new library: the second tab's
+// handoff, per-member order, restock "şimdi değil", the item panel's diff,
+// tick and untick undo, reminder taps, history paging.
 const limits = {
-  entryJavaScript: 2_327_700,
-  totalJavaScript: 2_568_400,
+  entryJavaScript: 2_361_200,
+  totalJavaScript: 2_599_500,
   totalExport: 4_406_100,
   // The catalogue's hundreds of WebP would otherwise hide a code regression in
   // the total (SPEC 14.1).

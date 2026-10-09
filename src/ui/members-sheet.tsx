@@ -26,7 +26,7 @@ import { memberNameOf, setMemberName } from "../data/settings";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { announce, nextExpiry, shoppersNow } from "../domain/shopping";
-import { kvSwitch } from "../services/kv";
+import { kv, kvSwitch } from "../services/kv";
 import { shareText } from "../services/share";
 import { syncNow } from "../sync/engine";
 import { inviteLink, inviteToList, type InviteRole } from "../sync/sharing";
@@ -41,7 +41,7 @@ import { Press } from "./press";
 import { inviteWordFits } from "./responsive";
 import { interactionSurface } from "./interaction";
 import { controlSize, iconSize, iconStroke, itemRow, radius, spacing, type, useTheme } from "./theme";
-import { showNotice } from "./undo";
+import { clearUndo, showNotice } from "./undo";
 
 /** This person's part in a list: a viewer reads it and changes nothing (SPEC 1.4). */
 export function useShare(listId: string) {
@@ -99,6 +99,18 @@ export function useShoppingNoticesAllowed(): boolean {
 
 export const setShoppingNoticesAllowed = notices.set;
 
+/** The runs already told, with whose account told them: a cold start inside a run said it again. */
+const TOLD_KEY = "gital.shoppingTold";
+
+async function toldRuns(userId: string): Promise<ReadonlySet<string>> {
+  try {
+    const stored = JSON.parse((await kv.get(TOLD_KEY)) ?? "null") as { user: string; runs: string[] } | null;
+    return new Set(stored?.user === userId ? stored.runs : []);
+  } catch {
+    return new Set();
+  }
+}
+
 /**
  * One banner for each list, person and run: "X alışverişte", for the
  * shoppers `useShoppingNow` gave. Mounted once, by the Lists tab: it is the
@@ -107,12 +119,23 @@ export const setShoppingNoticesAllowed = notices.set;
  * switch is off is still counted as told.
  */
 export function useShoppingNotices(shoppers: ReturnType<typeof useShoppingNow>): void {
-  const told = useRef<ReadonlySet<string>>(new Set());
+  const userId = useSession((s) => s.userId) ?? "";
+  const told = useRef<{ user: string; runs: ReadonlySet<string> } | null>(null);
   useEffect(() => {
-    const next = announce(shoppers, told.current);
-    told.current = next.announced;
-    if (notices.get() && next.fresh.length) showNotice(tr.sharing.shoppingNotice(next.fresh.map((shopper) => shopper.name)));
-  }, [shoppers]);
+    let current = true;
+    void (async () => {
+      const runs = told.current?.user === userId ? told.current.runs : await toldRuns(userId);
+      if (!current) return;
+      const next = announce(shoppers, runs);
+      told.current = { user: userId, runs: next.announced };
+      if (next.fresh.length === 0 && runs.size === next.announced.size) return;
+      void kv.set(TOLD_KEY, JSON.stringify({ user: userId, runs: [...next.announced] })).catch(() => {});
+      if (notices.get() && next.fresh.length) showNotice(tr.sharing.shoppingNotice(next.fresh.map((shopper) => shopper.name)));
+    })();
+    return () => {
+      current = false;
+    };
+  }, [shoppers, userId]);
 }
 
 /** Who else is at the shop with this list now, by the name they gave it. */
@@ -189,6 +212,14 @@ export function PeopleActions({
 export function HouseholdActions({ userId, crowded = false, children }: { userId: string; crowded?: boolean; children: ReactNode }) {
   const held = useHeldPantry(userId);
   const home = held.data[0]?.id ?? userId;
+  // An undo offered in the last Kiler would take back rows that went with it,
+  // and fail; the engine that switches cannot reach the bar, this screen can.
+  const heldHome = useRef(held.data[0]?.id);
+  useEffect(() => {
+    const now = held.data[0]?.id;
+    if (heldHome.current != null && now != null && now !== heldHome.current) clearUndo();
+    heldHome.current = now ?? heldHome.current;
+  }, [held.data]);
   const viewport = useWindowDimensions();
   // The word waits for the read: until then a member's Kiler would wear the owner's.
   const word = home === userId && held.updatedAt != null && !crowded && inviteWordFits(viewport, "household");
@@ -320,25 +351,23 @@ function Invite({ list, household }: { list: { id: string; name: string }; house
   const [busy, setBusy] = useState(false);
   const name = known ?? typed.trim();
 
+  const make = async () => {
+    if (!known) await setMemberName(name);
+    const made = await inviteToList(list.id, role, name, () => (userId ? syncNow(userId) : Promise.resolve()));
+    if ("refused" in made) return setRefused(made.refused);
+    selectionTap();
+    setLink(inviteLink(made.token));
+  };
   const create = async () => {
     setBusy(true);
     setRefused(null);
-    try {
-      if (!known) await setMemberName(name);
-      const made = await inviteToList(list.id, role, name, () => (userId ? syncNow(userId) : Promise.resolve()));
-      if ("refused" in made) return setRefused(made.refused);
-      selectionTap();
-      setLink(inviteLink(made.token));
-    } catch {
-      setRefused(tr.sharing.errGeneric);
-    } finally {
-      setBusy(false);
-    }
+    await make().catch(() => setRefused(tr.sharing.errGeneric));
+    setBusy(false);
   };
 
   const share = async (url: string) => {
+    const text = household ? tr.sharing.householdInviteText(url) : tr.sharing.inviteText(list.name, url);
     try {
-      const text = household ? tr.sharing.householdInviteText(url) : tr.sharing.inviteText(list.name, url);
       if ((await shareText(text)) === "clipboard") showNotice(tr.sharing.inviteCopied);
     } catch {
       void appError(tr.errors.shareFailed);

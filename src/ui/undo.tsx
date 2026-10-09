@@ -13,7 +13,7 @@ import TriangleAlert from "lucide-react-native/icons/triangle-alert";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 import { tr } from "../i18n/tr";
-import { SlideUp, SuccessPop } from "./components";
+import { SlideUp, SuccessPop, announce } from "./components";
 import { appError } from "./dialog";
 import { selectionTap } from "./haptics";
 import { useDragAway } from "./motion";
@@ -53,6 +53,7 @@ export function showNotice(message: string): void {
 function present(offer: UndoOffer): void {
   if (hideTimer) clearTimeout(hideTimer);
   useUndo.setState({ offer });
+  announce(offer.message);
   // Helix's two holds: a bare confirmation leaves quickly, an offer stays long enough to be taken.
   hideTimer = setTimeout(clearUndo, offer.onUndo ? motion.undoHold : motion.noticeHold);
 }
@@ -93,9 +94,8 @@ export function UndoSnackbar() {
       // back for another try, and the dialog says what happened.
       showUndo(message, onUndo, "warning");
       void appError(tr.errors.undoFailed);
-    } finally {
-      setUndoing(false);
     }
+    setUndoing(false);
   };
 
   return (

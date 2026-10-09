@@ -5,8 +5,10 @@ import CloudOff from "lucide-react-native/icons/cloud-off";
 import Refrigerator from "lucide-react-native/icons/refrigerator";
 import ShoppingCart from "lucide-react-native/icons/shopping-cart";
 import type { LucideIcon } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
-import { isEmail, isValidNewPassword, useSession } from "../../auth/session";
+import { isValidNewPassword, useSession } from "../../auth/session";
+import { isEmail } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import { heldInvite } from "../../sync/sharing";
 import { Body, Button, Card, Notice, Screen, TextField } from "../../ui/components";
@@ -145,6 +147,17 @@ function AuthLink({ label, onPress, disabled = false }: { label: string; onPress
 }
 
 type Outcome = { tone: "error" | "success"; text: string };
+
+/** Under a failure, which may be ours: the report needs no account (migration 17). */
+function ReportProblem({ outcome, email }: { outcome: Outcome | null; email: string }) {
+  const router = useRouter();
+  if (outcome?.tone !== "error") return null;
+  return (
+    <View style={{ alignItems: "flex-start", marginBottom: spacing.md }}>
+      <Button label={tr.auth.reportProblem} variant="ghost" size="sm" onPress={() => router.push({ pathname: "/feedback", params: { email: email.trim() } })} />
+    </View>
+  );
+}
 
 /** What the mode's request answered; null is a session, which the layout's guard takes from here. */
 async function attempt(mode: Mode, email: string, password: string): Promise<Outcome | null> {
@@ -355,6 +368,7 @@ export default function SignInScreen() {
             <EmailField value={email} onChangeText={edit(setEmail)} last={mode === "forgot"} onSubmit={press} onNext={() => passwordRef.current?.focus()} />
             {mode !== "forgot" ? <PasswordField ref={passwordRef} creating={mode === "signUp"} value={password} onChangeText={edit(setPassword)} onSubmit={press} /> : null}
             {outcome ? <Notice {...outcome} /> : null}
+            <ReportProblem outcome={outcome} email={email} />
             {/* Before the account exists, not after: creating one is when an
                 address starts being held on servers abroad. */}
             {mode === "signUp" ? (

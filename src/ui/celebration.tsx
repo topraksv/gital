@@ -7,7 +7,7 @@
  * (2026-10-02). Under reduced motion it is the card at rest.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import Check from "lucide-react-native/icons/check";
 import RotateCcw from "lucide-react-native/icons/rotate-ccw";
@@ -16,7 +16,7 @@ import { useShops } from "../data/hooks";
 import { formatMinor, spentByMonth } from "../domain/money";
 import { tr } from "../i18n/tr";
 import { MONTHS, MonthBars } from "./charts";
-import { Button, SuccessPop, cardEdge } from "./components";
+import { Button, SuccessPop, announce, cardEdge } from "./components";
 import { selectionTap } from "./haptics";
 import { useCountUp } from "./motion";
 import { celebration, circle, iconSize, iconStroke, radius, spacing, type, useTheme } from "./theme";
@@ -39,15 +39,12 @@ export function FinishedCard({ summary, onUndo }: { summary: ShopSummary; onUndo
   const months = spentByMonth(useShops().data, new Date(), MONTHS);
   const month = months.at(-1)!.spentMinor;
   const spent = useCountUp(summary.spentMinor ?? 0, 0);
+  useEffect(() => announce(`${tr.celebration.title}. ${tr.celebration.bought(summary.bought)}`), [summary]);
   const undo = async () => {
     if (undoing) return;
     selectionTap();
     setUndoing(true);
-    try {
-      await onUndo();
-    } finally {
-      setUndoing(false);
-    }
+    await onUndo().finally(() => setUndoing(false));
   };
   return (
     <SuccessPop>

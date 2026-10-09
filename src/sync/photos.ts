@@ -138,6 +138,32 @@ export async function fetchMissingPhotos(supabase: SupabaseClient, signal: Abort
   }
 }
 
+/** How long a photo no row names is kept: a device may hold the row naming it unsent (migration 17). */
+const UNNAMED_KEPT_MS = 30 * 86_400_000;
+const swept = new WeakSet<AbortSignal>();
+
+/**
+ * Once a sync session, the photos no row names any more — replaced, undone, gone with
+ * their row — leave this person's Storage, and the device's copies of every
+ * such photo leave its own. Each half waits a month, so a row still on its way
+ * finds its photo. A failure waits for the next session: nothing here is urgent.
+ */
+export async function sweepUnnamedPhotos(supabase: SupabaseClient, signal: AbortSignal): Promise<void> {
+  if (swept.has(signal)) return;
+  swept.add(signal);
+  const { data, error } = await supabase.rpc("unnamed_photos");
+  if (error) return;
+  const paths = data as string[];
+  for (let at = 0; at < paths.length; at += 100) {
+    checkActive(signal);
+    if ((await supabase.storage.from(BUCKET).remove(paths.slice(at, at + 100))).error) return;
+  }
+  checkActive(signal);
+  const sqlite = await getSqliteAsync();
+  const before = new Date(Date.now() - UNNAMED_KEPT_MS).toISOString();
+  await sqlite.runAsync(`DELETE FROM photos WHERE created_at < ? AND id NOT IN (SELECT photo_id FROM (${NAMED}) WHERE photo_id IS NOT NULL)`, [before]);
+}
+
 /**
  * Remove every photo the account sent, before the account goes: Storage keeps
  * a file its owner no longer exists for, and nothing cascades to it. The

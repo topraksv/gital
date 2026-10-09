@@ -20,6 +20,7 @@ type Reply = { data: unknown; error: Failure | null };
 const PERSONAL = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
 const PANTRY = new Set(["pantry_items", "pantry_moves"]);
 const LIST_CHILDREN = new Set(["shops", "items", "wishes", "wish_links"]);
+const FRESH_OVER_LIVE = new Set(["shops", "items", "products", "pantry_items"]);
 export const TABLES = ["lists", "list_members", "shops", "items", "wishes", "wish_links", "products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"];
 const PHOTO_OBJECT = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(full|thumb)\.jpg$/;
 
@@ -38,7 +39,7 @@ function timestamptz(us: number): string {
 
 export class FakeCloud {
   readonly tables = new Map<string, Map<string, Row>>(TABLES.map((table) => [table, new Map()]));
-  readonly objects = new Map<string, { owner: string; bytes: Uint8Array }>();
+  readonly objects = new Map<string, { owner: string; bytes: Uint8Array; at: number }>();
   /** Who the client's session belongs to; `null` is signed out. */
   user: string | null = null;
   /** The next answers `auth.refreshSession` gives, then a fresh session. */
@@ -170,6 +171,10 @@ export class FakeCloud {
       const refused = { data: null, error: { message: `new row violates row-level security policy for table "${table}"`, code: "42501" } };
       if (old && !this.writable(table, old, uid, old)) return refused;
       let next: Row = { ...old, ...row };
+      // `private.keep_live_values` (migration 16): a row made afresh over a live one fills only what it lacks.
+      if (old && FRESH_OVER_LIVE.has(table) && old.deleted_at == null && next.deleted_at == null && micros(String(next.created_at)) !== micros(String(old.created_at))) {
+        next = { ...old, ...Object.fromEntries(Object.entries(row).filter(([, value]) => value != null)), created_at: old.created_at };
+      }
       if (old) this.guard(table, next, old, uid);
       if (!this.writable(table, next, uid, old)) return refused;
       if (typeof next.name === "string" && ([...next.name].length < 1 || [...next.name].length > 200)) {
@@ -387,6 +392,11 @@ export class FakeCloud {
         error: null,
       };
     }
+    if (name === "unnamed_photos") {
+      const named = (photo: string) => ["items", "wishes", "shops"].some((table) => this.rows(table).some((row) => row.photo_id === photo && row.deleted_at == null));
+      const month = Date.now() - 30 * 86_400_000;
+      return { data: [...this.objects].filter(([path, object]) => object.owner === uid && object.at < month && !named(PHOTO_OBJECT.exec(path)![1]!)).map(([path]) => path), error: null };
+    }
     if (name === "own_photo_objects") {
       return { data: [...this.objects].filter(([, object]) => object.owner === uid).map(([path]) => path), error: null };
     }
@@ -509,7 +519,7 @@ export class FakeCloud {
                 if (!uid || !photo || options.contentType !== "image/jpeg") return refused;
                 if (existing && (!options.upsert || existing.owner !== uid)) return { data: null, error: { message: "The resource already exists", status: 409 } };
                 if (!existing && !cloud.canPlacePhoto(photo, uid)) return refused;
-                cloud.objects.set(path, { owner: uid, bytes: new Uint8Array(body) });
+                cloud.objects.set(path, { owner: uid, bytes: new Uint8Array(body), at: Date.now() });
                 return { data: { path }, error: null };
               }),
             download: (path: string) =>

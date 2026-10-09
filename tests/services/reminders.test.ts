@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const calls = vi.hoisted(() => [] as string[]);
+const taps = vi.hoisted(() => ({ last: null as unknown, cleared: 0, listener: null as ((response: unknown) => void) | null, removed: 0 }));
 const phone = vi.hoisted(() => ({ granted: true, stored: new Map<string, string>(), readFails: false, wishes: [] as { name: string; dueOn: string; boughtAt: null }[] }));
 
 vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
@@ -23,6 +24,16 @@ vi.mock("expo-notifications", () => ({
     return { granted: phone.granted };
   },
   cancelAllScheduledNotificationsAsync: async () => void calls.push("cancel"),
+  DEFAULT_ACTION_IDENTIFIER: "expo.modules.notifications.actions.DEFAULT",
+  getLastNotificationResponse: () => taps.last,
+  clearLastNotificationResponse: () => {
+    taps.cleared++;
+    taps.last = null;
+  },
+  addNotificationResponseReceivedListener: (listener: (response: unknown) => void) => {
+    taps.listener = listener;
+    return { remove: () => void taps.removed++ };
+  },
   scheduleNotificationAsync: async (request: { content: { title: string; body: string }; trigger: { type: string } }) =>
     void calls.push(`${request.trigger.type}: ${request.content.title} — ${request.content.body}`),
 }));
@@ -38,9 +49,10 @@ vi.mock("../../src/data/lists", () => ({
 vi.mock("../../src/data/pantry", () => ({ readPantry: async () => [], readLasted: async () => [] }));
 vi.mock("../../src/data/shops", () => ({ readPurchases: async () => [] }));
 vi.mock("../../src/data/items", () => ({ readItems: async () => [] }));
+vi.mock("../../src/data/settings", () => ({ readSettings: async () => [], restockAsideOf: () => new Map() }));
 vi.mock("../../src/data/wishes", () => ({ readDueWishes: async () => phone.wishes }));
 
-const { cancelReminders, disableReminders, enableReminders, replanReminders } = await import("../../src/services/reminders.native");
+const { cancelReminders, disableReminders, enableReminders, followReminderTaps, replanReminders } = await import("../../src/services/reminders.native");
 const { saveShoppingDay } = await import("../../src/services/reminder-preferences");
 const { addDaysISO, todayISO } = await import("../../src/domain/dates");
 
@@ -108,5 +120,39 @@ describe("reminders on the phone", () => {
     await replanReminders();
     expect(calls[0]).toBe("cancel");
     expect(calls.length).toBeGreaterThan(1);
+  });
+});
+
+describe("a tap on a reminder", () => {
+  const tap = (identifier: string, route: unknown, actionIdentifier = "expo.modules.notifications.actions.DEFAULT") => ({
+    actionIdentifier,
+    notification: { request: { identifier, content: { data: { route } } } },
+  });
+
+  it("opens what the reminder is about, the launch tap once, and stops listening when asked", () => {
+    taps.last = tap("launch", { pathname: "/pantry" });
+    taps.cleared = 0;
+    taps.removed = 0;
+    const opened: unknown[] = [];
+    const stop = followReminderTaps((route) => opened.push(route));
+    expect(opened).toEqual([{ pathname: "/pantry" }]);
+    expect(taps.cleared, "a handled launch tap is not replayed").toBe(1);
+
+    taps.listener!(tap("launch", { pathname: "/pantry" }));
+    taps.listener!(tap("later", { pathname: "/list/[id]", params: { id: "l" } }));
+    taps.listener!(tap("dismissed", { pathname: "/wishes" }, "expo.modules.notifications.actions.DISMISS"));
+    taps.listener!(tap("unknown", { pathname: "/nowhere" }));
+    expect(opened).toEqual([{ pathname: "/pantry" }, { pathname: "/list/[id]", params: { id: "l" } }]);
+
+    stop();
+    expect(taps.removed).toBe(1);
+  });
+
+  it("listens even with no launch tap to read", () => {
+    taps.last = null;
+    const opened: unknown[] = [];
+    followReminderTaps((route) => opened.push(route));
+    taps.listener!(tap("first", { pathname: "/" }));
+    expect(opened).toEqual([{ pathname: "/" }]);
   });
 });

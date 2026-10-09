@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { LIST_ICONS, NAME_WORDS, iconForName } from "../../src/domain/lists";
+import { LIST_ICONS, NAME_WORDS, iconForName, inOwnOrder } from "../../src/domain/lists";
 
 describe("iconForName", () => {
   it.each([
@@ -54,5 +54,15 @@ describe("iconForName", () => {
 
   it("takes the first word that decides, as the name is read", () => {
     expect(iconForName("Pazar ve market")).toBe("vegetables");
+  });
+});
+
+describe("inOwnOrder", () => {
+  const rows = ["a", "b", "c", "d"].map((id) => ({ id }));
+
+  it("follows the order the person set, and puts what it does not name after it as it came", () => {
+    expect(inOwnOrder(rows, ["c", "b", "a"]).map(({ id }) => id)).toEqual(["c", "b", "a", "d"]);
+    expect(inOwnOrder(rows, ["gone", "d"]).map(({ id }) => id)).toEqual(["d", "a", "b", "c"]);
+    expect(inOwnOrder(rows, []).map(({ id }) => id)).toEqual(["a", "b", "c", "d"]);
   });
 });

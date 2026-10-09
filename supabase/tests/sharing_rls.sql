@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(45);
+select extensions.plan(49);
 
 create function pg_temp.exec_sqlstate(command text)
 returns text
@@ -240,9 +240,10 @@ set local role authenticated;
 select set_config('realtime.topic', 'list:a0000000-0000-7000-8000-00000000000a', true);
 select pg_temp.act_as('10000000-0000-4000-8000-000000000001');
 select ok((select count(*) > 0 from realtime.messages), 'its members hear it');
-select lives_ok(
-  $$insert into realtime.messages (topic, extension, event, payload, private) values ('list:a0000000-0000-7000-8000-00000000000a', 'presence', 'presence', '{}', true)$$,
-  'and say on it that they are shopping'
+select is(
+  pg_temp.exec_sqlstate($$insert into realtime.messages (topic, extension, event, payload, private) values ('list:a0000000-0000-7000-8000-00000000000a', 'presence', 'presence', '{}', true)$$),
+  '42501',
+  'nobody says on it that they are shopping: that is read from ticks (migration 17)'
 );
 select is(
   pg_temp.exec_sqlstate($$insert into realtime.messages (topic, extension, event, payload, private) values ('list:a0000000-0000-7000-8000-00000000000a', 'broadcast', 'moved', '{}', true)$$),
@@ -259,6 +260,33 @@ select is(
 select set_config('realtime.topic', 'list:not-a-list', true);
 select is((select count(*) from realtime.messages), 0::bigint, 'a topic that names no list is nobody''s');
 select set_config('realtime.topic', '', true);
+
+-- Migration 17: the one who left is told on their own channel, which only they hear.
+reset role;
+select ok(
+  (select count(*) > 0 from realtime.messages
+    where topic = 'user:20000000-0000-4000-8000-000000000002' and event = 'moved' and private and payload ->> 'list' = 'a0000000-0000-7000-8000-00000000000a'),
+  'someone who leaves a list is told on their own channel'
+);
+set local role authenticated;
+select set_config('realtime.topic', 'user:20000000-0000-4000-8000-000000000002', true);
+select pg_temp.act_as('20000000-0000-4000-8000-000000000002');
+select ok((select count(*) > 0 from realtime.messages), 'and hears it');
+select pg_temp.act_as('10000000-0000-4000-8000-000000000001');
+select is((select count(*) from realtime.messages), 0::bigint, 'nobody else does');
+select set_config('realtime.topic', '', true);
+
+-- And a push of many rows is told once.
+reset role;
+create temp table heard_before as select count(*) as n from realtime.messages where topic = 'list:a0000000-0000-7000-8000-00000000000a';
+insert into public.items (id, list_id, name)
+select gen_random_uuid(), 'a0000000-0000-7000-8000-00000000000a', 'bulk ' || n from generate_series(1, 3) n;
+select is(
+  (select count(*) from realtime.messages where topic = 'list:a0000000-0000-7000-8000-00000000000a') - (select n from heard_before),
+  1::bigint,
+  'three rows in one push are one nudge'
+);
+set local role authenticated;
 
 -- An invitation past its week opens nothing.
 select pg_temp.act_as('10000000-0000-4000-8000-000000000001');

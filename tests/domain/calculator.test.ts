@@ -50,6 +50,32 @@ describe("press", () => {
     expect(typed("5÷0+").error).toBe(true);
   });
 
+  it("divides zero by zero as an error, but adds and multiplies zero as any number", () => {
+    expect(typed("0÷0=").error).toBe(true);
+    expect(valueOf(typed("5+0="))).toBe(5);
+    expect(valueOf(typed("5-0="))).toBe(5);
+    expect(valueOf(typed("5×0="))).toBe(0);
+  });
+
+  it("takes a result up to a million lira and refuses the one past it", () => {
+    expect(valueOf(typed("999999999+1="))).toBe(1_000_000_000);
+    expect(typed("1000000000+1=").error).toBe(true);
+  });
+
+  it("erases nothing while an operator waits or a result stands, and a number erased to nothing is zero", () => {
+    expect(valueOf(typed("12+⌫="))).toBe(24);
+    expect(shownOf(typed("12+⌫"))).toBe("12");
+    expect(shownOf(typed("2+3=⌫"))).toBe("5");
+    expect(valueOf(typed("5+3⌫="))).toBe(5);
+    expect(typed("5+3⌫").current).toBe("0");
+  });
+
+  it("starts the number at zero point when the comma follows an operator or a result", () => {
+    expect(shownOf(typed("5+,"))).toBe("0,");
+    expect(shownOf(typed("2+3=,"))).toBe("0,");
+    expect(shownOf(typed("2+3=,5"))).toBe("0,5");
+  });
+
   it("caps a number at twelve whole digits and six decimals, and a result too large is an error", () => {
     expect(shownOf(typed("1234567890123"))).toBe("123.456.789.012");
     expect(shownOf(typed("1,1234567"))).toBe("1,123456");
@@ -62,6 +88,8 @@ describe("what it shows", () => {
     expect(shownOf(typed("1234,50"))).toBe("1.234,50");
     expect(shownOf(typed("12,"))).toBe("12,");
     expect(shownOf(typed("12+"))).toBe("12");
+    expect(shownOf(typed("1234+"))).toBe("1.234");
+    expect(shownOf(typed("0,123456+"))).toBe("0,123456");
     expect(shownOf(typed("0,1+0,2="))).toBe("0,3");
   });
 
@@ -102,6 +130,10 @@ describe("feedbackOf", () => {
     expect(feedbackOf(typed("7"), "=")).toBe("none");
     expect(feedbackOf(typed("7÷0"), "=")).toBe("error");
     expect(feedbackOf(typed("7÷0"), "+")).toBe("error");
+    expect(feedbackOf(typed("7+2"), "+")).toBe("selection");
+    expect(feedbackOf(typed("7+2"), "3")).toBe("none");
+    expect(feedbackOf(typed("7+"), "=")).toBe("success");
+    expect(feedbackOf(typed("0÷"), "+")).toBe("selection");
   });
 });
 
@@ -110,5 +142,6 @@ describe("keyFrom", () => {
     expect(["7", ".", ",", "*", "x", "/", "Enter", "=", "Backspace", "Delete", "c", "q"].map(keyFrom)).toEqual([
       "7", ",", ",", "×", "×", "÷", "=", "=", "⌫", "C", "C", null,
     ]);
+    expect(["+", "-", "X", "C", "12", "7a", "a7"].map(keyFrom)).toEqual(["+", "-", "×", "C", null, null, null]);
   });
 });

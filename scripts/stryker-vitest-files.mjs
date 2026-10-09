@@ -6,9 +6,10 @@
  * reruns a mutant's covering tests through `testNamePattern`; Vitest 5 matches
  * that pattern against the names joined with " > ". So every test inside a
  * `describe` is filtered out, the mutant runs nothing and survives: measured
- * 2026-09-27, 84 of 84 mutants on two files, in `perTest`, `all` and `off`
- * alike, since the runner filters in all three. Helix, on Vitest 4, measured
- * the same fault half-formed (97.37 → 71.05).
+ * 2026-09-27 in Gital, 84 of 84 mutants on two files, in `perTest`, `all`
+ * and `off` alike, since the runner filters in all three; Helix, still on
+ * Vitest 4, had measured the same fault half-formed (97.37 → 71.05). Helix and
+ * Gital run this same file since 2026-10-09.
  *
  * The id keeps the test's file before the `#`, so running the covering files
  * whole is still sound: more tests can only kill more mutants, never fewer.

@@ -12,7 +12,7 @@ import Share from "lucide-react-native/icons/share";
 import { useSession } from "../../auth/session";
 import { useMovedAisles, usePantry } from "../../data/hooks";
 import { finishPantryItem, removePantryItems, reorderPantry, setExpiry, setStock, stockPantry, takeSome, undoFinish, type Finished, type PantryItem } from "../../data/pantry";
-import { listSections, type Section } from "../../domain/catalogue";
+import { knowsProduct, listSections, type Section } from "../../domain/catalogue";
 import { todayISO } from "../../domain/dates";
 import { ENTRY_MAX, LIST_TEXT_MAX, foldName, formatList, parseEntry, parseList, type ListedEntry } from "../../domain/items";
 import { expiryOf, leavesSome } from "../../domain/pantry";
@@ -217,7 +217,7 @@ function PantryAdd({ held }: { held: readonly PantryItem[] }) {
   const [text, setText] = useState("");
   const [browsing, setBrowsing] = useState(false);
   const field = useRef<TextInput>(null);
-  const add = async (entries = parseEntry(text)) => {
+  const add = async (entries = parseEntry(text, knowsProduct(held))) => {
     if (entries.length === 0) return;
     setText("");
     try {
@@ -267,7 +267,7 @@ function PantryAdd({ held }: { held: readonly PantryItem[] }) {
           onAdd={(product) => void another(product.name)}
           addSet={async (entries) => {
             const written = await stockPantry(entries);
-            return () => undoFinish(written);
+            return { count: entries.length, undo: () => undoFinish(written) };
           }}
           onClose={() => setBrowsing(false)}
         />

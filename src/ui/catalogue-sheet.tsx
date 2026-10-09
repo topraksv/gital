@@ -60,7 +60,7 @@ export function CatalogueSheet<T extends { name: string }>({
   /** Left out where a second tap has nothing to take back, and adds again. */
   onRemove?: (item: T) => void;
   /** Puts a set's entries where they go, and hands back its undo, or null when nothing was new. */
-  addSet: (entries: readonly ListedEntry[]) => Promise<(() => Promise<unknown>) | null>;
+  addSet: (entries: readonly ListedEntry[]) => Promise<{ count: number; undo: () => Promise<unknown> } | null>;
   onClose: () => void;
 }) {
   const { palette } = useTheme();
@@ -199,7 +199,7 @@ function SetsShelf({
   open,
   onClose,
 }: {
-  addSet: (entries: readonly ListedEntry[]) => Promise<(() => Promise<unknown>) | null>;
+  addSet: (entries: readonly ListedEntry[]) => Promise<{ count: number; undo: () => Promise<unknown> } | null>;
   open: readonly ListedEntry[];
   onClose: () => void;
 }) {
@@ -221,10 +221,10 @@ function SetsShelf({
   const add = async (set: ProductSet) => {
     onClose();
     try {
-      const undo = await addSet(set.entries);
-      if (!undo) return showNotice(tr.items.pastedNothing);
+      const added = await addSet(set.entries);
+      if (!added) return showNotice(tr.items.pastedNothing);
       selectionTap();
-      showUndo(tr.sets.added(set.name, set.entries.length), undo);
+      showUndo(tr.sets.added(set.name, added.count), added.undo);
     } catch {
       void appError(tr.errors.saveFailed);
     }

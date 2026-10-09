@@ -15,7 +15,8 @@ import Snowflake from "lucide-react-native/icons/snowflake";
 import Trash from "lucide-react-native/icons/trash";
 
 import { deviceId } from "../auth/login-history";
-import { isEmail, isValidNewPassword, useSession } from "../auth/session";
+import { isValidNewPassword, useSession } from "../auth/session";
+import { isEmail } from "../domain/names";
 import { useSettings } from "../data/hooks";
 import { lastLogin } from "../domain/logins";
 import { tr } from "../i18n/tr";
@@ -58,9 +59,8 @@ function CloudAccountSecurity() {
       await work();
     } catch {
       await appError(tr.auth.errGeneric);
-    } finally {
-      setBusy(null);
     }
+    setBusy(null);
   };
 
   const emailReady = isEmail(newEmail) && emailPassword !== "";

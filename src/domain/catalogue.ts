@@ -156,6 +156,12 @@ export function catalogueProduct(name: string): CatalogueProduct | undefined {
   return BY_KEY.get(foldName(name));
 }
 
+/** Whether a name is a product the catalogue or these rows know, for `parseEntry`. */
+export function knowsProduct(rows: readonly { name: string }[]): (name: string) => boolean {
+  const keys = new Set(rows.map((row) => foldName(row.name)));
+  return (name) => BY_KEY.has(foldName(name)) || keys.has(foldName(name));
+}
+
 /** The household's products, then the catalogue's it has never had, each once (2.13). */
 export function withCatalogue(known: readonly KnownProduct[]): KnownProduct[] {
   const had = new Set(known.map((product) => product.key));

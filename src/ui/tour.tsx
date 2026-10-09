@@ -71,7 +71,7 @@ export function TourModal({ onClose }: { onClose: () => void }) {
         </SlideUp>
       }
     >
-      <View accessible accessibilityLabel={tr.tour.step(step + 1, SLIDES.length, slide.title)} accessibilityLiveRegion="polite" style={{ minHeight: tour.text }}>
+      <View accessible accessibilityLabel={`${tr.tour.step(step + 1, SLIDES.length, slide.title)}. ${slide.body}`} accessibilityLiveRegion="polite" style={{ minHeight: tour.text }}>
         <Text style={[type.body, { color: palette.textSecondary }]}>{slide.body}</Text>
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg }}>

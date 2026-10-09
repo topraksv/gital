@@ -12,6 +12,10 @@
     "noUnusedParameters": true
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  // Deno's, with remote imports; a test imports what it runs of them.
-  "exclude": ["node_modules", "dist", "coverage", "supabase/functions"]
+  // Deno's, with remote imports; a test imports what it runs of them. Expo's
+  // generated types exist only where Expo has run, so a runner never saw them:
+  // the first loosened the local gate, the second tightened it. Expo CLI writes
+  // both back into `include` (`type-generation/tsconfig.js`) and never reads
+  // `exclude`, so they are left out here (2026-10-09).
+  "exclude": ["node_modules", "dist", "coverage", "supabase/functions", "expo-env.d.ts", ".expo"]
 }

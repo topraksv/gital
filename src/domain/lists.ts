@@ -101,3 +101,20 @@ export function iconForName(name: string): ListIcon | null {
   }
   return null;
 }
+
+/**
+ * The setting that holds the person's order of their lists. Theirs and not
+ * the list's: an unshared list has no member row to carry it, and each member
+ * orders a shared one apart.
+ */
+export const LIST_ORDER = "list_order";
+
+/**
+ * Lists in the person's own order (SPEC 1.1); one the order does not name, new
+ * or shared since, follows in the order it came, so a new list joins the end.
+ */
+export function inOwnOrder<T extends { id: string }>(rows: readonly T[], order: readonly string[]): T[] {
+  const at = new Map(order.map((id, index) => [id, index]));
+  const rank = new Map(rows.map((row, index) => [row.id, at.get(row.id) ?? order.length + index]));
+  return [...rows].sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+}

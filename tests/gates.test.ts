@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CI_EXECUTED_SCRIPTS, classify } from "../scripts/classify-changes.mjs";
 import { evaluate } from "../scripts/check-lint-ratchet.mjs";
 import { evaluate as evaluateMutation, recordedFrom, scoreOf } from "../scripts/check-mutation-ratchet.mjs";
-import { appVersionOf, entryOf, otaRecord, titleOf } from "../scripts/check-published.mjs";
+import { appVersionOf, entryOf, greenRun, openRuns, otaRecord, titleOf } from "../scripts/check-published.mjs";
 import { notesFor } from "../scripts/release-notes.mjs";
 import { isMutationScoped, selectMutationScope, shardOfScope } from "../stryker.ci.config.mjs";
 
@@ -123,14 +123,13 @@ describe("classify-changes", () => {
     expect([...CI_EXECUTED_SCRIPTS].sort()).toEqual([...reached].sort());
   });
 
-  // Unfiltered, then filtered by jq: the note above `ci.yml`'s base step says
-  // which run search answered weeks stale, and what that cost.
-  it("never asks GitHub's run search, which has answered weeks stale", () => {
+  // `check-published.mjs green` owns the one query, unfiltered and paged: its
+  // note says which run search answered weeks stale, and what that cost.
+  it("asks for the newest green run through one paged query", () => {
     for (const name of ["ci.yml", "nightly.yml", "release.yml"]) {
       const text = readFileSync(join(root, ".github/workflows", name), "utf8");
-      const queries = text.split("/runs?").length - 1;
-      expect(queries, name).toBeGreaterThan(0);
-      expect(text.split('actions/workflows/ci.yml/runs?per_page=100"').length - 1, name).toBe(queries);
+      expect(text, name).not.toContain("/runs?");
+      expect(text, name).toContain("node scripts/check-published.mjs green");
     }
   });
 });
@@ -276,6 +275,26 @@ describe("mutation ratchet", () => {
 });
 
 describe("check-published", () => {
+  // GitHub's run search answered weeks stale, so every filter is here.
+  it("finds the newest green push run on main, or a commit's, and the head's open runs", () => {
+    const run = (head_sha: string, extra: Record<string, string> = {}) => ({
+      head_sha, event: "push", head_branch: "main", conclusion: "success", status: "completed", html_url: `u/${head_sha}`, ...extra,
+    });
+    const runs = [
+      run("h", { status: "in_progress", conclusion: "" }),
+      run("d", { event: "workflow_dispatch" }),
+      run("f", { conclusion: "failure" }),
+      run("o", { head_branch: "other" }),
+      run("g"),
+      run("e"),
+    ];
+    expect(greenRun(runs)?.head_sha).toBe("g");
+    expect(greenRun(runs, "e")?.html_url).toBe("u/e");
+    expect(greenRun(runs, "d")).toBeNull();
+    expect(openRuns(runs, "h")).toBe(1);
+    expect(openRuns(runs, "g")).toBe(0);
+  });
+
   it("reads the entry bundle a shell under the site's base references", () => {
     const html = '<script src="/gital/_expo/static/js/web/entry-4daa5bb8e8ad49f6911813b0513df45f.js" defer></script>';
     expect(entryOf(html)).toBe("/_expo/static/js/web/entry-4daa5bb8e8ad49f6911813b0513df45f.js");

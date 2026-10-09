@@ -173,7 +173,7 @@ const petrolLight: Palette = {
   accentText: "#284F65",
   primaryText: "#20292E",
   onPrimary: "#F7FAFB",
-  secondary: "#63847D",
+  secondary: "#5B7973",
   secondaryStrong: "#4E6C66",
   secondarySoft: "#DFE9E6",
   secondaryText: "#44645D",
@@ -240,7 +240,7 @@ const serviLight: Palette = {
   accentText: "#35513F",
   primaryText: "#292C29",
   onPrimary: "#F4F7F1",
-  secondary: "#8A7346",
+  secondary: "#987F4D",
   secondaryStrong: "#6E5A35",
   secondarySoft: "#ECE5D5",
   secondaryText: "#66532F",
@@ -591,6 +591,14 @@ export const toggleSize = { width: 46, height: 28, padding: 3, glyph: 11, glyphI
 export const itemRow = { tile: 40, check: 26, swipe: 88, slop: 10 } as const;
 
 /**
+ * The basket's line through a name, drawn on the phone a line of text at a
+ * time: as thick as the font's own, a little above the middle of each line, as
+ * the font sets it; drawn only for a tick this young, so a basket opened later
+ * is struck already.
+ */
+export const strike = { thickness: 1.5, at: 0.55, freshMs: 1500 } as const;
+
+/**
  * The item panel. `quantityWidth` fits "10,5 paket", so − and + never move as
  * it changes. `listColumns` puts at most three lists to a row, so a
  * household's few fit on one or two; every cell, empty ones too, starts from
@@ -698,6 +706,8 @@ export const dialog = {
   /** A multi-line prompt's field: six lines show, the rest scroll inside it. */
   multilineHeight: 160,
   handle: { width: 36, height: 4 },
+  /** How far a sheet's held header overlaps its body: two surfaces meeting on a fractional pixel left a hairline of scrim between them. */
+  seam: 1,
   /** How far a sheet is pulled down by its handle before it lets go and closes. */
   dragAway: 96,
   keyboardGap: 140,

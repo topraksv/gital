@@ -8,7 +8,7 @@
 import { addDatabaseChangeListener } from "expo-sqlite";
 import type { SyncedTableName } from "../db/schema";
 
-type LiveQueryStatus = "loading" | "refreshing" | "ready" | "stale" | "error";
+type LiveQueryStatus = "loading" | "ready" | "stale" | "error";
 
 export interface LiveResult<T> {
   data: T[];
@@ -67,13 +67,18 @@ function startRunner<T>(
     }
     reading = true;
     changedMeanwhile = false;
-    apply((previous) => ({ ...previous, status: previous.updatedAt ? "refreshing" : "loading", error: null }));
+    // An answered query keeps what it showed until the next answer: no screen
+    // reads a re-run, and announcing it redrew every one watching.
+    apply((previous) => (previous.updatedAt ? previous : { ...previous, status: "loading", error: null }));
     query().then(
       (data) => {
         reading = false;
         if (stopped) return;
         attempt = 0;
-        apply(() => ({ data, status: "ready", error: null, updatedAt: new Date() }));
+        apply((previous) =>
+          previous.status === "ready" && JSON.stringify(previous.data) === JSON.stringify(data)
+            ? previous
+            : { data, status: "ready", error: null, updatedAt: new Date() });
         if (changedMeanwhile) run();
       },
       () => {
@@ -131,7 +136,9 @@ export function liveStore<T>(query: () => PromiseLike<T[]>, tables: readonly Syn
       listeners.add(onChange);
       if (!runner) {
         runner = startRunner(query, tables, (next) => {
-          state = { ...next(state), retry };
+          const after = next(state);
+          if (after === state) return;
+          state = { ...after, retry };
           for (const notify of listeners) notify();
         });
       }

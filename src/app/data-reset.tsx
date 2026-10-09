@@ -41,25 +41,21 @@ export default function DataResetScreen() {
 
   const choose = (scope: ResetScope, on: boolean) => setChosen((was) => RESET_SCOPES.filter((each) => (each === scope ? on : was.includes(each))));
 
+  const confirmReset = async (count: number) => {
+    if (!(await appConfirm(tr.dataReset.confirmTitle, tr.dataReset.confirmBody(count), tr.dataReset.confirm))) return;
+    const password = await appPrompt(tr.account.confirmPasswordTitle, tr.dataReset.passwordBody, { confirmLabel: tr.common.done, kind: "password" });
+    if (password == null) return;
+    const refused = await verifyPassword(password);
+    if (refused) return appError(refused);
+    showNotice(tr.dataReset.done(await resetData(chosen)));
+    setChosen([]);
+  };
+  // `.catch`, not `try`: the React Compiler lowers no `finally`, and leaves the whole screen unmemoised.
   const reset = async () => {
     if (!count) return;
     setBusy(true);
-    try {
-      if (!(await appConfirm(tr.dataReset.confirmTitle, tr.dataReset.confirmBody(count), tr.dataReset.confirm))) return;
-      const password = await appPrompt(tr.account.confirmPasswordTitle, tr.dataReset.passwordBody, { confirmLabel: tr.common.done, kind: "password" });
-      if (password == null) return;
-      const refused = await verifyPassword(password);
-      if (refused) {
-        await appError(refused);
-        return;
-      }
-      showNotice(tr.dataReset.done(await resetData(chosen)));
-      setChosen([]);
-    } catch {
-      await appError(tr.errors.saveFailed);
-    } finally {
-      setBusy(false);
-    }
+    await confirmReset(count).catch(() => appError(tr.errors.saveFailed));
+    setBusy(false);
   };
 
   return (

@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, PanResponder, Platform, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
+import { Animated, Keyboard, PanResponder, Platform, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { springTo, useReducedMotion, useReduceTransparency, useSpringTo } from "./motion";
@@ -47,9 +47,29 @@ function measureLabelText(node: HTMLElement | null): { width: number; wrapped: b
   }
 }
 
+/**
+ * Android only: there the floating bar rides up over the keyboard, since
+ * `tabBarHideOnKeyboard` is read by the navigator's own bar alone. iOS draws
+ * the keyboard over it, and the web has no keyboard event.
+ */
+function useKeyboardShown(): boolean {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const show = Keyboard.addListener("keyboardDidShow", () => setShown(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setShown(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return shown;
+}
+
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { palette, scheme } = useTheme();
   const insets = useSafeAreaInsets();
+  const keyboardShown = useKeyboardShown();
   const { width } = useWindowDimensions();
   const reduceTransparency = useReduceTransparency();
   const isWeb = Platform.OS === "web";
@@ -182,6 +202,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     );
   });
 
+  if (keyboardShown) return null;
   return (
     // Two views: an absolute element with both `left` and `right` ignores
     // `maxWidth`, so the wrapper owns the position and the bar its width.

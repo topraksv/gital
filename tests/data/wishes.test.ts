@@ -250,13 +250,20 @@ describe("a link's page (SPEC 7.2)", () => {
     expect(await readWishes(collection)).toMatchObject([{ name: "Annemin kahve makinesi", photo: own.thumb, links: [{ priceMinor: 500_000 }] }]);
   });
 
-  it("writes nothing when the page found nothing new, or the wish is gone", async () => {
+  it("stamps a link read whatever its page held, so it is read once, and again at a new address", async () => {
     const id = await addWish(collection, "https://www.amazon.com.tr/dp/B0CZY1V3XP");
     const { links } = (await readWishes(collection))[0]!;
-    const outbox = () => (harness.db!.prepare("SELECT COUNT(*) AS n FROM outbox").get() as { n: number }).n;
-    const before = outbox();
     await fillFromPage(links[0]!.id, { name: null, priceMinor: null, photo: null });
-    expect(outbox()).toBe(before);
+    const read = (await readWishes(collection))[0]!.links[0]!;
+    expect(read.readAt).not.toBeNull();
+    expect(await unpricedLinksOf(id), "a page that gave nothing is not loaded again").toEqual([]);
+    await saveWish(id, change({ links: [{ ...read, url: "https://www.amazon.com.tr/dp/B0D1" }] }));
+    expect(await unpricedLinksOf(id)).toEqual([{ id: read.id, url: "https://www.amazon.com.tr/dp/B0D1" }]);
+  });
+
+  it("writes nothing for a wish gone meanwhile", async () => {
+    const id = await addWish(collection, "https://www.amazon.com.tr/dp/B0CZY1V3XP");
+    const { links } = (await readWishes(collection))[0]!;
     await deleteWishes([id]);
     await fillFromPage(links[0]!.id, found);
     expect(live("wishes")).toEqual([]);

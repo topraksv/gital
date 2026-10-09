@@ -185,7 +185,8 @@ vi.mock("../../src/sync/supabase", () => {
   };
 });
 
-const { LOCAL_USER_ID, SIGN_OUT_PENDING_CHANGES, isEmail, useSession } = await import("../../src/auth/session");
+const { LOCAL_USER_ID, SIGN_OUT_PENDING_CHANGES, useSession } = await import("../../src/auth/session");
+const { isEmail } = await import("../../src/domain/names");
 const { HOSTED_RECOVERY_PAGE } = await import("../../src/auth/recovery");
 const { VERIFY_COOLDOWN_MS, VERIFY_MAX_FAILURES } = await import("../../src/auth/verification-brake");
 const { createList, readLists } = await import("../../src/data/lists");

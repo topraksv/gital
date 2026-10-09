@@ -25,6 +25,14 @@ describe("restockDue", () => {
     expect(restockDue(every5, [], on(14.9))).toEqual([]);
   });
 
+  it("leaves a product put aside until it is next bought", () => {
+    const aside = new Map([["sut", on(15).toISOString()]]);
+    expect(restockDue(every5, [], on(16), new Map(), aside)).toEqual([]);
+    // Put aside the instant it was bought is not after it, so it is offered.
+    expect(restockDue(every5, [], on(16), new Map(), new Map([["sut", on(10).toISOString()]]))).toHaveLength(1);
+    expect(restockDue([bought("Süt", 16), ...every5], [], on(22), new Map(), aside)).toHaveLength(1);
+  });
+
   it("needs three purchases to call it a rhythm", () => {
     expect(restockDue(every5.slice(0, 2), [], on(30))).toEqual([]);
   });

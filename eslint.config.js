@@ -21,6 +21,11 @@ module.exports = defineConfig([
     files: ["src/**/*.ts", "src/**/*.tsx"],
     rules: {
       complexity: ["warn", 15],
+      // A component the React Compiler cannot lower is left unmemoised without
+      // a word: a `finally`, or a conditional inside `try`, cost thirteen
+      // screens theirs (devil round 2026-10-09-2).
+      "react-hooks/todo": "error",
+      "react-hooks/unsupported-syntax": "error",
     },
   },
 ]);

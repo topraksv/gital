@@ -4,8 +4,8 @@ import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
 import { actingUser, deleteRows, editRow, readLiveRow, writeRows, type RowsWritten } from "../db/mutations";
-import { items, lists, type ListKind } from "../db/schema";
-import { LIST_COLORS, LIST_ICONS, iconForName, knownOf, lookOf, type ListLook } from "../domain/lists";
+import { items, lists, settings, type ListKind } from "../db/schema";
+import { LIST_COLORS, LIST_ICONS, LIST_ORDER, iconForName, inOwnOrder, knownOf, lookOf, type ListLook } from "../domain/lists";
 import { nameFrom } from "../domain/names";
 
 export interface ListSummary extends ListLook {
@@ -37,7 +37,7 @@ export const owning = () =>
   sql<boolean>`NOT EXISTS (SELECT 1 FROM list_members m WHERE m.list_id = lists.id AND m.user_id = ${actingUser()}
     AND m.role <> 'owner' AND m.deleted_at IS NULL)`.mapWith(Boolean);
 
-/** Oldest first, so a new list joins the end and nothing already there moves. Wish collections are İstekler's. */
+/** In the person's order, then oldest first, so a new list joins the end and nothing already there moves. Wish collections are İstekler's. */
 export async function readLists(): Promise<ListSummary[]> {
   const rows = await getDb()
     .select({ id: lists.id, name: lists.name, color: lists.color, icon: lists.icon, pantry: lists.pantry, total: count(items.id), inBasket: count(items.checkedAt), viewer: viewing(), owner: owning() })
@@ -46,7 +46,8 @@ export async function readLists(): Promise<ListSummary[]> {
     .where(and(isNull(lists.deletedAt), eq(lists.kind, "shop")))
     .groupBy(lists.id)
     .orderBy(asc(lists.createdAt), asc(lists.id));
-  return rows.map(lookOf);
+  const [order] = await getDb().select({ value: settings.value }).from(settings).where(and(eq(settings.key, LIST_ORDER), isNull(settings.deletedAt)));
+  return inOwnOrder(rows.map(lookOf), order ? (JSON.parse(order.value) as string[]) : []);
 }
 
 function nameOrThrow(input: string): string {

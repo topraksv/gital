@@ -35,3 +35,8 @@ export function tileTone(id: string, count: number): number {
   for (let at = 0; at < id.length; at++) sum += id.charCodeAt(at);
   return sum % count;
 }
+
+/** Helix's shape check on an address: enough to catch a slip, and the server decides the rest. */
+export function isEmail(email: string): boolean {
+  return /.+@.+\..+/.test(email.trim());
+}

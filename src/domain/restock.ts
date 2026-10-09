@@ -43,13 +43,16 @@ function middle(sorted: readonly number[]): number {
  * hourly. What the list already holds, bought or not, is not offered.
  * `lasted` is how long each product stayed at home, by folded name: measured
  * twice, it is the rhythm in place of the shop gaps (SPEC 12.7), and one
- * purchase on this list is enough to offer it with.
+ * purchase on this list is enough to offer it with. `aside` is when each
+ * product was put aside ("şimdi değil"), by folded name: it is not offered
+ * again until it is next bought.
  */
 export function restockDue(
   purchases: readonly Purchase[],
   onList: readonly { name: string }[],
   now: Date,
   lasted: ReadonlyMap<string, readonly number[]> = new Map(),
+  aside: ReadonlyMap<string, string> = new Map(),
 ): Restock[] {
   const held = new Set(onList.map((item) => foldName(item.name)));
   const byProduct = new Map<string, Purchase[]>();
@@ -66,6 +69,8 @@ export function restockDue(
     const gaps = measured ? [...stays] : times.slice(1).map((time, at) => times[at]! - time);
     const usual = Math.max(DAY_MS, middle(gaps.sort((a, b) => a - b)));
     const since = now.getTime() - times[0]!;
+    const putAside = aside.get(key);
+    if (putAside != null && Date.parse(putAside) > times[0]!) continue;
     if (since < usual || since > usual * LAPSED_AFTER) continue;
     const { name, quantityMilli, unit } = bought[0]!;
     due.push({ key, name, quantityMilli, unit, everyDays: Math.round(usual / DAY_MS), overdue: since / usual });

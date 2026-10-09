@@ -64,9 +64,8 @@ export default function ResetPasswordScreen() {
       else setState("done");
     } catch {
       setError(tr.auth.errGeneric);
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
   const leave = () => {
     if (Platform.OS === "web") location.assign(`${location.origin}${process.env.EXPO_BASE_URL ?? ""}/`);

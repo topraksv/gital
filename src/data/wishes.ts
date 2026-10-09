@@ -45,7 +45,7 @@ async function readAll(listIds: readonly string[]): Promise<Map<string, Wish[]>>
       .leftJoin(photos, eq(photos.id, wishes.photoId))
       .where(and(inArray(wishes.listId, [...listIds]), isNull(wishes.deletedAt))),
     db
-      .select({ id: wishLinks.id, listId: wishLinks.listId, wishId: wishLinks.wishId, url: wishLinks.url, priceMinor: wishLinks.priceMinor })
+      .select({ id: wishLinks.id, listId: wishLinks.listId, wishId: wishLinks.wishId, url: wishLinks.url, priceMinor: wishLinks.priceMinor, readAt: wishLinks.readAt })
       .from(wishLinks)
       .where(and(inArray(wishLinks.listId, [...listIds]), isNull(wishLinks.deletedAt)))
       .orderBy(asc(wishLinks.createdAt), asc(wishLinks.id)),
@@ -180,7 +180,7 @@ export async function saveWish(id: string, change: WishChange): Promise<void> {
       const kept = held.get(link.id);
       if (!kept) throw new Error("A link of another wish");
       held.delete(link.id);
-      writes.push(...editRow("wish_links", kept, { url: link.url, priceMinor: link.priceMinor }));
+      writes.push(...editRow("wish_links", kept, { url: link.url, priceMinor: link.priceMinor, ...(kept.url !== link.url && { readAt: null }) }));
     }
     const deletedAt = nowIso();
     for (const dropped of held.values()) writes.push({ table: "wish_links", row: { ...fromDbShape("wish_links", dropped), deletedAt } });
@@ -194,7 +194,7 @@ export async function unpricedLinksOf(wishId: string): Promise<{ id: string; url
     .select({ id: wishLinks.id, url: wishLinks.url })
     .from(wishLinks)
     .innerJoin(wishes, and(eq(wishes.id, wishLinks.wishId), eq(wishes.listId, wishLinks.listId)))
-    .where(and(eq(wishLinks.wishId, wishId), isNull(wishLinks.priceMinor), isNull(wishLinks.deletedAt)))
+    .where(and(eq(wishLinks.wishId, wishId), isNull(wishLinks.priceMinor), isNull(wishLinks.readAt), isNull(wishLinks.deletedAt)))
     .orderBy(asc(wishLinks.createdAt), asc(wishLinks.id));
 }
 
@@ -203,6 +203,7 @@ export async function unpricedLinksOf(wishId: string): Promise<{ id: string; url
  * name still the shop's, a link with no price, a wish with no photo. The page
  * is read after the add returns, and by then the person may have written
  * their own; theirs is kept. Nothing is written for a wish gone meanwhile.
+ * The link is stamped read whatever the page held, so it is read once.
  */
 export async function fillFromPage(linkId: string, found: { name?: string | null; priceMinor?: number | null; photo?: NewPhoto | null }): Promise<void> {
   await writeRows(async () => {
@@ -213,7 +214,10 @@ export async function fillFromPage(linkId: string, found: { name?: string | null
     const photo = found.photo != null && wish.photo_id == null ? await photoColumn(found.photo) : {};
     return [
       ...editRow("wishes", wish, { ...(name ? { name } : {}), ...photo }),
-      ...(link.price_minor == null && found.priceMinor != null ? editRow("wish_links", link, { priceMinor: priceOrThrow(found.priceMinor) }) : []),
+      ...editRow("wish_links", link, {
+        ...(link.price_minor == null && found.priceMinor != null && { priceMinor: priceOrThrow(found.priceMinor) }),
+        ...(link.read_at == null && { readAt: nowIso() }),
+      }),
     ];
   });
 }

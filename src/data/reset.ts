@@ -92,7 +92,11 @@ export async function resetData(scopes: readonly ResetScope[]): Promise<number> 
   let taken = 0;
   await writeRows(async () => {
     const deletedAt = nowIso();
-    const writes: RowWrite[] = [...(await chosenRows(scopes)).values()].map(([table, row]) => ({ table, row: { ...fromDbShape(table, row), deletedAt } }));
+    // A shop says it was cleared, so no member's Kiler reads it as an undo and gives back what it brought.
+    const writes: RowWrite[] = [...(await chosenRows(scopes)).values()].map(([table, row]) => ({
+      table,
+      row: { ...fromDbShape(table, row), deletedAt, ...(table === "shops" && { clearedAt: deletedAt }) },
+    }));
     taken = writes.length;
     return writes;
   });

@@ -30,7 +30,7 @@ export const naturalKeys = {
   boughtItem: (shopId: string, foldedName: string) => `bought:${shopId}:${foldedName}`,
   /** A product as its person keeps it: the star, and later the aisle. The person joins the key with accounts. */
   product: (foldedName: string) => `product:${foldedName}`,
-  /** A product at home. The person joins the key with accounts, since a pantry is theirs alone. */
+  /** A product at home. The Kiler joins the key on the server (migration 12), so a household's members write one row. */
   pantryItem: (foldedName: string) => `pantry:${foldedName}`,
   /** What a bought item brought home, so a shop seen twice adds it once (SPEC 12.9). */
   arrival: (boughtItemId: string) => `arrival:${boughtItemId}`,

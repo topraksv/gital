@@ -11,8 +11,8 @@ import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 
 import { useSession } from "../../auth/session";
-import { useCollections, useHeldPantry, useLists, useMembers, useSettings } from "../../data/hooks";
-import { removeMember, setMemberRole } from "../../data/members";
+import { useCollections, useHeldPantry, useLists, usePlaces, useSettings } from "../../data/hooks";
+import { removeMember, setMemberRole, type Member } from "../../data/members";
 import { memberNameOf } from "../../data/settings";
 import { tr } from "../../i18n/tr";
 import { syncNow } from "../../sync/engine";
@@ -34,9 +34,9 @@ export default function PersonScreen() {
   // The name is the one this device holds for them in the list they were
   // tapped in. The address's is only what shows while that is read: on the
   // web anyone can write a link that puts a familiar name on their own id.
-  const members = useMembers(params.list ?? "");
-  const held = members.data.find((member) => member.userId === person)?.name;
-  const name = (members.updatedAt == null ? params.name : held) || tr.sharing.unnamed;
+  const places = usePlaces(person);
+  const held = places.data.find((place) => place.listId === params.list)?.name;
+  const name = (places.updatedAt == null ? params.name : held) || tr.sharing.unnamed;
   const userId = useSession((s) => s.userId) ?? "";
   const lists = useLists().data.filter((list) => list.owner);
   const collections = useCollections().data.filter((collection) => collection.owner);
@@ -59,7 +59,15 @@ export default function PersonScreen() {
           {owned.map((item, index) => (
             <Fragment key={item.id}>
               {index > 0 ? <Divider /> : null}
-              <AccessRow owned={item} person={person} name={name} choices={choices} offers={offers} reload={reload} />
+              <AccessRow
+                owned={item}
+                person={person}
+                member={places.data.find((place) => place.listId === item.id)}
+                name={name}
+                choices={choices}
+                offers={offers}
+                reload={reload}
+              />
             </Fragment>
           ))}
         </Card>
@@ -81,9 +89,10 @@ export default function PersonScreen() {
   );
 }
 
-function AccessRow({ owned, person, name, choices, offers, reload }: {
+function AccessRow({ owned, person, member, name, choices, offers, reload }: {
   owned: Owned;
   person: string;
+  member: Member | undefined;
   name: string;
   choices: readonly Access[];
   offers: Offers;
@@ -91,32 +100,29 @@ function AccessRow({ owned, person, name, choices, offers, reload }: {
 }) {
   const userId = useSession((s) => s.userId) ?? "";
   const ownerName = memberNameOf(useSettings().data) ?? "";
-  const member = useMembers(owned.id).data.find((row) => row.userId === person);
   const offer = Array.isArray(offers) ? offers.find((made) => made.listId === owned.id) : undefined;
   const [busy, setBusy] = useState(false);
   // Someone not in is unknown until the offers have answered: "none" then could hide one waiting.
   const access: Access | undefined = member ? (member.role === "viewer" ? "viewer" : "editor") : offer ? offer.role : Array.isArray(offers) ? "none" : undefined;
 
+  const give = async (next: Access) => {
+    if (member && next !== "none") {
+      await setMemberRole(member.id, next);
+    } else if (member) {
+      if (!(await appConfirm(tr.sharing.removeTitle, tr.sharing.removeMessage(name), tr.sharing.removeConfirm))) return;
+      await removeMember(member.id);
+    } else {
+      const answer = await offerList(owned.id, person, next === "none" ? null : next, ownerName, () => syncNow(userId));
+      if ("refused" in answer) return void appError(answer.refused);
+      await reload();
+    }
+    selectionTap();
+  };
   const choose = async (next: Access) => {
     if (next === access) return;
     setBusy(true);
-    try {
-      if (member && next !== "none") {
-        await setMemberRole(member.id, next);
-      } else if (member) {
-        if (!(await appConfirm(tr.sharing.removeTitle, tr.sharing.removeMessage(name), tr.sharing.removeConfirm))) return;
-        await removeMember(member.id);
-      } else {
-        const answer = await offerList(owned.id, person, next === "none" ? null : next, ownerName, () => syncNow(userId));
-        if ("refused" in answer) return void appError(answer.refused);
-        await reload();
-      }
-      selectionTap();
-    } catch {
-      void appError(tr.errors.saveFailed);
-    } finally {
-      setBusy(false);
-    }
+    await give(next).catch(() => void appError(tr.errors.saveFailed));
+    setBusy(false);
   };
 
   return (

@@ -5,7 +5,7 @@ import type { Aisle } from "../domain/catalogue";
 import { foldName } from "../domain/items";
 import { readBought, readItems, readKnownProducts, readShopItems } from "./items";
 import { readLists } from "./lists";
-import { readFresh, readMembers, readShoppingTicks, readSharedLists } from "./members";
+import { readFresh, readMembers, readPlaces, readShoppingTicks, readSharedLists } from "./members";
 import { liveStore, type LiveStore } from "./live-query";
 import { heldPantry, readLasted, readPantry } from "./pantry";
 import { readProducts } from "./products";
@@ -17,6 +17,11 @@ import { readCollections, readKnownWishes, readWishes } from "./wishes";
 // A list's screen and its people panel watch its members: the role decides what the screen offers.
 export function useMembers(listId: string) {
   const store = useMemo(() => liveStore(() => readMembers(listId), ["list_members"]), [listId]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+export function usePlaces(userId: string) {
+  const store = useMemo(() => liveStore(() => readPlaces(userId), ["list_members"]), [userId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
@@ -55,7 +60,7 @@ export function useSharedLists(userId: string) {
 }
 
 // Items, because each card counts what is on its list; members, because a viewer sends nothing.
-const listsStore = liveStore(readLists, ["lists", "items", "list_members"]);
+const listsStore = liveStore(readLists, ["lists", "items", "list_members", "settings"]);
 
 export function useLists() {
   return useSyncExternalStore(listsStore.subscribe, listsStore.getSnapshot, listsStore.getSnapshot);

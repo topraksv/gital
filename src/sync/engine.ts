@@ -23,6 +23,7 @@ import { getSqliteAsync, withTransaction } from "../db/client";
 import { fromDbShape, nowIso, onLocalWrite, setActor, writeRows, type RowWrite } from "../db/mutations";
 import { SYNCED_TABLES, UNPULLED, type SyncedTableName } from "../db/schema";
 import { HELD_PANTRY, heldPantry, readPantry, settleArrivals, type PantryItem } from "../data/pantry";
+import { keepMemberName } from "../data/settings";
 import { tr } from "../i18n/tr";
 import { retryDeadLetter } from "./dead-letters";
 import {
@@ -39,7 +40,7 @@ import {
   type PullCursor,
   type RejectedOutboxEvent,
 } from "./merge-policy";
-import { fetchMissingPhotos, PHOTO_TABLES, sendPendingPhotos } from "./photos";
+import { fetchMissingPhotos, PHOTO_TABLES, sendPendingPhotos, sweepUnnamedPhotos } from "./photos";
 import { cursorInstant, keyColumns, toLocalRow, toServerRow } from "./rows";
 import { SessionEpoch, SessionEpochCancelledError, type SessionEpochToken } from "./session-epoch";
 import { forgetOffers, listOffers, useOffers } from "./sharing";
@@ -108,7 +109,8 @@ function isRefusal(error: { code?: string; message: string }): boolean {
  * Asked by what the server holds, not by the refusal's words: ahead is the only
  * way the trigger refuses a generation, and a message can be reworded.
  * Measured 2026-09-30: such rows waited aside for good, and Helix's engine
- * has the same hole.
+ * has the same hole. Stepping a live row down onto a delete made elsewhere
+ * would restore it over that delete (pre-push review, 2026-10-09).
  */
 async function atServerGeneration(
   supabase: Supabase,
@@ -116,12 +118,16 @@ async function atServerGeneration(
   row: Record<string, unknown>,
   token: SessionEpochToken,
 ): Promise<Record<string, unknown> | null> {
-  let query = supabase.from(table).select("tombstone_version");
+  let query = supabase.from(table).select("tombstone_version, deleted_at");
   for (const column of keyColumns(table)) query = query.eq(column, String(row[column]));
   const { data, error } = await query.limit(1).abortSignal(token.signal);
   if (error) throw new Error(`push ${table}: ${error.message}`);
-  const held = (data as { tombstone_version: number }[] | null)?.[0];
-  return held && held.tombstone_version < Number(row.tombstone_version) ? { ...row, tombstone_version: held.tombstone_version } : null;
+  const held = (data as { tombstone_version: number; deleted_at: string | null }[] | null)?.[0];
+  if (!held || held.tombstone_version >= Number(row.tombstone_version)) return null;
+  // A delete this device never saw stands: one generation below, the server
+  // answers with what it holds, and the device takes that.
+  const behind = held.deleted_at != null && row.deleted_at == null ? 1 : 0;
+  return { ...row, tombstone_version: held.tombstone_version - behind };
 }
 
 function* chunks<T>(values: readonly T[]): Generator<T[]> {
@@ -591,6 +597,26 @@ async function dropList(sqlite: LocalDatabase, list: string): Promise<void> {
   await sqlite.runAsync("DELETE FROM sync_state WHERE table_name = ?", [FETCHED + list]);
 }
 
+/** Long past any undo, and past a clock a few days wrong. */
+const PURGE_AFTER_MS = 7 * 86_400_000;
+
+/**
+ * A list deleted a week ago goes from the device with its items, shops and
+ * wishes, which stayed live under it and out of every read. Never one whose
+ * tombstone is still to send or was set aside: the server holds it live, and
+ * the device would forget it before saying so.
+ */
+async function purgeDeletedLists(): Promise<void> {
+  const sqlite = await getSqliteAsync();
+  const gone = await sqlite.getAllAsync<{ id: string }>(
+    `SELECT id FROM lists WHERE deleted_at IS NOT NULL AND deleted_at < ?
+       AND NOT EXISTS (SELECT 1 FROM outbox WHERE table_name = 'lists' AND row_id = lists.id)
+       AND NOT EXISTS (SELECT 1 FROM sync_dead_letters WHERE table_name = 'lists' AND row_id = lists.id)`,
+    [new Date(Date.now() - PURGE_AFTER_MS).toISOString()],
+  );
+  for (const { id } of gone) await forgetList(sqlite, id);
+}
+
 const RETRIED = "retried:";
 
 /**
@@ -635,7 +661,10 @@ async function runSync(userId: string, token: SessionEpochToken, allowRefresh: b
     await followMemberships(supabase, userId, token);
     assertActive(token);
     await settleArrivals(userId);
+    await keepMemberName();
+    await purgeDeletedLists();
     await fetchMissingPhotos(supabase, token.signal);
+    await sweepUnnamedPhotos(supabase, token.signal);
     assertActive(token);
     const state = completedSyncState(await deadLetterCount());
     retryAttempt = 0;

@@ -12,6 +12,7 @@ import LogOut from "lucide-react-native/icons/log-out";
 import Snowflake from "lucide-react-native/icons/snowflake";
 
 import { SIGN_OUT_PENDING_CHANGES, useSession } from "../auth/session";
+import { takeDatabaseRebuilt } from "../db/client";
 import { migrateDb } from "../db/migrate";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
@@ -21,7 +22,7 @@ import { setAccountFrozen } from "../data/settings";
 import { addWish, readCollections } from "../data/wishes";
 import { LINK_MAX, linkFrom } from "../domain/wishes";
 import { clipboardOffer } from "../services/clipboard-link";
-import { remindersAvailable, replanReminders } from "../services/reminders";
+import { followReminderTaps, remindersAvailable, replanReminders } from "../services/reminders";
 import { scheduleSync, syncNow } from "../sync/engine";
 import { followLists, startLive, stopLive } from "../sync/live";
 import { heldInvite, holdInvite, inviteFromPage, inviteTokenFrom } from "../sync/sharing";
@@ -30,6 +31,7 @@ import { Button, EmptyState } from "../ui/components";
 import { appConfirm, appError, appPrompt, OverlaySlot } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
 import { KeyboardSafeRoot } from "../ui/keyboard-safe";
+import { useDatabaseHandoff } from "../ui/database-handoff";
 import { Launch } from "../ui/launch";
 import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, spacing, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
@@ -91,31 +93,52 @@ function isThemePreference(value: string | null): value is ThemePreference {
   return value === "system" || value === "light" || value === "dark";
 }
 
-export default function RootLayout() {
-  const systemScheme = useColorScheme();
-  const [appearance, setAppearanceState] = useState<Appearance | null>(null);
-  const [fontGrace, setFontGrace] = useState(false);
-  const [fontsLoaded, fontsError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, IBMPlexSerif_600SemiBold });
-  const [database, setDatabase] = useState<"opening" | "ready" | "failed">(DATABASE_AT_START);
+/**
+ * Every screen reads the database, so none is drawn until it is migrated; a
+ * failure gets its own screen with a retry rather than empty lists.
+ * "retrying" keeps that screen up with its button busy, rather than a native
+ * retry dropping to plain ground for up to two seconds.
+ */
+function useDatabase() {
+  const [database, setDatabase] = useState<"opening" | "ready" | "failed" | "retrying">(DATABASE_AT_START);
   const [openAttempt, setOpenAttempt] = useState(0);
-  // The first real screen — the routes, or a failure's own — has drawn.
-  const [settled, setSettled] = useState(false);
-  const settle = useCallback(() => setSettled(true), []);
-  useStayAwake();
+  const { heldElsewhere } = useDatabaseHandoff(database === "ready" && !RECOVERY_PAGE, database === "failed");
 
-  // Every screen reads the database, so none is drawn until it is migrated;
-  // a failure gets its own screen with a retry rather than empty lists.
   useEffect(() => {
     if (RECOVERY_PAGE) return;
     let cancelled = false;
     migrateDb().then(
-      () => !cancelled && setDatabase("ready"),
+      () => {
+        if (cancelled) return;
+        setDatabase("ready");
+        void takeDatabaseRebuilt().then((rebuilt) => {
+          if (rebuilt) void appError(tr.errors.databaseRebuilt);
+        });
+      },
       () => !cancelled && setDatabase("failed"),
     );
     return () => {
       cancelled = true;
     };
   }, [openAttempt]);
+
+  const retry = useCallback(() => {
+    setDatabase("retrying");
+    setOpenAttempt((n) => n + 1);
+  }, []);
+  return { database, failed: database === "failed" || database === "retrying", heldElsewhere, retry };
+}
+
+export default function RootLayout() {
+  const systemScheme = useColorScheme();
+  const [appearance, setAppearanceState] = useState<Appearance | null>(null);
+  const [fontGrace, setFontGrace] = useState(false);
+  const [fontsLoaded, fontsError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, IBMPlexSerif_600SemiBold });
+  const { database, failed, heldElsewhere, retry } = useDatabase();
+  // The first real screen — the routes, or a failure's own — has drawn.
+  const [settled, setSettled] = useState(false);
+  const settle = useCallback(() => setSettled(true), []);
+  useStayAwake();
 
   useEffect(() => {
     const timer = setTimeout(() => setFontGrace(true), FONT_GRACE_MS);
@@ -174,32 +197,13 @@ export default function RootLayout() {
         <GestureRoot>
           <KeyboardSafeRoot>
             <View style={{ flex: 1, backgroundColor: theme.palette.background }}>
-              {database === "failed" ? (
-                <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }} onLayout={settle}>
-                  <EmptyState
-                    icon={DatabaseZap}
-                    title={tr.errors.bootFailedTitle}
-                    hint={tr.errors.bootFailedHint}
-                    action={
-                      <Button
-                        label={tr.common.retry}
-                        onPress={() => {
-                          // Helix measured that on the web a failed open leaves
-                          // wa-sqlite's VFS in "Invalid VFS state" for this
-                          // document: opening again in the same page fails the
-                          // same way for ever, while a reload (new realm, new
-                          // worker) succeeds. Native re-opens the file for real.
-                          if (Platform.OS === "web" && typeof window !== "undefined") {
-                            window.location.reload();
-                            return;
-                          }
-                          setDatabase("opening");
-                          setOpenAttempt((n) => n + 1);
-                        }}
-                      />
-                    }
-                  />
-                </View>
+              {failed ? (
+                <BootFailure
+                  retrying={database === "retrying"}
+                  heldElsewhere={heldElsewhere}
+                  onShown={settle}
+                  onRetry={retry}
+                />
               ) : (
                 <ErrorBoundary onShown={settle}>
                   <Routes background={theme.palette.background} onSettled={settle} />
@@ -216,8 +220,7 @@ export default function RootLayout() {
         // On the web the document already wears the stored ground
         // (`+html.tsx`), and a colour here would differ between the static
         // render and the first client render, which hydration never repairs.
-        // `Launch` covers it on a cold start; a native retry of the database
-        // still shows it.
+        // `Launch` covers it on a cold start.
         <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? undefined : theme.palette.background }} />
       )}
       {/* Shown once the stored palette is known, so neither the ground nor
@@ -225,6 +228,35 @@ export default function RootLayout() {
           the web the shell's painted ground, is what shows. */}
       <Launch shown={appearance != null} ready={settled} />
     </ThemeContext.Provider>
+  );
+}
+
+/**
+ * The database would not open. On the web a failed open leaves wa-sqlite's
+ * VFS in "Invalid VFS state" for this document, as Helix measured: opening
+ * again in the same page fails the same way for ever, while a reload (new
+ * realm, new worker) succeeds. Native re-opens the file for real. While
+ * another tab holds the database a reload lands here again, so there is no
+ * button: this tab opens by itself when that one closes.
+ */
+function BootFailure({ retrying, heldElsewhere, onShown, onRetry }: { retrying: boolean; heldElsewhere: boolean; onShown: () => void; onRetry: () => void }) {
+  return (
+    <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }} onLayout={onShown}>
+      <EmptyState
+        icon={DatabaseZap}
+        title={tr.errors.bootFailedTitle}
+        hint={heldElsewhere ? tr.errors.bootHeldElsewhere : tr.errors.bootFailedHint}
+        action={
+          heldElsewhere ? undefined : (
+            <Button
+              label={tr.common.retry}
+              loading={retrying}
+              onPress={() => (Platform.OS === "web" && typeof window !== "undefined" ? window.location.reload() : onRetry())}
+            />
+          )
+        }
+      />
+    </View>
   );
 }
 
@@ -291,13 +323,14 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
             <Stack.Screen name="account-security" />
             <Stack.Screen name="invite" />
             <Stack.Screen name="person/[id]" />
-            <Stack.Screen name="feedback" />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="(auth)/sign-in" />
           </Stack.Protected>
           <Stack.Screen name="(auth)/reset-password" />
           <Stack.Screen name="privacy" />
+          {/* Signed out too: sign-in sends a failure here (migration 17). */}
+          <Stack.Screen name="feedback" />
         </Stack>
       )}
       {signedIn ? (
@@ -307,6 +340,7 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
           <LiveRunner userId={userId} />
           <ReminderPlanner />
           {locked ? null : <ClipboardLinkOffer />}
+          {locked ? null : <ReminderTaps />}
           <PageReaderHost />
         </>
       ) : null}
@@ -340,9 +374,8 @@ function FrozenGate() {
       await work();
     } catch {
       await appError(tr.auth.errGeneric);
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
   const reopen = act(async () => {
     const password = await appPrompt(tr.account.confirmPasswordTitle, tr.account.reopenPasswordBody, { confirmLabel: tr.common.done, kind: "password" });
@@ -423,6 +456,12 @@ function ReminderPlanner() {
     const subscription = AppState.addEventListener("change", (state) => state === "background" && plan());
     return () => subscription.remove();
   }, []);
+  return null;
+}
+
+/** Not while the account is frozen: a tap must not open a screen behind the lock. */
+function ReminderTaps() {
+  useEffect(() => (remindersAvailable ? followReminderTaps((route) => router.push(route)) : undefined), []);
   return null;
 }
 

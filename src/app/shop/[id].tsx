@@ -5,10 +5,11 @@ import Plus from "lucide-react-native/icons/plus";
 
 import { useShopItems, useShops } from "../../data/hooks";
 import { addEntries, type Item } from "../../data/items";
+import { rowPeople } from "../../data/members";
 import { setShopReceipt, setShopTotal, type Shop } from "../../data/shops";
 import { formatMinorInput, readPrice } from "../../domain/money";
 import { tr } from "../../i18n/tr";
-import { ArrivalScope, CheckMark, IconButton, ItemLabel, ReadFailed, Screen, SlideUp, cardEdge } from "../../ui/components";
+import { ArrivalScope, CheckMark, IconButton, ItemLabel, ReadFailed, Screen, SlideUp, cardEdge, type ShownItem } from "../../ui/components";
 import { PriceField } from "../../ui/calculator";
 import { PhotoField } from "../../ui/photo-field";
 import { appError } from "../../ui/dialog";
@@ -26,7 +27,9 @@ export default function ShopScreen() {
   const [added, setAdded] = useState<ReadonlySet<string>>(() => new Set());
   const shop = shops.data.find((candidate) => candidate.id === id);
   // A viewer reads the shop; the server would refuse anything it changed.
-  const { viewer } = useShare(shop?.listId ?? "");
+  const { viewer, members, userId } = useShare(shop?.listId ?? "");
+  // Who bought each, on a shared list (SPEC 1.5, 3.5): the one who ticked it.
+  const boughtBy = (item: Item): ShownItem => ({ ...item, people: tr.sharing.by(null, rowPeople(item, members.data, userId).checked) || null });
 
   // Undone, or its list deleted, since the link was made.
   if (shops.updatedAt != null && !shop) return <Redirect href="/history" />;
@@ -56,7 +59,7 @@ export default function ShopScreen() {
           <View style={{ gap: density.list.rowGap }}>
             {items.data.map((item) => (
               <SlideUp key={item.id} distance={motion.travel.bar}>
-                <BoughtRow item={item} added={added.has(item.id)} onAddBack={viewer ? null : () => addBack(shop.listId, item)} />
+                <BoughtRow item={boughtBy(item)} added={added.has(item.id)} onAddBack={viewer ? null : () => addBack(shop.listId, item)} />
               </SlideUp>
             ))}
           </View>
@@ -143,7 +146,7 @@ function ReceiptTotal({ shop }: { shop: Shop }) {
 }
 
 /** `onAddBack` is `null` for a viewer, who is offered nothing to press. */
-function BoughtRow({ item, added, onAddBack }: { item: Item; added: boolean; onAddBack: (() => void) | null }) {
+function BoughtRow({ item, added, onAddBack }: { item: ShownItem & { name: string }; added: boolean; onAddBack: (() => void) | null }) {
   const { palette } = useTheme();
   return (
     <View style={{ ...cardEdge(palette), flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: palette.surface }}>

@@ -18,7 +18,8 @@ vi.mock("expo-secure-store", () => ({
   setItemAsync: async (key: string, value: string) => void stored.set(key, value),
 }));
 
-import { setStayAwakeAllowed, stayAwake, stayAwakeAvailable, useStayAwakeAllowed } from "../../src/ui/stay-awake";
+import { stayAwake } from "../../src/ui/screen-hold.native";
+import { setStayAwakeAllowed, stayAwakeAvailable, useStayAwakeAllowed } from "../../src/ui/stay-awake";
 
 const settle = () => new Promise((done) => setTimeout(done, 0));
 

@@ -13,7 +13,12 @@ async function watchFailures(page: Page): Promise<string[]> {
   const failures: string[] = [];
   page.on("pageerror", (error) => failures.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error") failures.push(message.text());
+    if (message.type() !== "error") return;
+    // A route reloaded is answered as Pages answers it: `404.html`, with a 404
+    // Chromium logs. A missing script, picture or font still fails.
+    const { url } = message.location();
+    if (message.text().startsWith("Failed to load resource:") && /^\/gital\/[^.]*$/.test(new URL(url).pathname)) return;
+    failures.push(message.text());
   });
   await page.addInitScript(() =>
     document.addEventListener("securitypolicyviolation", (event) => console.error(`CSP ${event.violatedDirective} ${event.blockedURI}`)),
@@ -48,8 +53,16 @@ test("a first list is made, written on, ticked and kept @cross-browser", async (
   // is there to pull it away by (the owner, 2026-09-30).
   await page.getByRole("button", { name: "Katalogdan seç" }).click();
   const catalogue = page.getByRole("dialog", { name: "Katalog" });
-  const title = (await catalogue.getByRole("heading", { name: "Katalog" }).boundingBox())!;
-  expect(title.y).toBeGreaterThan(24);
+  const heading = catalogue.getByRole("heading", { name: "Katalog" });
+  const resting = (await heading.boundingBox())!;
+  expect(resting.y).toBeGreaterThan(24);
+  // Scrolled deep into its body, the title is still where it stopped: it is
+  // what pulls the sheet away (2026-10-09).
+  await page.mouse.move(resting.x + 20, resting.y + 300);
+  await page.mouse.wheel(0, 2000);
+  await expect(catalogue.getByText("Süt", { exact: true }).first()).not.toBeInViewport();
+  const title = (await heading.boundingBox())!;
+  expect(Math.abs(title.y - resting.y)).toBeLessThan(2);
   await page.mouse.move(title.x + 20, title.y + 5);
   await page.mouse.down();
   await page.mouse.move(title.x + 20, title.y + 200, { steps: 8 });
@@ -102,4 +115,23 @@ test("what is already at home goes into the pantry by hand, and stays after a re
   await expect(page.getByRole("button", { name: "Un, 2 kg" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Tuz, 1 adet" })).toBeVisible();
   expect(failures).toEqual([]);
+});
+
+/**
+ * The web's database admits one tab. A second says which holds it instead of
+ * offering a reload that lands back on itself, and opens by itself once that
+ * tab closes: the waiting tab asks who has it, hears nothing, and reloads
+ * (Helix's `useDatabaseHandoff`, whose browser suite this follows).
+ */
+test("a second tab waits for the first and opens when it closes", async ({ page, context }) => {
+  await page.goto("/gital/");
+  await expect(page.getByRole("heading", { name: "Listeler" })).toBeVisible();
+
+  const second = await context.newPage();
+  await second.goto("/gital/");
+  await expect(second.getByText("Gital başka bir sekmede açık", { exact: false })).toBeVisible({ timeout: 15_000 });
+  await expect(second.getByRole("button", { name: "Tekrar Dene" })).toHaveCount(0);
+
+  await page.close();
+  await expect(second.getByRole("heading", { name: "Listeler" })).toBeVisible({ timeout: 20_000 });
 });
