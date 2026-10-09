@@ -36,7 +36,11 @@ export function tileTone(id: string, count: number): number {
   return sum % count;
 }
 
-/** Helix's shape check on an address: enough to catch a slip, and the server decides the rest. */
+/**
+ * Helix's shape check on an address: enough to catch a slip, and the server
+ * decides the rest. The same pattern `send-feedback` holds a signed-out reply
+ * address to, so nothing passes here that spends a send and is refused there.
+ */
 export function isEmail(email: string): boolean {
-  return /.+@.+\..+/.test(email.trim());
+  return /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(email.trim());
 }

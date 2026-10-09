@@ -109,12 +109,12 @@
       "measuredDate": "2026-10-08"
     },
     "src/data/reset.ts": {
-      "score": 95.74,
-      "killed": 90,
+      "score": 100,
+      "killed": 87,
       "timeout": 0,
-      "survived": 4,
+      "survived": 0,
       "noCoverage": 0,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
+      "measuredOn": "c54e98e8d340d5a792fa99c02cf83e28df850043",
       "measuredDate": "2026-10-09"
     },
     "src/data/sets.ts": {
@@ -127,12 +127,12 @@
       "measuredDate": "2026-10-08"
     },
     "src/data/settings.ts": {
-      "score": 92.55,
-      "killed": 87,
+      "score": 100,
+      "killed": 94,
       "timeout": 0,
-      "survived": 7,
+      "survived": 0,
       "noCoverage": 0,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
+      "measuredOn": "c54e98e8d340d5a792fa99c02cf83e28df850043",
       "measuredDate": "2026-10-09"
     },
     "src/data/shops.ts": {
@@ -262,12 +262,12 @@
       "measuredDate": "2026-10-08"
     },
     "src/domain/names.ts": {
-      "score": 91.43,
-      "killed": 31,
+      "score": 100,
+      "killed": 42,
       "timeout": 1,
-      "survived": 3,
+      "survived": 0,
       "noCoverage": 0,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
+      "measuredOn": "c54e98e8d340d5a792fa99c02cf83e28df850043",
       "measuredDate": "2026-10-09"
     },
     "src/domain/pantry.ts": {
@@ -469,12 +469,12 @@
       "measuredDate": "2026-10-08"
     },
     "src/sync/photos.ts": {
-      "score": 81.98,
-      "killed": 134,
+      "score": 90.3,
+      "killed": 142,
       "timeout": 7,
-      "survived": 29,
-      "noCoverage": 2,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
+      "survived": 15,
+      "noCoverage": 1,
+      "measuredOn": "c54e98e8d340d5a792fa99c02cf83e28df850043",
       "measuredDate": "2026-10-09"
     },
     "src/sync/rows.ts": {

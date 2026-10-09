@@ -54,9 +54,10 @@ function base64OfBlob(blob: Blob): Promise<string> {
 /**
  * A row's photo is drawn as an image source, and the file came from whoever
  * shared the list: only a JPEG — FF D8 FF, `/9j/` in base64 — becomes one.
+ * Both readers above give base64 alone, so the prefix is the whole check.
  */
 function jpegDataUri(base64: string): string | null {
-  return base64.startsWith("/9j/") && /^[A-Za-z0-9+/=]+$/.test(base64) ? `data:image/jpeg;base64,${base64}` : null;
+  return base64.startsWith("/9j/") ? `data:image/jpeg;base64,${base64}` : null;
 }
 
 function checkActive(signal: AbortSignal): void {

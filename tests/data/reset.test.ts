@@ -29,7 +29,8 @@ const { readProducts, setStarred } = await import("../../src/data/products");
 const { createSet, readSets } = await import("../../src/data/sets");
 const { readPantry } = await import("../../src/data/pantry");
 const { isFrozen, readSettings, setAccountFrozen } = await import("../../src/data/settings");
-const { countDataReset, resetData } = await import("../../src/data/reset");
+const { countDataReset, inHousehold, resetData } = await import("../../src/data/reset");
+const { setActor } = await import("../../src/db/mutations");
 const { migratedDatabase } = await import("../helpers");
 
 const add = async (listId: string, ...names: string[]) => (await addEntries(listId, names.map((name) => ({ name, quantityMilli: null, unit: null })))).ids;
@@ -112,6 +113,19 @@ describe("resetting the data", () => {
     const queued = harness.db!.prepare("SELECT payload FROM outbox").all() as { payload: string }[];
     expect(queued).toHaveLength(taken);
     expect(queued.every(({ payload }) => (JSON.parse(payload) as { deleted_at: unknown }).deleted_at != null)).toBe(true);
+  });
+
+  it("is in a household only for a person signed in whose Kiler is another's", async () => {
+    harness.db!.prepare("INSERT INTO sync_state (table_name, last_pulled_at) VALUES (?, '')").run("pantry:11111111-1111-4111-8111-111111111111");
+    expect(await inHousehold(), "signed out, a Kiler left from the last session is nobody's household").toBe(false);
+    setActor("22222222-2222-4222-8222-222222222222");
+    try {
+      expect(await inHousehold()).toBe(true);
+      setActor("11111111-1111-4111-8111-111111111111");
+      expect(await inHousehold()).toBe(false);
+    } finally {
+      setActor(null);
+    }
   });
 
   it("takes nothing when nothing is chosen", async () => {

@@ -47,11 +47,11 @@ const { createList, deleteLists, editList, readLists } = await import("../../src
 const { readProducts, setStarred } = await import("../../src/data/products");
 const { readPantry, stockPantry } = await import("../../src/data/pantry");
 const { parseEntry } = await import("../../src/domain/items");
-const { readCollections } = await import("../../src/data/wishes");
+const { addWish, readCollections, readWishes, saveWish } = await import("../../src/data/wishes");
 const { finishShop, readPurchases, readShops, reopenShop, setShopReceipt, setShopTotal } = await import("../../src/data/shops");
 const { countDataReset, resetData } = await import("../../src/data/reset");
 const { readPhoto } = await import("../../src/data/photos");
-const { RESTOCK_ASIDE_MAX, isFrozen, memberNameOf, putRestockAside, readSettings, restockAsideOf, setAccountFrozen, setListOrder, setMemberName } = await import("../../src/data/settings");
+const { RESTOCK_ASIDE_MAX, isFrozen, keepMemberName, memberNameOf, putRestockAside, readSettings, restockAsideOf, setAccountFrozen, setListOrder, setMemberName } = await import("../../src/data/settings");
 const { fromDbShape, pendingOutboxCount, writeRows } = await import("../../src/db/mutations");
 const { leaveList, markSeen, readFresh, readMembers, readPlaces, readSharedLists, readShoppingTicks, removeMember, roleOf, rowPeople, setMemberRole } = await import(
   "../../src/data/members"
@@ -712,6 +712,37 @@ describe("two people sharing a list", () => {
     });
   });
 
+  it("resets only the person's own wishes: a collection someone else owns keeps its wishes and links", async () => {
+    const collection = await on("A", async () => {
+      const id = await createList("Hediyeler", "wish");
+      const wish = await addWish(id, "kulaklık");
+      await saveWish(wish, { name: "kulaklık", note: "", priority: 0, estimateMinor: null, dueOn: null, links: [{ url: "https://example.com/k", priceMinor: null }] });
+      await sync();
+      return id;
+    });
+    await on("C", async () => {
+      await createList("Kendi");
+      await sync();
+    });
+    const token = await on("A", async () => {
+      const made = await createInvite(collection, "editor", "Ömer");
+      if ("refused" in made) throw new Error(made.refused);
+      return made.token;
+    });
+    await on("C", async () => {
+      await acceptInvite(token, "Deniz");
+      await sync();
+      expect(await countDataReset(["wishes"])).toBe(0);
+      await resetData(["wishes"]);
+      await sync();
+      expect(await readDeadLetters()).toEqual([]);
+    });
+    await on("A", async () => {
+      await sync();
+      expect((await readWishes(collection)).map((wish) => [wish.name, wish.links.length])).toEqual([["Kulaklık", 1]]);
+    });
+  });
+
   it("keeps live the lists a person shares with someone, and only while both are in them", async () => {
     const listId = await sharedMarket();
     await on("A", async () => {
@@ -779,13 +810,28 @@ describe("two people sharing a list", () => {
       await setMemberName("  Ömer  ");
       await setMemberName("Ömer T.");
       expect(memberNameOf(await readSettings())).toBe("Ömer T.");
+      // The keys every device and the server read the settings by.
+      expect((await readSettings()).map(({ key }) => key)).toEqual(["member_name"]);
+      expect(memberNameOf([{ key: "account_frozen", value: '"Ömer"' }])).toBeNull();
+      expect(isFrozen([{ key: "member_name", value: "true" }])).toBe(false);
       await sync();
     });
     await on("B", async () => {
       await sync();
       expect(memberNameOf(await readSettings())).toBe("Ömer T.");
     });
-    await expect(setMemberName("   ")).rejects.toThrow();
+    await expect(setMemberName("   ")).rejects.toThrow("A member needs a name");
+  });
+
+  it("brings the member rows to no name a deleted setting held", async () => {
+    const listId = await sharedMarket();
+    await on("C", async () => {
+      await setMemberName("Betül");
+      devices.C.prepare("UPDATE settings SET deleted_at = '2030-01-01T00:00:00.000Z'").run();
+      devices.C.prepare("UPDATE list_members SET name = 'Deniz' WHERE user_id = ?").run(OTHER);
+      await keepMemberName();
+      expect((await readMembers(listId)).map(({ name }) => name)).toEqual(["Ömer", "Deniz"]);
+    });
   });
 
   it("keeps the person's own order of their lists, on every device", async () => {
@@ -816,6 +862,11 @@ describe("two people sharing a list", () => {
       await putRestockAside(listId, "elma");
       expect([...restockAsideOf(await readSettings(), listId).keys()].sort(), "read inside the write").toEqual(["elma", "süt"]);
       expect(restockAsideOf(await readSettings(), "another list").size).toBe(0);
+      expect((await readSettings()).map(({ key }) => key)).toEqual([`restock_aside:${listId}`]);
+      // A setting deleted is nothing put aside: the next one starts over.
+      devices.B.prepare("UPDATE settings SET deleted_at = '2030-01-01T00:00:00.000Z'").run();
+      await putRestockAside(listId, "un");
+      expect([...restockAsideOf(await readSettings(), listId).keys()]).toEqual(["un"]);
 
       vi.useFakeTimers({ toFake: ["Date"] });
       try {
@@ -1565,6 +1616,92 @@ describe("photos", () => {
     });
   });
 
+  it("tells a photo Storage does not have from a Storage that did not answer", async () => {
+    const listId = await on("A", async () => {
+      const id = await createList("Market");
+      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await sync();
+      return id;
+    });
+    await on("B", async () => {
+      cloud.downloadFailure = { message: "Internal error", status: 503 };
+      expect(await sync(), "a server error is not an answer").toBe(false);
+      cloud.downloadFailure = { message: "Object not found", status: 404 };
+      expect(await sync(), "not there is an answer: the rows sync without it").toBe(true);
+      cloud.downloadFailure = null;
+      const before = cloud.requests.length;
+      await sync();
+      expect(cloud.requests.slice(before).filter((request) => request.startsWith("download")), "not asked again this session").toEqual([]);
+      expect((await readItems(listId))[0]?.photo).toBeNull();
+    });
+  });
+
+  it("passes over a photo Storage refuses for good, and sends again one it only failed", async () => {
+    await on("A", async () => {
+      const id = await createList("Market");
+      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      const photoId = (await readItems(id))[0]!.photoId!;
+      const uploaded = () => devices.A.prepare("SELECT uploaded_at FROM photos WHERE id = ?").get(photoId) as { uploaded_at: string | null };
+
+      cloud.failOn.set("upload", { message: "Internal error", status: 503 });
+      expect(await sync(), "a failed send fails the sync").toBe(false);
+      expect(uploaded().uploaded_at).toBeNull();
+      expect(cloud.rows("items"), "and holds back the row naming it").toEqual([]);
+
+      cloud.failOn.set("upload", { message: "new row violates row-level security policy", status: 403 });
+      expect(await sync(), "a refusal for good does not hold the rest").toBe(true);
+      expect(uploaded().uploaded_at, "still unsent").toBeNull();
+      expect(cloud.rows("items")).toHaveLength(1);
+
+      const before = cloud.requests.length;
+      await sync();
+      expect(cloud.requests.slice(before).filter((request) => request.startsWith("upload")), "not offered again this session").toEqual([]);
+    });
+  });
+
+  it("finishes a photo whose send was cut short between its two sizes", async () => {
+    await on("A", async () => {
+      const id = await createList("Market");
+      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      const photoId = (await readItems(id))[0]!.photoId!;
+      cloud.objects.set(`${photoId}/full.jpg`, { owner: USER, bytes: new Uint8Array([0xff, 0xd8, 0xff]), at: Date.now() });
+      expect(await sync()).toBe(true);
+      expect([...cloud.objects.keys()].sort()).toEqual([`${photoId}/full.jpg`, `${photoId}/thumb.jpg`]);
+      expect(devices.A.prepare("SELECT uploaded_at FROM photos WHERE id = ?").get(photoId)).not.toMatchObject({ uploaded_at: null });
+    });
+  });
+
+  it("removes photos from Storage a hundred at a time", async () => {
+    const old = Date.now() - 31 * 86_400_000;
+    for (let at = 0; at < 100; at++) {
+      const id = `019f6bba-2c65-7ea8-a6c9-${String(at).padStart(12, "0")}`;
+      for (const size of ["full", "thumb"]) cloud.objects.set(`${id}/${size}.jpg`, { owner: USER, bytes: new Uint8Array([0xff]), at: old });
+    }
+    await on("A", async () => {
+      const before = cloud.requests.length;
+      cloud.failOn.set("rpc unnamed_photos", { message: "boom", code: "XX000" });
+      expect(await sync(), "a sweep that cannot ask waits for the next session").toBe(true);
+      expect(cloud.objects.size).toBe(200);
+      expect(cloud.requests.slice(before).filter((request) => request.startsWith("remove"))).toEqual([]);
+    });
+    await on("A", async () => {
+      const before = cloud.requests.length;
+      await sync();
+      expect(cloud.objects.size).toBe(0);
+      expect(cloud.requests.slice(before).filter((request) => request.startsWith("remove"))).toEqual(["remove 100", "remove 100"]);
+    });
+    for (let at = 0; at < 100; at++) {
+      const id = `019f6bba-2c65-7ea8-a6c9-${String(at).padStart(12, "0")}`;
+      for (const size of ["full", "thumb"]) cloud.objects.set(`${id}/${size}.jpg`, { owner: USER, bytes: new Uint8Array([0xff]), at: Date.now() });
+    }
+    await on("A", async () => {
+      const before = cloud.requests.length;
+      await purgeOwnPhotos();
+      expect(cloud.objects.size).toBe(0);
+      expect(cloud.requests.slice(before).filter((request) => request.startsWith("remove"))).toEqual(["remove 100", "remove 100"]);
+    });
+  });
+
   it("keeps the row naming a photo back while the photo cannot be sent", async () => {
     await on("A", async () => {
       const id = await createList("Market");
@@ -2009,6 +2146,12 @@ describe("what one copy must not do to another's", () => {
     expect(refusedForGood({ status: 403, message: "invalid signature" })).toBe(false);
     for (const status of [401, 408, 429, 500]) expect(refusedForGood({ status, message: "x" })).toBe(false);
     expect(refusedForGood({ message: "Failed to fetch" })).toBe(false);
+    expect(refusedForGood({ status: 400, message: "Invalid key" }), "the lowest status Storage refuses with").toBe(true);
+    expect(refusedForGood({ status: 399, message: "x" })).toBe(false);
+    expect(refusedForGood({ status: 499, message: "x" })).toBe(true);
+    for (const message of ["Unauthorized", "unauthorised", "Token invalid", "signature mismatch", "JWT expired"]) {
+      expect(refusedForGood({ status: 403, message }), message).toBe(false);
+    }
   });
 
   it("keeps its own item where it is when a list it joined holds a copy of the id", async () => {

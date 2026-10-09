@@ -50,6 +50,8 @@ export class FakeCloud {
   sessionFailure: Failure | null = null;
   /** What every Storage download meets while set. */
   downloadFailure: Failure | null = null;
+  /** One failure for the first request whose name starts so, as `failures` is for the next of any. */
+  readonly failOn = new Map<string, Failure>();
   private readonly holds = new Map<string, Promise<void>>();
   readonly requests: string[] = [];
   /** Ahead of any device's clock, so a pulled row always looks newer than a local edit. */
@@ -435,7 +437,9 @@ export class FakeCloud {
   private async answer<T>(request: string, signal: AbortSignal | undefined, reply: () => T): Promise<T> {
     if (signal?.aborted) throw new DOMException("The operation was aborted.", "AbortError");
     this.requests.push(request);
-    const failure = this.failures.shift();
+    const aimed = [...this.failOn.keys()].find((prefix) => request.startsWith(prefix));
+    const failure = aimed ? this.failOn.get(aimed) : this.failures.shift();
+    if (aimed) this.failOn.delete(aimed);
     const held = this.holds.get(request);
     this.holds.delete(request);
     // Once sent, a request is the server's: an abort meanwhile does not undo it.

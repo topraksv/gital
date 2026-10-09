@@ -8,6 +8,27 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.8.0
+
+### Minor Changes
+
+- Listelerin sırasını kendin belirleyebiliyorsun; sıra her cihazında aynı kalıyor.
+- Giriş yapmadan da geri bildirim gönderebiliyorsun; yanıt yazdığın e-postaya geliyor.
+- Yeniden alma önerisine "şimdi değil" diyebiliyorsun; o ürün bir dahaki alınışına kadar o listede önerilmiyor.
+
+### Patch Changes
+
+- Bozulan yerel veritabanı yeniden kuruluyor; uygulama açılışta takılı kalmıyor.
+- Uygulama ikinci bir sekmede açılınca ilk sekme kapanana kadar bekliyor, sonra kendiliğinden açılıyor.
+- Ortak listelerde düzelttiğin adın, eşitlemeden sonra eski hâline dönmüyor.
+- Ürün panelinde yalnız değiştirdiğin alan kaydediliyor; başka cihazın aynı anda yaptığı değişiklik ezilmiyor.
+- İşaretlemeyi ve işareti kaldırmayı geri alabiliyorsun.
+- Geçmiş uzun olunca sayfa sayfa yükleniyor.
+- Silinen listeler bir hafta sonra cihazdan da temizleniyor.
+- Bir hatırlatıcıya dokununca ilgili ekran açılıyor.
+- "Üç" gibi sayı sözcükleri ürün adında kalıyor, miktara çevrilmiyor.
+- Uzun sayfalarda başlık kayarken üstte kalıyor; Android'de klavye açılınca sekme çubuğu gizleniyor.
+
 ## 1.7.2
 
 ### Patch Changes
