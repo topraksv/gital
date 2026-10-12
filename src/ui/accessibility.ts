@@ -1,7 +1,4 @@
-/**
- * Focus for modal surfaces, Helix's `useModalAccessibility` without its
- * keyboard-shortcut overlay stack, which Gital has no shortcuts to need.
- */
+/** Focus behavior for modal surfaces. */
 
 import { useEffect, useRef, type RefObject } from "react";
 import { AccessibilityInfo, findNodeHandle, Platform, type View } from "react-native";
@@ -18,7 +15,7 @@ function moveAccessibilityFocus(target: View | null): void {
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(
-    container.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="switch"]'),
+    container.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="option"], [role="radio"], [role="slider"], [role="spinbutton"], [role="switch"], [role="tab"]'),
   ).filter(
     (element) =>
       element.tabIndex >= 0 &&

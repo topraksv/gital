@@ -16,7 +16,7 @@ export interface Tick {
 }
 
 /** A run: the tick's own fields but its time, and the epoch ms at which it lapses if no tick follows. */
-export type Shopper<T extends Tick = Tick> = Omit<T, "at"> & { expiresAt: number };
+type Shopper<T extends Tick = Tick> = Omit<T, "at"> & { expiresAt: number };
 
 /** The people other than `me` shopping a list at `now`, one per list and person, by list then person. */
 export function shoppersNow<T extends Tick>(ticks: readonly T[], me: string, now: number): Shopper<T>[] {

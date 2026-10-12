@@ -71,7 +71,7 @@ export function atHome<T extends { name: string }>(pantry: readonly T[], added: 
   return pantry.filter((item) => keys.has(foldName(item.name)));
 }
 
-/** Whether − has a step to take: at one piece, or one step, there is only finishing it (the owner, 2026-09-27). */
+/** Whether − has a step to take: at one piece, or one step, there is only finishing it. */
 export function leavesSome(stock: Stock): boolean {
   return (stepQuantity(stock, -1)?.quantityMilli ?? 0) > 0;
 }

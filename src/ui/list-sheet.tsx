@@ -1,20 +1,18 @@
-/**
- * The list panel (SPEC 1.1, 1.8): a list's name, its colour and its picture,
- * saved in one write. It is the prompt's sheet with more in it, as the item
- * panel is. Every choice is drawn as the card will draw it — the pictures sit
- * on the colour chosen — so the panel is its own preview.
- */
+/** The list panel (SPEC 1.1, 1.8), saved in one write; each choice is drawn as the card draws it, so the panel is its own preview. */
 
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { View } from "react-native";
 import Check from "lucide-react-native/icons/check";
+import Pencil from "lucide-react-native/icons/pencil";
 
+import { createList, editList } from "../data/lists";
 import { LIST_COLORS, LIST_ICONS, type ListColor, type ListIcon, type ListLook } from "../domain/lists";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { useModalAccessibility } from "./accessibility";
-import { Body, Button, TextField, Tile, ToggleRow, radioChoice, rowsOf } from "./components";
-import { Actions, DialogShell } from "./dialog";
+import { Body, Button, IconButton, TextField, Tile, ToggleRow, radioChoice, rowsOf } from "./components";
+import { Actions, DialogShell, appError, appPrompt } from "./dialog";
+import { selectionTap } from "./haptics";
 import { borderWidth, circle, iconSize, iconStroke, listSheet, spacing, tileRadius, useTheme } from "./theme";
 import { Press } from "./press";
 import { confirmDiscard, useDraftDirty } from "./dirty-exit";
@@ -23,7 +21,7 @@ import { radioGroupKeys } from "./keys";
 // The ring and a gap as wide as it, inside the cell.
 const TILE = listSheet.cell - 4 * borderWidth.selected;
 
-export function ListSheet({
+function ListSheet({
   list,
   onSave,
   onClose,
@@ -152,4 +150,31 @@ function Choice({
       ) : null}
     </Press>
   );
+}
+
+/** The pencil and the list panel it opens: a list's or collection's name, colour and picture (SPEC 1.8). */
+export function EditLook({ list, label }: { list: ComponentProps<typeof ListSheet>["list"]; label: string }) {
+  const [open, setOpen] = useState(false);
+  const save = async (look: ListLook) => {
+    setOpen(false);
+    await editList(list.id, look).catch(() => void appError(tr.errors.saveFailed));
+  };
+  return (
+    <>
+      <IconButton icon={Pencil} label={label} onPress={() => setOpen(true)} />
+      {open ? <ListSheet list={list} onSave={save} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+const NEW = {
+  shop: [tr.lists.createTitle, tr.lists.createMessage, tr.placeholders.listName],
+  wish: [tr.wishes.createTitle, tr.wishes.createMessage, tr.placeholders.collectionName],
+} as const;
+
+export async function createNamedList(kind: "shop" | "wish"): Promise<void> {
+  const [title, message, examples] = NEW[kind];
+  const name = await appPrompt(title, message, { examples, confirmLabel: tr.lists.createConfirm, maxLength: NAME_MAX });
+  if (name == null) return;
+  await createList(name, kind).then(selectionTap, () => void appError(tr.errors.saveFailed));
 }

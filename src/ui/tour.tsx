@@ -1,14 +1,14 @@
 /**
- * The first-open tour (`docs/SPEC.md` 13.2), Helix's `tour.tsx`: one short
+ * The first-open tour (`docs/SPEC.md` 13.2), one short
  * slide per thing Gital does, each over a drawing of the screen it names. It
  * opens once, the first time Listeler is shown on this device, and Ayarlar
- * plays it again. Back, skip and next, because Helix measured that a tour with
+ * plays it again. Back, skip and next, because a tour with
  * no way back makes a skimmed slide cost the whole tour.
  *
- * It opens for a new account only (Helix's `isNewSignup`): a second device, or
+ * It opens for a new account only (`isNewSignup`): a second device, or
  * a cleared browser, of an account that already holds lists must not be
- * introduced to Gital again. Helix keys on the sign-up's own session, which
- * Gital never has, since its sign-up waits for the e-mail's confirmation; so
+ * introduced to Gital again. The sign-up's own session is never
+ * seen here, since sign-up waits for the e-mail's confirmation; so
  * the account is new when its first sync here brings no list, read from the
  * database once that sync has finished rather than from a screen's query,
  * which may not have caught up. A build with no cloud has only this device.

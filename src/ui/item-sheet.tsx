@@ -1,12 +1,4 @@
-/**
- * The item panel (`docs/UI.md` section 6: the row opens, the circle ticks): an
- * item's name, note, quantity and urgency; whether it was not found, and then
- * whether anything was bought in its place; once that, or in the basket, what
- * was bought and paid; which list
- * it is on (SPEC 4.3); and its delete. It is the prompt's sheet with more in
- * it, so it rises and closes like every other dialog here. The finish's
- * question about what was not found (SPEC 3.15) shares its list tiles.
- */
+/** The item panel (`docs/UI.md` section 6, SPEC 4.3); the finish's not-found question (SPEC 3.15) shares its list tiles. */
 
 import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -69,11 +61,7 @@ function ListPicker({ lists, value, onChange }: { lists: readonly ListChoice[]; 
   );
 }
 
-/**
- * Asked at a finish that leaves something not found (the owner's idea,
- * approved 2026-09-30): which list it waits on for the next shop, this one
- * unless another is chosen.
- */
+/** Asked at a finish that leaves something not found: which list it waits on, this one unless another is chosen. */
 export function CarrySheet({
   names,
   listId,
@@ -156,8 +144,6 @@ export function ItemSheet({
   const ready = name.trim() !== "" && paid.ok;
   const save = () => {
     if (!ready) return;
-    // The aisle is the product's: kept by name for every list, and forgotten
-    // when it is put back where the catalogue has it.
     if (aisle !== placed) moveProduct(name, aisle);
     onSave(
       { name, ...quantity, note, urgent, notFound, boughtInstead: offersBought ? instead : null, priceMinor: paid.minor, photo },
@@ -264,10 +250,6 @@ export function ItemSheet({
 }
 
 /**
- * When the product was last bought, on any list, and how its price has moved
- * (SPEC 3.9): a quiet line under its note, and its prices as a line.
- */
-/**
  * The aisle is the product's (SPEC 5.4): kept by name for every list, and
  * forgotten when it is put back where the catalogue has it.
  */
@@ -297,6 +279,7 @@ function AislePicker({ name, value, onChange }: { name: string; value: Aisle | "
   );
 }
 
+/** When the product was last bought, on any list, and its prices as a line (SPEC 3.9). */
 function Past({ before, name }: { before: readonly BoughtBefore[]; name: string }) {
   const { palette } = useTheme();
   const past = pastOf(before, name);
@@ -319,10 +302,8 @@ function outcomeOf(item: ShownItem): Outcome {
 }
 
 /**
- * Not found, and then what came of it, asked outright under the switch: two
- * bare fields further down did not say what they were for (the owner,
- * 2026-09-30). Nothing bought leaves the item on the list, flagged; something
- * else opens what was bought and paid, which ticks it (SPEC 3.7).
+ * Not found, then what came of it, asked outright: two bare fields further down did not say what
+ * they were for. Something else bought opens what was paid, which ticks it (SPEC 3.7).
  */
 function NotFound({ value, onChange }: { value: Outcome; onChange: (outcome: Outcome) => void }) {
   const substituted = value === "other";
@@ -342,11 +323,7 @@ function NotFound({ value, onChange }: { value: Outcome; onChange: (outcome: Out
   );
 }
 
-/**
- * What was bought in the item's place, and what was paid — said to be dear
- * when it is (SPEC 3.12). The panel says it and the row does not: the aisle
- * needs the number, and the sentence would wrap every priced row at 360 dp.
- */
+/** What was bought and paid, said to be dear when it is (SPEC 3.12): here, because the row has no room for the sentence. */
 function Bought({
   before,
   product,

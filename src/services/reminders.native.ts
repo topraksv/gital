@@ -1,6 +1,5 @@
 /**
- * Local notifications on the phone (SPEC 12.1, 12.3), Helix's
- * `src/services/notifications.ts` for Gital's reminders: permission is asked
+ * Local notifications on the phone (SPEC 12.1, 12.3): permission is asked
  * only from Ayarlar, and every plan cancels and replaces the last, so what is
  * scheduled is always `planReminders` of the present. One departure: the web
  * is kept out by `reminders.ts`, not by a Metro substitution, as Gital keeps
@@ -136,8 +135,7 @@ async function replace(): Promise<void> {
 }
 
 /**
- * A tap on a reminder opens what it is about, Helix's
- * `useNotificationTapRouting`: the launch response is the tap that started a
+ * A tap on a reminder opens what it is about: the launch response is the tap that started a
  * cold app, the listener the taps that come while it runs. A handled launch
  * response is cleared, or it is replayed on every later read, after a sign-in
  * to another account too. Returns the unsubscribe.

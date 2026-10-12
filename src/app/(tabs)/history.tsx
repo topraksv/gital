@@ -11,11 +11,8 @@ import { AisleShares, MONTHS, MonthBars } from "../../ui/charts";
 import { ArrivalScope, Button, Card, EmptyState, LinkCard, ReadFailed, Screen, SectionHeader, SlideUp } from "../../ui/components";
 import { density, listCard, motion } from "../../ui/theme";
 
-/**
- * Shops drawn a page at a time. The read stays whole: the month chart and the
- * shop page read the same query, and a shop's row is small; what grew with
- * the years was the cards, each one animated, mounted at once.
- */
+/** Shops drawn a page at a time; the read stays whole, since the month chart reads the same query
+ *  and what cost was every animated card mounted at once. */
 const PAGE = 30;
 
 export default function History() {

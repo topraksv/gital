@@ -1,4 +1,4 @@
-/** Auth answers in English; the person reads Turkish (Helix's `src/auth/auth-errors.ts`). */
+/** Supabase auth errors arrive in English; map them to the Turkish UI. */
 
 import { tr } from "../i18n/tr";
 

@@ -126,10 +126,13 @@ describe("live lists", () => {
   it("lets a refusal on the way pass quietly: the half-minute pull still comes", async () => {
     followLists(["a", "b"]);
     await start();
-    client().removeChannel.mockRejectedValueOnce(new Error("offline"));
-    client().disconnect.mockRejectedValueOnce(new Error("offline"));
+    const live = client();
+    live.removeChannel.mockRejectedValueOnce(new Error("offline"));
+    live.disconnect.mockRejectedValueOnce(new Error("offline"));
     followLists(["b"]);
     stopLive();
     await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(live.removeChannel).toHaveBeenCalledTimes(1);
+    expect(live.disconnect).toHaveBeenCalledTimes(1);
   });
 });

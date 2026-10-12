@@ -213,7 +213,7 @@ export async function fillFromPage(linkId: string, found: { name?: string | null
     const name = found.name != null && isNamedByLink(String(wish.name), String(link.url)) ? itemNameFrom(found.name) : null;
     const photo = found.photo != null && wish.photo_id == null ? await photoColumn(found.photo) : {};
     return [
-      ...editRow("wishes", wish, { ...(name ? { name } : {}), ...photo }),
+      ...editRow("wishes", wish, { ...(name && { name }), ...photo }),
       ...editRow("wish_links", link, {
         ...(link.price_minor == null && found.priceMinor != null && { priceMinor: priceOrThrow(found.priceMinor) }),
         ...(link.read_at == null && { readAt: nowIso() }),

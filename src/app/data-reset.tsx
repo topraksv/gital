@@ -1,9 +1,5 @@
-/**
- * Resetting the data (SPEC 9.1), Helix's reset page without its date range:
- * the person chooses parts, sees how many records they take, and says so
- * twice — once to what goes, once with the password, since it goes from every
- * device the account holds and cannot be undone.
- */
+/** Resetting the data (SPEC 9.1): parts chosen, their count shown, confirmed twice — once to what goes,
+ *  once with the password — since it leaves every device and cannot be undone. */
 
 import { useEffect, useState } from "react";
 import { View } from "react-native";
@@ -23,8 +19,8 @@ export default function DataResetScreen() {
   const [counted, setCounted] = useState<{ of: readonly ResetScope[]; count: number } | null>(null);
   const [busy, setBusy] = useState(false);
   // A member's reset leaves the household's Kiler alone; the toggle says so rather than counting nothing.
-  const [member, setMember] = useState(false);
-  useEffect(() => void inHousehold().then(setMember, () => {}), []);
+  const [member, setMember] = useState<boolean | null>(null);
+  useEffect(() => void inHousehold().then(setMember, () => setMember(false)), []);
 
   useEffect(() => {
     let current = true;
@@ -71,7 +67,7 @@ export default function DataResetScreen() {
                 onValueChange={(on) => choose(scope, on)}
                 title={tr.dataReset.scope[scope]}
                 subtitle={scope === "pantry" && member ? tr.dataReset.pantryHousehold : tr.dataReset.scopeHint[scope]}
-                disabled={scope === "pantry" && member}
+                disabled={scope === "pantry" && member !== false}
               />
             </View>
           ))}

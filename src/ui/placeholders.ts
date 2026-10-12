@@ -1,7 +1,7 @@
 /**
- * Helix's rotating examples: a field shows a realistic example that changes
- * every few seconds while it is empty, instead of one frozen sample. Helix
- * learned three things about how, and they are kept:
+ * Rotating examples: a field shows a realistic example that changes
+ * every few seconds while it is empty, instead of one frozen sample. Three
+ * rules about how are kept:
  *
  * 1. One module-level beat. A screen with three fields on three timers
  *    changed them at three moments, which reads as twitching rather than as

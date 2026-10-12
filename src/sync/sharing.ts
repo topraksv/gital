@@ -35,7 +35,7 @@ let held: string | null = null;
  * A web invitation opened signed out, kept until a sign-in takes it (SPEC
  * 1.4). In memory, and in the browser too, since an e-mail confirmation opens
  * another tab and a reload starts afresh. For the link's own seven days at
- * most: the origin is Helix's as well, and the next account to sign in on
+ * most: the github.io origin is shared with other apps, and the next account to sign in on
  * that browser must not be sent into someone else's list.
  */
 export async function holdInvite(token: string): Promise<void> {

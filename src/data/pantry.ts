@@ -158,11 +158,12 @@ export function stockPantry(entries: readonly Entry[]): Promise<RowsWritten> {
     const writes: RowWrite[] = [];
     const made = new Map<string, string>();
     for (const entry of entries) {
-      let pantryItemId = made.get(foldName(entry.name));
+      const key = foldName(entry.name);
+      let pantryItemId = made.get(key);
       if (!pantryItemId) {
         const item = await pantryItemRows(entry.name, {});
         pantryItemId = item.pantryItemId;
-        made.set(foldName(entry.name), pantryItemId);
+        made.set(key, pantryItemId);
         writes.push(...item.rows);
       }
       writes.push({ table: "pantry_moves", row: { id: uuidv7(), pantryItemId, ...quantityOrOne(entry) } });
@@ -188,8 +189,9 @@ const SETTLE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
  * which stocked it. An arrival an undo took back returns with the shop only
  * when the shop was finished again after it went: one a pantry reset took
  * stays gone, whatever comes home later, and a shop a history reset cleared
- * is left as it is: clearing history is no undo. A shop finished before this device changed Kiler belongs to the one it had: joined
- * empty, or gone from a household, the person starts with nothing.
+ * is left as it is: clearing history is no undo. A shop finished before this
+ * device changed Kiler belongs to the one it had: joined empty, or gone from a
+ * household, the person starts with nothing.
  */
 export async function settleArrivals(userId: string): Promise<void> {
   const sqlite = await getSqliteAsync();

@@ -7,18 +7,14 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import * as SystemUI from "expo-system-ui";
 import DatabaseZap from "lucide-react-native/icons/database-zap";
-import LockOpen from "lucide-react-native/icons/lock-open";
-import LogOut from "lucide-react-native/icons/log-out";
-import Snowflake from "lucide-react-native/icons/snowflake";
 
-import { SIGN_OUT_PENDING_CHANGES, useSession } from "../auth/session";
+import { useSession } from "../auth/session";
 import { takeDatabaseRebuilt } from "../db/client";
 import { migrateDb } from "../db/migrate";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
 import { useAccountFrozen, useSharedLists } from "../data/hooks";
 import { createList } from "../data/lists";
-import { setAccountFrozen } from "../data/settings";
 import { addWish, readCollections } from "../data/wishes";
 import { LINK_MAX, linkFrom } from "../domain/wishes";
 import { clipboardOffer } from "../services/clipboard-link";
@@ -34,28 +30,24 @@ import { KeyboardSafeRoot } from "../ui/keyboard-safe";
 import { useDatabaseHandoff } from "../ui/database-handoff";
 import { Launch } from "../ui/launch";
 import { GestureRoot } from "../ui/list-motion";
-import { APPEARANCE_KEYS, PALETTES, resolvePaletteId, spacing, ThemeContext, type PaletteId, type ThemePreference } from "../ui/theme";
-import { applyThemeChange, ThemeDissolve } from "../ui/theme-transition";
+import { APPEARANCE_KEYS, isThemePreference, PALETTES, resolvePaletteId, ThemeContext } from "../ui/theme";
+import { subscribeAppearance, ThemeDissolve, type Appearance } from "../ui/theme-transition";
 import { ErrorBoundary } from "../ui/error-boundary";
-import { OperationWait } from "../ui/operation-wait";
+import { FrozenGate, OperationWait } from "../ui/operation-wait";
 import { PageReaderHost, readLinkPages } from "../ui/page-reader";
 import { useStayAwake } from "../ui/stay-awake";
 import { clearUndo, UndoSnackbar } from "../ui/undo";
 
-// Helix's subset faces, byte for byte (`docs/ARCHITECTURE.md`, "The fonts are Helix's").
+// Subset faces copied byte for byte: Gital has no subsetting script (`docs/ARCHITECTURE.md`).
 const Inter_400Regular = require("../../assets/fonts/Inter_400Regular.ttf");
 const Inter_500Medium = require("../../assets/fonts/Inter_500Medium.ttf");
 const Inter_600SemiBold = require("../../assets/fonts/Inter_600SemiBold.ttf");
 const IBMPlexSerif_600SemiBold = require("../../assets/fonts/IBMPlexSerif_600SemiBold.ttf");
 
-/**
- * A reset link opened on the web: a page of its own, with no database and no
- * session. The mail app may open it beside a tab that holds the database, and
- * the web's database admits one tab (`docs/ARCHITECTURE.md`, 2026-09-26).
- */
+/** A reset link opened on the web runs with no database or session: the mail app may open it beside a
+ *  tab that holds the database, and the web's database admits one tab. */
 const WEB = Platform.OS === "web" && typeof location !== "undefined";
 const RECOVERY_PAGE = WEB && /\/reset-password\/?$/.test(location.pathname);
-const DATABASE_AT_START = RECOVERY_PAGE ? "ready" : "opening";
 
 /**
  * A web invitation opened signed out: signing in sends the page to the tabs
@@ -67,40 +59,12 @@ if (invitedTo) void holdInvite(invitedTo);
 
 // At module load, as the package asks: from inside a component it can come
 // after the splash has already gone. `Launch` hides it.
-void SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
-/** Fonts are cosmetic: a slow web fetch must not hold the app on a blank screen. */
-const FONT_GRACE_MS = 2500;
-
-interface Appearance {
-  theme: ThemePreference;
-  palette: PaletteId;
-}
-
-const appearanceListeners = new Set<(next: Partial<Appearance>) => void>();
-
-/** The settings screen's one door into the theme. `fromBackground` is what the veil fades out of. */
-export function setAppearance(next: Partial<Appearance>, fromBackground: string) {
-  // A write the keychain refuses still leaves the choice applied for this run.
-  if (next.theme) kv.set(APPEARANCE_KEYS.theme, next.theme).catch(() => {});
-  if (next.palette) kv.set(APPEARANCE_KEYS.palette, next.palette).catch(() => {});
-  applyThemeChange(() => {
-    for (const listener of appearanceListeners) listener(next);
-  }, fromBackground);
-}
-
-function isThemePreference(value: string | null): value is ThemePreference {
-  return value === "system" || value === "light" || value === "dark";
-}
-
-/**
- * Every screen reads the database, so none is drawn until it is migrated; a
- * failure gets its own screen with a retry rather than empty lists.
- * "retrying" keeps that screen up with its button busy, rather than a native
- * retry dropping to plain ground for up to two seconds.
- */
+/** Every screen reads the database, so none draws until it is migrated; a failure gets its own screen.
+ *  "retrying" keeps that screen up with its button busy rather than dropping to plain ground. */
 function useDatabase() {
-  const [database, setDatabase] = useState<"opening" | "ready" | "failed" | "retrying">(DATABASE_AT_START);
+  const [database, setDatabase] = useState<"opening" | "ready" | "failed" | "retrying">(RECOVERY_PAGE ? "ready" : "opening");
   const [openAttempt, setOpenAttempt] = useState(0);
   const { heldElsewhere } = useDatabaseHandoff(database === "ready" && !RECOVERY_PAGE, database === "failed");
 
@@ -141,21 +105,19 @@ export default function RootLayout() {
   useStayAwake();
 
   useEffect(() => {
-    const timer = setTimeout(() => setFontGrace(true), FONT_GRACE_MS);
+    // Fonts are cosmetic: a slow web fetch must not hold the app on a blank screen.
+    const timer = setTimeout(() => setFontGrace(true), 2500);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    const listener = (next: Partial<Appearance>) => setAppearanceState((current) => current && { ...current, ...next });
-    appearanceListeners.add(listener);
+    const unsubscribe = subscribeAppearance((next) => setAppearanceState((current) => current && { ...current, ...next }));
     Promise.all([kv.get(APPEARANCE_KEYS.theme), kv.get(APPEARANCE_KEYS.palette)])
       .catch(() => [null, null] as const)
       .then(([theme, palette]) => {
         setAppearanceState({ theme: isThemePreference(theme) ? theme : "system", palette: resolvePaletteId(palette) });
       });
-    return () => {
-      appearanceListeners.delete(listener);
-    };
+    return unsubscribe;
   }, []);
 
   const preference = appearance?.theme ?? "system";
@@ -167,21 +129,16 @@ export default function RootLayout() {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     document.documentElement.style.colorScheme = scheme;
     document.documentElement.style.setProperty(FOCUS_PROPERTY, theme.palette.focus);
-    // Helix's `syncThemeColorMeta`: a browser takes the first `theme-color`
-    // whose media matches, so the shell's two are written over, not added to,
-    // and lose their media so the system's scheme cannot pick the other.
+    // A browser takes the first `theme-color` whose media matches, so the shell's two are
+    // overwritten and lose their media rather than a third being added.
     document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
       meta.setAttribute("content", theme.palette.background);
       meta.removeAttribute("media");
     });
   }, [scheme, theme.palette.focus, theme.palette.background]);
 
-  // The root view shows through wherever no screen is drawn: beside a page
-  // sliding in, and in a phone's rounded corners. Left alone it is the system's
-  // white, so it wears the page's ground and follows a theme change. Expo Go
-  // repaints it white each time it comes to the front (its
-  // `EXAppViewController`), which a store build has no part of; the owner
-  // chose not to work around Expo Go (2026-10-02).
+  // The root view shows wherever no screen is drawn and is the system's white unset.
+  // Expo Go repaints it white on each foreground; store builds do not.
   useEffect(() => {
     if (Platform.OS === "web") return;
     void SystemUI.setBackgroundColorAsync(theme.palette.background).catch(() => {});
@@ -217,28 +174,18 @@ export default function RootLayout() {
           </KeyboardSafeRoot>
         </GestureRoot>
       ) : (
-        // On the web the document already wears the stored ground
-        // (`+html.tsx`), and a colour here would differ between the static
-        // render and the first client render, which hydration never repairs.
-        // `Launch` covers it on a cold start.
+        // The web document already wears the stored ground (`+html.tsx`); a colour here would differ
+        // between static and first client render, which hydration never repairs.
         <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? undefined : theme.palette.background }} />
       )}
-      {/* Shown once the stored palette is known, so neither the ground nor
-          the G changes colour mid-draw; until then the native splash, or on
-          the web the shell's painted ground, is what shows. */}
+      {/* Shown once the stored palette is known, so neither ground nor mark changes colour mid-draw. */}
       <Launch shown={appearance != null} ready={settled} />
     </ThemeContext.Provider>
   );
 }
 
-/**
- * The database would not open. On the web a failed open leaves wa-sqlite's
- * VFS in "Invalid VFS state" for this document, as Helix measured: opening
- * again in the same page fails the same way for ever, while a reload (new
- * realm, new worker) succeeds. Native re-opens the file for real. While
- * another tab holds the database a reload lands here again, so there is no
- * button: this tab opens by itself when that one closes.
- */
+/** On the web a failed open breaks wa-sqlite's VFS for this document, so retry reloads; native re-opens the file.
+ *  While another tab holds the database there is no button: this tab opens when that one closes. */
 function BootFailure({ retrying, heldElsewhere, onShown, onRetry }: { retrying: boolean; heldElsewhere: boolean; onShown: () => void; onRetry: () => void }) {
   return (
     <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ flex: 1 }} onLayout={onShown}>
@@ -251,7 +198,7 @@ function BootFailure({ retrying, heldElsewhere, onShown, onRetry }: { retrying: 
             <Button
               label={tr.common.retry}
               loading={retrying}
-              onPress={() => (Platform.OS === "web" && typeof window !== "undefined" ? window.location.reload() : onRetry())}
+              onPress={() => (WEB ? location.reload() : onRetry())}
             />
           )
         }
@@ -261,9 +208,8 @@ function BootFailure({ retrying, heldElsewhere, onShown, onRetry }: { retrying: 
 }
 
 /**
- * Expo Router's head writes a <title> ahead of the shell's, and the browser
- * shows the first: left empty, every tab read "" (2026-09-26). Rendered ready
- * or not, since the static export renders the layout before it is ready.
+ * Expo Router's head writes a <title> ahead of the shell's and the browser shows the first.
+ * Rendered ready or not: the static export renders the layout before it is ready.
  */
 function WebTitle() {
   if (Platform.OS !== "web") return null;
@@ -274,11 +220,8 @@ function WebTitle() {
   );
 }
 
-/**
- * The account decides the routes (SPEC 9.1): the lists behind a session, the
- * sign-in without one, the reset page for either. Expo Router's guard rather
- * than a redirect, which throws when it runs before the navigator mounts.
- */
+/** The account decides the routes (SPEC 9.1). Expo Router's guard rather than a redirect,
+ *  which throws when it runs before the navigator mounts. */
 function Routes({ background, onSettled }: { background: string; onSettled: () => void }) {
   const ready = useSession((s) => s.ready);
   const userId = useSession((s) => s.userId);
@@ -290,7 +233,7 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
     // A launch that cannot decide opens on sign-in rather than on nothing.
     useSession.getState().bootstrap().catch(() => useSession.setState({ ready: true }));
   }, []);
-  // Helix's bug: an undo offered to one account ran against the next one's lists.
+  // An undo offered to one account must not run against the next one's lists.
   useEffect(() => clearUndo(), [userId]);
   useEffect(() => {
     if (!signedIn || !WEB) return;
@@ -329,7 +272,7 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
           </Stack.Protected>
           <Stack.Screen name="(auth)/reset-password" />
           <Stack.Screen name="privacy" />
-          {/* Signed out too: sign-in sends a failure here (migration 17). */}
+          {/* Signed out too: sign-in sends a failure here. */}
           <Stack.Screen name="feedback" />
         </Stack>
       )}
@@ -339,8 +282,12 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
           <SyncRunner userId={userId} />
           <LiveRunner userId={userId} />
           <ReminderPlanner />
-          {locked ? null : <ClipboardLinkOffer />}
-          {locked ? null : <ReminderTaps />}
+          {locked ? null : (
+            <>
+              <ClipboardLinkOffer />
+              <ReminderTaps />
+            </>
+          )}
           <PageReaderHost />
         </>
       ) : null}
@@ -349,67 +296,11 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
   );
 }
 
-/** Sign out, asking first when a change would be left unsent. */
-export async function leaveAccount(): Promise<void> {
-  const { signOut } = useSession.getState();
-  let refused = await signOut();
-  if (refused === SIGN_OUT_PENDING_CHANGES) {
-    if (!(await appConfirm(tr.account.signOutTitle, SIGN_OUT_PENDING_CHANGES, tr.account.signOutAnyway))) return;
-    refused = await signOut({ force: true });
-  }
-  if (refused) await appError(refused);
-}
-
-/**
- * What a frozen account shows on every device it holds (SPEC 9.1), in place
- * of the app: Helix's lock, reopened with the password rather than a
- * fingerprint, since the web has none and the password is what Gital asks for
- * everywhere else.
- */
-function FrozenGate() {
-  const [busy, setBusy] = useState(false);
-  const act = (work: () => Promise<void>) => async () => {
-    setBusy(true);
-    try {
-      await work();
-    } catch {
-      await appError(tr.auth.errGeneric);
-    }
-    setBusy(false);
-  };
-  const reopen = act(async () => {
-    const password = await appPrompt(tr.account.confirmPasswordTitle, tr.account.reopenPasswordBody, { confirmLabel: tr.common.done, kind: "password" });
-    if (password == null) return;
-    const refused = await useSession.getState().verifyPassword(password);
-    if (refused) await appError(refused);
-    else await setAccountFrozen(false);
-  });
-  return (
-    <View style={{ flex: 1 }}>
-      <EmptyState
-        icon={Snowflake}
-        title={tr.account.frozenTitle}
-        hint={tr.account.frozenBody}
-        action={
-          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm }}>
-            <Button label={tr.account.reopen} icon={LockOpen} disabled={busy} onPress={() => void reopen()} />
-            <Button label={tr.account.signOut} icon={LogOut} variant="ghost" disabled={busy} onPress={() => void act(leaveAccount)()} />
-          </View>
-        }
-      />
-    </View>
-  );
-}
-
 /** How often an open app looks for the other phone's changes (SPEC 10.2). */
 const SYNC_POLL_MS = 30_000;
 
-/**
- * When to sync; the engine decides how, and a write schedules its own. On
- * opening, on coming back to the front — the web's visibility, through
- * React Native Web — and every half minute while in front, since the other
- * phone's changes arrive with nothing here to announce them.
- */
+/** When to sync (a write schedules its own): on opening, on coming to the front, and every half
+ *  minute in front, since the other phone's changes arrive unannounced. */
 function SyncRunner({ userId }: { userId: string }) {
   useEffect(() => {
     const sync = () => void syncNow(userId);
@@ -442,12 +333,8 @@ function LiveRunner({ userId }: { userId: string }) {
   return null;
 }
 
-/**
- * Reminders are planned when the database opens and each time the app goes
- * to the background (SPEC 12.1): leaving is when the lists are as they will
- * be until the next visit, so the shopping day counts what is really on them.
- * A plan that fails keeps the last one; the next trip out tries again.
- */
+/** Planned at open and on each trip to the background (SPEC 12.1), when the lists are as they will
+ *  stay; a failed plan keeps the last. */
 function ReminderPlanner() {
   useEffect(() => {
     if (!remindersAvailable) return;
@@ -465,12 +352,8 @@ function ReminderTaps() {
   return null;
 }
 
-/**
- * A product link on the clipboard, offered once as the app opens (SPEC 2.9):
- * it becomes a wish in the first collection this person can add to, or in a
- * new one when there is none, and the collection opens on it. The field holds the link where the
- * phone let it be read, and takes a paste where it did not.
- */
+/** A product link on the clipboard, offered once at open (SPEC 2.9), becomes a wish in the first
+ *  collection this person can add to, or in a new one. */
 function ClipboardLinkOffer() {
   useEffect(() => {
     void (async () => {

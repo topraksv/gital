@@ -1,10 +1,9 @@
 /**
  * The account session (SPEC 9.1) over a stubbed Supabase and the real write
- * layer on Node's SQLite, the sync engine replaced by a recorder. Helix's
- * rules hold — a workspace belongs to one account, sync runs only while its
- * account is open, a sign-out sends what is waiting and asks before it
- * destroys what could not leave, a deleted account leaves nothing behind —
- * with Gital's two departures: the first account adopts the lists made
+ * layer on Node's SQLite, the sync engine replaced by a recorder. A workspace
+ * belongs to one account, sync runs only while its account is open, a
+ * sign-out sends what is waiting and asks before it destroys what could not
+ * leave, and a deleted account leaves nothing behind — with two departures: the first account adopts the lists made
  * before accounts, and a session Supabase ends keeps what was never sent
  * behind sign-in rather than wiping it.
  */
@@ -59,13 +58,7 @@ vi.mock("../../src/db/client", async () => {
   const { sqliteClientMock } = await import("../helpers");
   return sqliteClientMock(() => harness.db!);
 });
-vi.mock("expo-crypto", async () => {
-  const { createHash } = await import("node:crypto");
-  return {
-    CryptoDigestAlgorithm: { SHA256: "SHA256" },
-    digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
-  };
-});
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 vi.mock("../../src/services/kv", () => {
   const reach = (key: string) => {
     if ([...device.failing].some((prefix) => key.startsWith(prefix))) throw new Error("keychain locked");
@@ -186,7 +179,6 @@ vi.mock("../../src/sync/supabase", () => {
 });
 
 const { LOCAL_USER_ID, SIGN_OUT_PENDING_CHANGES, useSession } = await import("../../src/auth/session");
-const { isEmail } = await import("../../src/domain/names");
 const { HOSTED_RECOVERY_PAGE } = await import("../../src/auth/recovery");
 const { VERIFY_COOLDOWN_MS, VERIFY_MAX_FAILURES } = await import("../../src/auth/verification-brake");
 const { createList, readLists } = await import("../../src/data/lists");
@@ -427,16 +419,6 @@ describe("opening the app", () => {
   });
 });
 
-describe("an address a form will send", () => {
-  it("is anything with a name, an @ and a dotted domain, spaces around it forgiven", () => {
-    expect(isEmail(" ayse@ev.com ")).toBe(true);
-    // The pattern `send-feedback` holds a signed-out address to, so a slip is caught before a send is spent.
-    for (const typed of ["", "ayse", "ayse@", "ayse@ev", "@ev.com", "ayse@ev.", "ay se@ev.com", "x y@ev.com", "ayse@ev.com x", "ay@se@ev.com", "\"ayse\"@ev.com", "<ayse>@ev.com", "ayse@e v.com", "ayse@ev.c om"]) {
-      expect(isEmail(typed), typed).toBe(false);
-    }
-  });
-});
-
 describe("creating an account", () => {
   it("opens a new account at once when Auth gives it a session, with no sign-in before", async () => {
     expect(await session().signUp("c@ev.com", "yeni-parola1")).toEqual({ status: "signed-in" });
@@ -649,6 +631,19 @@ describe("deleting the account", () => {
     expect(count("lists")).toBe(0);
     expect(device.stored.get(OWNER)).toBe(B.id);
   });
+
+  it("never leaves that device ownerless when the marker cannot be written", async () => {
+    await session().signIn(A.email, A.password);
+    await createList("Market");
+    harness.db!.exec("CREATE TRIGGER stuck BEFORE DELETE ON lists BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END");
+    device.dropped.add(OWNER);
+    expect(await session().deleteAccount()).toBe(tr.account.deleteWipeFailed);
+    expect(device.stored.get(OWNER)).toBe(A.id);
+    harness.db!.exec("DROP TRIGGER stuck");
+    device.dropped.clear();
+    expect(await session().signIn(B.email, B.password)).toBe(tr.auth.errOtherAccountPending);
+    expect(session().userId).toBeNull();
+  });
 });
 
 describe("checking the password again", () => {
@@ -715,11 +710,11 @@ describe("a forgotten password", () => {
 
   it("sends a link back to the page it was asked from on the web", async () => {
     device.os = "web";
-    vi.stubGlobal("location", { origin: "https://topraksv.github.io" });
+    vi.stubGlobal("location", { origin: "https://example.com" });
     vi.stubEnv("EXPO_BASE_URL", "/gital");
     await session().requestPasswordReset("a@ev.com");
-    expect(cloud.calls).toEqual([`reset:a@ev.com:${HOSTED_RECOVERY_PAGE}`]);
-    expect(await session().preparePasswordRecovery(link)).toBe("ready");
+    expect(cloud.calls).toEqual(["reset:a@ev.com:https://example.com/gital/reset-password"]);
+    expect(await session().preparePasswordRecovery(link.replace(HOSTED_RECOVERY_PAGE, "https://example.com/gital/reset-password"))).toBe("ready");
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });

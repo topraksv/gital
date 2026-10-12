@@ -1,11 +1,5 @@
-/**
- * What the server refused (SPEC 10.3), Helix's `sync-issues.tsx` without its
- * backup: each row says what it is, why it waits and since when; one button
- * sends them all again, and any row can be taken off the list, which never
- * touches the record itself. Helix offered that only once a retry had shown a
- * row unsendable — and a row the server refuses for good was then offered it
- * never, the panel its owner called "zulüm".
- */
+/** What the server refused (SPEC 10.3): each row says what, why and since when; one button resends
+ *  all, and any row can be dismissed, which never touches the record. */
 
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";

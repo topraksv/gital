@@ -1,11 +1,7 @@
 /**
- * Helix's calculator (`docs/SPEC.md` 4.4, Helix's `src/ui/calculator.tsx`) as
- * a pure state machine: four operations chained left to right, the Turkish
- * decimal comma, and no eval. Two departures: a digit after `=` starts a new
- * number rather than typing onto the result, and the decimals show as typed,
- * where Helix's display dropped a zero typed after the comma until a digit
- * followed it. And the result a field takes is the one previewed: Helix's
- * "use result" took the number last typed, so 45,9 × 3 wrote 3.
+ * A pure calculator state machine (`docs/SPEC.md` 4.4): four operations chained
+ * left to right, the Turkish decimal comma, no eval. A digit after = starts a
+ * new number, and a field takes the previewed result.
  */
 
 import { MAX_PRICE_MINOR, groupThousands, isPrice } from "./money";
@@ -124,7 +120,7 @@ export function minorOf(value: number): number | null {
   return isPrice(minor) ? minor : null;
 }
 
-/** Helix's rule: digits stay quiet, a discrete step taps, `=` and a refusal say how it went. */
+/** Digits stay quiet, a discrete step taps, `=` and a refusal say how it went. */
 export function feedbackOf(state: Calc, key: CalcKey): "none" | "selection" | "success" | "error" {
   if (key === "C") return "selection";
   if (isOp(key) || key === "=") {

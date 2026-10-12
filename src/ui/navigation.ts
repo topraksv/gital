@@ -1,13 +1,15 @@
-import type { Href, ImperativeRouter } from "expo-router";
+interface BackRouter<T> {
+  canGoBack: () => boolean;
+  back: () => void;
+  replace: (href: T) => void;
+  dismissTo: (href: T) => void;
+}
 
 type DirtyExitFallback = (action: () => void) => boolean;
 
 let dirtyExitFallback: DirtyExitFallback | null = null;
 
-/**
- * Helix's: a direct link has no stack action for `usePreventRemove` to catch,
- * so the focused dirty form registers the same question for the back control.
- */
+/** A direct link has no stack action for `usePreventRemove` to catch, so the focused dirty form registers the same question for the back control. */
 export function registerDirtyExitFallback(handler: DirtyExitFallback): () => void {
   dirtyExitFallback = handler;
   return () => {
@@ -15,13 +17,8 @@ export function registerDirtyExitFallback(handler: DirtyExitFallback): () => voi
   };
 }
 
-/**
- * Back to where the person came from, or to the screen's parent when there is
- * nowhere to go back to: a direct link, a hand-typed URL, a stale bookmark.
- * Helix's `navigateBack`. A dirty form answers first, and its confirmed exit
- * goes back TO the parent (`dismissTo`) rather than replacing the form with it.
- */
-export function navigateBack(router: ImperativeRouter, fallback: Href): void {
+export function navigateBack<T>(router: BackRouter<T>, fallback: T): void {
+  // A dirty form answers first; its confirmed exit goes back TO the parent (`dismissTo`), never replaces the form, or a second tab stack mounts.
   if (dirtyExitFallback?.(() => router.dismissTo(fallback))) return;
   if (router.canGoBack()) router.back();
   else router.replace(fallback);

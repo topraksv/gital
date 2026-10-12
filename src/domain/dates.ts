@@ -1,11 +1,10 @@
 /**
- * Calendar days, Helix's (`src/domain/dates.ts`) in the part Gital uses: a
- * day is a local `YYYY-MM-DD` string and a month a `YYYY-MM` key, so no
- * time zone reaches a comparison.
+ * Calendar days: a day is a local `YYYY-MM-DD` string and a month a `YYYY-MM`
+ * key, so no time zone reaches a comparison.
  */
 
 export type ISODate = string;
-export type MonthKey = string;
+type MonthKey = string;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -45,16 +44,16 @@ export function daysBetweenISO(a: ISODate, b: ISODate): number {
   return Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
 }
 
-/** The day `delta` days from `date`, at noon so a clock change moves nothing (Helix's). */
+/** The day `delta` days from `date`, at noon so a clock change moves nothing. */
 export function addDaysISO(date: ISODate, delta: number): ISODate {
   const d = new Date(`${date}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + delta);
   return d.toISOString().slice(0, 10);
 }
 
-export type PartOfDay = "night" | "morning" | "day" | "evening";
+type PartOfDay = "night" | "morning" | "day" | "evening";
 
-/** Helix's greeting hours, on the device's clock: before 6 is still night. */
+/** Greeting hours on the device's clock: before 6 is still night. */
 export function partOfDay(now: Date = new Date()): PartOfDay {
   const hour = now.getHours();
   if (hour < 6) return "night";

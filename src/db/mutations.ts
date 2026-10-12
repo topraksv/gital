@@ -1,13 +1,12 @@
 /**
- * The write layer, Helix's (`src/db/mutations.ts`). Every write goes through
+ * The write layer. Every write goes through
  * `writeRows`, which in one transaction upserts the row and queues its outbox
  * event, so the screen never waits on the network and sync never misses a
  * write. Deletes are tombstones, which is also what undo restores from.
  *
- * Where it departs: Helix stamps every row with the signed-in `user_id` and
- * refuses to overwrite another account's row. A Gital device holds one
- * account's rows, the push stamps the person on a personal row, and the
- * server decides who may write a list's (`docs/ARCHITECTURE.md`).
+ * Rows carry no `user_id`: a device holds one account's rows, the push stamps
+ * the person on a personal row, and the server decides who may write a list's
+ * (`docs/ARCHITECTURE.md`).
  */
 
 import { getTableColumns } from "drizzle-orm";
@@ -58,9 +57,8 @@ export function fromDbShape(table: SyncedTableName, dbRow: object): Record<strin
 
 /**
  * A delete moves the generation on by exactly one; an edit or an undo keeps
- * the highest generation already seen. Helix's `sync/tombstone-policy.ts`,
- * kept here because it decides what a write stores, and this layer may not
- * import sync.
+ * the highest generation already seen. Kept here because it decides what a
+ * write stores, and this layer may not import sync.
  */
 function resolveTombstoneVersion(
   existing: { deletedAt: string | null; tombstoneVersion: number } | null,
@@ -281,7 +279,7 @@ export async function pendingOutboxCount(): Promise<number> {
 
 /**
  * Every row this device holds, for a sign-out, a deleted account or another
- * account signing in (Helix's). One transaction, so a failure leaves the
+ * account signing in. One transaction, so a failure leaves the
  * workspace whole and its account still signed in.
  */
 export async function resetLocalWorkspace(): Promise<void> {

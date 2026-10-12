@@ -50,14 +50,14 @@ test("a first list is made, written on, ticked and kept @cross-browser", async (
   await expect(milk).toBeChecked();
 
   // A sheet taller than the window stops short of its top edge, so its title
-  // is there to pull it away by (the owner, 2026-09-30).
+  // is there to pull it away by.
   await page.getByRole("button", { name: "Katalogdan seç" }).click();
   const catalogue = page.getByRole("dialog", { name: "Katalog" });
   const heading = catalogue.getByRole("heading", { name: "Katalog" });
   const resting = (await heading.boundingBox())!;
   expect(resting.y).toBeGreaterThan(24);
   // Scrolled deep into its body, the title is still where it stopped: it is
-  // what pulls the sheet away (2026-10-09).
+  // what pulls the sheet away.
   await page.mouse.move(resting.x + 20, resting.y + 300);
   await page.mouse.wheel(0, 2000);
   await expect(catalogue.getByText("Süt", { exact: true }).first()).not.toBeInViewport();
@@ -91,7 +91,7 @@ test("what is already at home goes into the pantry by hand, and stays after a re
   await expect(page.getByRole("button", { name: "Un, 2 kg" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Tuz, 1 adet" })).toBeVisible();
 
-  // The list's suggestions, here too (the owner asked 2026-09-27).
+  // The list's suggestions, here too.
   await page.getByRole("textbox", { name: "Kilere ürün ekle" }).fill("pey");
   await page.getByRole("button", { name: "Beyaz peynir ürününü ekle" }).click();
   await expect(page.getByRole("button", { name: "Beyaz peynir, 1 adet" })).toBeVisible();
@@ -129,7 +129,7 @@ test("a second tab waits for the first and opens when it closes", async ({ page,
 
   const second = await context.newPage();
   await second.goto("/gital/");
-  await expect(second.getByText("Gital başka bir sekmede açık", { exact: false })).toBeVisible({ timeout: 15_000 });
+  await expect(second.getByText("Gital başka bir sekmede açık", { exact: false })).toBeVisible();
   await expect(second.getByRole("button", { name: "Tekrar Dene" })).toHaveCount(0);
 
   await page.close();

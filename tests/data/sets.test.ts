@@ -4,7 +4,6 @@
  * a pasted list is, and deleted with its undo.
  */
 
-import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,10 +14,7 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-vi.mock("expo-crypto", () => ({
-  CryptoDigestAlgorithm: { SHA256: "SHA256" },
-  digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
-}));
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 
 const { createSet, deleteSet, readSets, restoreSet } = await import("../../src/data/sets");
 const { importEntries, readItems } = await import("../../src/data/items");

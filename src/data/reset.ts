@@ -1,11 +1,7 @@
 /**
- * Resetting the data (SPEC 9.1), Helix's `data/repo/reset.ts` for a
- * household's records: the person chooses parts, and each goes whole with
- * what hangs from it. Everything leaves as a tombstone, so the account's other
- * devices follow; settings never go, since a reset keeps the account.
- *
- * Helix's date range is left out: its parts are ledgers a year deep, and a
- * shopping list's history is the one part here with dates at all.
+ * Resetting the data (SPEC 9.1): the person chooses parts, and each goes whole
+ * with what hangs from it. Everything leaves as a tombstone, so the account's
+ * other devices follow; settings never go, since a reset keeps the account.
  */
 
 import { getSqliteAsync } from "../db/client";

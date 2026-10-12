@@ -1,6 +1,5 @@
 /**
- * The local SQLite schema, in Helix's conventions (`~/helix/src/db/schema.ts`):
- * ids are uuidv7 strings minted on the device, timestamps are ISO-8601 UTC
+ * The local SQLite schema: ids are uuidv7 strings minted on the device, timestamps are ISO-8601 UTC
  * strings, and a row is only ever deleted by stamping `deleted_at`, because
  * sync needs the tombstone and undo restores from it.
  *
@@ -18,12 +17,12 @@ import { UNITS } from "../domain/items";
  * keeps apart. A household (SPEC 12.13) is a `pantry` list only the server
  * makes, whose id is its owner's: it holds the members, and no screen lists it.
  */
-export const LIST_KINDS = ["shop", "wish", "pantry"] as const;
+const LIST_KINDS = ["shop", "wish", "pantry"] as const;
 export type ListKind = (typeof LIST_KINDS)[number];
 
 /**
- * Helix's sync columns without its `user_id`: a Gital row is scoped by its list
- * or by its person, never both, so the scope column belongs to each table.
+ * The sync columns, without a `user_id`: a row is scoped by its list or by its
+ * person, never both, so the scope column belongs to each table.
  */
 const syncColumns = {
   id: text("id").primaryKey(),
@@ -46,7 +45,7 @@ export const lists = sqliteTable("lists", {
   pantry: integer("pantry", { mode: "boolean" }).notNull().default(true),
 });
 
-export const MEMBER_ROLES = ["owner", "editor", "viewer"] as const;
+const MEMBER_ROLES = ["owner", "editor", "viewer"] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
 /**
@@ -82,7 +81,7 @@ export const items = sqliteTable(
     name: text("name").notNull(),
     quantityMilli: integer("quantity_milli"),
     unit: text("unit", { enum: UNITS }),
-    /** Helix's order column. A new item takes the lowest, so it lands on top. */
+    /** A new item takes the lowest, so it lands on top. */
     sortOrder: integer("sort_order").notNull().default(0),
     checkedAt: text("checked_at"),
     note: text("note"),
@@ -119,7 +118,7 @@ export const shops = sqliteTable(
     finishedAt: text("finished_at").notNull(),
     /** The receipt's total in kuruş, typed over the sum of its prices; `null` is that sum (SPEC 3.8). */
     totalMinor: integer("total_minor"),
-    /** The receipt's photo (the owner asked 2026-09-27), in `photos`. */
+    /** The receipt's photo in `photos`. */
     photoId: text("photo_id"),
     /** Set with the tombstone when a history reset took it, which is no undo: a Kiler keeps what it brought. */
     clearedAt: text("cleared_at"),
@@ -231,7 +230,7 @@ export const pantryMoves = sqliteTable(
 );
 
 /**
- * What follows the person to every device, Helix's key and JSON value: today
+ * What follows the person to every device, as a key and a JSON value: today
  * whether the account is frozen (SPEC 9.1). The id comes from the key
  * (`src/db/ids.ts`), so two devices writing one setting meet one row.
  */
@@ -243,8 +242,8 @@ export const settings = sqliteTable("settings", {
 
 /**
  * Local only: a photo's bytes, as JPEG data URIs. A row names it by id; the
- * bytes never ride the outbox, because the decision of 2026-09-23 puts them
- * in Storage, beside the row rather than in it. A photo is never edited — a
+ * bytes never ride the outbox: they go to Storage, beside the row rather
+ * than in it. A photo is never edited — a
  * new one is a new id — so an undo that puts the old id back finds it here.
  */
 export const photos = sqliteTable("photos", {

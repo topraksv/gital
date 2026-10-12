@@ -18,8 +18,8 @@ import SunMedium from "lucide-react-native/icons/sun-medium";
 import UserRoundPen from "lucide-react-native/icons/user-round-pen";
 
 import { useSession } from "../../auth/session";
-import { useSettings } from "../../data/hooks";
-import { memberNameOf, setMemberName } from "../../data/settings";
+import { useMemberName } from "../../data/hooks";
+import { setMemberName } from "../../data/settings";
 import { partOfDay } from "../../domain/dates";
 import { NAME_MAX } from "../../domain/names";
 import type { ShoppingDay } from "../../domain/reminders";
@@ -38,7 +38,8 @@ import { TourModal } from "../../ui/tour";
 import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, authHero, borderWidth, circle, controlSize, density, PALETTES, radius, spacing, type, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
 import { radioGroupKeys } from "../../ui/keys";
-import { leaveAccount, setAppearance } from "../_layout";
+import { leaveAccount } from "../../ui/operation-wait";
+import { setAppearance } from "../../ui/theme-transition";
 
 const THEMES: readonly [ThemePreference, string][] = [
   ["system", tr.settings.themeSystem],
@@ -52,11 +53,8 @@ const FAMILIES: readonly [PaletteId, string, string][] = [
   ["forest", tr.settings.paletteForest, tr.settings.paletteForestDesc],
 ];
 
-/**
- * Helix's settings hub (`docs/UI.md` section 1): cards of rows, each a mark,
- * a name, a line under it and what it does at the trailing edge. What changes
- * the account lives a row away, on Hesap Güvenliği, as Helix's does.
- */
+/** Cards of rows, each a mark, a name, a line and its control at the trailing edge (`docs/UI.md`
+ *  section 1); what changes the account lives a row away, on Hesap Güvenliği. */
 export default function SettingsScreen() {
   const { palette, scheme, paletteId, preference } = useTheme();
   const { width } = useWindowDimensions();
@@ -95,8 +93,7 @@ export default function SettingsScreen() {
             />
           ))}
         </View>
-        {/* Helix keeps what only a phone can do off the web page rather than
-            explaining there why it is missing. */}
+        {/* What only a phone can do is left off the web rather than explained there. */}
         {remindersAvailable ? <Reminders /> : null}
       </Card>
       <Card rows>
@@ -137,16 +134,11 @@ export default function SettingsScreen() {
   );
 }
 
-/**
- * Helix's dashboard greeting, the mark beside it, under the page's own title
- * rather than in its place: the five tabs keep one title line, and a screen
- * reader still lands on Ayarlar first. The tab stays mounted, so the hour is
- * read again on the hour, as Helix's `useHourTick` learned to, and the mark
- * draws itself once, on the tab's first mount.
- */
+/** Under the page's own title, so the five tabs keep one title line. The tab stays mounted, so the
+ *  hour is read again on the hour. */
 function Greeting() {
   const { palette } = useTheme();
-  const name = memberNameOf(useSettings().data);
+  const name = useMemberName();
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const next = new Date(now);
@@ -167,13 +159,9 @@ function Greeting() {
   );
 }
 
-/**
- * The name the people a list is shared with see. Asked once, beside the first
- * invitation; this is where it is put right, as it had to be when one inviter
- * typed the other's name there (2026-10-02).
- */
+/** The name the people a list is shared with see: asked beside the first invitation, put right here. */
 function NameRow() {
-  const name = memberNameOf(useSettings().data);
+  const name = useMemberName();
   const rename = async () => {
     const typed = await appPrompt(tr.settings.name, tr.settings.nameMessage, { confirmLabel: tr.common.save, initialValue: name ?? "", maxLength: NAME_MAX });
     if (typed != null) await setMemberName(typed).catch(() => appError(tr.errors.saveFailed));
@@ -191,16 +179,13 @@ function ShoppingNoticesRow() {
   return <ToggleRow icon={ShoppingBasket} title={tr.settings.shoppingNotices} subtitle={tr.settings.shoppingNoticesHint} value={on} onValueChange={setShoppingNoticesAllowed} />;
 }
 
-/** Helix asks before signing out, and the layout asks again only if something would be lost. */
+/** Asked before signing out; the layout asks again only if something would be lost. */
 async function signOut() {
   if (await appConfirm(tr.account.signOutTitle, tr.account.signOutDescription, tr.account.signOut)) await leaveAccount();
 }
 
-/**
- * Sync as Helix shows it (SPEC 10.3): one row with its state, when it last
- * finished and a button to run it now, and a row to what the server refused,
- * which opens on a screen of its own since nothing is lost and nothing is urgent.
- */
+/** Sync (SPEC 10.3): its state, when it last finished, a button to run it; what the server refused
+ *  opens on its own screen, since nothing is lost and nothing is urgent. */
 function Sync() {
   const { palette } = useTheme();
   const userId = useSession((s) => s.userId);

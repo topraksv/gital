@@ -4,21 +4,24 @@
  * is only ever the set of rows still on screen, so deleting the last chosen
  * one, or another device removing it, ends the selection without a handler.
  */
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState, type ComponentProps, type ReactNode } from "react";
 import { BackHandler, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter, type Href } from "expo-router";
 import ListChecks from "lucide-react-native/icons/list-checks";
 import Trash from "lucide-react-native/icons/trash";
 import X from "lucide-react-native/icons/x";
 
+import { deleteLists, restoreList } from "../data/lists";
 import { tr } from "../i18n/tr";
-import { IconButton } from "./components";
+import { IconButton, LinkCard, SlideUp } from "./components";
 import { appError } from "./dialog";
-import { mediumImpact, selectionTap } from "./haptics";
+import { mediumTap, selectionTap } from "./haptics";
+import { RowMotion, RowSwipe } from "./list-motion";
+import { navigateBack } from "./navigation";
 import { showUndo } from "./undo";
-import { spacing } from "./theme";
+import { motion, spacing } from "./theme";
 
-export interface Selection<Row> {
+interface Selection<Row> {
   /** Whether anything is chosen; rows swap their chevron or tick for the circle. */
   active: boolean;
   count: number;
@@ -74,7 +77,7 @@ export function useSelection<Row extends { id: string }>(rows: readonly Row[]): 
     has: (id) => raw.has(id),
     chosen,
     begin: (id) => {
-      mediumImpact();
+      mediumTap();
       setRaw((before) => new Set(before).add(id));
     },
     toggle: (id) => {
@@ -93,13 +96,7 @@ export function useSelection<Row extends { id: string }>(rows: readonly Row[]): 
   };
 }
 
-/**
- * A screen's title and header actions, which a selection takes over while it
- * is under way: the count, and select all, delete and cancel. Three icon
- * buttons, 44 points each: with a 360 dp header that leaves the count its
- * room, and each button's label is what a screen reader hears. Delete ends
- * the selection and hands over the rows it held.
- */
+/** The header a selection takes over: the count, and select all, delete and cancel as icon buttons, so a narrow header keeps the count its room. */
 export function selectionHeader<Row>(selection: Selection<Row>, onDelete: (chosen: Row[]) => void, title: string | undefined, actions: ReactNode) {
   if (!selection.active) return { title, actions };
   const remove = () => {
@@ -130,7 +127,7 @@ export async function deleteWithUndo<Snapshot>(
   write: (ids: string[]) => Promise<Snapshot | null | undefined>,
   undo: (snapshot: Snapshot) => Promise<unknown>,
 ): Promise<void> {
-  mediumImpact();
+  mediumTap();
   try {
     const snapshot = await write(rows.map((row) => row.id));
     if (!snapshot) return;
@@ -139,4 +136,55 @@ export async function deleteWithUndo<Snapshot>(
   } catch {
     void appError(tr.errors.deleteFailed);
   }
+}
+
+/** The open list's or collection's deletion: kept as `leaving` while the screen animates away, then back to `home`. */
+export function useLeaveDeleted<Row extends { id: string; name: string }>(home: Href) {
+  const router = useRouter();
+  const [leaving, setLeaving] = useState<Row | null>(null);
+  const remove = async (current: Row) => {
+    setLeaving(current);
+    mediumTap();
+    try {
+      const snapshot = await deleteLists([current.id]);
+      if (snapshot) showUndo(tr.common.deleted(current.name), () => restoreList(snapshot));
+      navigateBack(router, home);
+    } catch {
+      setLeaving(null);
+      void appError(tr.errors.deleteFailed);
+    }
+  };
+  return { leaving, remove };
+}
+
+/** A card of Listeler or İstekler: only an owner can delete it, so only an owner swipes or chooses it. */
+export function OwnedCard({
+  item,
+  selection,
+  deleteLabel,
+  onDelete,
+  open,
+  ...card
+}: {
+  item: { id: string; owner: boolean };
+  selection: Selection<unknown>;
+  deleteLabel: string;
+  onDelete: () => void;
+  open: () => void;
+} & Omit<ComponentProps<typeof LinkCard>, "onOpen" | "onLongPress" | "selected">) {
+  const left = item.owner ? { icon: Trash, tone: "destructive" as const, label: deleteLabel, run: onDelete } : undefined;
+  return (
+    <RowMotion>
+      <SlideUp distance={motion.travel.bar}>
+        <RowSwipe left={selection.active ? undefined : left}>
+          <LinkCard
+            {...card}
+            onOpen={() => (selection.active ? (item.owner ? selection.toggle(item.id) : undefined) : open())}
+            onLongPress={item.owner ? () => selection.begin(item.id) : undefined}
+            selected={selection.active && item.owner ? selection.has(item.id) : undefined}
+          />
+        </RowSwipe>
+      </SlideUp>
+    </RowMotion>
+  );
 }

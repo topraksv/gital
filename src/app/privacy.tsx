@@ -1,9 +1,5 @@
-/**
- * The KVKK notice (SPEC 9.1) where Ayarlar and feedback reach it, on a route
- * that opens before an account exists. Only the route: the text and its shape
- * are `LegalNoticeBody`, shared with the sheet sign-up opens, so the copy read
- * before consenting and this one cannot drift apart.
- */
+/** The KVKK notice (SPEC 9.1) on a route that opens before an account exists. Only the route: the
+ *  text is `LegalNoticeBody`, shared with sign-up's sheet so the two cannot drift. */
 
 import { useSession } from "../auth/session";
 import { Screen } from "../ui/components";

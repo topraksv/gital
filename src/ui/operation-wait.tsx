@@ -1,29 +1,30 @@
 /**
- * Helix's `OperationFlow` waiting page: what covers the app while signing in,
- * signing out, freezing or deleting runs. Each names itself, in its own
- * colour, because all four end on the same blank moment and a bare spinner
- * would make a deletion look like a sign-out. The halo's breath is the only
- * motion on the page, opacity and scale only so it runs off the JS thread
- * that the operation is busy on; reduced motion holds it still.
+ * The page over the app while an account operation runs, each in its own colour: all four end on the same
+ * blank moment, and a bare spinner would make a deletion look like a sign-out. Opacity and scale only, off the busy JS thread.
  */
 
+import { useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
 import KeyRound from "lucide-react-native/icons/key-round";
+import LockOpen from "lucide-react-native/icons/lock-open";
 import LogOut from "lucide-react-native/icons/log-out";
 import Snowflake from "lucide-react-native/icons/snowflake";
 import Trash from "lucide-react-native/icons/trash";
 
-import type { AccountOperation } from "../auth/session";
+import { SIGN_OUT_PENDING_CHANGES, useSession, type AccountOperation } from "../auth/session";
+import { setAccountFrozen } from "../data/settings";
 import { tr } from "../i18n/tr";
+import { Button, EmptyState } from "./components";
+import { appConfirm, appError, appPrompt } from "./dialog";
 import { useWaitBreath } from "./motion";
-import { borderWidth, circle, motion, operationWait, spacing, type, useTheme, type Palette } from "./theme";
+import { borderWidth, circle, motion, operationWait, spacing, type, useTheme } from "./theme";
 
-const VISUALS: Record<AccountOperation, readonly [LucideIcon, (palette: Palette) => string]> = {
-  "sign-in": [KeyRound, (palette) => palette.primary],
-  "sign-out": [LogOut, (palette) => palette.secondary],
-  freeze: [Snowflake, (palette) => palette.warning],
-  delete: [Trash, (palette) => palette.error],
+const VISUALS: Record<AccountOperation, readonly [LucideIcon, "primary" | "secondary" | "warning" | "error"]> = {
+  "sign-in": [KeyRound, "primary"],
+  "sign-out": [LogOut, "secondary"],
+  freeze: [Snowflake, "warning"],
+  delete: [Trash, "error"],
 };
 
 export function OperationWait({ operation }: { operation: AccountOperation }) {
@@ -31,8 +32,8 @@ export function OperationWait({ operation }: { operation: AccountOperation }) {
   const breath = useWaitBreath(motion.operation.breath, 0.7);
   if (!breath) return null;
 
-  const [Icon, ink] = VISUALS[operation];
-  const color = ink(palette);
+  const [Icon, tone] = VISUALS[operation];
+  const color = palette[tone];
   const { title, body } = tr.operation[operation];
   return (
     <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center", padding: spacing.lg, backgroundColor: palette.background }]}>
@@ -76,6 +77,55 @@ export function OperationWait({ operation }: { operation: AccountOperation }) {
           </Text>
         </View>
       </View>
+    </View>
+  );
+}
+
+/** Sign out, asking first when a change would be left unsent. */
+export async function leaveAccount(): Promise<void> {
+  const { signOut } = useSession.getState();
+  let refused = await signOut();
+  if (refused === SIGN_OUT_PENDING_CHANGES) {
+    if (!(await appConfirm(tr.account.signOutTitle, SIGN_OUT_PENDING_CHANGES, tr.account.signOutAnyway))) return;
+    refused = await signOut({ force: true });
+  }
+  if (refused) await appError(refused);
+}
+
+/** In place of the app on every device a frozen account holds (SPEC 9.1); reopened with the
+ *  password, since the web has no fingerprint. */
+export function FrozenGate() {
+  const [busy, setBusy] = useState(false);
+  const act = (work: () => Promise<void>) => async () => {
+    setBusy(true);
+    try {
+      await work();
+    } catch {
+      await appError(tr.auth.errGeneric);
+    }
+    setBusy(false);
+  };
+  const reopen = act(async () => {
+    const password = await appPrompt(tr.account.confirmPasswordTitle, tr.account.reopenPasswordBody, { confirmLabel: tr.common.done, kind: "password" });
+    if (password == null) return;
+    const refused = await useSession.getState().verifyPassword(password);
+    if (refused) await appError(refused);
+    else await setAccountFrozen(false);
+  });
+  const leave = act(leaveAccount);
+  return (
+    <View style={{ flex: 1 }}>
+      <EmptyState
+        icon={Snowflake}
+        title={tr.account.frozenTitle}
+        hint={tr.account.frozenBody}
+        action={
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm }}>
+            <Button label={tr.account.reopen} icon={LockOpen} disabled={busy} onPress={() => void reopen()} />
+            <Button label={tr.account.signOut} icon={LogOut} variant="ghost" disabled={busy} onPress={() => void leave()} />
+          </View>
+        }
+      />
     </View>
   );
 }

@@ -1,7 +1,6 @@
 /**
  * What sync set aside (SPEC 10.3), for the screen that shows it: each is a
- * clue that a row stays on this device alone, never the row itself. Helix's
- * `requeueSyncDeadLetter` and `discardSyncDeadLetter`.
+ * clue that a row stays on this device alone, never the row itself.
  */
 
 import { asc, eq } from "drizzle-orm";

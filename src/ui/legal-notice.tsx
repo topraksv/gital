@@ -1,5 +1,5 @@
 /**
- * Helix's KVKK notice, one body in two frames: `src/app/privacy.tsx`, which
+ * The KVKK notice, one body in two frames: `src/app/privacy.tsx`, which
  * Ayarlar and feedback link to, and the sheet sign-up opens over its form. A
  * legal text that exists twice will one day say two things, and the copy read
  * before consenting is the worst place for that.
@@ -22,7 +22,7 @@ import { useModalSlot } from "./dialog";
 import { selectionTap } from "./haptics";
 import { interactionSurface } from "./interaction";
 import { useReducedMotion } from "./motion";
-import { shouldPresentAsSheet } from "./responsive";
+import { shouldPresentOptionsAsSheet } from "./responsive";
 import { alpha, borderWidth, controlSize, font, legalNotice, offset, radius, spacing, themeShadow, type, useTheme } from "./theme";
 
 /** Article 11's own lettering, so a reader holding the statute lines them up. */
@@ -100,7 +100,7 @@ export function LegalNoticeBody() {
  * The notice over the form, for sign-up, which must not navigate away: a push
  * would cost what was typed. The scrim is the card's sibling, not its parent,
  * because a pressable around a scroll view swallows the drag that moves it —
- * Helix shipped a notice nobody could read past its first screen that way.
+ * nested that way, the notice could not be read past its first screen.
  * Acceptance is the last thing in the scroll, where the reading ends: the
  * distance is the mechanism, and nothing measures how far anyone scrolled.
  */
@@ -108,7 +108,7 @@ export function LegalNoticeSheet({ onClose, onAccept }: { onClose: () => void; o
   const { palette } = useTheme();
   const reducedMotion = useReducedMotion();
   const { width, height } = useWindowDimensions();
-  const asSheet = shouldPresentAsSheet(width);
+  const asSheet = shouldPresentOptionsAsSheet(width);
   const titleRef = useModalAccessibility(true);
   const modal = useModalSlot("sheet");
   return (

@@ -1,8 +1,4 @@
-/**
- * The phone's screen hold, for `stay-awake.ts`. The web bundles
- * `screen-hold.ts` in its place, so `expo-keep-awake` never reaches the web
- * entry, which held it for nothing (about 3.5 KB, 2026-09-26).
- */
+/** The phone's screen hold; the web bundles `screen-hold.ts` instead, keeping `expo-keep-awake` out of its entry. */
 
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 

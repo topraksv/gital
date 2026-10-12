@@ -13,7 +13,7 @@
 
 import type { RealtimeChannel, RealtimeClient } from "@supabase/realtime-js";
 
-export interface LiveOptions {
+interface LiveOptions {
   url: string;
   apiKey: string;
   accessToken: () => Promise<string | null>;

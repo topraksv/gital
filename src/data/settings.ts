@@ -1,6 +1,6 @@
 /**
  * What follows the person to every device (`docs/ARCHITECTURE.md`, "Tables"),
- * Helix's key and JSON value: whether the account is frozen (SPEC 9.1), which
+ * a key and its JSON value: whether the account is frozen (SPEC 9.1), which
  * is why a frozen account locks every device, the name a shared list's
  * other members see (SPEC 1.4), each device's last sign-in (SPEC 9.4), and
  * the order of the person's lists (SPEC 1.1).
@@ -26,7 +26,7 @@ const RESTOCK_ASIDE = "restock_aside:";
  */
 export const RESTOCK_ASIDE_MAX = 80;
 
-export interface Setting {
+interface Setting {
   key: string;
   /** JSON, as written. */
   value: string;

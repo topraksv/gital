@@ -3,13 +3,12 @@
  * from these sets, never a colour value or a file: `src/ui/theme.ts` owns what
  * each colour is in light and dark, and `src/ui/list-look.ts` which picture
  * each name draws — so a palette can change without stranding a stored hex.
- * Ported from Helix's `matrix-colors.ts`.
  */
 
 import { foldName } from "./items";
 
-// Named for their hue, which is the only thing a name can promise; six, each
-// measured at least 11.9 ΔE from the nearest in light and 16 in dark.
+// Named for their hue, which is the only thing a name can promise; six, kept
+// far enough apart in light and dark to tell at a glance.
 export const LIST_COLORS = ["terracotta", "mustard", "green", "teal", "lavender", "rose"] as const;
 export type ListColor = (typeof LIST_COLORS)[number];
 
@@ -89,9 +88,8 @@ export const NAME_WORDS: readonly (readonly [ListIcon, readonly string[]])[] = [
 ];
 
 /**
- * The picture a new list's name says (the owner asked 2026-09-27: "pazar
- * diyince ona göre default bir logo gelsin"), from its first word that says
- * one; the list panel changes it as any other. `null` draws the default.
+ * The picture a new list's name says, from its first word that says one; the
+ * list panel changes it as any other. `null` draws the default.
  */
 export function iconForName(name: string): ListIcon | null {
   for (const [word] of foldName(name).matchAll(/\p{L}+/gu)) {

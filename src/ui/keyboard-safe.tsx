@@ -1,5 +1,5 @@
 /**
- * One keyboard contract for every form surface, Helix's. Native follows the
+ * One keyboard contract for every form surface. Native follows the
  * keyboard with react-native-keyboard-controller (the `.native` sibling, which
  * keeps its Reanimated worklets out of the web bundle). A mobile browser has
  * no keyboard event, so here the focused input is brought back into the

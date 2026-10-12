@@ -166,6 +166,12 @@ export function noteFrom(input: string | null | undefined): string | null {
   return input == null ? null : nameFrom(input, NOTE_MAX);
 }
 
+/** A product named twice keeps its first place and takes the last quantity and note given. */
+export function mergeEntry<T extends ListedEntry>(held: T | undefined, entry: T): T {
+  const quantity = entry.quantityMilli == null && held ? held : entry;
+  return { ...(held ?? entry), quantityMilli: quantity.quantityMilli, unit: quantity.unit, note: entry.note ?? held?.note ?? null };
+}
+
 /** Only an entry's own fields, with no note and not urgent. */
 export function bareEntry({ name, quantityMilli, unit }: Entry): ListedEntry {
   return { name, quantityMilli, unit, note: null, urgent: false };
@@ -326,7 +332,7 @@ const SUGGESTIONS_MAX = 5;
  * name, folded, and `whole` the same with its quantity's words, for a product
  * whose name begins with them ("yarım ya" is the start of Yarım yağlı süt).
  */
-export interface TypedProduct {
+interface TypedProduct {
   before: string;
   quantity: Quantity;
   key: string;

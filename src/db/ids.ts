@@ -1,7 +1,7 @@
 /**
- * Ids for rows two devices can make on their own: Helix's `deterministicId`
- * (`src/db/ids.ts`). The id is a hash of the row's natural key, so both
- * devices mint the same primary key and sync meets one row instead of two.
+ * Ids for rows two devices can make on their own. The id is a hash of the
+ * row's natural key, so both devices mint the same primary key and sync meets
+ * one row instead of two.
  * Every other row takes a uuidv7 where it is made.
  */
 

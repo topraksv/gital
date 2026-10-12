@@ -1,6 +1,5 @@
 /**
- * Posting a report to the function that mails it (SPEC 13.1), Helix's
- * `services/feedback.ts`. What it owns is telling apart the answers a person
+ * Posting a report to the function that mails it (SPEC 13.1). What it owns is telling apart the answers a person
  * can act on: a build with no cloud, a session gone, a limit to wait out, and
  * everything else, which keeps the draft for another try. Signed out, a report
  * carries the address to answer and no screenshot (migration 17).

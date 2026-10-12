@@ -21,18 +21,14 @@ const ENDED = {
   done: [tr.auth.resetSuccessTitle, tr.auth.resetSuccessBody],
 } as const;
 
-/**
- * Where a reset e-mail's link lands (SPEC 9.1). On the web this page runs
- * alone: the root layout opens no database for it, since the tab the mail app
- * opened may sit beside one that holds it, and it leaves by loading the app
- * afresh (`docs/ARCHITECTURE.md`, 2026-09-26 on accounts).
- */
+/** Where a reset e-mail's link lands (SPEC 9.1). On the web it runs alone, with no database, since
+ *  the tab the mail app opened may sit beside one that holds it; it leaves by loading the app afresh. */
 export default function ResetPasswordScreen() {
   const { palette } = useTheme();
   const { preparePasswordRecovery, completePasswordRecovery } = useSession();
   const [state, setState] = useState<State>("checking");
   const [password, setPassword] = useState("");
-  const [again, setAgain] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -52,20 +48,25 @@ export default function ResetPasswordScreen() {
     };
   }, [preparePasswordRecovery, attempt]);
 
-  const valid = isValidNewPassword(password) && again === password && !busy;
+  const valid = isValidNewPassword(password) && confirmation === password && !busy;
   const save = async () => {
     if (!valid) return;
     setBusy(true);
     setError(null);
     try {
       const failed = await completePasswordRecovery(password);
-      if (failed === tr.auth.resetInvalidBody) setState("invalid");
+      if (failed === tr.auth.resetExpiredBody) setState("expired");
+      else if (failed === tr.auth.resetInvalidBody) setState("invalid");
       else if (failed) setError(failed);
       else setState("done");
     } catch {
       setError(tr.auth.errGeneric);
     }
     setBusy(false);
+  };
+  const edit = (set: (value: string) => void) => (value: string) => {
+    set(value);
+    setError(null);
   };
   const leave = () => {
     if (Platform.OS === "web") location.assign(`${location.origin}${process.env.EXPO_BASE_URL ?? ""}/`);
@@ -116,10 +117,7 @@ export default function ResetPasswordScreen() {
         <TextField
           label={tr.auth.newPassword}
           value={password}
-          onChangeText={(value) => {
-            setPassword(value);
-            setError(null);
-          }}
+          onChangeText={edit(setPassword)}
           secure
           autoCapitalize="none"
           autoComplete="new-password"
@@ -129,18 +127,15 @@ export default function ResetPasswordScreen() {
         />
         <TextField
           label={tr.auth.confirmNewPassword}
-          value={again}
-          onChangeText={(value) => {
-            setAgain(value);
-            setError(null);
-          }}
+          value={confirmation}
+          onChangeText={edit(setConfirmation)}
           secure
           autoCapitalize="none"
           autoComplete="new-password"
           textContentType="newPassword"
           returnKeyType="go"
           onSubmitEditing={() => void save()}
-          error={again !== "" && again !== password ? tr.auth.passwordsMismatch : null}
+          error={confirmation !== "" && confirmation !== password ? tr.auth.passwordsMismatch : null}
           style={{ marginBottom: spacing.md }}
         />
         {error ? <Notice tone="error" text={error} /> : null}
@@ -150,7 +145,6 @@ export default function ResetPasswordScreen() {
   );
 }
 
-/** Helix's round mark over the page's heading, tinted by what it says. */
 function ResultMark({ tone, icon: Icon }: { tone: "primary" | "success" | "error"; icon: LucideIcon }) {
   const { palette } = useTheme();
   return (

@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(75);
+select extensions.plan(76);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -367,6 +367,11 @@ select is(
 );
 select set_config('request.jwt.claim.sub', '20000000-0000-4000-8000-000000000002', true);
 select ok(public.record_feedback_send(), 'B''s limit is B''s own');
+-- Concurrency needs two sessions, so this pins the mechanism, not the race.
+select ok(
+  (select prosrc from pg_proc where oid = 'public.record_feedback_send()'::regprocedure) ~ 'pg_advisory_xact_lock',
+  'record_feedback_send serialises the calls of one account'
+);
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
 
 -- Migration 17: signed out, ten reports a day between everyone.

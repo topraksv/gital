@@ -1,15 +1,14 @@
 /**
- * Prices (`docs/SPEC.md` 3.8), in integer kuruş as Helix keeps money: floating
- * point never touches a stored amount. Ported from Helix's `src/domain/money.ts`
- * without the minus sign, which a price never has.
+ * Prices (`docs/SPEC.md` 3.8), in integer kuruş: floating point never touches a
+ * stored amount. No minus sign, which a price never has.
  */
 
 import { foldName, quantityOrOne, type Quantity, type Unit } from "./items";
 
 /**
  * 1.000.000.000,00, the check every money column carries on the server
- * (`00000000000003_sync.sql`). Helix's larger bound let a device keep a price
- * the server refused, and the whole row with it never reached the list.
+ * (`00000000000003_sync.sql`). A larger bound would let a device keep a price
+ * the server refuses, and the whole row would never reach the list.
  */
 export const MAX_PRICE_MINOR = 100_000_000_000;
 

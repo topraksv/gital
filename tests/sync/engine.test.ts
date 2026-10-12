@@ -4,11 +4,10 @@
  * shipped engine, against `fake-cloud.ts` — which keeps the server's clock,
  * its delete generations and its row rules. Only the network is a stand-in.
  *
- * The rule the outbox keeps, Helix's: a row leaves it only when the server
+ * The rule the outbox keeps: a row leaves it only when the server
  * has said it has it, under the session that sent it.
  */
 
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,10 +19,7 @@ vi.mock("../../src/db/client", async () => {
   const { sqliteClientMock } = await import("../helpers");
   return sqliteClientMock(() => harness.db!);
 });
-vi.mock("expo-crypto", () => ({
-  CryptoDigestAlgorithm: { SHA256: "SHA256" },
-  digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
-}));
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 // The update's own migration is the test's; what `migrateDb` does after any is the code's.
 vi.mock("../../src/db/migrations/migrations", () => ({ default: { journal: { entries: [{ idx: 0, when: 1, tag: "update" }] }, migrations: { get m0000() { return harness.update; } } } }));
 vi.mock("../../src/sync/supabase", () => ({ getSupabase: () => harness.cloud.client() }));
@@ -60,22 +56,17 @@ const {
   acceptInvite,
   answerOffer,
   createInvite,
-  heldInvite,
-  holdInvite,
-  inviteFromPage,
-  inviteLink,
   inviteToList,
-  inviteTokenFrom,
   offerList,
   peekInvite,
   useOffers,
 } = await import("../../src/sync/sharing");
 const { flushOutbox, pantryToBring, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
-const { purgeOwnPhotos, refusedForGood } = await import("../../src/sync/photos");
+const { purgeOwnPhotos } = await import("../../src/sync/photos");
 const { pulledOnce, useSyncStatus } = await import("../../src/sync/status");
 const { tr } = await import("../../src/i18n/tr");
-const { migratedDatabase } = await import("../helpers");
+const { change, migratedDatabase } = await import("../helpers");
 const { migrateDb } = await import("../../src/db/migrate");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 
@@ -106,6 +97,32 @@ const names = async (listId: string) => (await readItems(listId)).map((item) => 
 const serverRow = (table: string, id: string) => cloud.rows(table).find((row) => row.id === id);
 /** A JPEG as far as its first bytes go, which is as far as anything here reads. */
 const JPEG = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]).toString("base64")}`;
+const scan = (listId: string, name: string) => addScanned(listId, { name, note: null, photo: { data: JPEG, thumb: JPEG } });
+const itemNamed = async (listId: string, name: string) => (await readItems(listId)).find((item) => item.name === name)!;
+const memberId = async (listId: string, userId: string) => (await readMembers(listId)).find((member) => member.userId === userId)!.id;
+async function invite(listId: string, role: "editor" | "viewer", name: string) {
+  const made = await createInvite(listId, role, name);
+  if ("refused" in made) throw new Error(made.refused);
+  return made.token;
+}
+/** A build before 0021: it pulled the shop without the receipt's column, and the update adds it empty. */
+async function downgradeTo0020() {
+  devices.B.exec("ALTER TABLE shops DROP COLUMN photo_id");
+  harness.update = readFileSync("src/db/migrations/0021_shop_receipt.sql", "utf8");
+  await migrateDb();
+}
+/** A finished shop with a receipt, synced from A. */
+const shopWithReceipt = () =>
+  on("A", async () => {
+    const id = await createList("Market");
+    const [item] = await add(id, "süt");
+    await toggleChecked(item!);
+    await finishShop(id);
+    const [shop] = await readShops();
+    await setShopReceipt(shop!.id, { data: JPEG, thumb: JPEG });
+    await sync();
+    return shop!.id;
+  });
 
 beforeEach(() => {
   cloud = new FakeCloud();
@@ -113,7 +130,7 @@ beforeEach(() => {
   harness.cloud = cloud;
   harness.version = "1.4.1";
   harness.update = "SELECT 1";
-  devices ={ A: migratedDatabase(), B: migratedDatabase(), C: migratedDatabase(), D: migratedDatabase() };
+  devices = { A: migratedDatabase(), B: migratedDatabase(), C: migratedDatabase(), D: migratedDatabase() };
   useSyncStatus.getState().set({ state: "idle", error: null, lastSyncAt: null });
 });
 
@@ -333,9 +350,7 @@ async function sharedMarket(role: "editor" | "viewer" = "editor"): Promise<strin
     await sync();
   });
   const token = await on("A", async () => {
-    const made = await createInvite(listId, role, "Ömer");
-    if ("refused" in made) throw new Error(made.refused);
-    return made.token;
+    return invite(listId, role, "Ömer");
   });
   await on("C", async () => {
     expect(await acceptInvite(token, "Deniz")).toEqual({ listId });
@@ -363,8 +378,8 @@ describe("two people sharing a list", () => {
   it("brings a co-member's shop before the items it bought", async () => {
     const listId = await sharedMarket();
     await on("A", async () => {
-      const sut = (await readItems(listId)).find((item) => item.name === "süt")!;
-      await updateItem(sut.id, { name: "süt", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: 4590 });
+      const sut = await itemNamed(listId, "süt");
+      await updateItem(sut.id, change("süt", { priceMinor: 4590 }));
       await finishShop(listId);
       await sync();
     });
@@ -395,12 +410,12 @@ describe("two people sharing a list", () => {
   it("carries a tick from one person's phone to the other's, with whose it was", async () => {
     const listId = await sharedMarket();
     await on("C", async () => {
-      await toggleChecked((await readItems(listId)).find((item) => item.name === "süt")!.id);
+      await toggleChecked((await itemNamed(listId, "süt")).id);
       await sync();
     });
     await on("A", async () => {
       await sync();
-      const milk = (await readItems(listId)).find((item) => item.name === "süt")!;
+      const milk = await itemNamed(listId, "süt");
       expect(milk.checkedAt).not.toBeNull();
       expect(serverRow("items", milk.id)?.checked_by).toBe(OTHER);
     });
@@ -409,12 +424,12 @@ describe("two people sharing a list", () => {
   it("reads who is shopping from the others' ticks on open items, with the name they gave (SPEC 1.6)", async () => {
     const listId = await sharedMarket();
     await on("C", async () => {
-      await toggleChecked((await readItems(listId)).find((item) => item.name === "süt")!.id);
+      await toggleChecked((await itemNamed(listId, "süt")).id);
       await sync();
     });
     await on("A", async () => {
       await sync();
-      await toggleChecked((await readItems(listId)).find((item) => item.name === "elma")!.id);
+      await toggleChecked((await itemNamed(listId, "elma")).id);
       expect((await readShoppingTicks(USER)).map(({ listId: list, by, name }) => [list, by, name]), "one's own tick is not another shopper").toEqual([[listId, OTHER, "Deniz"]]);
       await finishShop(listId);
       expect(await readShoppingTicks(USER), "a finished shop takes its ticks off the list").toEqual([]);
@@ -425,7 +440,7 @@ describe("two people sharing a list", () => {
     const listId = await sharedMarket();
     await on("A", async () => {
       await sync();
-      await removeMember((await readMembers(listId)).find((member) => member.userId === OTHER)!.id);
+      await removeMember(await memberId(listId, OTHER));
       await sync();
     });
     await on("C", async () => {
@@ -497,7 +512,7 @@ describe("two people sharing a list", () => {
     const listId = await sharedMarket("viewer");
     await on("A", async () => {
       await sync();
-      await setMemberRole((await readMembers(listId)).find((member) => member.userId === OTHER)!.id, "editor");
+      await setMemberRole(await memberId(listId, OTHER), "editor");
       await sync();
     });
     await on("C", async () => {
@@ -516,13 +531,13 @@ describe("two people sharing a list", () => {
       expect(await views()).toEqual([["Kendi", false], ["Market", true]]);
       const kendi = (await readLists()).find((list) => list.name === "Kendi")!.id;
       const [yag] = await add(kendi, "yağ");
-      await updateItem(yag!, { name: "Yağ", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null }, { listId, keep: false });
+      await updateItem(yag!, change("Yağ"), { listId, keep: false });
       await sync();
       expect(await readDeadLetters()).toMatchObject([{ tableName: "items", reason: "refused" }]);
     });
     await on("A", async () => {
       await sync();
-      await setMemberRole((await readMembers(listId)).find((member) => member.userId === OTHER)!.id, "editor");
+      await setMemberRole(await memberId(listId, OTHER), "editor");
       await sync();
     });
     await on("C", async () => {
@@ -538,9 +553,7 @@ describe("two people sharing a list", () => {
       return id;
     });
     const token = await on("A", async () => {
-      const made = await createInvite(collection, "viewer", "Ömer");
-      if ("refused" in made) throw new Error(made.refused);
-      return made.token;
+      return invite(collection, "viewer", "Ömer");
     });
     await on("C", async () => {
       await acceptInvite(token, "Deniz");
@@ -555,38 +568,6 @@ describe("two people sharing a list", () => {
       await leaveList(listId, USER);
       expect(await pendingOutboxCount()).toBe(1);
     });
-  });
-
-  it("reads a link, or its bare token, and nothing else", () => {
-    const token = "a".repeat(64);
-    expect(inviteTokenFrom(` ${inviteLink(token)} `)).toBe(token);
-    expect(inviteTokenFrom(token)).toBe(token);
-    expect(inviteTokenFrom("https://example.com/gital/invite#" + token)).toBeNull();
-    expect(inviteTokenFrom("a".repeat(63))).toBeNull();
-  });
-
-  it("keeps the token a web invitation opened with, and only on its page", () => {
-    const token = "b".repeat(64);
-    expect(inviteFromPage({ pathname: "/gital/invite", hash: `#${token}` })).toBe(token);
-    expect(inviteFromPage({ pathname: "/gital/invite/", hash: `#${token}` })).toBe(token);
-    expect(inviteFromPage({ pathname: "/gital/", hash: `#${token}` })).toBeNull();
-    expect(inviteFromPage({ pathname: "/gital/invite", hash: "#nope" })).toBeNull();
-    expect(inviteFromPage(undefined)).toBeNull();
-  });
-
-  it("holds a web invitation for the first sign-in, through a reload, for the link's own seven days", async () => {
-    const token = "c".repeat(64);
-    const stored = (at: number) => harness.kv.set("gital.invite", JSON.stringify({ token, at }));
-    await holdInvite(token);
-    expect(await heldInvite(), "the sign-in screen only looks").toBe(token);
-    expect(await heldInvite({ take: true })).toBe(token);
-    expect(await heldInvite(), "the next account on this browser is not sent into it").toBeNull();
-    stored(Date.now());
-    expect(await heldInvite(), "a reload, or the confirmation's tab, finds it").toBe(token);
-    stored(Date.now() - 8 * 24 * 60 * 60 * 1000);
-    expect(await heldInvite()).toBeNull();
-    harness.kv.set("gital.invite", "{");
-    expect(await heldInvite()).toBeNull();
   });
 
   it("knows each person's part in a list: the owner's until someone else's row says otherwise", async () => {
@@ -604,7 +585,7 @@ describe("two people sharing a list", () => {
 
   it("brings home to each member's pantry what that member ticked, once, and takes it back with the shop", async () => {
     const listId = await sharedMarket();
-    const tick = async (name: string) => toggleChecked((await readItems(listId)).find((item) => item.name === name)!.id);
+    const tick = async (name: string) => toggleChecked((await itemNamed(listId, name)).id);
     const pantry = async () => (await readPantry()).map((item) => item.name);
     await on("C", async () => {
       await tick("elma");
@@ -665,7 +646,7 @@ describe("two people sharing a list", () => {
   it("keeps in each member's Kiler what a shop brought when its owner clears the history", async () => {
     const listId = await sharedMarket();
     await on("C", async () => {
-      await toggleChecked((await readItems(listId)).find((item) => item.name === "elma")!.id);
+      await toggleChecked((await itemNamed(listId, "elma")).id);
       await sync();
     });
     await on("A", async () => {
@@ -693,7 +674,7 @@ describe("two people sharing a list", () => {
     const listId = await sharedMarket();
     await on("A", async () => {
       await sync();
-      await toggleChecked((await readItems(listId)).find((item) => item.name === "süt")!.id);
+      await toggleChecked((await itemNamed(listId, "süt")).id);
       await finishShop(listId);
       await sync();
     });
@@ -725,9 +706,7 @@ describe("two people sharing a list", () => {
       await sync();
     });
     const token = await on("A", async () => {
-      const made = await createInvite(collection, "editor", "Ömer");
-      if ("refused" in made) throw new Error(made.refused);
-      return made.token;
+      return invite(collection, "editor", "Ömer");
     });
     await on("C", async () => {
       await acceptInvite(token, "Deniz");
@@ -772,7 +751,7 @@ describe("two people sharing a list", () => {
     await on("C", async () => {
       await sync();
       await add(listId, "yağ");
-      await toggleChecked((await readItems(listId)).find((item) => item.name === "süt")!.id);
+      await toggleChecked((await itemNamed(listId, "süt")).id);
       await sync();
     });
     await on("A", async () => {
@@ -787,14 +766,14 @@ describe("two people sharing a list", () => {
       });
       await markSeen(listId, USER);
       expect(await readFresh(USER)).toEqual([]);
-      expect(rowPeople((await readItems(listId)).find((item) => item.name === "yağ")!, await readMembers(listId), USER).fresh).toBe(false);
+      expect(rowPeople(await itemNamed(listId, "yağ"), await readMembers(listId), USER).fresh).toBe(false);
       await sync();
     });
     await on("C", async () => {
       // What the person added is never new to them, what came before a first look is not news,
       // and a list nobody shares shows nobody.
       expect(await readFresh(OTHER)).toEqual([]);
-      const elma = (await readItems(listId)).find((item) => item.name === "elma")!;
+      const elma = await itemNamed(listId, "elma");
       expect(rowPeople(elma, await readMembers(listId), OTHER)).toEqual({ fresh: false, added: "Ö", checked: null });
       const kendi = (await readLists()).find((list) => list.name === "Kendi")!.id;
       await add(kendi, "un");
@@ -1047,9 +1026,7 @@ describe("a household Kiler (SPEC 12.13)", () => {
     });
     await on("D", sync);
     const token = await on("A", async () => {
-      const made = await createInvite(USER, "editor", "Ömer");
-      if ("refused" in made) throw new Error(made.refused);
-      return made.token;
+      return invite(USER, "editor", "Ömer");
     });
     await on("C", async () => {
       expect(await peekInvite(token)).toEqual({ kind: "pantry", name: "Kiler", inviter: "Ömer" });
@@ -1077,7 +1054,7 @@ describe("a household Kiler (SPEC 12.13)", () => {
   /** C ticks elma on A's Market, and A finishes the shop. */
   async function tickedElma(listId: string): Promise<void> {
     await on("C", async () => {
-      await toggleChecked((await readItems(listId)).find((item) => item.name === "elma")!.id);
+      await toggleChecked((await itemNamed(listId, "elma")).id);
       await sync();
     });
     await on("A", async () => {
@@ -1136,7 +1113,7 @@ describe("a household Kiler (SPEC 12.13)", () => {
     await household(true);
     await on("A", async () => {
       await sync();
-      await removeMember((await readMembers(USER)).find((member) => member.userId === OTHER)!.id);
+      await removeMember(await memberId(USER, OTHER));
       await sync();
     });
     for (const device of ["C", "D"] as const) {
@@ -1184,7 +1161,7 @@ describe("what the server will not take", () => {
       const [undone, twice] = await add(listId, "süt", "elma");
       await sync();
       // Only the newest event of a row is sent, so the server never sees the
-      // generation these moved through; measured refused on 2026-09-30.
+      // generation these moved through.
       await restoreItem((await deleteItems([undone!]))!);
       await restoreItem((await deleteItems([twice!]))!);
       await deleteItems([twice!]);
@@ -1357,8 +1334,8 @@ describe("what the server will not take", () => {
     await on("A", async () => {
       const [id] = await add(await createList("Market"), "süt");
       await sync();
-      // What 1.3 left on the owner's phone, measured 2026-09-30: a delete taken
-      // back, refused for its generation, set aside with nothing left to send.
+      // A delete taken back, refused for its generation, set aside with nothing
+      // left to send.
       await restoreItem((await deleteItems([id!]))!);
       devices.A.prepare("DELETE FROM outbox").run();
       devices.A.prepare(
@@ -1549,7 +1526,7 @@ describe("photos", () => {
   it("sends a photo before the row naming it, and the other device fetches it", async () => {
     const { listId, photoId } = await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       await sync();
       return { listId: id, photoId: (await readItems(id))[0]!.photoId! };
     });
@@ -1566,13 +1543,13 @@ describe("photos", () => {
   it("removes, a month on, the photos no row names any more, from Storage and from the device", async () => {
     const { listId, photoId } = await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       await sync();
       return { listId: id, photoId: (await readItems(id))[0]!.photoId! };
     });
     const kept = await on("A", async () => {
       await deleteItems([(await readItems(listId))[0]!.id]);
-      await addScanned(listId, { name: "elma", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(listId, "elma");
       await sync();
       return (await readItems(listId))[0]!.photoId!;
     });
@@ -1603,7 +1580,7 @@ describe("photos", () => {
   it("asks again for a photo that the network, not Storage, kept from arriving", async () => {
     const { listId } = await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       await sync();
       return { listId: id };
     });
@@ -1619,7 +1596,7 @@ describe("photos", () => {
   it("tells a photo Storage does not have from a Storage that did not answer", async () => {
     const listId = await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       await sync();
       return id;
     });
@@ -1639,7 +1616,7 @@ describe("photos", () => {
   it("passes over a photo Storage refuses for good, and sends again one it only failed", async () => {
     await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       const photoId = (await readItems(id))[0]!.photoId!;
       const uploaded = () => devices.A.prepare("SELECT uploaded_at FROM photos WHERE id = ?").get(photoId) as { uploaded_at: string | null };
 
@@ -1662,7 +1639,7 @@ describe("photos", () => {
   it("finishes a photo whose send was cut short between its two sizes", async () => {
     await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       const photoId = (await readItems(id))[0]!.photoId!;
       cloud.objects.set(`${photoId}/full.jpg`, { owner: USER, bytes: new Uint8Array([0xff, 0xd8, 0xff]), at: Date.now() });
       expect(await sync()).toBe(true);
@@ -1705,7 +1682,7 @@ describe("photos", () => {
   it("keeps the row naming a photo back while the photo cannot be sent", async () => {
     await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       cloud.failures.push({ message: "Failed to fetch" });
       expect(await sync()).toBe(false);
       expect(cloud.rows("items")).toEqual([]);
@@ -1736,7 +1713,7 @@ describe("photos", () => {
   it("reads a fetched photo through FileReader where the Blob cannot give its bytes, as on a phone", async () => {
     const { listId } = await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       await sync();
       return { listId: id };
     });
@@ -1773,9 +1750,9 @@ describe("photos", () => {
   it("asks Storage once a launch for a photo it does not have, and never for a path a row made up", async () => {
     const { listId } = await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       await add(id, "ekmek");
-      const bread = (await readItems(id)).find((item) => item.name === "ekmek")!;
+      const bread = await itemNamed(id, "ekmek");
       // What a sharer's own build could send: the server takes any text here.
       await writeRows([{ table: "items", row: { ...fromDbShape("items", devices.A.prepare("SELECT * FROM items WHERE id = ?").get(bread.id) as Record<string, unknown>), photoId: "../../avatars/someone" } }]);
       await sync();
@@ -1793,7 +1770,7 @@ describe("photos", () => {
   it("takes a file that is not a JPEG for no photo at all", async () => {
     const { listId } = await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       await sync();
       return { listId: id };
     });
@@ -1807,7 +1784,7 @@ describe("photos", () => {
   it("removes every photo the account sent, and marks them to send again", async () => {
     await on("A", async () => {
       const id = await createList("Market");
-      await addScanned(id, { name: "süt", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(id, "süt");
       await sync();
       cloud.failures.push({ message: "Failed to fetch" });
       await expect(purgeOwnPhotos(), "a list it could not get").rejects.toThrow("photo purge");
@@ -1844,9 +1821,7 @@ describe("what one copy must not do to another's", () => {
       await sync();
     });
     const token = await on("A", async () => {
-      const made = await createInvite(USER, "editor", "Ömer");
-      if ("refused" in made) throw new Error(made.refused);
-      return made.token;
+      return invite(USER, "editor", "Ömer");
     });
     await on("C", async () => {
       expect(await acceptInvite(token, "Deniz", (await pantryToBring(OTHER))!)).toEqual({ listId: USER });
@@ -1858,7 +1833,7 @@ describe("what one copy must not do to another's", () => {
   it("keeps syncing after an account deletion that failed once its photo purge had run", async () => {
     const listId = await sharedMarket();
     await on("A", async () => {
-      await addScanned(listId, { name: "çay", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(listId, "çay");
       await sync();
     });
     await on("C", async () => {
@@ -1980,22 +1955,10 @@ describe("what one copy must not do to another's", () => {
   });
 
   it("keeps a column a device pulled before its build knew it", async () => {
-    const shopId = await on("A", async () => {
-      const id = await createList("Market");
-      const [item] = await add(id, "süt");
-      await toggleChecked(item!);
-      await finishShop(id);
-      const [shop] = await readShops();
-      await setShopReceipt(shop!.id, { data: JPEG, thumb: JPEG });
-      await sync();
-      return shop!.id;
-    });
+    const shopId = await shopWithReceipt();
     await on("B", async () => {
       await sync();
-      // A build before 0021: it pulled the shop without the column, and the update adds it empty.
-      devices.B.exec("ALTER TABLE shops DROP COLUMN photo_id");
-      harness.update = readFileSync("src/db/migrations/0021_shop_receipt.sql", "utf8");
-      await migrateDb();
+      await downgradeTo0020();
       await sync();
       await setShopTotal(shopId, 12_345);
       await sync();
@@ -2004,21 +1967,10 @@ describe("what one copy must not do to another's", () => {
   });
 
   it("keeps that column when the edit comes before the re-pull, as on an offline launch", async () => {
-    const shopId = await on("A", async () => {
-      const id = await createList("Market");
-      const [item] = await add(id, "süt");
-      await toggleChecked(item!);
-      await finishShop(id);
-      const [shop] = await readShops();
-      await setShopReceipt(shop!.id, { data: JPEG, thumb: JPEG });
-      await sync();
-      return shop!.id;
-    });
+    const shopId = await shopWithReceipt();
     await on("B", async () => {
       await sync();
-      devices.B.exec("ALTER TABLE shops DROP COLUMN photo_id");
-      harness.update = readFileSync("src/db/migrations/0021_shop_receipt.sql", "utf8");
-      await migrateDb();
+      await downgradeTo0020();
       await setShopTotal(shopId, 12_345);
       await sync();
       expect(devices.B.prepare("SELECT table_name FROM sync_state WHERE table_name LIKE 'unpulled:%'").all(), "the pull after it finished").toEqual([]);
@@ -2039,9 +1991,7 @@ describe("what one copy must not do to another's", () => {
     });
     await on("B", async () => {
       await sync();
-      devices.B.exec("ALTER TABLE shops DROP COLUMN photo_id");
-      harness.update = readFileSync("src/db/migrations/0021_shop_receipt.sql", "utf8");
-      await migrateDb();
+      await downgradeTo0020();
       expect(devices.B.prepare("SELECT table_name FROM sync_state WHERE table_name IN ('lists', 'shops')").all(), "only the table given a column is pulled again").toEqual([
         { table_name: "lists" },
       ]);
@@ -2102,7 +2052,7 @@ describe("what one copy must not do to another's", () => {
   it("keeps a column an event queued before the update does not carry", async () => {
     const [listId, itemId] = await on("A", async () => {
       const id = await createList("Market");
-      const item = await addScanned(id, { name: "çay", note: null, photo: { data: JPEG, thumb: JPEG } });
+      const item = await scan(id, "çay");
       await sync();
       return [id, item] as const;
     });
@@ -2120,14 +2070,14 @@ describe("what one copy must not do to another's", () => {
   it("keeps syncing when Storage refuses a photo for good", async () => {
     const listId = await sharedMarket();
     await on("C", async () => {
-      await addScanned(listId, { name: "çay", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(listId, "çay");
       await sync();
       // A deletion that removed C's photos and then failed, after which A made C a viewer.
       await purgeOwnPhotos();
     });
     await on("A", async () => {
       await sync();
-      await setMemberRole((await readMembers(listId)).find((member) => member.userId === OTHER)!.id, "viewer");
+      await setMemberRole(await memberId(listId, OTHER), "viewer");
       await sync();
     });
     await on("C", async () => {
@@ -2137,21 +2087,6 @@ describe("what one copy must not do to another's", () => {
       expect(await sync(), "and on the next run").toBe(true);
     });
     expect(cloud.rows("items").map((row) => row.name)).toContain("şeker");
-  });
-
-  it("tells a photo refused for good from a token Storage would take once renewed", () => {
-    expect(refusedForGood({ status: 403, message: "new row violates row-level security policy" })).toBe(true);
-    expect(refusedForGood({ status: 409, message: "The resource already exists" })).toBe(true);
-    expect(refusedForGood({ status: 400, message: "jwt expired" })).toBe(false);
-    expect(refusedForGood({ status: 403, message: "invalid signature" })).toBe(false);
-    for (const status of [401, 408, 429, 500]) expect(refusedForGood({ status, message: "x" })).toBe(false);
-    expect(refusedForGood({ message: "Failed to fetch" })).toBe(false);
-    expect(refusedForGood({ status: 400, message: "Invalid key" }), "the lowest status Storage refuses with").toBe(true);
-    expect(refusedForGood({ status: 399, message: "x" })).toBe(false);
-    expect(refusedForGood({ status: 499, message: "x" })).toBe(true);
-    for (const message of ["Unauthorized", "unauthorised", "Token invalid", "signature mismatch", "JWT expired"]) {
-      expect(refusedForGood({ status: 403, message }), message).toBe(false);
-    }
   });
 
   it("keeps its own item where it is when a list it joined holds a copy of the id", async () => {
@@ -2171,9 +2106,7 @@ describe("what one copy must not do to another's", () => {
         .select()
         .abortSignal(new AbortController().signal);
       expect(error).toBeNull();
-      const made = await createInvite(id, "editor", "Deniz");
-      if ("refused" in made) throw new Error(made.refused);
-      return made.token;
+      return invite(id, "editor", "Deniz");
     });
     await on("A", async () => {
       await acceptInvite(theirs, "Ömer");
@@ -2189,7 +2122,7 @@ describe("what one copy must not do to another's", () => {
       const release = cloud.hold("upsert lists");
       const running = sync();
       await vi.waitFor(() => expect(cloud.requests).toContain("upsert lists"));
-      await addScanned(listId, { name: "çay", note: null, photo: { data: JPEG, thumb: JPEG } });
+      await scan(listId, "çay");
       release();
       await running;
     });

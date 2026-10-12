@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, ScrollView, StyleSheet, Text, View, type TextInput } from "react-native";
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import Check from "lucide-react-native/icons/check";
 import CheckCheck from "lucide-react-native/icons/check-check";
 import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
 import ListPlus from "lucide-react-native/icons/list-plus";
-import Pencil from "lucide-react-native/icons/pencil";
 import LayoutGrid from "lucide-react-native/icons/layout-grid";
 import Plus from "lucide-react-native/icons/plus";
 import ScanBarcode from "lucide-react-native/icons/scan-barcode";
@@ -14,17 +13,15 @@ import Undo2 from "lucide-react-native/icons/undo-2";
 import X from "lucide-react-native/icons/x";
 import Share from "lucide-react-native/icons/share";
 
-
-import { useItems, useLasted, useLists, useMovedAisles, usePurchases, useSettings } from "../../data/hooks";
+import { useItems, useLasted, useLists, useMovedAisles, useProducts, usePurchases, useSettings } from "../../data/hooks";
 import { putRestockAside, restockAsideOf } from "../../data/settings";
 import { addEntries, addScanned, carryNotFound, deleteItems, importEntries, readKnownProducts, reorderItems, restoreItem, toggleChecked, undoSave, updateItem, type Item, type ItemSave } from "../../data/items";
-import { deleteLists, editList, restoreList, type ListSummary } from "../../data/lists";
+import type { ListSummary } from "../../data/lists";
 import { markSeen, rowPeople, type Member, type RowPeople } from "../../data/members";
 import { readPantry } from "../../data/pantry";
 import { finishShop, reopenShop } from "../../data/shops";
-import { catalogueNamed, knowsProduct, listSections, nearMiss, type Aisle, type CatalogueProduct, type Section } from "../../domain/catalogue";
+import { catalogueNamed, knowsProduct, listSections, nearMiss, type CatalogueProduct } from "../../domain/catalogue";
 import { ENTRY_MAX, LIST_TEXT_MAX, formatList, parseEntry, parseList, type Entry } from "../../domain/items";
-import type { ListLook } from "../../domain/lists";
 import { spentOn } from "../../domain/money";
 import { atHome } from "../../domain/pantry";
 import { restockDue, type Purchase } from "../../domain/restock";
@@ -32,38 +29,37 @@ import { tr } from "../../i18n/tr";
 import { lookUpBarcode, type ScannedProduct } from "../../services/barcode";
 import { canScan, launchScanner, onScanned } from "../../services/barcode-scan";
 import { shareText } from "../../services/share";
-import { ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, announce, cardEdge, RowOpen, RowTick } from "../../ui/components";
+import { AisleHeader, ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, announce, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
-import { mediumImpact, selectionTap, successNotice } from "../../ui/haptics";
+import { selectionTap, successNotice } from "../../ui/haptics";
 import { FinishedCard, type ShopSummary } from "../../ui/celebration";
-import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
+import { SortSections, SortToggle } from "../../ui/draggable-list";
 import { CarrySheet, ItemSheet, type ItemDestination } from "../../ui/item-sheet";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import type { MemberRole } from "../../db/schema";
-import { ListSheet } from "../../ui/list-sheet";
+import { EditLook } from "../../ui/list-sheet";
 import { EditorsOnly, PeopleActions, ShoppersNote, emptyHintFor, useShare } from "../../ui/members-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp, useValueFlash } from "../../ui/motion";
-import { navigateBack } from "../../ui/navigation";
 import { density, motion, spacing, themeShadow, type, useTheme } from "../../ui/theme";
-import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
+import { deleteWithUndo, selectionHeader, useLeaveDeleted, useSelection } from "../../ui/selection";
 import { showNotice, showUndo } from "../../ui/undo";
 import { ProductSuggestions } from "../../ui/suggestions";
 
 export default function ListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const lists = useLists();
   const items = useItems(id);
   // Read with the items, so an offer is drawn with the screen and does not rise into it.
   const purchases = usePurchases(id);
   const moved = useMovedAisles();
+  const products = useProducts();
   const { members, userId, role, viewer } = useShare(id);
-  const queries = [lists, items, purchases, members];
+  const queries = [lists, items, purchases, members, products];
   useSeenOnLeave(id, userId, items.data, members.data);
   // The list this screen is deleting, held so its title stays while the screen
   // animates away, and so nothing on it can be pressed a second time.
-  const [leaving, setLeaving] = useState<ListSummary | null>(null);
+  const { leaving, remove } = useLeaveDeleted<ListSummary>("/");
   const [editing, setEditing] = useState<Item | null>(null);
   const [sorting, setSorting] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -78,7 +74,6 @@ export default function ListScreen() {
 
   // A link to a list that is not here — deleted elsewhere, or never existed.
   if (lists.updatedAt != null && !list) return <Redirect href="/" />;
-
 
   const sections = listSections(open, moved);
 
@@ -107,19 +102,6 @@ export default function ListScreen() {
       if ((await shareText(formatList(current.name, open))) === "clipboard") showNotice(tr.lists.copied);
     } catch {
       void appError(tr.errors.shareFailed);
-    }
-  };
-
-  const remove = async (current: ListSummary) => {
-    setLeaving(current);
-    mediumImpact();
-    try {
-      const snapshot = await deleteLists([current.id]);
-      if (snapshot) showUndo(tr.common.deleted(current.name), () => restoreList(snapshot));
-      navigateBack(router, "/");
-    } catch {
-      setLeaving(null);
-      void appError(tr.errors.deleteFailed);
     }
   };
 
@@ -167,7 +149,7 @@ export default function ListScreen() {
         {viewer ? (
           <ItemRow item={item} people={rowPeople(item, members.data, userId)} onOpen={() => undefined} onToggle={() => undefined} readOnly />
         ) : (
-          <RowSwipe right={selection.active ? undefined : right} left={selection.active ? undefined : left}>
+          <RowSwipe {...(selection.active ? {} : { right, left })}>
             <ItemRow
               item={ticking.shown(item)}
               people={rowPeople(item, members.data, userId)}
@@ -232,7 +214,15 @@ export default function ListScreen() {
                     two would unmount it from one and mount a copy in the other. */}
                 {[
                   ...(sorting
-                    ? [<SortOpen key="sort" listId={list.id} sections={sections} onOpen={setEditing} onDragging={setDragging} />]
+                    ? [
+                        <SortSections
+                          key="sort"
+                          sections={sections}
+                          reorder={(ids) => reorderItems(list.id, ids)}
+                          renderRow={(item, grip, handle) => <ItemRow item={item} onOpen={() => setEditing(item)} onToggle={() => undefined} lifted={handle.lifted} trailing={grip} />}
+                          onDragging={setDragging}
+                        />,
+                      ]
                     : sections.flatMap((section, at) => [
                         section.aisle ? (
                           <RowMotion key={`aisle-${section.key}`}>
@@ -323,24 +313,15 @@ function ListActions({
       <IconButton icon={Share} label={tr.lists.share(list.name)} disabled={!canShare} onPress={() => onShare(list)} />
       <PeopleActions list={list} userId={userId} role={role} back="/" crowded={sorting} deleteLabel={tr.lists.delete(list.name)} onDelete={() => onRemove(list)}>
         <EditorsOnly viewer={viewer}>
-          <EditList list={list} />
+          <EditLook list={list} label={tr.lists.edit(list.name)} />
         </EditorsOnly>
       </PeopleActions>
     </>
   );
 }
 
-/**
- * Leaving a shared list, what was new on it has been seen (SPEC 1.9). Written
- * only when something was, or the person had never looked, so an ordinary
- * visit sends nothing.
- */
-/**
- * The circle fills at the touch: the write and its read-back took about 60 ms,
- * felt in the aisle. A press is shown while the item still reads as it did when
- * pressed; the read-back, or any other change, ends it, and the row moves to
- * the basket then. A write that fails ends it at once.
- */
+/** The circle fills at the touch, not at the read-back. A press shows while the item still reads as
+ *  pressed; any change ends it, and a failed write ends it at once. */
 function useTicking() {
   const [pressed, setPressed] = useState<Readonly<Record<string, string | null>>>({});
   return {
@@ -351,6 +332,7 @@ function useTicking() {
   };
 }
 
+/** Leaving a shared list, what was new on it has been seen (SPEC 1.9); written only when something was, or the person never looked. */
 function useSeenOnLeave(listId: string, userId: string, items: readonly Item[], members: readonly Member[]) {
   const mine = members.find((member) => member.userId === userId);
   const due = mine != null && (mine.seenAt == null || items.some((item) => rowPeople(item, members, userId).fresh));
@@ -366,16 +348,8 @@ function useSeenOnLeave(listId: string, userId: string, items: readonly Item[], 
   );
 }
 
-/**
- * Finishing a shop: what is in the basket is filed and leaves, the rest stays
- * on the list (SPEC 3.4), and what was not found waits for the next shop, on
- * whichever list the question names (SPEC 3.15). Returns the press, the
- * question for the screen to draw beside its other sheets, and the card that
- * celebrates the finish where the basket was. The card holds the finish's
- * undo, and stands while the list holds only what the finish left on it (less
- * what is deleted): an item added or ticked afterwards begins the next shop,
- * and the card steps aside for good, even if that item goes again.
- */
+/** Finishing a shop (SPEC 3.4, 3.15): the basket is filed, what was not found goes to the list the
+ *  question names. The card holds the undo until an item is added or ticked. */
 function useFinish(listId: string, open: readonly Item[], basket: readonly Item[], lists: readonly ListSummary[]) {
   const [asking, setAsking] = useState(false);
   const [finished, setFinished] = useState<{ summary: ShopSummary; stayed: ReadonlySet<string>; undo: () => Promise<void> } | null>(null);
@@ -613,7 +587,7 @@ function Restock({ listId, purchases, items, onPick }: { listId: string; purchas
     selectionTap();
     putRestockAside(listId, key).catch(() => void appError(tr.errors.saveFailed));
   };
-  if (due.length === 0) return null;
+  if (lasted.updatedAt == null || due.length === 0) return null;
   return (
     <View style={{ gap: spacing.xs }}>
       <Text style={[type.small, { color: palette.textSecondary }]}>{tr.items.restockTitle}</Text>
@@ -709,78 +683,3 @@ function BasketHeader({ spentMinor }: { spentMinor: number | null }) {
   return <SectionHeader>{tr.items.basket(spentMinor == null ? null : shown)}</SectionHeader>;
 }
 
-
-/**
- * What is left to buy, sorted by its grips (SPEC 4.1). Urgent items stay on
- * top and those not found at the bottom, so each run of them sorts on its own:
- * a row dragged past the edge of its run would jump back on release. Each
- * section drags on its own, so a row stays with its aisle and its kind; the
- * whole order is written, so the stored one is the order drawn.
- */
-function SortOpen({
-  listId,
-  sections,
-  onOpen,
-  onDragging,
-}: {
-  listId: string;
-  sections: readonly Section<Item>[];
-  onOpen: (item: Item) => void;
-  onDragging: (dragging: boolean) => void;
-}) {
-  const reorder = (at: number, keys: string[]) =>
-    reorderItems(listId, sections.flatMap((section, index) => (index === at ? keys : section.items.map(keyOf)))).catch((error: unknown) => {
-      void appError(tr.errors.saveFailed);
-      throw error;
-    });
-  return (
-    <View style={{ gap: density.list.rowGap }}>
-      {sections.map((section, at) => (
-        <View key={section.key} style={{ gap: density.list.rowGap }}>
-          {section.aisle ? <AisleHeader aisle={section.aisle} first={at === 0} /> : null}
-          <DraggableList
-            items={section.items}
-            keyOf={keyOf}
-            gap={density.list.rowGap}
-            onReorder={(keys) => reorder(at, keys)}
-            onDragging={onDragging}
-            renderRow={(item, handle, position) => (
-              <ItemRow
-                item={item}
-                onOpen={() => onOpen(item)}
-                onToggle={() => undefined}
-                lifted={handle.lifted}
-                trailing={<ReorderGrip handle={handle} name={item.name} position={position + 1} count={section.items.length} />}
-              />
-            )}
-          />
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const keyOf = (item: Item) => item.id;
-
-function AisleHeader({ aisle, first }: { aisle: Aisle | "other"; first: boolean }) {
-  return <SectionHeader flush={first}>{tr.catalogue.aisles[aisle]}</SectionHeader>;
-}
-
-/** The pencil and the list panel it opens: a list's name, colour and picture (SPEC 1.8). */
-function EditList({ list }: { list: ListSummary }) {
-  const [open, setOpen] = useState(false);
-  const save = async (look: ListLook) => {
-    setOpen(false);
-    try {
-      await editList(list.id, look);
-    } catch {
-      void appError(tr.errors.saveFailed);
-    }
-  };
-  return (
-    <>
-      <IconButton icon={Pencil} label={tr.lists.edit(list.name)} onPress={() => setOpen(true)} />
-      {open ? <ListSheet list={list} onSave={save} onClose={() => setOpen(false)} /> : null}
-    </>
-  );
-}

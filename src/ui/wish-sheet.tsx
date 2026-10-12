@@ -5,7 +5,7 @@
  * sheet with more in it, as the item panel is.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Linking, Text, View } from "react-native";
 import ExternalLink from "lucide-react-native/icons/external-link";
 import Plus from "lucide-react-native/icons/plus";
@@ -61,6 +61,7 @@ export function WishSheet({
   const [photo, setPhoto] = useState<PhotoChange>(undefined);
   const [dueOn, setDueOn] = useState(wish.dueOn);
   const [refused, setRefused] = useState(false);
+  const added = useRef(0);
 
   const estimated = readPrice(estimate);
   const prices = links.map((link) => readPrice(link.price));
@@ -85,7 +86,7 @@ export function WishSheet({
     const url = linkFrom(typedLink);
     if (!url) return setRefused(typedLink.trim() !== "");
     selectionTap();
-    setLinks([...links, { key: `new-${links.length}-${url}`, url, price: "" }]);
+    setLinks([...links, { key: `new-${(added.current += 1)}`, url, price: "" }]);
     setTypedLink("");
     setRefused(false);
   };

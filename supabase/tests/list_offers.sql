@@ -344,5 +344,5 @@ select is(
   'and no offer to B is left'
 );
 
-select * from finish();
+select * from extensions.finish();
 rollback;

@@ -4,7 +4,6 @@
  * away, and finishing a product puts it back on the list it came from.
  */
 
-import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,10 +14,7 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-vi.mock("expo-crypto", () => ({
-  CryptoDigestAlgorithm: { SHA256: "SHA256" },
-  digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
-}));
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { finishShop, reopenShop } = await import("../../src/data/shops");
@@ -142,7 +138,7 @@ describe("stockPantry", () => {
   });
 });
 
-// Kiler sorts as a list does, by its grips (SPEC 4.1 in Kiler, the owner asked 2026-09-27).
+// Kiler sorts as a list does, by its grips (SPEC 4.1 in Kiler).
 describe("reorderPantry", () => {
   it("keeps the dragged order, and puts a product that arrives later above it", async () => {
     await stockPantry(parseEntry("un, tuz, şeker"));

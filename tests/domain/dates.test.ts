@@ -1,4 +1,4 @@
-/** Calendar days (Helix's `dates.ts`, ported in part): local, zone-free, whole days. */
+/** Calendar days: local, zone-free, whole days. */
 
 import { describe, expect, it } from "vitest";
 
@@ -44,7 +44,7 @@ describe("dates", () => {
     expect(addDaysISO("2026-03-28", 2)).toBe("2026-03-30");
   });
 
-  it("names the part of the day by the device's hour, as Helix's greeting does", () => {
+  it("names the part of the day by the device's hour", () => {
     const at = (hour: number, minute: number) => partOfDay(new Date(2026, 9, 1, hour, minute));
     expect(at(0, 0)).toBe("night");
     expect(at(5, 59)).toBe("night");

@@ -1,4 +1,4 @@
-/** The sign-in before this one, kept on the device for the account screen (Helix's). */
+/** Device-local record of the sign-in before this one, for the account screen. */
 
 import { uuidv7 } from "uuidv7";
 
@@ -8,12 +8,14 @@ export interface LoginHistoryStorage {
   remove(key: string): Promise<void>;
 }
 
+const APP = "gital";
+
 function currentKey(userId: string): string {
-  return `gital.login.current.${userId}`;
+  return `${APP}.login.current.${userId}`;
 }
 
 function previousKey(userId: string): string {
-  return `gital.login.previous.${userId}`;
+  return `${APP}.login.previous.${userId}`;
 }
 
 /**
@@ -47,16 +49,15 @@ export function loadPreviousLogin(storage: LoginHistoryStorage, userId: string):
   return storage.get(previousKey(userId));
 }
 
-const DEVICE_KEY = "gital.device.id";
-
 /**
  * This install's own id, made once and kept across sign-outs: the key of the
  * one sign-in row each device writes to the account (`src/domain/logins.ts`).
  */
 export async function deviceId(storage: LoginHistoryStorage): Promise<string> {
-  const known = await storage.get(DEVICE_KEY);
+  const key = `${APP}.device.id`;
+  const known = await storage.get(key);
   if (known) return known;
   const made = uuidv7();
-  await storage.set(DEVICE_KEY, made);
+  await storage.set(key, made);
   return made;
 }

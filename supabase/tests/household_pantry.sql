@@ -291,5 +291,5 @@ select is(
   'one way to accept, so PostgREST never has two to choose from'
 );
 
-select * from finish();
+select * from extensions.finish();
 rollback;

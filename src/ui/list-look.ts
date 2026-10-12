@@ -1,8 +1,4 @@
-/**
- * The file each list picture name draws (`src/domain/lists.ts`): Noto Emoji 2D
- * at 100 pixels, a 46-point tile's 72% at three times, as WebP (SPEC 14.1).
- * Files inside the app, so a list draws offline (`docs/ARCHITECTURE.md`).
- */
+/** Each list picture's file (`src/domain/lists.ts`, SPEC 14.1), shipped in the app so a list draws offline. */
 
 import type { ImageSourcePropType } from "react-native";
 

@@ -11,7 +11,7 @@ import { products } from "../db/schema";
 import { AISLES, type Aisle } from "../domain/catalogue";
 import { foldName } from "../domain/items";
 
-export interface Product {
+interface Product {
   name: string;
   starred: boolean;
   aisle: Aisle | null;

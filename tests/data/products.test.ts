@@ -4,7 +4,6 @@
  * (SPEC 5.1); an aisle it was moved to is kept beside the star (5.4).
  */
 
-import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,10 +14,7 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-vi.mock("expo-crypto", () => ({
-  CryptoDigestAlgorithm: { SHA256: "SHA256" },
-  digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
-}));
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 
 const { readProducts, setAisle, setStarred } = await import("../../src/data/products");
 const { migratedDatabase } = await import("../helpers");

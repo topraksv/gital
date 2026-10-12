@@ -6,35 +6,35 @@
       "timeout": 0,
       "survived": 6,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/auth/login-history.ts": {
-      "score": 84.62,
-      "killed": 11,
+      "score": 85.71,
+      "killed": 12,
       "timeout": 0,
       "survived": 2,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/auth/recovery.ts": {
-      "score": 93.59,
-      "killed": 73,
+      "score": 96.23,
+      "killed": 102,
       "timeout": 0,
-      "survived": 5,
+      "survived": 4,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/auth/session.ts": {
-      "score": 86.17,
-      "killed": 355,
+      "score": 87.5,
+      "killed": 357,
       "timeout": 0,
-      "survived": 53,
+      "survived": 47,
       "noCoverage": 4,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/auth/verification-brake.ts": {
       "score": 95.65,
@@ -42,8 +42,8 @@
       "timeout": 0,
       "survived": 1,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/items.ts": {
       "score": 91.19,
@@ -60,26 +60,26 @@
       "timeout": 0,
       "survived": 1,
       "noCoverage": 0,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/live-query.ts": {
-      "score": 93.55,
-      "killed": 85,
+      "score": 94.17,
+      "killed": 95,
       "timeout": 2,
       "survived": 6,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/members.ts": {
-      "score": 83.53,
-      "killed": 71,
+      "score": 85.37,
+      "killed": 70,
       "timeout": 0,
-      "survived": 14,
+      "survived": 12,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/pantry.ts": {
       "score": 87.73,
@@ -96,8 +96,8 @@
       "timeout": 0,
       "survived": 3,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/products.ts": {
       "score": 90,
@@ -105,8 +105,8 @@
       "timeout": 0,
       "survived": 3,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/reset.ts": {
       "score": 100,
@@ -114,17 +114,17 @@
       "timeout": 0,
       "survived": 0,
       "noCoverage": 0,
-      "measuredOn": "c54e98e8d340d5a792fa99c02cf83e28df850043",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/sets.ts": {
-      "score": 92.31,
-      "killed": 48,
+      "score": 93.02,
+      "killed": 40,
       "timeout": 0,
-      "survived": 4,
+      "survived": 3,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/settings.ts": {
       "score": 100,
@@ -132,35 +132,35 @@
       "timeout": 0,
       "survived": 0,
       "noCoverage": 0,
-      "measuredOn": "c54e98e8d340d5a792fa99c02cf83e28df850043",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/shops.ts": {
       "score": 97.09,
-      "killed": 97,
-      "timeout": 3,
+      "killed": 99,
+      "timeout": 1,
       "survived": 3,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/data/wishes.ts": {
-      "score": 87.24,
-      "killed": 171,
+      "score": 87.32,
+      "killed": 186,
       "timeout": 0,
-      "survived": 22,
+      "survived": 24,
       "noCoverage": 3,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/db/client.ts": {
       "score": 0,
       "killed": 0,
       "timeout": 0,
       "survived": 0,
-      "noCoverage": 73,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "noCoverage": 111,
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/db/ids.ts": {
       "score": 92.59,
@@ -168,8 +168,8 @@
       "timeout": 0,
       "survived": 2,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/db/migrate.ts": {
       "score": 75.93,
@@ -177,17 +177,17 @@
       "timeout": 0,
       "survived": 11,
       "noCoverage": 2,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/db/mutations.ts": {
-      "score": 83.68,
+      "score": 84.21,
       "killed": 157,
-      "timeout": 2,
-      "survived": 28,
+      "timeout": 3,
+      "survived": 27,
       "noCoverage": 3,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/calculator.ts": {
       "score": 91,
@@ -195,17 +195,17 @@
       "timeout": 0,
       "survived": 25,
       "noCoverage": 2,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/catalogue.ts": {
-      "score": 95.52,
-      "killed": 128,
+      "score": 95.71,
+      "killed": 134,
       "timeout": 0,
       "survived": 6,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/dates.ts": {
       "score": 88.89,
@@ -213,8 +213,8 @@
       "timeout": 0,
       "survived": 11,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/feedback.ts": {
       "score": 95.65,
@@ -222,17 +222,17 @@
       "timeout": 0,
       "survived": 1,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/items.ts": {
-      "score": 84.09,
-      "killed": 332,
+      "score": 84.83,
+      "killed": 368,
       "timeout": 1,
-      "survived": 63,
+      "survived": 66,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/lists.ts": {
       "score": 100,
@@ -240,8 +240,8 @@
       "timeout": 0,
       "survived": 0,
       "noCoverage": 0,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/logins.ts": {
       "score": 94.95,
@@ -249,8 +249,8 @@
       "timeout": 0,
       "survived": 5,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/money.ts": {
       "score": 95.08,
@@ -258,8 +258,8 @@
       "timeout": 0,
       "survived": 12,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/names.ts": {
       "score": 100,
@@ -267,8 +267,8 @@
       "timeout": 1,
       "survived": 0,
       "noCoverage": 0,
-      "measuredOn": "c54e98e8d340d5a792fa99c02cf83e28df850043",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/pantry.ts": {
       "score": 92.86,
@@ -276,8 +276,8 @@
       "timeout": 0,
       "survived": 5,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/product-page.ts": {
       "score": 85.93,
@@ -285,17 +285,17 @@
       "timeout": 0,
       "survived": 27,
       "noCoverage": 1,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/reminders.ts": {
-      "score": 90.82,
-      "killed": 86,
+      "score": 93.15,
+      "killed": 133,
       "timeout": 3,
-      "survived": 9,
+      "survived": 10,
       "noCoverage": 0,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/restock.ts": {
       "score": 91.8,
@@ -312,8 +312,8 @@
       "timeout": 0,
       "survived": 1,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/web-security.ts": {
       "score": 96.36,
@@ -321,17 +321,17 @@
       "timeout": 0,
       "survived": 2,
       "noCoverage": 0,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/domain/wishes.ts": {
-      "score": 89.71,
-      "killed": 218,
+      "score": 89.84,
+      "killed": 221,
       "timeout": 0,
       "survived": 25,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/services/barcode-scan.native.ts": {
       "score": 95.83,
@@ -379,13 +379,13 @@
       "measuredDate": "2026-10-08"
     },
     "src/services/feedback.ts": {
-      "score": 83.33,
-      "killed": 45,
+      "score": 88.57,
+      "killed": 62,
       "timeout": 0,
-      "survived": 8,
+      "survived": 7,
       "noCoverage": 1,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/services/kv.ts": {
       "score": 31.11,
@@ -393,8 +393,8 @@
       "timeout": 0,
       "survived": 16,
       "noCoverage": 15,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/services/reminder-preferences.ts": {
       "score": 56.25,
@@ -411,8 +411,8 @@
       "timeout": 0,
       "survived": 21,
       "noCoverage": 22,
-      "measuredOn": "42a9aa3ecfff67e722bdb20ca2fae7184440884b",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/services/reminders.ts": {
       "score": 0,
@@ -438,26 +438,26 @@
       "timeout": 0,
       "survived": 0,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/engine.ts": {
-      "score": 78.1,
-      "killed": 458,
+      "score": 78.11,
+      "killed": 469,
       "timeout": 27,
-      "survived": 125,
+      "survived": 128,
       "noCoverage": 11,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/live.ts": {
-      "score": 89.8,
-      "killed": 44,
+      "score": 91.07,
+      "killed": 51,
       "timeout": 0,
       "survived": 5,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/merge-policy.ts": {
       "score": 89.76,
@@ -474,17 +474,17 @@
       "timeout": 7,
       "survived": 15,
       "noCoverage": 1,
-      "measuredOn": "c54e98e8d340d5a792fa99c02cf83e28df850043",
-      "measuredDate": "2026-10-09"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/rows.ts": {
-      "score": 87.05,
-      "killed": 157,
-      "timeout": 11,
-      "survived": 22,
-      "noCoverage": 3,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "score": 88,
+      "killed": 154,
+      "timeout": 0,
+      "survived": 20,
+      "noCoverage": 1,
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/secure-chunked-storage.ts": {
       "score": 77.27,
@@ -492,8 +492,8 @@
       "timeout": 3,
       "survived": 17,
       "noCoverage": 3,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/session-epoch.ts": {
       "score": 61.9,
@@ -501,8 +501,8 @@
       "timeout": 0,
       "survived": 16,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/sharing.ts": {
       "score": 84.96,
@@ -510,8 +510,8 @@
       "timeout": 0,
       "survived": 20,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/status.ts": {
       "score": 90,
@@ -519,17 +519,17 @@
       "timeout": 0,
       "survived": 3,
       "noCoverage": 0,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     },
     "src/sync/supabase.ts": {
-      "score": 0,
-      "killed": 0,
+      "score": 59.14,
+      "killed": 55,
       "timeout": 0,
-      "survived": 0,
-      "noCoverage": 52,
-      "measuredOn": "fe123d203caa71d8e6ccae202a91b48defe35cd9",
-      "measuredDate": "2026-10-08"
+      "survived": 24,
+      "noCoverage": 14,
+      "measuredOn": "7adf29bf325b5f0b014a36e7b9a43f2ff8e6f8e4",
+      "measuredDate": "2026-10-12"
     }
   }
 }

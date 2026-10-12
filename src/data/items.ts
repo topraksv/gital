@@ -17,7 +17,7 @@ import {
   type RowsWritten,
 } from "../db/mutations";
 import { items, lists, photos } from "../db/schema";
-import { bareEntry, foldName, itemNameFrom, knownFrom, noteFrom, type Entry, type ItemChange, type KnownProduct, type ListedEntry } from "../domain/items";
+import { bareEntry, foldName, mergeEntry, itemNameFrom, knownFrom, noteFrom, type Entry, type ItemChange, type KnownProduct, type ListedEntry } from "../domain/items";
 import { isPrice, type Bought } from "../domain/money";
 import { photoColumn, type PhotoChange } from "./photos";
 
@@ -187,14 +187,7 @@ async function byProduct(listId: string, added: readonly Landing[]): Promise<Map
   added.forEach((entry, at) => {
     const id = ids[at]!;
     const held = entries.get(id);
-    const quantity = entry.quantityMilli == null && held ? held : entry;
-    entries.set(id, {
-      ...(held ?? entry),
-      quantityMilli: quantity.quantityMilli,
-      unit: quantity.unit,
-      note: entry.note ?? held?.note ?? null,
-      urgent: entry.urgent || held?.urgent === true,
-    });
+    entries.set(id, { ...mergeEntry(held, entry), urgent: entry.urgent || held?.urgent === true });
   });
   return entries;
 }
@@ -282,14 +275,10 @@ function land(id: string, there: RowSnapshot | null, arriving: Record<string, un
 }
 
 /**
- * Tick an item into the basket or take it back out (SPEC 3.1). The tick is
- * read inside the write, so a second tap before the screen has refreshed takes
- * it back rather than repeating it. Taken back out, what was bought in its
- * place, and what was paid, was not after all.
- */
-/**
- * A tick, or taking one back. Taking back a tick takes its price and what was
- * bought instead with it, so that one returns what undo needs; any other, null.
+ * Tick an item into the basket or take it back out (SPEC 3.1), read inside
+ * the write so a second tap takes it back rather than repeating it. Taking a
+ * tick back takes its price and what was bought instead, so that one returns
+ * what undo needs; any other, null.
  */
 export async function toggleChecked(id: string): Promise<RowsWritten | null> {
   let lost = false;
@@ -330,11 +319,11 @@ export function reorderItems(listId: string, orderedIds: readonly string[]): Pro
  * Save the item panel: its name, quantity, note, urgency, whether it was not
  * found or something else was bought instead, and what was paid, in one
  * write. What was bought instead or paid for was bought, so it goes into the
- * basket (SPEC 3.7, 3.8). The id is the
- * product's, so a new product means a new row: the old one is tombstoned and
- * the new one carries everything else, or merges into the product's row when
- * it is already there. Renamed in place, "süt" → "ayran" would leave the row
- * where the next "süt" lands, and that "süt" would overwrite the ayran.
+ * basket (SPEC 3.7, 3.8). The id is the product's, so a new product means a
+ * new row: the old one is tombstoned and the new one carries everything else,
+ * or merges into the product's row when it is already there. Renamed in
+ * place, "süt" → "ayran" would leave the row where the next "süt" lands, and
+ * that "süt" would overwrite the ayran.
  *
  * With `to`, the same write sends the item to another list, or with `keep` a
  * copy of it (SPEC 4.3). It lands as adding it there would, with its name,
@@ -372,9 +361,8 @@ export async function updateItem(
 }
 
 /**
- * What was not found stays to buy at the next shop (the owner's idea,
- * approved 2026-09-30), on this list or sent to another, and no longer
- * marked: not finding it was the finished shop's. Undone with `undoSave`.
+ * What was not found stays to buy at the next shop, on this list or sent to
+ * another, and no longer marked: not finding it was the finished shop's. Undone with `undoSave`.
  */
 export async function carryNotFound(listId: string, toListId: string): Promise<RowsWritten | null> {
   const written = await writeUndoable(async () => {

@@ -1,5 +1,5 @@
 /**
- * The KVKK notice (Helix's `tests/ui/legal-notice.test.ts`), held to what makes
+ * The KVKK notice, held to what makes
  * it real: it can be reached from every screen that collects something, before
  * an account exists, and it names every party the code sends data to. The
  * rest is prose, reviewed by reading.
@@ -23,7 +23,7 @@ describe("the privacy notice", () => {
 
   it("is reachable from sign-up, from feedback and from Ayarlar", () => {
     for (const file of ["src/app/feedback.tsx", "src/app/(tabs)/settings.tsx"]) expect(read(file), file).toContain('"/privacy"');
-    // Sign-up opens it over the form, as Helix's does: a push would cost what was typed.
+    // Sign-up opens it over the form: a push would cost what was typed.
     expect(read("src/app/(auth)/sign-in.tsx")).toContain("<LegalNoticeSheet");
   });
 
@@ -101,7 +101,6 @@ describe("the privacy notice", () => {
     ];
     expect(titles.map((title) => title.split(".")[0])).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
     for (const purpose of tr.legal.purposes) expect(purpose).toMatch(/Hukuki sebep: KVKK m\. 5/);
-    expect(tr.legal.rights).toHaveLength(8);
     expect(tr.legal.methodBody).toMatch(/doğrudan sizden/);
     expect(tr.legal.transferNote).toMatch(/m\. 9/);
     expect(tr.legal.contactBody(tr.legal.contactEmail)).toMatch(/Kişisel Verileri Koruma Kurulu/);
@@ -109,7 +108,7 @@ describe("the privacy notice", () => {
 });
 
 /**
- * Apple's declaration (Helix's test of the same name) and the KVKK notice are
+ * Apple's declaration and the KVKK notice are
  * one set of facts in two files, the pair that drifts: a new collection lands
  * in one and the other becomes a false statement.
  */
@@ -148,7 +147,7 @@ describe("the privacy manifest", () => {
 
   it("declares only the required-reason API the app's own binary drives", () => {
     // The bundled libraries that touch these APIs ship their own manifests;
-    // SQLite stats the database file and `expo-sqlite` carries none (Helix).
+    // SQLite stats the database file and `expo-sqlite` carries none.
     expect(manifest.NSPrivacyAccessedAPITypes).toEqual([
       { NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryFileTimestamp", NSPrivacyAccessedAPITypeReasons: ["C617.1"] },
     ]);

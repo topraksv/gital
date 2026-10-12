@@ -4,9 +4,9 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import LogIn from "lucide-react-native/icons/log-in";
 
 import { useSession } from "../auth/session";
-import { useCollections, useLists, usePantry, useSettings } from "../data/hooks";
+import { useCollections, useLists, useMemberName, usePantry } from "../data/hooks";
 import type { PantryItem } from "../data/pantry";
-import { memberNameOf, setMemberName } from "../data/settings";
+import { setMemberName } from "../data/settings";
 import { NAME_MAX } from "../domain/names";
 import { tr } from "../i18n/tr";
 import { pantryToBring, syncNow } from "../sync/engine";
@@ -23,16 +23,8 @@ type Joined = { id: string; kind: InvitePeek["kind"] };
 type Peeked = Awaited<ReturnType<typeof peekInvite>>;
 type Accept = (name: string, bring: readonly PantryItem[] | undefined) => Promise<{ listId: string } | { refused: string }>;
 
-/**
- * Joining by an invitation (SPEC 1.4, 12.13), in one press: the page says
- * what the link is to and from whom before anything is spent, asks the name
- * the others will see in place, and for a household whether the person's own
- * Kiler comes along. The web opens here from the link itself, the token in the
- * fragment; the phone, which runs in Expo Go and so is not the link's target,
- * gets here from Listeler with the link pasted, or from the clipboard's offer.
- * An offer in the app opens here from Listeler too, and is joined the same
- * way or declined.
- */
+/** Joining by an invitation (SPEC 1.4, 12.13) in one press, after the page says what and from whom.
+ *  The phone, in Expo Go, is not the link's target, so it arrives here with the link pasted. */
 export default function InviteScreen() {
   const params = useLocalSearchParams<{ token?: string; offer?: string }>();
   const [linked] = useState<string | null>(
@@ -70,6 +62,7 @@ function JoinedTo({ joined }: { joined: Joined }) {
   const lists = useLists();
   const collections = useCollections();
   if (joined.kind === "pantry") return <Redirect href="/pantry" />;
+  if (lists.updatedAt == null || collections.updatedAt == null) return null;
   if (lists.data.some((list) => list.id === joined.id)) return <Redirect href={{ pathname: "/list/[id]", params: { id: joined.id } }} />;
   if (collections.data.some((collection) => collection.id === joined.id)) return <Redirect href={{ pathname: "/collection/[id]", params: { id: joined.id } }} />;
   return (
@@ -153,7 +146,7 @@ function usePeek(token: string | null): Peeked | undefined {
 function Join({ invite, accept, decline, onJoined }: { invite: InvitePeek; accept: Accept; decline?: () => Promise<void>; onJoined: (joined: Joined) => void }) {
   const userId = useSession((s) => s.userId) ?? "";
   const own = usePantry();
-  const known = memberNameOf(useSettings().data);
+  const known = useMemberName();
   const [named, setNamed] = useState("");
   const [bring, setBring] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<"join" | "decline" | null>(null);
@@ -209,7 +202,7 @@ function Join({ invite, accept, decline, onJoined }: { invite: InvitePeek; accep
         label={tr.sharing.joinAccept}
         icon={LogIn}
         loading={busy === "join"}
-        disabled={busy !== null || name === "" || (choosing && bring == null)}
+        disabled={own.updatedAt == null || busy !== null || name === "" || (choosing && bring == null)}
         onPress={() => void hold("join", join)}
       />
       {decline ? (

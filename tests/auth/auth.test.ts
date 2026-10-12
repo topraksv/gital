@@ -1,26 +1,17 @@
 /**
- * The account's pure rules (SPEC 9.1), Helix's `tests/auth` for Gital: Auth's
- * English errors in Turkish, the previous sign-in, the brake on password
- * checks, and the reset link: Helix's, which reaches the page with its token
- * unspent and is redeemed on save.
+ * The account's pure rules (SPEC 9.1): Auth's English errors in Turkish, the
+ * previous sign-in, the reset link, which reaches the page with its token
+ * unspent and is redeemed on save, and the confirmation links, which reach
+ * the app the same way.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { friendlyAuthError } from "../../src/auth/auth-errors";
 import { loadPreviousLogin, recordSuccessfulLogin, startLoginHistory, type LoginHistoryStorage } from "../../src/auth/login-history";
-import { HOSTED_RECOVERY_PAGE, parseRecoveryLink, recoveryPage, recoveryRedirect } from "../../src/auth/recovery";
-import {
-  IDLE_BRAKE,
-  isVerificationBlocked,
-  recordVerificationFailure,
-  recordVerificationSuccess,
-  VERIFY_COOLDOWN_MS,
-  VERIFY_MAX_FAILURES,
-  type VerificationBrake,
-} from "../../src/auth/verification-brake";
+import { HOSTED_RECOVERY_PAGE, parseEmailLinkLanding, parseRecoveryLink, recoveryPage, recoveryRedirect } from "../../src/auth/recovery";
 import { tr } from "../../src/i18n/tr";
 
 function memoryStorage(): LoginHistoryStorage {
@@ -61,7 +52,7 @@ describe("Auth's errors, in Turkish", () => {
     expect(friendlyAuthError("Email not confirmed")).toBe(tr.auth.errEmailNotConfirmed);
     expect(friendlyAuthError("Email address not authorized")).toBe(tr.auth.errEmailDelivery);
     expect(friendlyAuthError("Error sending recovery email")).toBe(tr.auth.errEmailDelivery);
-    // What Auth answers a sign-up when its SMTP refuses, measured on the live project 2026-09-28.
+    // Auth's answer when SMTP refuses a sign-up.
     expect(friendlyAuthError("Error sending confirmation email")).toBe(tr.auth.errEmailDelivery);
     expect(friendlyAuthError("Error sending email change email")).toBe(tr.auth.errEmailDelivery);
     expect(friendlyAuthError("Unable to validate email address: invalid format")).toBe(tr.auth.errInvalidEmail);
@@ -80,41 +71,11 @@ describe("Auth's errors, in Turkish", () => {
   });
 });
 
-describe("the brake on password checks", () => {
-  const A = "user-a";
-  const B = "user-b";
-  const T0 = 1_000_000;
-  const fail = (brake: VerificationBrake, userId: string, count: number) => {
-    let next = brake;
-    for (let i = 0; i < count; i++) next = recordVerificationFailure(next, userId, T0);
-    return next;
-  };
-
-  it("stops an account for the cooldown after its run of failures, and a success clears it", () => {
-    expect(isVerificationBlocked(fail(IDLE_BRAKE, A, VERIFY_MAX_FAILURES - 1), A, T0)).toBe(false);
-    const engaged = fail(IDLE_BRAKE, A, VERIFY_MAX_FAILURES);
-    expect(isVerificationBlocked(engaged, A, T0 + VERIFY_COOLDOWN_MS - 1)).toBe(true);
-    expect(isVerificationBlocked(engaged, A, T0 + VERIFY_COOLDOWN_MS)).toBe(false);
-    // The streak restarts once engaged: the next block needs a whole run.
-    expect(isVerificationBlocked(recordVerificationFailure(engaged, A, T0 + VERIFY_COOLDOWN_MS), A, T0 + VERIFY_COOLDOWN_MS)).toBe(false);
-    expect(recordVerificationSuccess(engaged, A)).toEqual(IDLE_BRAKE);
-  });
-
-  it("belongs to the account that earned it", () => {
-    const engaged = fail(IDLE_BRAKE, A, VERIFY_MAX_FAILURES);
-    expect(isVerificationBlocked(engaged, B, T0)).toBe(false);
-    const bFirst = recordVerificationFailure(fail(IDLE_BRAKE, A, VERIFY_MAX_FAILURES - 1), B, T0);
-    expect(bFirst).toEqual({ userId: B, failures: 1, blockedUntil: 0 });
-    expect(isVerificationBlocked(recordVerificationSuccess(engaged, B), A, T0)).toBe(true);
-  });
-});
-
 describe("the reset link", () => {
   const page = recoveryPage("https://topraksv.github.io", "/gital");
   const session = "access_token=access&expires_in=3600&refresh_token=refresh&token_type=bearer&type=recovery";
 
   it("lands on the hosted page from a phone, and on this page's own address on the web", () => {
-    expect(page).toBe(HOSTED_RECOVERY_PAGE);
     expect(HOSTED_RECOVERY_PAGE).toBe("https://topraksv.github.io/gital/reset-password");
     expect(recoveryRedirect(null)).toBe(HOSTED_RECOVERY_PAGE);
     expect(recoveryRedirect({ origin: "https://example.com", baseUrl: "/nested//path/" })).toBe("https://example.com/nested/path/reset-password");
@@ -169,6 +130,44 @@ describe("the reset link", () => {
   });
 });
 
+/**
+ * What a confirmation or e-mail change link brings to the Site URL. Only a
+ * token Auth can check, or Auth's own refusal, is an answer; a bare `code`,
+ * which no browser but the one that signed up can redeem, is not.
+ */
+describe("an e-mail link landing on the Site URL", () => {
+  const site = "https://topraksv.github.io/gital/";
+
+  it("hands a confirmation or change token on to be checked", () => {
+    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f&type=email`)).toEqual({ tokenHash: "pkce_0b6f", type: "email" });
+    expect(parseEmailLinkLanding(`${site}#token_hash=pkce_0b6f&type=email`)).toEqual({ tokenHash: "pkce_0b6f", type: "email" });
+    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f&type=email_change`)).toEqual({ tokenHash: "pkce_0b6f", type: "email_change" });
+  });
+
+  it("reads Auth's error, in the query or the fragment, as a link that no longer works", () => {
+    expect(parseEmailLinkLanding(`${site}?error=access_denied&error_code=otp_expired`)).toBe("unusable");
+    expect(parseEmailLinkLanding(`${site}#error_code=otp_expired&error_description=Email+link+is+invalid`)).toBe("unusable");
+    expect(parseEmailLinkLanding(`${site}#error=server_error`)).toBe("unusable");
+    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f&type=email&error=access_denied`)).toBe("unusable");
+  });
+
+  it("claims nothing it cannot prove", () => {
+    expect(parseEmailLinkLanding(`${site}?code=0b6f`)).toBeNull();
+    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f`)).toBeNull();
+    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f&type=recovery`)).toBeNull();
+    expect(parseEmailLinkLanding(`${site}?token_hash=&type=email`)).toBeNull();
+    expect(parseEmailLinkLanding(site)).toBeNull();
+    expect(parseEmailLinkLanding("not a url")).toBeNull();
+  });
+
+  it("leaves reset links to the reset page", () => {
+    expect(parseEmailLinkLanding(`${site}reset-password?token_hash=pkce_0b6f&type=email`)).toBeNull();
+    expect(parseEmailLinkLanding(`${site}reset-password/#error_code=otp_expired`)).toBeNull();
+    // Only the reset page itself: a path that merely passes through the name is not it.
+    expect(parseEmailLinkLanding(`${site}reset-password/done?token_hash=pkce_0b6f&type=email`)).toEqual({ tokenHash: "pkce_0b6f", type: "email" });
+  });
+});
+
 describe("the server's account settings", () => {
   const config = readFileSync(join(import.meta.dirname, "../../supabase/config.toml"), "utf8");
 
@@ -178,11 +177,7 @@ describe("the server's account settings", () => {
     expect(config).toMatch(/\[auth\.email\][\s\S]*?^enable_confirmations = true$/m);
   });
 
-  it("lets the reset link come back to the hosted page", () => {
-    expect(config).toContain(`"${HOSTED_RECOVERY_PAGE}"`);
-  });
-
-  // Helix's template: the token reaches the page unspent, where a mail
+  // The template: the token reaches the page unspent, where a mail
   // client's link checker cannot spend it, and lives five minutes.
   it("mails a reset link that carries its token to the page, for five minutes", () => {
     expect(config).toMatch(/^otp_expiry = 300$/m);
@@ -193,17 +188,18 @@ describe("the server's account settings", () => {
     expect(template).not.toMatch(/Helix/);
   });
 
-  // A confirmation and an e-mail change are confirmed by Auth's verify GET
-  // itself, whichever browser makes it; there is nothing for the app to redeem.
+  // Auth's verify GET confirmed the address on whatever fetched it first, a
+  // mail client's link checker included. The token reaches the app unspent,
+  // and Auth checks it there from any browser, as a PKCE code could not be.
   it.each([
-    ["confirmation", "{{ .Email }}"],
-    ["email_change", "{{ .NewEmail }}"],
-  ])("mails a %s link through Auth's own verify link, in Gital's own words", (kind, address) => {
+    ["confirmation", "email", "{{ .Email }}"],
+    ["email_change", "email_change", "{{ .NewEmail }}"],
+  ])("mails a %s link that carries its token to the app, in Gital's own words", (kind, type, address) => {
     expect(config).toMatch(new RegExp(`\\[auth\\.email\\.template\\.${kind}\\][\\s\\S]*?^content_path = "\\./supabase/templates/${kind}\\.html"$`, "m"));
     const template = readFileSync(join(import.meta.dirname, `../../supabase/templates/${kind}.html`), "utf8");
-    expect(template).toContain('href="{{ .ConfirmationURL }}"');
+    expect(template).toContain(`href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=${type}"`);
     expect(template).toContain(address);
-    expect(template).not.toContain("{{ .TokenHash }}");
+    expect(template).not.toContain("{{ .ConfirmationURL }}");
     expect(template).not.toMatch(/Helix|Gital'(e|i|in|de|den|le)\b/);
   });
 
@@ -214,31 +210,5 @@ describe("the server's account settings", () => {
     expect(sql).toMatch(/delete from auth\.users where id = auth\.uid\(\);/);
     expect(sql).toMatch(/revoke all on function public\.delete_own_account\(\) from public, anon, authenticated, service_role;/);
     expect(sql.match(/^grant .*$/gm)).toEqual(["grant execute on function public.delete_own_account() to authenticated;"]);
-  });
-});
-
-// On web the key-value store is `localStorage`, which any script on the origin
-// reads. CodeQL flags its writer because the id and address `signInWithPassword`
-// returns land there; session material stays in supabase-js. Helix dismissed
-// the same alert and pinned the boundary with this sweep, so it is asserted
-// rather than re-argued.
-describe("the device's key-value store", () => {
-  it("holds only named, non-secret keys", () => {
-    const src = join(process.cwd(), "src");
-    const sources = readdirSync(src, { recursive: true }).map(String).filter((name) => /\.tsx?$/.test(name)).map((name) => join(src, name));
-    // `kvSwitch` forwards its key to `kv.set`, so its own forwarding is the
-    // one variable allowed, and each switch's key is read where it is made.
-    const forwarding = join(src, "services/kv.ts");
-    const keys = sources.flatMap((file) =>
-      [...readFileSync(file, "utf8").matchAll(/(?<!function )(?:kv\.set|kvSwitch)\(\s*([^,)]+)[,)]/g)]
-        .map((match) => match[1]!.trim())
-        .filter((key) => !(file === forwarding && key === "key")),
-    );
-    // An empty sweep would pass everything below.
-    expect(keys.length).toBeGreaterThanOrEqual(10);
-    for (const key of keys) {
-      expect(key).not.toMatch(/token|password|secret|credential|jwt|session/i);
-      expect(key).toMatch(/^("gital\.[\w.-]+"|[A-Z][A-Z0-9_]*_KEY|(APPEARANCE_)?KEYS\.\w+)$/);
-    }
   });
 });

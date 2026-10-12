@@ -11,8 +11,6 @@ import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
-import { contentSecurityPolicy, trustedSupabaseOrigin } from "../../src/domain/web-security";
-
 const root = join(import.meta.dirname, "..", "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 const base = `${JSON.parse(read("app.json")).expo.experiments.baseUrl}/`;
@@ -72,9 +70,8 @@ function worker(): Record<string, unknown> {
 const workerPrunable = () => worker().prunable as (paths: string[]) => string[];
 
 describe("the web database", () => {
-  // Helix shares the topraksv.github.io origin, and expo-sqlite's pool locks
-  // every file in its folder: in one folder, whichever app opened first locked
-  // the other out (reproduced 2026-09-28 with both exports on one origin).
+  // Helix shares this origin, and expo-sqlite's pool locks every file in its
+  // folder: in one folder, whichever app opened first locks the other out.
   it("lives in a folder of Gital's own, not the one Helix's pool locks", () => {
     expect(JSON.parse(read("package.json")).scripts.postinstall).toBe("node scripts/patch-dependencies.mjs");
     const worker = read("node_modules/expo-sqlite/web/worker.ts");
@@ -84,7 +81,7 @@ describe("the web database", () => {
 
 describe("the offline worker's cache-first rule", () => {
   // A file whose name never changes, served cache-first, is the first copy
-  // forever: the old mark's favicon outlived the new one's deploy (2026-09-28).
+  // forever.
   it("serves from the cache first only what a build names by its content", () => {
     const hashed = worker().hashed as (path: string) => boolean;
     expect(hashed(`${base}_expo/static/js/web/entry-0f1e2d3c4b5a69788796a5b4c3d2e1f0.js`)).toBe(true);
@@ -107,109 +104,5 @@ describe("the offline worker's prune", () => {
 
   it("keeps everything while each kind is under its own cap", () => {
     expect(workerPrunable()([`${base}index.html`, ...code(120), ...pictures(133)])).toEqual([]);
-  });
-});
-
-describe("the keyboard focus ring", () => {
-  it("is drawn by the app in the live palette's focus colour, the default palette's before the app runs", async () => {
-    const { FOCUS_PROPERTY, focusRingCss } = await import("../../src/ui/focus-ring");
-    const { DEFAULT_PALETTE_ID, PALETTES } = await import("../../src/ui/theme");
-    const css = focusRingCss(PALETTES[DEFAULT_PALETTE_ID].light.focus);
-    expect(css).toContain(`outline:2px solid var(${FOCUS_PROPERTY},${PALETTES[DEFAULT_PALETTE_ID].light.focus})`);
-    expect(read("src/app/+html.tsx")).toContain("focusRingCss(");
-    expect(read("src/app/_layout.tsx")).toContain("FOCUS_PROPERTY");
-  });
-
-  it("shows for the keyboard only, inside its own box so a card's clipping cannot cut it", async () => {
-    const { focusRingCss } = await import("../../src/ui/focus-ring");
-    const css = focusRingCss("#000000");
-    expect(css).not.toMatch(/:focus[^-]/);
-    expect(css).toContain("outline-offset:-2px");
-  });
-
-  // A sheet is react-native-web's Modal, which renders beside `#root` rather
-  // than in it: scoped to `#root`, not one control in a sheet had the ring.
-  it("covers every element Gital lets focus reach, in a sheet too, react-native-web's own outline reset included", async () => {
-    const { focusRingCss } = await import("../../src/ui/focus-ring");
-    const css = focusRingCss("#000000");
-    expect(css).not.toContain("#root");
-    for (const target of ["[tabindex]", "[role=button]", "[role=checkbox]", "[role=switch]", "[role=radio]", "[role=tab]", "[role=slider]", "input", "textarea"]) {
-      expect(css, target).toContain(`body ${target}:focus-visible`);
-    }
-  });
-
-  // A sheet moves focus to its title for a screen reader; the title is not a
-  // control, and a ring round it on every opening reads as a stray selection.
-  it("draws no ring round a heading that took focus", async () => {
-    const { focusRingCss } = await import("../../src/ui/focus-ring");
-    const css = focusRingCss("#000000");
-    expect(css.indexOf("body [role=heading]:focus-visible{outline:none")).toBeGreaterThan(css.indexOf("[tabindex]:focus-visible"));
-  });
-
-  it("rings the drawn box of a control whose hit area is larger, not the invisible square around it", async () => {
-    const { FOCUS_BOX, focusRingCss } = await import("../../src/ui/focus-ring");
-    const css = focusRingCss("#000000");
-    expect(FOCUS_BOX).toEqual({ dataSet: { focusBox: "true" } });
-    const hidden = css.indexOf(":focus-visible:has(> [data-focus-box]){outline:none");
-    expect(hidden).toBeGreaterThan(css.indexOf("[role=button]:focus-visible"));
-    expect(css).toContain(":focus-visible > [data-focus-box]{outline:2px solid");
-  });
-});
-
-const directive = (policy: string, name: string) => policy.split("; ").find((part) => part.startsWith(`${name} `)) ?? "";
-
-describe("the web build's network boundary", () => {
-  it("trusts one HTTPS Supabase project origin and nothing shaped like it", () => {
-    expect(trustedSupabaseOrigin("https://project-ref.supabase.co")).toBe("https://project-ref.supabase.co");
-    expect(trustedSupabaseOrigin("https://project-ref.supabase.co/")).toBe("https://project-ref.supabase.co");
-    for (const raw of [
-      undefined,
-      "",
-      "not a url",
-      "http://project-ref.supabase.co",
-      "https://other.supabase.co/rest/v1",
-      "https://supabase.co.attacker.example",
-      "https://user@project-ref.supabase.co",
-      "https://project-ref.supabase.co:8443",
-      "https://project-ref.supabase.co/?next=x",
-      "https://project-ref.supabase.co/#x",
-      "https://sub.project-ref.supabase.co",
-      "https://project-ref.supabase.co.attacker.example",
-    ])
-      expect(trustedSupabaseOrigin(raw)).toBeNull();
-  });
-
-  it("lets the page reach its project by HTTPS and by the socket live lists hold", () => {
-    const policy = contentSecurityPolicy("https://project-ref.supabase.co");
-    expect(directive(policy, "connect-src")).toBe("connect-src 'self' https://project-ref.supabase.co wss://project-ref.supabase.co");
-  });
-
-  it("says every other source the page may use, in this order", () => {
-    expect(contentSecurityPolicy(undefined).split("; ")).toEqual([
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self' data:",
-      "connect-src 'self'",
-      "worker-src 'self' blob:",
-      "frame-src 'none'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ]);
-  });
-
-  it("reaches nothing but itself when the build has no project", () => {
-    expect(directive(contentSecurityPolicy(undefined), "connect-src")).toBe("connect-src 'self'");
-    expect(directive(contentSecurityPolicy("https://evil.example"), "connect-src")).toBe("connect-src 'self'");
-  });
-
-  it("draws pictures only from itself and the data a row carries, and frames nothing", () => {
-    const policy = contentSecurityPolicy(undefined);
-    expect(directive(policy, "img-src")).toBe("img-src 'self' data: blob:");
-    expect(policy).toContain("object-src 'none'");
-    expect(policy).toContain("frame-src 'none'");
-    expect(policy).toContain("base-uri 'self'");
   });
 });

@@ -1,15 +1,6 @@
 /**
- * A wish's link read as the person would read it (SPEC 7.2): the shop's page
- * opened in a WebView nobody sees, on the person's own phone. Trendyol's and
- * Hepsiburada's bot walls (Cloudflare, Akamai) answer 403 to a server and to
- * any request that is not a browser, whatever its address or user agent; a
- * browser engine gets the page (measured 2026-09-27). Akakçe and Cimri price
- * from feeds the shops send them, which a household's app is never sent; what
- * is left is the page, and every large shop writes schema.org's Product in it
- * for Google Shopping, which `productFromPage` reads.
- *
- * One page at a time, and a page that shows no product by `GIVE_UP_MS` is
- * given up: a link that fills nothing keeps its link, as before.
+ * A wish's link read on the person's own phone in a hidden WebView (SPEC 7.2): the shops' bot walls refuse a
+ * server and any non-browser request. One page at a time; one showing no product by `GIVE_UP_MS` is given up.
  */
 
 import { useEffect, useSyncExternalStore } from "react";
@@ -140,16 +131,11 @@ export function readLinkPages(wishId: string): void {
       tell();
     }
   })().catch(() => {
-    // A page that fills nothing is an expected outcome, not an error (ARCHITECTURE, 2026-09-23).
+    // A page that fills nothing is an expected outcome, not an error.
   });
 }
 
-/**
- * The wishes no phone has read yet (`isUnread`), as their collection opens:
- * one added on the web waited until its panel was saved on a phone, which the
- * owner met as a link that showed nothing (2026-09-30). Once a launch each,
- * so a read cut short is tried again at the next.
- */
+/** Wishes no phone has read yet (`isUnread`), as their collection opens; once a launch each, so a read cut short is retried at the next. */
 export function readUnreadPages(wishes: readonly Wish[]): void {
   const now = Date.now();
   for (const wish of wishes) if (!tried.has(wish.id) && isUnread(wish, now)) readLinkPages(wish.id);

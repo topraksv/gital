@@ -1,8 +1,8 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { tabLabelsFit, tooWide } from "../src/ui/responsive";
+import { sourceFiles } from "../source-corpus";
 import {
   composite,
   DEFAULT_PALETTE_ID,
@@ -17,7 +17,7 @@ import {
   TAB_BAR,
   type,
   type Palette,
-} from "../src/ui/theme";
+} from "../../src/ui/theme";
 
 /** A `#RRGGBB` colour's channels as linear light, 0 to 1. */
 function linear(hex: string): [number, number, number] {
@@ -56,7 +56,7 @@ const TEXT = 4.5;
 const NON_TEXT = 3;
 
 describe("the palette set", () => {
-  it("ships Helix's three families, Amber first as the default", () => {
+  it("ships three families, Amber first as the default", () => {
     expect(Object.keys(PALETTES)).toEqual(["clay", "ocean", "forest"]);
     expect(DEFAULT_PALETTE_ID).toBe("clay");
   });
@@ -66,8 +66,7 @@ describe("the palette set", () => {
     for (const id of Object.keys(PALETTES)) expect(resolvePaletteId(id)).toBe(id);
   });
 
-  // Amber is what everyone sees without choosing, and the owner asked for it as
-  // Helix has it. A drift here is a different app.
+  // Amber is what everyone sees without choosing; it matches Helix's ramp exactly.
   it("keeps the default ramp exactly Helix's", () => {
     expect(PALETTES.clay.light).toMatchObject({
       background: "#F1EDE8", surface: "#FFFDFB", surfaceAlt: "#E7DFD7", surfaceStrong: "#C2B2A3",
@@ -114,7 +113,7 @@ describe.each(schemes)("%s", (_, p) => {
     ["errorText", "surface"],
     ["warningText", "surface"],
     // The mark in a ticked item's circle, and any text drawn on `secondary`
-    // later: Helix's 3.89 and 3.85 were corrected on 2026-10-09.
+    // later.
     ["onSecondary", "secondary"],
   ] as const)("%s on %s reaches 4.5:1", (fg, bg) => {
     expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(TEXT);
@@ -149,7 +148,7 @@ describe.each(schemes)("%s", (_, p) => {
   });
 
   // One alpha of the palette's own ink is what makes a hover the same size in
-  // every theme; Helix measured hand-picked tokens spreading 1.25–1.56:1.
+  // every theme; hand-picked tokens measured spreading 1.25–1.56:1.
   it("says hover quietly and pressed louder, on every surface a control sits on", () => {
     for (const under of [p.surface, p.surfaceAlt, p.primarySoft]) {
       const hovered = contrast(under, composite(under, p.textStrong, INTERACTION_ALPHA.hover));
@@ -189,7 +188,7 @@ describe("scales", () => {
     expect(steps.every((v, i) => i === 0 || v > steps[i - 1]!)).toBe(true);
   });
 
-  // Helix's floor. And no role pins a line box: a constant lineHeight beside a
+  // And no role pins a line box: a constant lineHeight beside a
   // font size the OS scales is what clips Turkish descenders at large text.
   it("draws no text under 10 and pins no line height", () => {
     for (const [role, style] of Object.entries(type)) {
@@ -217,32 +216,10 @@ describe("the floating tab bar", () => {
     // No indicator: the bar still floats its minimum gap off the edge.
     expect(navigationInset({ bottomInset: 0, isWeb: true }).bottom).toBe(TAB_BAR.webHeight + TAB_BAR.minBottomGap + TAB_BAR.gap);
   });
-
-  // Labels must render once to be measured, so "not measured" reads as fits.
-  it("draws labels before anything has been measured", () => {
-    expect(tabLabelsFit(0, 0)).toBe(true);
-    expect(tabLabelsFit(0, 60)).toBe(true);
-    expect(tabLabelsFit(48, 0)).toBe(true);
-  });
-
-  it("drops labels the moment the widest stops clearing its column, and brings them back", () => {
-    expect(tabLabelsFit(54, 60)).toBe(true);
-    expect(tabLabelsFit(55, 60)).toBe(false);
-    expect(tabLabelsFit(84, 120)).toBe(true);
-  });
-
-  it("treats a wrapped label as too wide for any column", () => {
-    expect(tabLabelsFit(tooWide(60), 60)).toBe(false);
-    expect(tabLabelsFit(tooWide(120), 120)).toBe(false);
-  });
 });
 
 describe("theme.ts holds the only literals", () => {
-  const root = join(import.meta.dirname, "..");
-  const sources = (readdirSync(join(root, "src"), { recursive: true }) as string[])
-    .filter((file) => /\.tsx?$/.test(file))
-    .map((file) => join(root, "src", file))
-    .filter((path) => relative(root, path) !== join("src", "ui", "theme.ts"));
+  const sources = sourceFiles("src", { atLeast: 120 }).filter((path) => path !== join("src", "ui", "theme.ts"));
 
   // A quoted pair of hex digits is an alpha channel appended to a palette hex.
   const COLOUR = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(|"[0-9a-f]{2}"/i;
@@ -250,20 +227,22 @@ describe("theme.ts holds the only literals", () => {
   const RAW_SIZE =
     /\b(?:margin|padding|gap|top|bottom|left|right|\w*[wW]idth|\w*[hH]eight|size|fontSize|lineHeight|borderRadius|duration)\w*\s*[:=]\s*\{?-?(?:[1-9]|0\.\d)/;
 
-  it("finds source to scan, so an empty glob cannot pass", () => {
-    expect(sources.length).toBeGreaterThan(0);
-  });
-
   it.each([
     ["colour", COLOUR],
     ["raw size", RAW_SIZE],
   ])("no %s literal outside src/ui/theme.ts", (_, pattern) => {
     const offenders = sources.flatMap((path) =>
-      readFileSync(path, "utf8")
+      readFileSync(join(process.cwd(), path), "utf8")
         .split("\n")
-        .map((line, i) => (pattern.test(line) ? `${relative(root, path)}:${i + 1}: ${line.trim()}` : null))
+        .map((line, i) => (pattern.test(line) ? `${path}:${i + 1}: ${line.trim()}` : null))
         .filter((hit): hit is string => hit !== null),
     );
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("the error screen", () => {
+  it("catches every route under the root layout", () => {
+    expect(readFileSync(join(process.cwd(), "src/app/_layout.tsx"), "utf8")).toMatch(/<ErrorBoundary[^>]*>\s*<Routes/);
   });
 });

@@ -1,10 +1,4 @@
-/**
- * Haptic feedback, iOS only; Android and web are no-ops. Helix's wrapper,
- * ported with the feels Gital calls today: `selectionTap` for moving between
- * discrete choices — tabs, tiles — which is Apple's pattern for selection;
- * `mediumImpact` for a delete (`docs/UI.md` section 7); `successNotice` for a
- * finished shop; `errorNotice` for a failure a dialog reports.
- */
+/** iOS-only haptics; Android and web are no-ops. Notification feedback is for an outcome, never for the press that started it. */
 
 import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
@@ -23,7 +17,7 @@ export function selectionTapIfChanged(previous: string | null | undefined, next:
   if (previous !== next) selectionTap();
 }
 
-export function mediumImpact(): void {
+export function mediumTap(): void {
   feel(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
 }
 

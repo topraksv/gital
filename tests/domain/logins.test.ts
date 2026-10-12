@@ -1,6 +1,5 @@
 /**
- * The last sign-in's device (the owner asked 2026-09-27 for the device beside
- * "Son giriş"): named from a browser's agent, and chosen across every
+ * The last sign-in's device: named from a browser's agent, and chosen across every
  * device's own row, with this device's present session never counted.
  */
 

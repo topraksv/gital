@@ -1,9 +1,6 @@
 /**
- * The keys react-native-web leaves out (`docs/BACKLOG.md` had both): its press
- * handling takes Space only on a button, so a checkbox and a switch answered
- * Enter alone, and an `adjustable` view's increment and decrement reach a
- * screen reader but never the arrow keys. React Native types no key handler,
- * so the handler is spread in as a web-only prop.
+ * The keys react-native-web leaves out: Space on a checkbox or switch, the arrows on an `adjustable`
+ * view. React Native types no key handler, so it is spread in as a web-only prop.
  */
 
 type Key = { key: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean; repeat: boolean; preventDefault: () => void };

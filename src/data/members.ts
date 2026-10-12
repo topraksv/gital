@@ -20,7 +20,6 @@ export interface Member {
   seenAt: string | null;
 }
 
-/** The owner first, then in the order they joined. */
 const MEMBER = {
   id: listMembers.id,
   userId: listMembers.userId,
@@ -29,6 +28,7 @@ const MEMBER = {
   seenAt: listMembers.seenAt,
 };
 
+/** The owner first, then in the order they joined. */
 export function readMembers(listId: string): Promise<Member[]> {
   return getDb()
     .select(MEMBER)
@@ -131,8 +131,12 @@ export async function readSharedLists(userId: string): Promise<string[]> {
 
 /** Leaving a list's screen: what was new has been seen. A list nobody shares has nothing to mark. */
 export async function markSeen(listId: string, userId: string): Promise<void> {
-  const [mine] = (await readMembers(listId)).filter((member) => member.userId === userId);
+  const mine = await myMembership(listId, userId);
   if (mine) await editMember(mine.id, { seenAt: nowIso() });
+}
+
+async function myMembership(listId: string, userId: string) {
+  return (await readMembers(listId)).find((member) => member.userId === userId);
 }
 
 async function editMember(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -145,6 +149,6 @@ export const setMemberRole = (id: string, role: Exclude<MemberRole, "owner">) =>
 
 /** Leave a list someone else owns; the device lets it go once the server has heard. */
 export async function leaveList(listId: string, userId: string): Promise<void> {
-  const [mine] = (await readMembers(listId)).filter((member) => member.userId === userId);
+  const mine = await myMembership(listId, userId);
   if (mine) await removeMember(mine.id);
 }

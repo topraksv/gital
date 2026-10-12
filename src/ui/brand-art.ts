@@ -1,6 +1,4 @@
-// Generated from the Claude Design kit's animation artifact (2026-09-28);
-// coordinates rounded to a tenth of a unit, which is a hundredth of a point at
-// any size the app draws. Regenerate from the kit, never by hand.
+// Generated from the Claude Design kit's animation artifact; coordinates rounded to a tenth of a unit. Regenerate from the kit, never by hand.
 
 export const VIEW_BOX = "43.68 81.62 291.62 289.66";
 export const ASPECT = 291.62 / 289.66;

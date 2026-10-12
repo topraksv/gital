@@ -1,14 +1,8 @@
 /**
- * Helix's device-local key-value store: SecureStore on native, localStorage on
- * web. Preferences only — never a credential, since any script on the web
- * origin can read localStorage. `tests/auth/auth.test.ts` holds every key to that.
- * The one bearer value is a web invitation waiting for sign-in, single-use
- * and seven days at most, which `docs/SECURITY.md` accepts.
- *
- * Best-effort on web by contract: a browser that blocks site data throws on
- * the property access itself and a full one on the write, and a refused write
- * is dropped rather than failing the action that made it. A resolved `set` is
- * therefore not proof of a stored value.
+ * SecureStore on native, localStorage on web; values above SecureStore's size
+ * limit are refused, not truncated. Never a credential: any script on the web
+ * origin reads localStorage. A refused web write is dropped, so a resolved
+ * `set` is no proof of a stored value.
  */
 
 import { Platform } from "react-native";

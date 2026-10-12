@@ -1,10 +1,4 @@
-/**
- * The black window a photo opens in, shared by the web's still photo
- * (`photo-viewer.tsx`) and the phone's pinchable one (`photo-viewer.native.tsx`).
- * A file of its own because on a phone `./photo-viewer` resolves to the
- * `.native` file itself: an import from there inside it reads its own
- * unfinished exports, and the viewer rendered `undefined` (2026-10-02).
- */
+/** Both viewers' window, in a file of its own: inside `photo-viewer.native.tsx`, `./photo-viewer` resolves to that file itself. */
 import type { ReactNode } from "react";
 import { Modal, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

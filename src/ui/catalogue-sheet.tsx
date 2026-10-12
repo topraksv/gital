@@ -1,16 +1,6 @@
 /**
- * The catalogue panel (`docs/SPEC.md` 2.12): an aisle at a time, each product
- * a tile that a tap puts on the list and a second tap takes off again. What
- * the list already holds, ticked or not, wears the tick, found by name as the
- * list merges an entry (2.5), so a product typed in earlier is one here too.
- * Favoriler (5.1) is the same grid over what the person starred, a product
- * outside the catalogue drawn with its initial as a list's item is. Setler
- * (5.3) lists the person's sets: one is made from the list's open items, a
- * tap puts one on the list, and both that and a delete close the panel, since
- * the undo bar they raise is drawn under it. Kiler opens the same panel
- * (the owner asked 2026-09-27), so where a product goes is the caller's.
- * Typing in the field above searches every shelf at once; emptying it gives
- * back the shelf and aisle that were open.
+ * The catalogue panel (SPEC 2.12, 5.1, 5.3). A product is on the list by name, as the list merges
+ * an entry (2.5); adding or deleting a set closes the panel, since its undo bar is drawn under it.
  */
 
 import { useState, type ReactElement } from "react";
@@ -42,7 +32,8 @@ type Shown = Pick<CatalogueProduct, "key" | "name"> & { picture?: CatalogueProdu
 
 type Shelf = "catalogue" | "favourites" | "sets";
 
-/** A product by name as a tile draws it: the catalogue's spelling and picture, or its initial outside it. */
+type Chip = { label: string; selected: boolean; onPress: () => void };
+
 const shownAs = ({ name }: { name: string }): Shown => catalogueProduct(name) ?? { key: foldName(name), name };
 
 export function CatalogueSheet<T extends { name: string }>({
@@ -54,7 +45,6 @@ export function CatalogueSheet<T extends { name: string }>({
   onClose,
 }: {
   items: readonly T[];
-  /** What is still to buy on the list, which a new set is made from. */
   open: readonly ListedEntry[];
   onAdd: (product: Shown) => void;
   /** Left out where a second tap has nothing to take back, and adds again. */
@@ -118,7 +108,6 @@ export function CatalogueSheet<T extends { name: string }>({
   );
 }
 
-/** The field over the shelves: a magnifier while empty, then the button that empties it in the same place. */
 function SearchField({ value, onChangeText }: { value: string; onChangeText: (typed: string) => void }) {
   const { palette } = useTheme();
   return (
@@ -138,9 +127,7 @@ function SearchField({ value, onChangeText }: { value: string; onChangeText: (ty
           <X accessible={false} size={iconSize.compact} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
         </Press>
       ) : (
-        // Cast because Expo's generated `expo-env.d.ts` adds `hovered` to the
-        // state on a machine that has run Expo, and CI has not: one literal
-        // has to satisfy both.
+        // Cast: Expo's generated `expo-env.d.ts` adds `hovered` only where Expo has run, and CI has not.
         <View pointerEvents="none" style={fieldAccessoryStyle(palette, { pressed: false } as PressableStateCallbackType)}>
           <Search accessible={false} size={iconSize.compact} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
         </View>
@@ -149,12 +136,7 @@ function SearchField({ value, onChangeText }: { value: string; onChangeText: (ty
   );
 }
 
-/**
- * What the search finds, mounted only while something is typed: the
- * household's products are watched then and not with every tap on a tile,
- * as the quick-add suggestions watch them. Nothing found offers the text
- * itself, the way the list's own field would take it.
- */
+/** Mounted only while something is typed, so the household's products are watched only then. */
 function Found({
   typed,
   favourites,
@@ -178,13 +160,12 @@ function Found({
   );
 }
 
-/** Tiles in rows of `catalogueSheet.columns`, a short last row held to the same widths. */
 function ProductGrid({ products, id, tile, style }: { products: readonly Shown[]; id: string; tile: (product: Shown) => ReactElement; style?: StyleProp<ViewStyle> }) {
   return (
     <View style={[{ gap: spacing.md }, style]}>
       {rowsOf(products, catalogueSheet.columns).map((row, at) => (
         <View key={`${id}-${at}`} style={{ flexDirection: "row", gap: spacing.xs }}>
-          {row.map((product) => tile(product))}
+          {row.map(tile)}
           {Array.from({ length: catalogueSheet.columns - row.length }, (_, cell) => (
             <View key={cell} style={{ flex: 1 }} />
           ))}
@@ -253,7 +234,6 @@ function SetsShelf({
   );
 }
 
-/** A set: its name over what it holds, the whole card puts it on the list and the bin deletes it. */
 function SetRow({ set, onAdd, onDelete }: { set: ProductSet; onAdd: () => void; onDelete: () => void }) {
   const { palette } = useTheme();
   const holds = set.entries.map((entry) => entry.name).join(", ");
@@ -276,8 +256,7 @@ function SetRow({ set, onAdd, onDelete }: { set: ProductSet; onAdd: () => void; 
   );
 }
 
-/** One side of the Katalog · Favoriler · Setler switch: the chosen one lifts off the track. */
-function ShelfChoice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function ShelfChoice({ label, selected, onPress }: Chip) {
   const { palette } = useTheme();
   return (
     <Press
@@ -296,7 +275,7 @@ function ShelfChoice({ label, selected, onPress }: { label: string; selected: bo
   );
 }
 
-export function AisleChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+export function AisleChip({ label, selected, onPress }: Chip) {
   const { palette } = useTheme();
   return (
     <Press

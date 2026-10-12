@@ -1,9 +1,4 @@
-/**
- * The primitives every screen is built from, ported from Helix's
- * `components.tsx`, `primitives.tsx`, `motion-primitives.tsx` and
- * `selection-controls.tsx` as the first screens need them. Helix keeps four
- * files because it has sixty components; Gital has a dozen.
- */
+/** The primitives every screen is built from: screens, cards, fields, rows, tiles, buttons and notices. */
 
 import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import {
@@ -38,7 +33,7 @@ import EyeOff from "lucide-react-native/icons/eye-off";
 import Minus from "lucide-react-native/icons/minus";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { catalogueProduct, type ProductPicture } from "../domain/catalogue";
+import { catalogueProduct, type Aisle, type ProductPicture } from "../domain/catalogue";
 import { foldName, formatQuantity, type ItemChange } from "../domain/items";
 import { formatMinor } from "../domain/money";
 import type { ListColor, ListIcon } from "../domain/lists";
@@ -48,7 +43,7 @@ import { pulledOnce, useSyncStatus } from "../sync/status";
 import { isSupabaseConfigured } from "../sync/supabase";
 import { selectionTap } from "./haptics";
 import type { RowAction } from "./list-motion";
-import { interactionSurface } from "./interaction";
+import { interactionBleed, interactionSurface } from "./interaction";
 import { FOCUS_BOX } from "./focus-ring";
 import { webKeys } from "./keys";
 import { KeyboardSafeScrollView } from "./keyboard-safe";
@@ -229,9 +224,8 @@ export function Screen({
           style={[styles.statusBand, { height: insets.top, backgroundColor: palette.background }]}
         />
       ) : null}
-      {/* Helix's: the keyboard rises under the focused field instead of over
-          it. Its room is the controller's and passes; `bottomPad` stays the
-          safe area's and the tab bar's. */}
+      {/* The keyboard rises under the focused field instead of over it. Its room is the controller's;
+          `bottomPad` stays the safe area's and the tab bar's. */}
       <KeyboardSafeScrollView
         ref={scrollRef}
         scrollEnabled={scrollEnabled}
@@ -295,7 +289,7 @@ export function cardEdge(palette: Palette): ViewStyle {
 }
 
 /**
- * `rows` is Helix's: the children are `ListRow`s, which carry the vertical
+ * `rows`: the children are `ListRow`s, which carry the vertical
  * padding inside their own pressables, so a lit row reaches the card's top and
  * bottom edge instead of stopping short of the box it lives in.
  */
@@ -317,10 +311,7 @@ export function Card({ children, rows = false }: { children: ReactNode; rows?: b
   );
 }
 
-/**
- * Helix's card heading: its mark in a soft square, a name, and a line on what
- * the card does, over the card's own controls.
- */
+/** A card heading: its mark in a soft square, a name, and a line on what the card does, over the card's own controls. */
 export function PanelHeader({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description?: string }) {
   const { palette } = useTheme();
   return (
@@ -350,19 +341,18 @@ export function PanelHeader({ icon: Icon, title, description }: { icon: LucideIc
   );
 }
 
-/** Helix's 36-point mark beside a card's heading. */
+/** The mark beside a card's heading. */
 const PANEL_MARK = controlSize.compact;
 
-/** Helix's hairline between rows; `flush` inside a `rows` card, where the rows carry the air. */
+/** A hairline between rows; `flush` inside a `rows` card, where the rows carry the air. */
 export function Divider({ flush = false }: { flush?: boolean }) {
   const { palette } = useTheme();
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.border, marginVertical: flush ? 0 : spacing.sm }} />;
 }
 
 /**
- * Helix's settings row: a mark, a name, one line under it, and what it does at
- * the trailing edge — a chevron to open, a switch, a button. Inside a `rows`
- * card the pressed fill bleeds to the card's sides as Helix's does.
+ * A settings row: a mark, a name, one line under it, and what it does at the trailing edge — a chevron to open, a switch, a button.
+ * Inside a `rows` card the pressed fill bleeds to the card's sides.
  */
 export function ListRow({
   icon: Icon,
@@ -396,20 +386,19 @@ export function ListRow({
     </View>
   );
   if (!onPress) return content;
-  const bleed = density.list.cardPadding - spacing.xs;
   return (
     <Press
       accessibilityRole="button"
       accessibilityLabel={tr.common.withDetail(title, subtitle ?? "")}
       onPress={onPress}
-      style={(state) => ({ marginHorizontal: -bleed, paddingHorizontal: bleed, borderRadius: radius.sm, ...interactionSurface(palette, state) })}
+      style={(state) => ({ ...interactionBleed(), borderRadius: radius.sm, ...interactionSurface(palette, state) })}
     >
       {content}
     </Press>
   );
 }
 
-/** A switch in a settings row, Helix's pairing: the row names it, the switch is the control. */
+/** A switch in a settings row: the row names it, the switch is the control. */
 export function ToggleRow({ icon, title, subtitle, value, onValueChange, disabled }: {
   icon?: LucideIcon;
   title: string;
@@ -422,10 +411,10 @@ export function ToggleRow({ icon, title, subtitle, value, onValueChange, disable
 }
 
 /** How a tile is dressed: a list's own colour and picture, when it has them (SPEC 1.8). */
-export type TileLook = { color?: ListColor | null; icon?: ListIcon | null; picture?: ProductPicture; photo?: string | null };
+type TileLook = { color?: ListColor | null; icon?: ListIcon | null; picture?: ProductPicture; photo?: string | null };
 
 /**
- * Helix's tile: a record's picture — a list's own, or a catalogue product's —
+ * A tile: a record's picture — a list's own, or a catalogue product's —
  * or its first letter, on its colour, or on one of the theme's three soft
  * tones, picked by its id, until it has one (`docs/UI.md` section 6).
  */
@@ -759,13 +748,12 @@ export function RowTick({
 }
 
 /**
- * Helix's switch, measured from its `fields.tsx`: the track fills with the
- * brand as the thumb springs across, on carries a tick and off a dash so the
+ * The track fills with the brand as the thumb springs across, on carries a tick and off a dash so the
  * state never rests on colour alone, and the thumb is a lens with a hairline
  * and a shadow. It is only the control: the row beside it names it
  * (`ToggleRow`), and the label here is what a screen reader hears.
  */
-export function Toggle({ value, onValueChange, label, disabled = false }: { value: boolean; onValueChange: (value: boolean) => void; label: string; disabled?: boolean }) {
+function Toggle({ value, onValueChange, label, disabled = false }: { value: boolean; onValueChange: (value: boolean) => void; label: string; disabled?: boolean }) {
   const { palette } = useTheme();
   const [progress] = useState(() => new Animated.Value(value ? 1 : 0));
   useSpringTo(progress, value ? 1 : 0);
@@ -945,7 +933,7 @@ export function ProgressBar({ value }: { value: number }) {
 }
 
 /**
- * A field's trailing button, Helix's `fieldAccessoryPressStyle`: the whole
+ * A field's trailing button: the whole
  * 44-point column at the right edge, so the web gets the target `hitSlop`
  * would not give it. The password's eye and the price's calculator share it.
  */
@@ -1001,10 +989,20 @@ export function FieldLabel({ children }: { children: string }) {
   return <Text style={[type.label, { color: palette.textSecondary, marginBottom: spacing.xs + offset.tight }]}>{children}</Text>;
 }
 
+/** What an e-mail address field asks of the keyboard and the browser's autofill. */
+export const EMAIL_FIELD = {
+  autoCapitalize: "none",
+  autoCorrect: false,
+  keyboardType: "email-address",
+  autoComplete: "email",
+  textContentType: "emailAddress",
+  placeholder: tr.placeholders.email,
+} as const;
+
 /**
- * Helix's field: an optional name above it, the surface fill with a hairline
+ * A field: an optional name above it, the surface fill with a hairline
  * that thickens to the focus colour, an error under it read out as it
- * appears, and an eye on a password. `examples` is Helix's rotating
+ * appears, and an eye on a password. `examples` is the rotating
  * placeholder (`placeholders.ts`), shown while the field is empty. A caller's
  * `style` places the input. `maxLength` counts characters, as `nameFrom`
  * stores them: the input's own counts UTF-16 units, which stopped a name of
@@ -1059,8 +1057,7 @@ export function TextField({
   );
 }
 
-/** A section owns both sides of itself, because it separates two groups. */
-/** `flush` drops the gap above, for a header that opens a card rather than follows rows. */
+/** A section owns both sides of itself, because it separates two groups; `flush` drops the gap above, for a header that opens a card rather than follows rows. */
 export function SectionHeader({ children, flush = false }: { children: ReactNode; flush?: boolean }) {
   const { palette } = useTheme();
   return (
@@ -1080,17 +1077,16 @@ export function SectionHeader({ children, flush = false }: { children: ReactNode
   );
 }
 
+export function AisleHeader({ aisle, first }: { aisle: Aisle | "other"; first: boolean }) {
+  return <SectionHeader flush={first}>{tr.catalogue.aisles[aisle]}</SectionHeader>;
+}
+
 /** Under a field, once what it holds cannot be sent. */
 export function FieldError({ text }: { text: string }) {
   const { palette } = useTheme();
   return <Text style={[type.small, { color: palette.errorText, marginTop: spacing.xs }]}>{text}</Text>;
 }
 
-/** What a form's last attempt answered, read out as it appears. */
-/**
- * Helix's notice: a tinted box with its mark, so an answer reads as one and
- * not as another paragraph. An error is announced at once, a success politely.
- */
 /**
  * Said aloud on iOS, where React Native 0.86 reads no live region and maps the
  * `alert` role to no trait; Android and the web announce the region itself.
@@ -1099,6 +1095,10 @@ export function announce(text: string): void {
   if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(text);
 }
 
+/**
+ * What a form's last attempt answered: a tinted box with its mark, so an answer reads as one and
+ * not as another paragraph. An error is announced at once, a success politely.
+ */
 export function Notice({ tone, text }: { tone: "error" | "success"; text: string }) {
   const { palette } = useTheme();
   useEffect(() => announce(text), [text]);
@@ -1246,7 +1246,7 @@ export function ChoiceTile({
 }
 
 /**
- * Helix's back control. A pushed screen has no native header here, so the
+ * The back control. A pushed screen has no native header here, so the
  * control sits in the title row; its chevron is pulled out to the gutter, or
  * the title would start a chevron's padding to the right of every other one.
  */
@@ -1281,7 +1281,7 @@ function buttonColors(palette: Palette, variant: "primary" | "secondary" | "ghos
 }
 
 /**
- * Helix's button: `primary` for the one action a surface is for, `secondary`
+ * `primary` for the one action a surface is for, `secondary`
  * for an action beside something else (a row's "Şimdi Güncelle"), `ghost` for
  * the way out. `loading` holds the button while its work runs.
  */
@@ -1341,7 +1341,7 @@ export function Button({
 }
 
 /**
- * Helix's icon button: the pressable box is the 44-point minimum, the chip
+ * The pressable box is the 44-point minimum, the chip
  * painted inside it the compact one. Its label is required, because an icon
  * alone says nothing to a screen reader — and a record's control names the
  * record (`docs/UI.md` section 6). `text` writes words beside the icon, for a
@@ -1434,8 +1434,7 @@ export function usePulledOnce(): boolean {
 
 /**
  * The shape a tab's cards keep while a signed-in device's first pull runs,
- * where "nothing yet" would be a lie (`docs/UI.md` §7 rule 4). Helix's
- * `Skeleton` and `CardListSkeleton` in one: nothing for 350 ms, then three
+ * where "nothing yet" would be a lie (`docs/UI.md` §7 rule 4). Nothing for 350 ms, then three
  * cards that pulse slowly, held still under Reduce Motion, since the shape is
  * the message. Scenery to a screen reader.
  */

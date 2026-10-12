@@ -1,6 +1,5 @@
 /**
- * A new list's picture from its name (the owner asked 2026-09-27: "pazar
- * diyince ona göre default bir logo gelsin"): a word the name begins or holds
+ * A new list's picture from its name: a word the name begins or holds
  * decides it, however it is spelt, and a name that says nothing draws none.
  */
 

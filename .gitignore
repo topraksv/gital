@@ -26,6 +26,11 @@ expo-env.d.ts
 
 # Test and analysis output
 /coverage/
+/dist-e2e/
+/test-results/
+/playwright-report/
+/reports/
+/.stryker-tmp/
 .eslintcache
 
 # Supabase CLI state
@@ -44,7 +49,7 @@ supabase/.temp/
 # The instruction files, the agent surface, the collaboration memory and the
 # design and architecture notes are the owner's working material. They stay on
 # disk, where every session still reads them, and out of the published tree.
-# `gital-private` carries them: `.claude/scripts/push-both.sh` stages this same
+# `<repo>-private` carries them: `.claude/scripts/push-both.sh` stages this same
 # working tree into `.private.git` with these paths forced in, minus the
 # machine-local state listed in that script.
 /.agents/
@@ -56,10 +61,3 @@ supabase/.temp/
 
 # The private mirror lives in its own git directory beside this one.
 /.private.git/
-
-# Browser and mutation suite output
-/dist-e2e/
-/test-results/
-/reports/
-/.stryker-tmp/
-/playwright-report/

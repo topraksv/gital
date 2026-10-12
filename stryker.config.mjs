@@ -1,7 +1,6 @@
 /**
- * The mutation gate over `src/domain`, Helix's shape. A glob rather than
- * Helix's list, as in the coverage gate: a new domain file is mutated the day
- * it lands. The runner is `scripts/stryker-vitest-files.mjs`, which says why.
+ * A glob so a new domain file is mutated the day it lands. The runner is
+ * `scripts/stryker-vitest-files.mjs`, which says why.
  */
 export default {
   mutate: ["src/domain/**/*.ts"],

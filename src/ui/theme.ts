@@ -1,11 +1,9 @@
 /**
  * The only file allowed to hold a literal colour, size or duration. Everything
- * else names one of these; `tests/theme-contract.test.ts` enforces both the
- * values and the monopoly.
+ * else names one of these; `tests/ui/design-system-contract.test.ts` enforces
+ * both the values and the monopoly.
  *
- * Ported from Helix's `src/ui/theme.ts`, whose reasons are not repeated here;
- * what Gital leaves out is dated in `docs/ARCHITECTURE.md`. It imports React
- * and never React Native, so the contract test runs in Node.
+ * It imports React and never React Native, so the contract test runs in Node.
  */
 
 import { createContext, useContext } from "react";
@@ -305,6 +303,10 @@ export function resolvePaletteId(value: string | null): PaletteId {
   return value != null && Object.hasOwn(PALETTES, value) ? (value as PaletteId) : DEFAULT_PALETTE_ID;
 }
 
+export function isThemePreference(value: string | null): value is ThemePreference {
+  return value === "system" || value === "light" || value === "dark";
+}
+
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 
 /**
@@ -329,7 +331,7 @@ export function circle(size: number): number {
   return size / 2;
 }
 
-/** Helix's tile: a rounded square whose corner grows with it (`docs/UI.md` section 6). */
+/** A tile: a rounded square whose corner grows with it (`docs/UI.md` section 6). */
 export function tileRadius(size: number): number {
   return size / 3;
 }
@@ -358,15 +360,15 @@ export const motion = {
   fadeTail: 50,
   /** A dragged-away bar leaving: quick, because the finger already said where it goes. */
   feedback: 120,
-  /** A row making room or closing a gap: Helix's `LinearTransition`. */
+  /** A row making room or closing a gap. */
   standard: 220,
   /** How long the undo bar waits to be used before it leaves on its own. */
   undoHold: 6000,
   /** The same bar with nothing to take back. */
   noticeHold: 3600,
-  /** A figure counting to its value, Helix's `motion.figure`. */
+  /** A figure counting to its value. */
   figure: 900,
-  /** A pulse fading off a row that changed, Helix's `motion.settle`. */
+  /** A pulse fading off a row that changed. */
   settle: 420,
   /** The ease-out every web CSS transition uses. */
   webEase: "cubic-bezier(0.22, 1, 0.36, 1)",
@@ -381,16 +383,16 @@ export const motion = {
    * How far a thing travels as it arrives. A block rising into empty space
    * lifts a little; the undo bar comes up off the edge near where it lands; a
    * phone-width sheet is pulled up off the screen's edge and needs the longer
-   * travel to read as one (Helix's picker).
+   * travel to read as one.
    */
   travel: { rise: 10, bar: 24, sheet: 40 },
   /** A row flying to another tab shrinks to `shrink` on the way; the tab's icon lands at `bounce` and springs home. */
   landing: { shrink: 0.2, bounce: 1.3 },
   /** A wait shows nothing before this, so a quick one never flashes (`docs/UI.md` §7). */
   reveal: 350,
-  /** An account operation's medallion breathing in and out, Helix's `OperationFlow`. */
+  /** An account operation's medallion breathing in and out. */
   operation: { breath: 1100 },
-  /** Helix's skeleton: a slow, shallow pulse. */
+  /** The skeleton: a slow, shallow pulse. */
   skeleton: { pulse: 1200, opacity: [1, 0.55] as const, lines: ["60%", "40%"] as const },
 } as const;
 
@@ -439,11 +441,11 @@ export const font = {
 // Static faces carry one weight each, so a role sets fontFamily and never
 // fontWeight, which iOS would synthesise into a second face.
 export const type = {
-  /** Helix's greeting size: the sign-in's welcome on a wide window. */
+  /** The greeting size: the sign-in's welcome on a wide window. */
   display: { fontSize: 40, fontFamily: font.serif, letterSpacing: -0.8 },
   title: { fontSize: 26, fontFamily: font.serif, letterSpacing: -0.2 },
   heading: { fontSize: 18, fontFamily: font.semibold, letterSpacing: -0.2 },
-  /** A field's name above it, Helix's `Label`. */
+  /** A field's name above it. */
   label: { fontSize: 13, fontFamily: font.medium },
   sectionTitle: { fontSize: 16, fontFamily: font.semibold, letterSpacing: -0.2 },
   field: { fontSize: 16, fontFamily: font.regular },
@@ -452,7 +454,7 @@ export const type = {
   buttonCompact: { fontSize: 13, fontFamily: font.medium },
   small: { fontSize: 12, fontFamily: font.regular },
   caption: { fontSize: 11, fontFamily: font.regular },
-  /** Helix's calculator: a key's glyph, sized to the pad rather than to prose, and the display's figure. */
+  /** The calculator: a key's glyph, sized to the pad rather than to prose, and the display's figure. */
   keypad: { fontSize: 22, fontFamily: font.medium },
   amount: { fontSize: 34, fontFamily: font.semibold, fontVariant: ["tabular-nums"] as "tabular-nums"[] },
 } as const;
@@ -463,11 +465,11 @@ export const proseLeading = 1.5;
 export const themeShadow = {
   card: (palette: Palette) => ({ boxShadow: `0 8px 24px ${palette.shadow}` } as const),
   overlay: (palette: Palette) => ({ boxShadow: `0 16px 40px ${palette.shadowStrong}` } as const),
-  /** The switch's thumb, Helix's: it reads as a lens on the track rather than a flat dot. */
+  /** The switch's thumb: it reads as a lens on the track rather than a flat dot. */
   toggleThumb: (palette: Palette) => ({ boxShadow: `0 1px 3px ${palette.shadowStrong}` } as const),
 } as const;
 
-/** The floating tab bar, measured from Helix's `tab-bar.tsx`. */
+/** The floating tab bar, measured from `tab-bar.tsx`. */
 export const TAB_BAR = {
   height: 56,
   /** Taller on web so ç and ğ are not clipped. */
@@ -522,7 +524,7 @@ export function navigationMaterial(surface: string, { glass, isWeb, compact = fa
 
 export const sectionMark = { width: 3, height: 18, radius: 2 } as const;
 
-/** A list's card on Listeler: its initial on a tone, Helix's tile at this side. */
+/** A list's card on Listeler: its initial on a tone. */
 export const listCard = { tile: 46 } as const;
 
 /**
@@ -565,7 +567,7 @@ export const listSheet = { cell: controlSize.minimumTarget, columns: 7 } as cons
  */
 export const catalogueSheet = { columns: 4, tile: 56, name: 32 } as const;
 
-/** Helix's calculator pad (`docs/UI.md` section 5): a key's height and the display's, which three lines never resize. */
+/** The calculator pad (`docs/UI.md` section 5): a key's height and the display's, which three lines never resize. */
 export const calculatorPad = { keyHeight: 56, displayHeight: 128 } as const;
 
 /** The first-open tour's drawings: a skeleton of the screen each slide names, and its step dots. */
@@ -578,7 +580,7 @@ export const celebration = { tick: 40, cardWidth: 280 } as const;
 /** An illustration fills this share of its tile (`docs/UI.md` section 6). */
 export const illustrationShare = 0.72;
 
-/** Helix's switch, drawn the same on every platform, so its geometry is one contract. */
+/** The switch, drawn the same on every platform, so its geometry is one contract. */
 export const toggleSize = { width: 46, height: 28, padding: 3, glyph: 11, glyphInset: 7 } as const;
 
 /**
@@ -669,7 +671,7 @@ export const brandMark = {
  */
 export const pageReader = { size: 1 } as const;
 
-/** Helix's waiting page for an account operation: a halo breathing round a medallion. */
+/** The waiting page for an account operation: a halo breathing round a medallion. */
 export const operationWait = {
   halo: 128,
   medallion: 96,
@@ -688,7 +690,7 @@ export const screenshot = { thumb: 84, edge: 1600 } as const;
 export const progressBar = { height: 6 } as const;
 
 /**
- * Helix's chart grammar at Gital's sizes (`docs/UI.md` section 12): the
+ * The chart grammar (`docs/UI.md` section 12): the
  * month bars' plot, the price line's, the ring on a list's card. A bar with
  * any spend keeps `barFloor` of the plot, so a small month is still a mark.
  */
@@ -697,7 +699,7 @@ export const chart = { bars: 88, barFloor: 0.04, barWidth: "56%", line: 56, line
 export const emptyState = { disc: 56, icon: 26 } as const;
 
 /**
- * Helix's dialog. `keyboardGap` is the air kept between the caret and a
+ * The dialog. `keyboardGap` is the air kept between the caret and a
  * native keyboard, capped at a share of the window so a short phone keeps
  * the sheet on screen.
  */
@@ -714,7 +716,7 @@ export const dialog = {
   keyboardGapShare: 0.22,
 } as const;
 
-/** Helix's notice sheet and consent box (`src/ui/legal-notice.tsx`), measured there. */
+/** The notice sheet and consent box (`src/ui/legal-notice.tsx`). */
 export const legalNotice = {
   maxWidth: 560,
   /** The text scrolls inside a bounded surface, so the close control never leaves a phone's screen. */
@@ -729,13 +731,13 @@ export const legalNotice = {
   chevron: 16,
 } as const;
 
-/** Helix's sign-in greeting and its three-step picture, measured on `(auth)/sign-in.tsx`. */
+/** The sign-in greeting and its three-step picture, measured on `(auth)/sign-in.tsx`. */
 export const authHero = {
   mark: 40,
   markWide: 48,
   titleLine: 33,
   titleLineWide: 45,
-  /** The phone's title: Helix's section title grown by 1.3. */
+  /** The phone's title: the section title grown by 1.3. */
   titleScale: 1.3,
   bodyMaxWidth: 470,
   bodyLine: 22,
@@ -745,7 +747,7 @@ export const authHero = {
   node: 46,
   nodeIcon: 21,
   nodeStroke: 1.8,
-  /** The joining line, a hair below the node's centre as Helix draws it. */
+  /** The joining line, a hair below the node's centre. */
   link: { flex: 0.52, top: 23 },
   bars: [0.72, 0.48, 0.86],
   bar: { height: 6, dot: 7 },
@@ -757,7 +759,7 @@ export const authHero = {
 
 export const undoBar = { mark: 26, markIcon: 15, actionIcon: 14 } as const;
 
-/** Helix's appearance card: each tile is drawn in the scheme or palette it chooses. */
+/** The appearance card: each tile is drawn in the scheme or palette it chooses. */
 export const appearanceTile = {
   theme: { minHeight: 82, swatch: { width: 58, height: 34 }, icon: 16 },
   palette: {
@@ -785,12 +787,12 @@ export const appearanceTile = {
 export type ThemePreference = "system" | "light" | "dark";
 
 /**
- * Device-local, as in Helix: read before the first frame, by the web shell
+ * Device-local: read before the first frame, by the web shell
  * (`src/app/+html.tsx`) and by the root layout, so the wrong ground never shows.
  */
 export const APPEARANCE_KEYS = { theme: "gital.theme", palette: "gital.palette" } as const;
 
-export interface Theme {
+interface Theme {
   palette: Palette;
   scheme: "light" | "dark";
   paletteId: PaletteId;

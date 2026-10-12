@@ -1,10 +1,9 @@
 /**
  * Gital's charts (`docs/SPEC.md` 11.8, `docs/UI.md` section 12): six months'
  * totals, the month's aisles, a product's price over time and a shop's
- * progress as a ring. Helix's
- * grammar — its bar shape, line weight and markers — without its chart module,
- * whose axes, focus and scrubbing serve a finance app's long series: these are
- * six bars, six points and one share, each with its figures written as text.
+ * progress as a ring: a bar shape, line weight and markers without axes, focus or
+ * scrubbing, which serve long series. These are six bars, six points and one share,
+ * each with its figures written as text.
  *
  * A mark mounted as an event grows from nothing; one arriving with its screen
  * is drawn where it stands, and after that it springs from what was last

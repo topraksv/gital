@@ -1,6 +1,6 @@
 /**
- * Helix's calculator (`docs/SPEC.md` 4.4) as a pure state machine: chained
- * four operations, Turkish decimal comma, no eval.
+ * The calculator (SPEC 4.4) as a pure state machine: chained four operations,
+ * Turkish decimal comma, no eval.
  */
 
 import { describe, expect, it } from "vitest";

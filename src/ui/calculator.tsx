@@ -1,5 +1,5 @@
 /**
- * The price field and the quantity that open Helix's calculator (`docs/SPEC.md` 4.4). The pad
+ * The price field and the quantity that open the calculator (`docs/SPEC.md` 4.4). The pad
  * is `./calculator-sheet`, its own chunk on the web, so the entry carries
  * neither it nor its arithmetic. `React.lazy` was rejected: it keeps a failed
  * load for the session, and offline, before the worker has the chunk, the
@@ -64,7 +64,7 @@ export function PriceField({
           inputMode="decimal"
           style={{ paddingRight: controlSize.minimumTarget }}
         />
-        {/* Helix's accessory: the bare mark, centred in the field's own right
+        {/* The bare mark, centred in the field's own right
             padding, its box the whole 44-point column so the web has a target
             `hitSlop` would not give it. */}
         <Pressable

@@ -1,10 +1,6 @@
 /**
- * The finished shop's celebration (`docs/SPEC.md` 3.11, `docs/UI.md` section
- * 7): one card, where the basket was, that pops in with its tick while its
- * total counts up and the month's bars rise, and holds the finish's undo. It
- * is the only thing the finish shows: no confetti, no layer over the page and
- * no undo bar beside it, since the owner found the three at once confusing
- * (2026-10-02). Under reduced motion it is the card at rest.
+ * The finished shop's celebration (SPEC 3.11, `docs/UI.md` section 7), the finish's only feedback:
+ * confetti, an overlay and an undo bar beside it were confusing together.
  */
 
 import { useEffect, useState } from "react";

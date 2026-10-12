@@ -2,8 +2,8 @@
  * A row at the server boundary, both ways, checked against the columns
  * Drizzle declares rather than a second list of them: what the device sends
  * must be what its schema could have written, and what it takes must be what
- * its schema can hold. Helix's `outbound-validation.ts` and `toLocal`, with
- * its per-table checks left behind: Postgres bounds every value here.
+ * its schema can hold. There are no per-table value checks: Postgres bounds
+ * every value here.
  */
 
 import { getTableColumns } from "drizzle-orm";
@@ -14,7 +14,7 @@ import { isUuidShaped } from "./merge-policy";
  * Keyed by an owner as well as the id on the server (`00000000000003_sync.sql`):
  * the person, or for a pantry row the Kiler it is in (migration 12).
  */
-export const PERSONAL_TABLES: ReadonlySet<SyncedTableName> = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
+const PERSONAL_TABLES: ReadonlySet<SyncedTableName> = new Set(["products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"]);
 
 /**
  * The columns a row's server key is made of. A shop's or item's id is a hash
@@ -104,17 +104,6 @@ function canonicalTimestamp(value: unknown): unknown {
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
   if (!Number.isFinite(parsed)) throw new Error("invalid server timestamp");
   return new Date(parsed).toISOString();
-}
-
-/**
- * A pull cursor's instant, `…00.123456Z`: the server's own precision in the
- * device's form. Cut to the millisecond, `updated_at.gt` matched every row of
- * that millisecond again, and a statement that stamped a page's worth with one
- * `now()` sent the pull round the same page for ever.
- */
-export function cursorInstant(value: unknown): string {
-  const sub = typeof value === "string" ? (/T[\d:]+\.\d{3}(\d{1,3})/.exec(value)?.[1] ?? "") : "";
-  return String(canonicalTimestamp(value)).replace("Z", `${sub}Z`);
 }
 
 /**

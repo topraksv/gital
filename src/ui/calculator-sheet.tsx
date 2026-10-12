@@ -1,9 +1,6 @@
 /**
- * Helix's calculator (`docs/SPEC.md` 4.4, `docs/UI.md` section 5) in Gital's
- * sheet; the arithmetic is `src/domain/calculator.ts`. Helix's last row, "0"
- * and ",", filled the width, so its "," was wider than every key above it;
- * here the keys sit on a grid measured from the pad's width, "0" spanning two
- * columns and "=" two rows, as a desk calculator's do.
+ * The calculator sheet (SPEC 4.4). Keys sit on a grid measured from the pad's
+ * width, so the last row cannot stretch "," wider than the keys above it.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -25,10 +22,7 @@ import { Press } from "./press";
 const OPS: readonly CalcKey[] = ["÷", "×", "-", "+", "="];
 const FEEDBACK = { none: () => {}, selection: selectionTap, success: successNotice, error: errorNotice } as const;
 
-/**
- * A price's result is kuruş; given a `unit`, it is a quantity in thousandths of
- * it. The reading stays here, out of the web entry, with the arithmetic.
- */
+/** Kuruş, or with a `unit` thousandths of it; read here so the web entry carries none of the arithmetic. */
 export default function CalculatorSheet({ unit, onResult, onClose }: { unit?: Unit; onResult: (value: number) => void; onClose: () => void }) {
   const titleRef = useModalAccessibility(true);
   const [state, setState] = useState<Calc>(CALC_START);
@@ -56,11 +50,8 @@ export default function CalculatorSheet({ unit, onResult, onClose }: { unit?: Un
 }
 
 /**
- * A desktop keyboard types on the pad as its keys do, and Enter with nothing
- * pending uses the result. Read through refs, so the listener is added once
- * and never reads a stale state. Escape is left to the Modal: react-native-web
- * closes the top modal on its key-up, so closing here on key-down made the
- * panel underneath the top one, and it closed too, edits and all.
+ * A desktop keyboard types on the pad; Enter with nothing pending uses the result. Escape is the
+ * Modal's: it closes on key-up, and closing here on key-down closed the sheet underneath too.
  */
 function useWebKeys(state: Calc, tap: (key: CalcKey) => void, use: (() => void) | null) {
   const live = useRef({ state, tap, use });
@@ -72,13 +63,12 @@ function useWebKeys(state: Calc, tap: (key: CalcKey) => void, use: (() => void) 
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-      const { state: now, tap: type, use: take } = live.current;
-      // Enter answers a pending operation first, as = does; with none it uses the result.
-      if (event.key === "Enter" && now.op == null) take?.();
+      const now = live.current;
+      if (event.key === "Enter" && now.state.op == null) now.use?.();
       else {
         const key = keyFrom(event.key);
         if (!key) return;
-        type(key);
+        now.tap(key);
       }
       event.preventDefault();
     };

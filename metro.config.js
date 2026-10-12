@@ -25,9 +25,9 @@ const REALTIME_STUB = path.resolve(__dirname, "src/sync/realtime-absent.js");
 
 /**
  * A server render has no database, so its bundle does not carry the driver.
- * Helix's (`~/helix/metro.config.js`): `web.output` is "static", every route is
- * rendered once in Node, and that pass pulled expo-sqlite's Web Worker into a
- * bundle that cannot chunk one. The stub says what it answers with.
+ * `web.output` is "static": every route is rendered once in Node, and that pass
+ * pulled expo-sqlite's Web Worker into a bundle that cannot chunk one. The stub
+ * says what it answers with.
  */
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {

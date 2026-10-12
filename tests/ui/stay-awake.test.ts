@@ -59,7 +59,7 @@ describe("stayAwake", () => {
   });
 });
 
-// Ayarlar's switch (the owner asked 2026-09-27): kept on the device, read back
+// Ayarlar's switch: kept on the device, read back
 // on the next start, and changed at once for every screen holding the hook.
 describe("the stay-awake setting", () => {
   it("reads a switch turned off on an earlier start, and keeps a new choice", async () => {

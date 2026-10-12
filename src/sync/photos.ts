@@ -1,5 +1,5 @@
 /**
- * Photos beside the rows (SPEC 8.2; decision of 2026-09-23): each is two JPEGs
+ * Photos beside the rows (SPEC 8.2): each is two JPEGs
  * in the private `photos` bucket, `<photo id>/full.jpg` and `…/thumb.jpg`,
  * which whoever can read a row naming it may read. A photo is never edited —
  * a new one is a new id — so each is sent once and fetched once.

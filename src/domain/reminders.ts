@@ -1,6 +1,6 @@
 /**
  * The reminders a phone is given (`docs/SPEC.md` 12.1, 12.3), planned from
- * what is on the device. Helix's scheme: every plan replaces the last, so a
+ * what is on the device. Every plan replaces the last, so a
  * reminder is only ever what is ahead within the horizon, and the next plan
  * — whenever the app leaves the screen — brings the rest. The words are the
  * service's; this says what and when.
@@ -12,7 +12,7 @@ import { restockDue, type Purchase } from "./restock";
 /** A pantry date or a restock is said in the morning, before a shop. */
 export const REMINDER_HOUR = 9;
 const HORIZON_DAYS = 14;
-/** iOS keeps 64 pending local notifications and silently drops the rest (Helix). */
+/** iOS keeps 64 pending local notifications and silently drops the rest. */
 export const REMINDERS_MAX = 60;
 
 /** A day of the week as `Date.getDay` counts it, 0 Sunday, and a time. */
@@ -46,7 +46,7 @@ export type Reminder =
   | { kind: "expiry" | "wish"; at: Date; name: string; days: 0 | 1 }
   | { kind: "restock"; at: Date; name: string; listId: string; listName: string };
 
-/** Where a tap on a reminder opens: what it is about, as Helix's `notificationRoute`. */
+/** Where a tap on a reminder opens: what it is about. */
 export type ReminderRoute = { pathname: "/" | "/pantry" | "/wishes" } | { pathname: "/list/[id]"; params: { id: string } };
 
 export function routeOf(reminder: Reminder): ReminderRoute {

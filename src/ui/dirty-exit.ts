@@ -1,5 +1,5 @@
 /**
- * Helix's `dirty-exit.ts`: one guard for every form that can lose a draft it
+ * One guard for every form that can lose a draft it
  * holds in memory, and one question before it does. A route asks on its back
  * control, the iOS edge swipe and a web reload; a panel asks on its scrim, its
  * handle and its Vazgeç.
@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { useIsFocused, useNavigation } from "expo-router";
-// `usePreventRemove` has no root export yet (Helix, 2026-09).
+// `usePreventRemove` has no root export yet.
 import { usePreventRemove } from "expo-router/react-navigation";
 
 import { tr } from "../i18n/tr";
@@ -73,7 +73,7 @@ export function useDirtyExitGuard(dirty: boolean): { allowExit: (action: () => v
     return () => clearTimeout(timer);
   }, [exitAllowed]);
 
-  // Helix measured that on iOS the prevented swipe slides the screen away and
+  // On iOS the prevented swipe slides the screen away and
   // back before asking, which reads as the draft lost and then found. A dirty
   // form offers no swipe; its back control asks before anything moves.
   useEffect(() => {

@@ -122,8 +122,8 @@ export function useReduceTransparency(): boolean {
  * A figure that counts to its value from the one last shown, never from zero
  * (`docs/UI.md` section 7): it arrives at its value, and a change counts
  * across the change. `from` is where a figure that arrives as an event, the
- * celebration's total, starts instead. Helix's `useCountUp`, without the
- * screen-visit replay the owner's rule forbids.
+ * celebration's total, starts instead. It never replays on a screen
+ * visit.
  */
 export function useCountUp(value: number, from?: number): number {
   const reducedMotion = useReducedMotion();
@@ -151,8 +151,8 @@ export function useCountUp(value: number, from?: number): number {
 
 /**
  * 1 the moment `key` changes, fading to 0: a row an entry merged into says
- * which one it was. The first value is not a change. Helix's `useValueFlash`,
- * keyed on anything comparable rather than a number.
+ * which one it was. The first value is not a change. Keyed on anything comparable
+ * rather than a number.
  */
 export function useValueFlash(key: string): Animated.Value {
   const reducedMotion = useReducedMotion();

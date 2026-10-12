@@ -32,8 +32,7 @@ export default function TabsLayout() {
           selectionTapIfChanged(state.routes[state.index]?.key, route.key);
         },
       })}
-      // No `animation`: a page does not move on a visit (`docs/UI.md` section
-      // 7), where Helix fades every tab in.
+      // No `animation`: a page does not move on a visit (`docs/UI.md` section 7).
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: palette.background },

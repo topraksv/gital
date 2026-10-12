@@ -1,5 +1,5 @@
 /**
- * A row that makes room and closes its own gap: Helix's `list-motion.native.tsx`.
+ * A row that makes room and closes its own gap.
  * `LinearTransition` animates the positions the layout pass computes anyway,
  * so a tick carries the row down to the basket and a delete shows which gap
  * closed, for the cost of a worklet rather than a re-render.

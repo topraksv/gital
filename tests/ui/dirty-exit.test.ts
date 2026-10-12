@@ -1,9 +1,7 @@
 /**
- * A form holding an unsaved draft asks before it loses it (Helix's
- * `dirty-exit.ts`), and a screen that throws shows Gital's own error screen
- * rather than a blank one. The wiring is read from the source: a panel that
- * closed on `onClose` directly would drop a draft without a single failing
- * screen.
+ * A form holding an unsaved draft asks before it loses it. The wiring is read
+ * from the source: a panel that closed on `onClose` directly would drop a
+ * draft without a single failing screen.
  */
 
 import { readFileSync } from "node:fs";
@@ -73,11 +71,5 @@ describe("the draft guard's wiring", () => {
     const screen = read("src/app/feedback.tsx");
     expect(screen).toMatch(/allowExit\(\(\) => navigateBack\(router, home\)\)/);
     expect(screen).toContain('const home = signedIn ? "/settings" : "/sign-in";');
-  });
-});
-
-describe("the error screen", () => {
-  it("catches every route under the root layout", () => {
-    expect(read("src/app/_layout.tsx")).toMatch(/<ErrorBoundary[^>]*>\s*<Routes/);
   });
 });

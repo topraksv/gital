@@ -155,7 +155,7 @@ function byPrice(a: Wish, b: Wish, order: WishOrder): number {
 }
 
 /**
- * Open before bought; by price when asked (the owner, 2026-09-27), otherwise
+ * Open before bought; by price when asked, otherwise
  * the most wanted first, then the newest; bought, the latest first.
  */
 export function sortWishes(wishes: readonly Wish[], order: WishOrder = "wanted"): Wish[] {

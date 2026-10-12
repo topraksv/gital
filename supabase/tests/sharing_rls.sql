@@ -321,5 +321,5 @@ select is(
   'a deleted list invites no one'
 );
 
-select * from finish();
+select * from extensions.finish();
 rollback;

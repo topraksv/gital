@@ -9,15 +9,9 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 
 import type { NewPhoto } from "../data/photos";
 
-/**
- * The longest edge kept, and a row tile's. 1024 shows a label's print across
- * a phone's panel; stored as base64 it is ~100 KB, where a camera's own
- * 12-megapixel file is ~3 MB and would weigh on every sync to come.
- */
+/** The longest edge kept, and a row tile's: a label's print still reads, and a camera's own file would weigh on every sync. */
 export const PHOTO_EDGE = 1024;
 export const THUMB_EDGE = 160;
-// JPEG quality, the usual web compromise; the owner's phone test at the
-// project's end is where it is measured against a price label's print.
 const QUALITY = 0.7;
 
 /** What a take came to: a photo, nothing chosen, or the camera refused. */
@@ -35,6 +29,11 @@ async function shrunk(uri: string, width: number, height: number, edge: number):
   return `data:image/jpeg;base64,${saved.base64}`;
 }
 
+async function photoOf(uri: string, width: number, height: number, edge: number): Promise<NewPhoto> {
+  const [data, thumb] = await Promise.all([shrunk(uri, width, height, edge), shrunk(uri, width, height, THUMB_EDGE)]);
+  return { data, thumb };
+}
+
 /** `edge` is larger for a screenshot, whose print must read in a report (SPEC 13.1). */
 export default async function takePhoto(from: "camera" | "library", edge = PHOTO_EDGE): Promise<Taken> {
   if (from === "camera" && !(await requestCameraPermissionsAsync()).granted) return "denied";
@@ -43,11 +42,7 @@ export default async function takePhoto(from: "camera" | "library", edge = PHOTO
   const picked = await launch({ mediaTypes: ["images"], quality: 1 });
   const asset = picked.canceled ? null : picked.assets[0];
   if (!asset) return "cancelled";
-  const [data, thumb] = await Promise.all([
-    shrunk(asset.uri, asset.width, asset.height, edge),
-    shrunk(asset.uri, asset.width, asset.height, THUMB_EDGE),
-  ]);
-  return { data, thumb };
+  return photoOf(asset.uri, asset.width, asset.height, edge);
 }
 
 // A picture larger than any product shot, which a page could point at to spend the phone's data.
@@ -60,8 +55,10 @@ const PICTURE_MAX_BYTES = 8_000_000;
  */
 export async function photoFromWeb(url: string): Promise<NewPhoto> {
   const response = await fetch(url);
+  const declared = Number(response.headers.get("content-length"));
+  if (!response.ok || !response.headers.get("content-type")?.startsWith("image/") || declared > PICTURE_MAX_BYTES) throw new Error("Not a picture");
   const blob = await response.blob();
-  if (!response.ok || !blob.type.startsWith("image/") || blob.size > PICTURE_MAX_BYTES) throw new Error("Not a picture");
+  if (!blob.type.startsWith("image/") || blob.size > PICTURE_MAX_BYTES) throw new Error("Not a picture");
   const uri = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
@@ -69,6 +66,5 @@ export async function photoFromWeb(url: string): Promise<NewPhoto> {
     reader.readAsDataURL(blob);
   });
   const { width, height } = await ImageManipulator.manipulate(uri).renderAsync();
-  const [data, thumb] = await Promise.all([shrunk(uri, width, height, PHOTO_EDGE), shrunk(uri, width, height, THUMB_EDGE)]);
-  return { data, thumb };
+  return photoOf(uri, width, height, PHOTO_EDGE);
 }

@@ -1,9 +1,4 @@
-/**
- * Who a list, a wish collection or the household's Kiler is shared with (SPEC
- * 1.2, 1.4, 7.8, 12.13): its people, and for the owner each one's role, their
- * removal, and a new invitation as a link. Anyone else only reads who is in
- * it; leaving is the screen's, where deleting is for the owner.
- */
+/** Who a list, collection or Kiler is shared with (SPEC 1.2, 1.4, 7.8, 12.13); only the owner changes it. */
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
@@ -59,15 +54,10 @@ export function EditorsOnly({ viewer, fallback = null, children }: { viewer: boo
   return viewer ? fallback : children;
 }
 
-/** The clock, read apart from the render that asks for it: a run lapsing is the one change no data announces, so the render passes
- * the count of lapses to read it again. */
+/** Read outside the render: a run lapsing is the one change no data announces, so the lapse count asks again. */
 const clockNow = (_lapse: number) => Date.now();
 
-/**
- * The people shopping the lists this person is in, now (SPEC 1.6), read from
- * ticks. The clock is read again when the data changes and at the earliest
- * lapse, since nothing else changes when a run simply stops.
- */
+/** The people shopping this person's lists now (SPEC 1.6), read from ticks. */
 export function useShoppingNow() {
   const userId = useSession((s) => s.userId) ?? "";
   const ticks = useShoppingTicks(userId).data;
@@ -85,12 +75,7 @@ export function useShoppingNow() {
   return shoppers;
 }
 
-/**
- * Whether a new run of shopping shows a banner, Ayarlar's switch. On by
- * default, kept on this device like the stay-awake choice: whether this phone
- * is told is its owner's business, not the account's. It hides the banner and
- * nothing else; the list still says who is at the shop.
- */
+/** Ayarlar's switch for the banner alone, kept per device as stay-awake is: the list still says who is shopping. */
 const notices = kvSwitch("gital.shoppingNotices");
 
 export function useShoppingNoticesAllowed(): boolean {
@@ -112,11 +97,8 @@ async function toldRuns(userId: string): Promise<ReadonlySet<string>> {
 }
 
 /**
- * One banner for each list, person and run: "X alışverişte", for the
- * shoppers `useShoppingNow` gave. Mounted once, by the Lists tab: it is the
- * tabs' first screen and tabs stay mounted under every list and sheet pushed
- * over them, so it watches wherever the person is. A run seen while the
- * switch is off is still counted as told.
+ * One banner per list, person and run, mounted once by the Lists tab, which stays mounted under every
+ * pushed screen. A run seen while the switch is off still counts as told.
  */
 export function useShoppingNotices(shoppers: ReturnType<typeof useShoppingNow>): void {
   const userId = useSession((s) => s.userId) ?? "";
@@ -145,12 +127,20 @@ export function ShoppersNote({ listId }: { listId: string }) {
   return <Body muted style={{ marginBottom: spacing.lg }}>{tr.sharing.shopping(here.map((shopper) => shopper.name))}</Body>;
 }
 
+async function confirmLeave(title: string, message: string, listId: string, userId: string, left: string, after?: () => void): Promise<void> {
+  if (!(await appConfirm(title, message, tr.sharing.leaveConfirm))) return;
+  try {
+    await leaveList(listId, userId);
+    showNotice(left);
+    after?.();
+  } catch {
+    void appError(tr.errors.saveFailed);
+  }
+}
+
 /**
- * A shared record's header, after its own actions: its people, the edit the
- * screen passes in, then delete for the owner or leave for anyone else. The
- * server forgets a member who leaves at once; the device lets the list go with
- * the next sync. `crowded`: another control has put its word in the header
- * (sorting's "Bitti"), so the invite mark goes without its own.
+ * A shared record's header actions. `crowded`: another control has put its word in the header, so the
+ * invite mark drops its own. The server forgets a leaver at once; the device lets go at the next sync.
  */
 export function PeopleActions({
   list,
@@ -174,16 +164,8 @@ export function PeopleActions({
   const router = useRouter();
   const viewport = useWindowDimensions();
   const [open, setOpen] = useState(false);
-  const leave = async () => {
-    if (!(await appConfirm(tr.sharing.leaveTitle, tr.sharing.leaveMessage(list.name), tr.sharing.leaveConfirm))) return;
-    try {
-      await leaveList(list.id, userId);
-      showNotice(tr.sharing.left(list.name));
-      navigateBack(router, back);
-    } catch {
-      void appError(tr.errors.saveFailed);
-    }
-  };
+  const leave = () =>
+    confirmLeave(tr.sharing.leaveTitle, tr.sharing.leaveMessage(list.name), list.id, userId, tr.sharing.left(list.name), () => navigateBack(router, back));
   return (
     <>
       {/* The owner's sheet is where an invitation is made, so its mark says so, in a word where the header has room; anyone else's only lists the people. */}
@@ -224,15 +206,7 @@ export function HouseholdActions({ userId, crowded = false, children }: { userId
   // The word waits for the read: until then a member's Kiler would wear the owner's.
   const word = home === userId && held.updatedAt != null && !crowded && inviteWordFits(viewport, "household");
   const [open, setOpen] = useState(false);
-  const leave = async () => {
-    if (!(await appConfirm(tr.sharing.leaveHousehold, tr.sharing.leaveHouseholdMessage, tr.sharing.leaveConfirm))) return;
-    try {
-      await leaveList(home, userId);
-      showNotice(tr.sharing.leftHousehold);
-    } catch {
-      void appError(tr.errors.saveFailed);
-    }
-  };
+  const leave = () => confirmLeave(tr.sharing.leaveHousehold, tr.sharing.leaveHouseholdMessage, home, userId, tr.sharing.leftHousehold);
   return (
     <>
       <IconButton
@@ -288,8 +262,7 @@ function MemberRow({ member, me, manage, roles, onOpen }: { member: Member; me: 
   const act = (work: () => Promise<void>) => () =>
     work().then(selectionTap, () => appError(tr.errors.saveFailed));
   const remove = async () => {
-    if (!(await appConfirm(tr.sharing.removeTitle, tr.sharing.removeMessage(name), tr.sharing.removeConfirm))) return;
-    await removeMember(member.id);
+    if (await appConfirm(tr.sharing.removeTitle, tr.sharing.removeMessage(name), tr.sharing.removeConfirm)) await act(() => removeMember(member.id))();
   };
   const viewer = member.role === "viewer";
   const who = (
@@ -327,19 +300,14 @@ function MemberRow({ member, me, manage, roles, onOpen }: { member: Member; me: 
               onPress={act(() => setMemberRole(member.id, viewer ? "editor" : "viewer"))}
             />
           ) : null}
-          <IconButton icon={UserMinus} label={tr.sharing.remove(name)} tone="danger" onPress={act(remove)} />
+          <IconButton icon={UserMinus} label={tr.sharing.remove(name)} tone="danger" onPress={() => void remove()} />
         </>
       ) : null}
     </View>
   );
 }
 
-/**
- * One link for one person, made on the server. Everything it asks or answers
- * stays inside the sheet: a prompt or an alert opened over this modal did not
- * show in Expo Go, and the button seemed to do nothing. The list is sent only
- * when the server says it does not hold it yet.
- */
+/** One link per person, made on the server. Everything stays inside the sheet: a prompt or alert over this modal did not show in Expo Go. */
 function Invite({ list, household }: { list: { id: string; name: string }; household: boolean }) {
   const { palette } = useTheme();
   const userId = useSession((s) => s.userId);

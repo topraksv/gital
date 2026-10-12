@@ -14,6 +14,8 @@ import { PhotoViewerFrame, type PhotoViewerProps } from "./photo-viewer-frame";
 import { motion, photoViewer } from "./theme";
 import { clampPan, clampScale } from "./zoom";
 
+const SPRING = { ...motion.spring.entrance, reduceMotion: ReduceMotion.System };
+
 export function PhotoViewer({ uri, label, onClose }: PhotoViewerProps) {
   const { width, height } = useWindowDimensions();
   // The photo's width over its height, once loaded; the window's until then.
@@ -32,11 +34,10 @@ export function PhotoViewer({ uri, label, onClose }: PhotoViewerProps) {
   // makes the setting jump instead (`list-motion.native.tsx`).
   const settle = () => {
     "worklet";
-    const spring = { ...motion.spring.entrance, reduceMotion: ReduceMotion.System };
-    x.value = withSpring(clampPan(x.value, shownWidth, width, scale.value), spring);
-    y.value = withSpring(clampPan(y.value, shownHeight, height, scale.value), spring);
     heldX.value = clampPan(x.value, shownWidth, width, scale.value);
     heldY.value = clampPan(y.value, shownHeight, height, scale.value);
+    x.value = withSpring(heldX.value, SPRING);
+    y.value = withSpring(heldY.value, SPRING);
   };
 
   const pinch = Gesture.Pinch()
@@ -61,12 +62,11 @@ export function PhotoViewer({ uri, label, onClose }: PhotoViewerProps) {
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
-      const spring = { ...motion.spring.entrance, reduceMotion: ReduceMotion.System };
       const to = scale.value > photoViewer.minZoom ? photoViewer.minZoom : photoViewer.doubleTapZoom;
-      scale.value = withSpring(to, spring);
+      scale.value = withSpring(to, SPRING);
       held.value = to;
-      x.value = withSpring(0, spring);
-      y.value = withSpring(0, spring);
+      x.value = withSpring(0, SPRING);
+      y.value = withSpring(0, SPRING);
       heldX.value = 0;
       heldY.value = 0;
     });

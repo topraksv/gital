@@ -1,7 +1,6 @@
 /**
- * Gital's web service worker, Helix's `public/sw.js` with Gital's names — makes
- * the app open on a cold start while offline (SPEC 10.1, 11.4): without it the
- * browser has no assets cached and shows a blank page.
+ * Gital's web service worker: makes the app open on a cold start while
+ * offline; without it the browser has no assets cached and shows a blank page.
  *
  * Strategy, chosen to NEVER serve stale app code:
  *   - Navigations (HTML): network-first, fall back to the cached shell only
@@ -11,11 +10,10 @@
  *     A new build has new names, so the cache can't shadow an update.
  *   - Every other same-origin file (favicon, icons, manifest, social card):
  *     network-first, the cache only offline. Their names never change, so
- *     cache-first kept the first copy forever — the old mark's favicon outlived
- *     the new one's deploy (2026-09-28).
+ *     cache-first kept the first copy forever.
  *   - Cross-origin (Supabase, a product page's picture): never intercepted or cached.
  */
-// Bump the version when the strategy changes; `activate` drops every other cache.
+// Bump the version when the strategy changes; `activate` drops this app's other caches.
 // v2 drops the icons v1 cached for good.
 const CACHE = "gital-v2";
 // Absolute so the offline fallback matches regardless of the navigated path
@@ -49,8 +47,9 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
+  // Helix shares this origin and its cache storage; only touch our own prefix.
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()),
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("gital-") && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()),
   );
 });
 

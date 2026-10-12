@@ -1,12 +1,8 @@
-/**
- * The app's one hover and pressed fill, ported from Helix's
- * `src/ui/interaction.ts`. A leaf module because the controls that need it are
- * everywhere and most have no other reason to pull the component library in.
- */
+/** The app's one hover and pressed fill; a leaf module so the controls that need it do not pull in the component library. */
 
 import { Platform, type PressableStateCallbackType, type ViewStyle } from "react-native";
 import { isReducedMotion } from "./motion";
-import { composite, INTERACTION_ALPHA, motion, type Palette } from "./theme";
+import { composite, density, INTERACTION_ALPHA, motion, spacing, type Palette } from "./theme";
 
 // react-native-web's Pressable tracks hover and hands it to the style callback;
 // React Native's types only declare `pressed`, so the read is cast once here.
@@ -62,4 +58,11 @@ export function interactionSurface(
     transitionDuration: `${isReducedMotion() ? 0 : motion.hover}ms`,
     transitionTimingFunction: motion.webEase,
   } as unknown as ViewStyle;
+}
+
+const HOVER_GUTTER = spacing.xs;
+
+/** How far a row's fill reaches past its content; returned as padding, so only the lit area grows. Pass the container's padding when it differs. */
+export function interactionBleed(inset: number = density.list.cardPadding - HOVER_GUTTER): ViewStyle {
+  return { marginHorizontal: -inset, paddingHorizontal: inset };
 }

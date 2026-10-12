@@ -11,7 +11,8 @@ import { isValidNewPassword, useSession } from "../../auth/session";
 import { isEmail } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import { heldInvite } from "../../sync/sharing";
-import { Body, Button, Card, Notice, Screen, TextField } from "../../ui/components";
+import { takeEmailLinkLanding } from "../../sync/supabase";
+import { Body, Button, Card, EMAIL_FIELD, Notice, Screen, TextField } from "../../ui/components";
 import { interactionSurface } from "../../ui/interaction";
 import { Press } from "../../ui/press";
 import { LegalConsentControl, LegalNoticeSheet } from "../../ui/legal-notice";
@@ -21,7 +22,7 @@ import { alpha, authHero, contentWidth, controlSize, font, maxFontScale, radius,
 
 type Mode = "signIn" | "signUp" | "forgot";
 
-/** What each mode says, what its password must be, and where its second link goes (Helix's three sentences). */
+/** What each mode says, what its password must be, and where its second link goes. */
 const MODE: Record<Mode, { heading: string; subtitle: string; action: string; other: string; otherMode: Mode; passwordReady: (password: string) => boolean }> = {
   signIn: { heading: tr.auth.signInTitle, subtitle: tr.auth.signInSubtitle, action: tr.auth.signIn, other: tr.auth.toSignUp, otherMode: "signUp", passwordReady: (password) => password !== "" },
   signUp: { heading: tr.auth.signUpTitle, subtitle: tr.auth.signUpSubtitle, action: tr.auth.signUpTitle, other: tr.auth.toSignIn, otherMode: "signIn", passwordReady: isValidNewPassword },
@@ -46,7 +47,7 @@ function JourneyNode({ icon: Icon, label, active = false }: { icon: LucideIcon; 
       >
         <Icon accessible={false} size={authHero.nodeIcon} strokeWidth={authHero.nodeStroke} color={active ? palette.onPrimary : palette.textSecondary} />
       </View>
-      {/* Capped: beside a disc that does not scale, the largest text size broke a word mid-way on Helix. */}
+      {/* Capped: beside a disc that does not scale, the largest text size breaks words mid-way. */}
       <Text
         maxFontSizeMultiplier={maxFontScale.measuredBox}
         style={[type.small, { color: active ? palette.accentText : palette.textSecondary, fontFamily: font.semibold, textAlign: "center", marginTop: spacing.xs }]}
@@ -57,7 +58,7 @@ function JourneyNode({ icon: Icon, label, active = false }: { icon: LucideIcon; 
   );
 }
 
-/** Helix's picture under the greeting: three steps, told for a household's shopping. */
+/** The picture under the greeting: three steps of a household's shopping. */
 function AuthJourneyArtwork({ compact }: { compact: boolean }) {
   const { palette } = useTheme();
   const { bigBlob, smallBlob, link, bar } = authHero;
@@ -67,7 +68,7 @@ function AuthJourneyArtwork({ compact }: { compact: boolean }) {
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={[tr.auth.journeyWrite, tr.auth.journeyShop, tr.auth.journeyRemember].join(", ")}
+      accessibilityLabel={`${tr.auth.journeyWrite}, ${tr.auth.journeyShop}, ${tr.auth.journeyRemember}`}
       style={{
         minHeight: compact ? authHero.art.height : authHero.art.heightWide,
         borderRadius: radius.lg,
@@ -120,11 +121,8 @@ function AuthJourneyArtwork({ compact }: { compact: boolean }) {
   );
 }
 
-/**
- * Helix's quiet action: "forgot password", "back to sign-in". Inline links
- * rather than stacked ghost buttons, which pushed the form past a phone's
- * fold; each still carries the whole 44-point target.
- */
+/** Inline links rather than stacked ghost buttons, which pushed the form past a phone's fold; each
+ *  keeps the 44-point target. */
 function AuthLink({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
   const { palette } = useTheme();
   return (
@@ -148,7 +146,7 @@ function AuthLink({ label, onPress, disabled = false }: { label: string; onPress
 
 type Outcome = { tone: "error" | "success"; text: string };
 
-/** Under a failure, which may be ours: the report needs no account (migration 17). */
+/** Under a failure, which may be ours: the report needs no account. */
 function ReportProblem({ outcome, email }: { outcome: Outcome | null; email: string }) {
   const router = useRouter();
   if (outcome?.tone !== "error") return null;
@@ -240,6 +238,35 @@ function InviteWaiting() {
   return invited ? <Notice tone="success" text={tr.sharing.inviteWaiting} /> : null;
 }
 
+const LANDING: Record<"confirmed" | "changeConfirmed" | "unusable" | "offline", Outcome> = {
+  confirmed: { tone: "success", text: tr.auth.emailLinkConfirmed },
+  changeConfirmed: { tone: "success", text: tr.auth.emailChangeLinkConfirmed },
+  unusable: { tone: "error", text: tr.auth.emailLinkUnusable },
+  offline: { tone: "error", text: tr.auth.emailLinkOffline },
+};
+
+/**
+ * What the confirmation or e-mail change link this page opened from did. The
+ * browser a mail opens in is often not the one that signed up, so it lands
+ * here signed out.
+ */
+function EmailLinkLanding() {
+  // Held in state so Strict Mode's second effect run reads the same answer
+  // rather than the empty one a second take would give.
+  const [answer] = useState(takeEmailLinkLanding);
+  const [landing, setLanding] = useState<Outcome | null>(null);
+  useEffect(() => {
+    let live = true;
+    void answer?.then((said) => {
+      if (live) setLanding(LANDING[said]);
+    });
+    return () => {
+      live = false;
+    };
+  }, [answer]);
+  return landing ? <Notice {...landing} /> : null;
+}
+
 /** The address, which is the last field only when a reset link is all that is asked for. */
 function EmailField({ value, onChangeText, last, onSubmit, onNext }: { value: string; onChangeText: (value: string) => void; last: boolean; onSubmit: () => void; onNext: () => void }) {
   return (
@@ -247,12 +274,7 @@ function EmailField({ value, onChangeText, last, onSubmit, onNext }: { value: st
       label={tr.auth.email}
       value={value}
       onChangeText={onChangeText}
-      autoCapitalize="none"
-      autoCorrect={false}
-      autoComplete="email"
-      keyboardType="email-address"
-      textContentType="emailAddress"
-      placeholder={tr.placeholders.email}
+      {...EMAIL_FIELD}
       returnKeyType={last ? "send" : "next"}
       onSubmitEditing={last ? onSubmit : onNext}
       // Waits for a plausible attempt rather than the first letter.
@@ -292,12 +314,8 @@ function ModeLinks({ mode, busy, onSwitch }: { mode: Mode; busy: boolean; onSwit
   );
 }
 
-/**
- * Helix's sign-in (SPEC 9.1): one greeting, one card in three modes with the
- * same skeleton, and the notice opened over the form rather than navigated to.
- * Success needs no navigation: the root layout's guard swaps this screen for
- * the lists once the session names an account.
- */
+/** Sign-in (SPEC 9.1): one card in three modes on one skeleton, the notice opened over the form.
+ *  Success needs no navigation: the root layout's guard swaps this screen out. */
 export default function SignInScreen() {
   const { palette } = useTheme();
   const { width } = useWindowDimensions();
@@ -365,6 +383,7 @@ export default function SignInScreen() {
             <Text accessibilityRole="header" aria-level={2} style={[type.heading, { color: palette.text, marginBottom: spacing.xs }]}>{text.heading}</Text>
             <Body muted style={{ marginBottom: spacing.lg }}>{text.subtitle}</Body>
             <InviteWaiting />
+            <EmailLinkLanding />
             <EmailField value={email} onChangeText={edit(setEmail)} last={mode === "forgot"} onSubmit={press} onNext={() => passwordRef.current?.focus()} />
             {mode !== "forgot" ? <PasswordField ref={passwordRef} creating={mode === "signUp"} value={password} onChangeText={edit(setPassword)} onSubmit={press} /> : null}
             {outcome ? <Notice {...outcome} /> : null}

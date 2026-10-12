@@ -6,12 +6,12 @@ module.exports = defineConfig([
   expoConfig,
   {
     // Deno's, with remote imports the app's toolchain cannot resolve.
-    ignores: ["dist/*", "dist-e2e/*", "test-results/*", "reports/*", "coverage/*", ".expo/**", "supabase/functions/**"],
+    ignores: ["dist/*", "dist-e2e/*", "test-results/*", "reports/*", "coverage/*", ".expo/**", ".stryker-tmp/**", "supabase/functions/**"],
   },
   {
-    files: ["scripts/**/*.mjs", ".claude/**/*.mjs"],
+    files: ["scripts/**/*.mjs", "scripts/**/*.js", ".claude/**/*.mjs"],
     languageOptions: {
-      globals: { process: "readonly", console: "readonly", URL: "readonly" },
+      globals: { Buffer: "readonly", process: "readonly", console: "readonly", URL: "readonly" },
     },
   },
   {
@@ -22,8 +22,7 @@ module.exports = defineConfig([
     rules: {
       complexity: ["warn", 15],
       // A component the React Compiler cannot lower is left unmemoised without
-      // a word: a `finally`, or a conditional inside `try`, cost thirteen
-      // screens theirs (devil round 2026-10-09-2).
+      // a word: a `finally`, or a conditional inside `try`, costs it memoisation.
       "react-hooks/todo": "error",
       "react-hooks/unsupported-syntax": "error",
     },

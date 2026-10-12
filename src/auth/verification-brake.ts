@@ -1,15 +1,4 @@
-/**
- * The brake on checking a password again, Helix's as it stands. Every check
- * is a real sign-in, so hammering it would trip Supabase's login rate limit
- * for the whole account: after `VERIFY_MAX_FAILURES` failures in a row it
- * pauses for `VERIFY_COOLDOWN_MS`.
- *
- * It belongs to one account's streak, not to the device. Helix's first brake
- * had no owner, so five wrong passwords on one account blocked the next
- * account's first attempt with a message untrue for it; keyed to its owner, a
- * brake that belongs to someone else is simply not this account's, on every
- * path that changes who is signed in. Pure, so the whole state is tested.
- */
+/** Pauses password re-verification after VERIFY_MAX_FAILURES; keyed to the account that earned it, so another account's streak never blocks this one. Pure. */
 
 export const VERIFY_MAX_FAILURES = 5;
 export const VERIFY_COOLDOWN_MS = 30_000;

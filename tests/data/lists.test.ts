@@ -1,7 +1,6 @@
 /**
  * The lists repository over the real migrations and write layer, on Node's
- * SQLite. What it holds is Helix's write contract as Gital's first table
- * inherits it: a row and its outbox event land together or not at all, a
+ * SQLite. What it holds is the write contract: a row and its outbox event land together or not at all, a
  * delete is a tombstone, and undo brings back exactly what was deleted.
  */
 
@@ -14,11 +13,13 @@ vi.mock("../../src/db/client", async () => {
   const { sqliteClientMock } = await import("../helpers");
   return sqliteClientMock(() => harness.db!);
 });
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 
+const { addItems, migratedDatabase } = await import("../helpers");
+const { deleteItems, toggleChecked } = await import("../../src/data/items");
 const { createList, deleteLists, editList, readLists, restoreList } = await import("../../src/data/lists");
 /** The list panel saved with only its name changed. */
 const rename = (id: string, name: string) => editList(id, { name, color: null, icon: null });
-const { migratedDatabase } = await import("../helpers");
 const { withTransaction } = await import("../../src/db/client");
 const { setActor, writeRows } = await import("../../src/db/mutations");
 
@@ -96,6 +97,19 @@ describe("readLists", () => {
     expect(await readLists()).toEqual([
       { id: market, name: "Market", color: null, icon: "cart", pantry: true, total: 0, inBasket: 0, viewer: false, owner: true },
       { id: eczane, name: "Eczane", color: null, icon: "pharmacy", pantry: true, total: 0, inBasket: 0, viewer: false, owner: true },
+    ]);
+  });
+
+  it("says how many items each list has and how many are still to buy", async () => {
+    const market = await createList("Market");
+    const [sut] = await addItems(market, "süt, ekmek, peynir");
+    await toggleChecked(sut!);
+    const [deleted] = await addItems(market, "biber");
+    await deleteItems([deleted!]);
+    await createList("Pazar");
+    expect(await readLists()).toMatchObject([
+      { name: "Market", total: 3, inBasket: 1 },
+      { name: "Pazar", total: 0, inBasket: 0 },
     ]);
   });
 

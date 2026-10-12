@@ -8,6 +8,19 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.8.1
+
+### Patch Changes
+
+- Kayıt onayı ve e-posta değişikliği bağlantısını bir e-posta tarayıcısı açınca bağlantı harcanmıyor; açılan uygulama sonucu gösteriyor.
+- Süresi dolmuş şifre sıfırlama bağlantısı açık bir hata gösteriyor.
+- Geri bildirim sınırı aynı anda gönderilen isteklerde aşılamıyor.
+- Boş gövdeli bir geri bildirim isteği sunucu hatası vermiyor.
+- Web'de boyutunu bildiren bir fotoğraf indirilmeden önce denetleniyor.
+- Birkaç ekranda veriler hazır olmadan içerik gösterilmiyor.
+- Hesap silme cihazda yarıda kalırsa, cihazda giriş yapan sonraki hesap silinen hesabın listelerini devralmıyor.
+- E-posta bağlantısı internet yokken açılırsa harcanmıyor; internet gelince sayfa yenilenebiliyor.
+
 ## 1.8.0
 
 ### Minor Changes

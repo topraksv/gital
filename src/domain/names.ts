@@ -37,7 +37,7 @@ export function tileTone(id: string, count: number): number {
 }
 
 /**
- * Helix's shape check on an address: enough to catch a slip, and the server
+ * A shape check on an address: enough to catch a slip, and the server
  * decides the rest. The same pattern `send-feedback` holds a signed-out reply
  * address to, so nothing passes here that spends a send and is refused there.
  */

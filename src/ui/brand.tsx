@@ -1,6 +1,6 @@
 /**
  * Gital's mark, the woven G with its leaf, drawn as vectors so it is sharp at
- * any size and can draw itself: the brand kit's timeline (2026-09-28) traces
+ * any size and can draw itself: the brand kit's timeline traces
  * the G under a widening mask, then opens the leaf from its stem. Once the
  * intro ends the mask is dropped, so the resting mark is the kit's exact
  * drawing. The G takes the palette's accent, as the kit's petrol and servi
@@ -93,9 +93,8 @@ function Name({ id, ink, written }: { id: string; ink: string; written: number |
   );
 }
 
-/** `duration` is the whole intro, the kit's timeline scaled evenly to fit, as Helix's mark takes it.
- *  Omitted, the mark is drawn at rest: the owner wants it to draw itself on a
- *  cold start and nowhere else (2026-10-02). */
+/** `duration` is the whole intro, the kit's timeline scaled evenly to fit.
+ *  Omitted, the mark is drawn at rest: it draws itself on a cold start and nowhere else. */
 export function BrandMark({ height, duration, named = false }: { height: number; duration?: number; named?: boolean }) {
   const { palette, paletteId } = useTheme();
   const elapsed = useIntro(duration);

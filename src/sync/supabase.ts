@@ -1,5 +1,5 @@
 /**
- * The Supabase client, Helix's (`src/sync/supabase.ts`). The session is kept
+ * The Supabase client. The session is kept
  * on the device — SecureStore on a phone, chunked past its 2 KB value limit;
  * localStorage on the web — so the app opens offline, and a refresh that fails
  * never stands between the person and their lists.
@@ -9,6 +9,7 @@ import { createClient, type AuthChangeEvent, type Session, type SupabaseClient }
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
+import { parseEmailLinkLanding } from "../auth/recovery";
 import { createSecureChunkedStorage } from "./secure-chunked-storage";
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -19,10 +20,51 @@ export const isSupabaseConfigured = Boolean(url && anonKey);
 
 let client: SupabaseClient | null = null;
 const listeners = new Set<(event: AuthChangeEvent, session: Session | null) => void>();
+type EmailLinkAnswer = "confirmed" | "changeConfirmed" | "unusable" | "offline";
+let emailLinkLanding: Promise<EmailLinkAnswer> | null = null;
+
+/** What Auth said about the e-mail link this page opened from, once. */
+export function takeEmailLinkLanding(): Promise<EmailLinkAnswer> | null {
+  const landing = emailLinkLanding;
+  emailLinkLanding = null;
+  return landing;
+}
+
+/**
+ * Redeem a confirmation token on a client of its own, as a reset token is:
+ * the account it confirms may not be the one this device is signed in with,
+ * and confirming it signs nobody in here. The token leaves the address bar
+ * first, so a reload cannot spend it twice and report the refusal.
+ */
+function landEmailLink(href: string): Promise<EmailLinkAnswer> | null {
+  const landing = parseEmailLinkLanding(href);
+  if (landing === null) return null;
+  if (landing === "unusable") return Promise.resolve(landing);
+  const address = new URL(href);
+  address.search = "";
+  address.hash = "";
+  globalThis.history.replaceState(globalThis.history.state, "", address.href);
+  const verifier = createRecoveryClient()!;
+  return verifier.auth.verifyOtp({ token_hash: landing.tokenHash, type: landing.type }).then(async ({ error }) => {
+    if (error?.name === "AuthRetryableFetchError") {
+      // Never reached Auth, so nothing was spent: the link goes back for a reload.
+      globalThis.history.replaceState(globalThis.history.state, "", href);
+      return "offline";
+    }
+    if (error) return "unusable";
+    await verifier.auth.signOut({ scope: "local" });
+    // One side of a change is not the change: with both addresses asked,
+    // Auth accepts the first link and still waits for the other.
+    return landing.type === "email_change" ? "changeConfirmed" : "confirmed";
+  });
+}
 
 export function getSupabase(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;
   if (!client) {
+    // Before the client exists, so the landing is read from the address the
+    // page opened on.
+    if (Platform.OS === "web" && globalThis.location) emailLinkLanding = landEmailLink(globalThis.location.href);
     client = createClient(url!, anonKey!, {
       auth: {
         storage: Platform.OS === "web" ? undefined : createSecureChunkedStorage(SecureStore),
@@ -37,6 +79,9 @@ export function getSupabase(): SupabaseClient | null {
       },
     });
     client.auth.onAuthStateChange((event, session) => {
+      // A signed-in device shows no sign-in screen to read it on, and after a
+      // sign-out it would be news about a link nobody here just opened.
+      if (session) emailLinkLanding = null;
       for (const listener of listeners) listener(event, session);
     });
   }
@@ -62,12 +107,10 @@ export function subscribeSupabaseAuthEvents(listener: (event: AuthChangeEvent, s
 }
 
 /**
- * The reset link's client, sharing nothing with the app's own. Unpersisted,
- * as Helix's: the web mirrors a persisted session to every tab, so a link
- * opened beside a signed-in tab would have handed that tab another account.
- * Implicit, unlike Helix's: the reset e-mail keeps Supabase's template, and a
- * PKCE request would return a code only the device that asked can redeem —
- * a phone in Expo Go, not the browser its mail app opens.
+ * The reset link's client, sharing nothing with the app's own. Unpersisted: the web mirrors a persisted
+ * session to every tab, so a link opened beside a signed-in tab would hand that tab another account.
+ * Implicit, so it needs no PKCE verifier; the e-mail's `token_hash` link is redeemed here with `verifyOtp`,
+ * and so is a confirmation or e-mail change link's.
  */
 export function createRecoveryClient(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;

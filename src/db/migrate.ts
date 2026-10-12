@@ -1,9 +1,8 @@
 /**
- * The migration runner over drizzle-kit's journal, Helix's (`src/db/migrate.ts`):
- * asynchronous, and with the same bookkeeping as Drizzle's own migrator — the
- * `__drizzle_migrations` table, compared by the journal's `when`. Its `hash`
- * column exists for that compatibility and is left empty.
- */
+ * The migration runner over drizzle-kit's journal: asynchronous, with the same
+ * bookkeeping as Drizzle's own migrator (the `__drizzle_migrations` table,
+ * compared by the journal's `when`). Its `hash` column exists for that
+ * compatibility and is left empty. */
 
 import { getSqliteAsync, withTransaction } from "./client";
 import migrations from "./migrations/migrations";

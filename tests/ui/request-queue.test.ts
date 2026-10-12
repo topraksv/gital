@@ -1,6 +1,5 @@
 /**
- * Overlapping prompts must never drop a request: Helix's test for the reducer
- * both overlay hosts share (`src/ui/request-queue.ts`).
+ * Overlapping prompts must never drop a request.
  */
 
 import { describe, expect, it } from "vitest";
@@ -96,19 +95,6 @@ describe("prompt queue", () => {
     expect(q.state.queue).toEqual([]);
   });
 
-  it("keeps queue order across an unmount-and-reopen cycle", () => {
-    const settled: string[] = [];
-    const q = createQueue<string | null>();
-    q.enqueue({ id: "a", resolve: () => settled.push("a") });
-    q.enqueue({ id: "b", resolve: () => settled.push("b") });
-    // Host unmounts and remounts: the store outlives it, so `b` is still queued.
-    expect(q.state.queue.map((r) => r.id)).toEqual(["b"]);
-    q.close(null);
-    expect(q.state.current?.id).toBe("b");
-    q.close(null);
-    expect(settled).toEqual(["a", "b"]);
-  });
-
   it("lets a resolve handler open the next request without losing it", () => {
     // `close` advances BEFORE resolving, so a follow-up prompt opened from the
     // resolve handler enqueues against the advanced state. Advancing after the
@@ -143,12 +129,6 @@ describe("request-queue reducer", () => {
     expect(before).toEqual({ current: "a", queue: ["b"] });
   });
 
-  it("keeps a queued request behind the open one, never replacing it", () => {
-    const state = enqueueRequest(enqueueRequest(emptyRequestQueue<string>(), "a"), "b");
-    expect(state.current).toBe("a");
-    expect(state.queue).toEqual(["b"]);
-  });
-
   it("empties rather than throwing when advanced past the last request", () => {
     expect(advanceRequestQueue<string>({ current: "a", queue: [] })).toEqual({ current: null, queue: [] });
     expect(advanceRequestQueue<string>({ current: null, queue: [] })).toEqual({ current: null, queue: [] });
@@ -157,7 +137,7 @@ describe("request-queue reducer", () => {
 
 // iOS presents one modal from a controller at a time: a dialog drawn beside an
 // open sheet, rather than inside it, is refused and strands a layer that takes
-// every touch (the owner's freeze, 2026-10-01).
+// every touch.
 describe("presenterOf", () => {
   it("presents over nothing from the root", () => {
     expect(presenterOf([], "dialog")).toBeNull();

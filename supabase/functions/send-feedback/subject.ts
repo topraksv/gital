@@ -1,9 +1,9 @@
 /**
- * The subject a feedback report arrives under, Helix's. Here, never in the
- * client: a header a client dictates is a header a client injects into.
- * Collapsing whitespace keeps it on one line, and so keeps a CR or LF in a
- * message from starting a header of its own. Its own file, with no Deno
- * global, so `tests/domain/feedback.test.ts` runs it.
+ * The subject a feedback report arrives under. Here, never in the client: a
+ * header a client dictates is a header a client injects into. Collapsing
+ * whitespace keeps it on one line, and so keeps a CR or LF in a message from
+ * starting a header of its own. Its own file, with no Deno global, so
+ * `tests/domain/feedback.test.ts` runs it.
  */
 const SUBJECT_LIMIT = 60;
 

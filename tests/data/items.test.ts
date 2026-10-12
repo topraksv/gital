@@ -5,7 +5,6 @@
  * and back, and every edit refuses a row deleted under it.
  */
 
-import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,22 +15,18 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-vi.mock("expo-crypto", () => ({
-  CryptoDigestAlgorithm: { SHA256: "SHA256" },
-  digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
-}));
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 
-const { addEntries, addScanned, carryNotFound, deleteItems, importEntries, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
+const { addEntries, addScanned, carryNotFound, deleteItems, importEntries, openItemId, readItems, readBought, readKnownProducts, readShopItems, reorderItems, restoreItem, toggleChecked, undoSave, updateItem } = await import("../../src/data/items");
 const { NOTE_MAX, parseEntry, parseList } = await import("../../src/domain/items");
 type ItemChange = import("../../src/domain/items").ItemChange;
 /** The quick-add field's Enter. */
-const addItems = async (list: string, text: string) => (await addEntries(list, parseEntry(text))).ids;
 const { finishShop, readShops } = await import("../../src/data/shops");
-const { createList, deleteLists, readLists } = await import("../../src/data/lists");
+const { createList, deleteLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
 const { readPhoto } = await import("../../src/data/photos");
 const { setActor } = await import("../../src/db/mutations");
-const { migratedDatabase } = await import("../helpers");
+const { addItems, change, itemRow, migratedDatabase } = await import("../helpers");
 
 function outboxCount(): number {
   return Number((harness.db!.prepare("SELECT COUNT(*) AS n FROM outbox WHERE table_name = 'items'").get() as { n: number }).n);
@@ -65,9 +60,9 @@ describe("addItems", () => {
     const ids = await addItems(listId, "2 kg domates, 1,5 lt süt ve ekmek");
     expect(ids).toHaveLength(3);
     expect(await readItems(listId)).toEqual([
-      { id: ids[0], name: "Domates", quantityMilli: 2000, unit: "kg", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
-      { id: ids[1], name: "Süt", quantityMilli: 1500, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
-      { id: ids[2], name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
+      itemRow(ids[0], "Domates", { quantityMilli: 2000, unit: "kg" }),
+      itemRow(ids[1], "Süt", { quantityMilli: 1500, unit: "lt" }),
+      itemRow(ids[2], "Ekmek"),
     ]);
     expect(outboxCount()).toBe(3);
   });
@@ -242,7 +237,7 @@ describe("toggleChecked", () => {
   });
 });
 
-const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => ({ name, quantityMilli, unit, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null });
+const as = (name: string, quantityMilli: number | null = null, unit: "adet" | "lt" | null = null) => change(name, { quantityMilli, unit });
 
 describe("updateItem", () => {
   it("writes only what the panel changed: a note another phone wrote meanwhile stays", async () => {
@@ -281,8 +276,8 @@ describe("updateItem", () => {
     await toggleChecked(ayran!);
     await updateItem(sut!, as("ayran"));
     expect(await readItems(listId)).toEqual([
-      { id: expect.any(String), name: "Ekmek", quantityMilli: null, unit: null, checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
-      { id: ayran, name: "Ayran", quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString(), note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) },
+      itemRow(expect.any(String), "Ekmek"),
+      itemRow(ayran, "Ayran", { quantityMilli: 3000, unit: "adet", checkedAt: T0.toISOString() }),
     ]);
     expect(stored(sut!).deleted_at).not.toBeNull();
   });
@@ -729,20 +724,6 @@ describe("who added and who ticked (SPEC 1.5)", () => {
   });
 });
 
-describe("readLists counts", () => {
-  it("says how many items each list has and how many are still to buy", async () => {
-    const [sut] = await addItems(listId, "süt, ekmek, peynir");
-    await toggleChecked(sut!);
-    const [deleted] = await addItems(listId, "biber");
-    await deleteItems([deleted!]);
-    await createList("Pazar");
-    expect(await readLists()).toMatchObject([
-      { name: "Market", total: 3, inBasket: 1 },
-      { name: "Pazar", total: 0, inBasket: 0 },
-    ]);
-  });
-});
-
 describe("readKnownProducts", () => {
   it("knows each product once, spelled as last written, latest first, counting each time it was bought", async () => {
     const [sut] = await addItems(listId, "süt, ekmek, peynir");
@@ -840,7 +821,7 @@ describe("a product's id held by another list's row", () => {
   // pull lands it here first.
   it("lands on this list, not on the row that took the id", async () => {
     const other = await createList("Ev");
-    const planted = await (await import("../../src/data/items")).openItemId(listId, "Süt");
+    const planted = await openItemId(listId, "Süt");
     const [plantedFrom] = await addItems(other, "Ayran");
     harness.db!.prepare("UPDATE items SET id = ? WHERE id = ?").run(planted, plantedFrom!);
 

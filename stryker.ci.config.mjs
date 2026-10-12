@@ -5,22 +5,19 @@ import { resolve } from "node:path";
 
 /**
  * The delivery gate's mutation scope: what a push changed, dealt to the
- * runners `.github/workflows/ci.yml` holds. Helix and Gital run this same
- * file; only the three constants below differ, and each says why it is what
- * it is. `npm run test:mutation` mutates `stryker.config.mjs`'s list, for a local audit.
+ * runners `.github/workflows/ci.yml` holds. Only the three constants below
+ * are per repository. `npm run test:mutation` mutates `stryker.config.mjs`'s
+ * scope, for a local audit.
  *
- * The whole inventory on every gate was the first choice. On 2026-10-02 it
- * took Gital 16 min 19 s while every other job was done in two, and 339 static
- * mutants, each a whole-suite run, were 86% of it. A file the push did not
- * touch keeps the score it was recorded at, and the ratchet reads every file
- * it mutates.
+ * The whole inventory on every gate was the first choice: static mutants, each
+ * a whole-suite run, dominated its time. A file the push did not touch keeps
+ * the score it was recorded at, and the ratchet reads every file it mutates.
  *
- * The broad break threshold is the one setting not inherited. Applied to
- * whatever a push touched it was unreachable — Helix's first real product diff
- * scored 54.22 against 98 — and a release shipped around it.
+ * The broad break threshold is the one setting not inherited: applied to
+ * whatever a push touched it was unreachable.
  */
 
-// Gital's scope.
+// This repository's scope.
 
 /**
  * What a push that changed nothing in scope mutates: three small domain files
@@ -29,24 +26,15 @@ import { resolve } from "node:path";
  */
 const SENTINEL_SCOPE = ["src/domain/feedback.ts", "src/domain/names.ts", "src/domain/shopping.ts"];
 
-/**
- * Helix's directories (2026-10-08): the domain was Gital's whole scope, so a
- * change to storage, sync, sign-in or a service shipped unmutated. `src/data`
- * here is Helix's `src/data/repo` and its hooks: `hooks.ts` is React glue
- * over it and stays out, as Helix's does.
- */
+// `src/data/hooks.ts` is React glue over the repository and stays out.
 const MUTATION_RELEVANT = /^src\/(?:domain|data|db|sync|auth|services)\/.*\.(?:[cm]?js|tsx?)$/;
 
-/**
- * Files inside that scope with no logic to mutate, each excluded in Helix for
- * the reason its `stryker.ci.config.mjs` gives: generated migrations, the
- * Drizzle schema whose every mutant is static and tests a mirror of what
- * Postgres enforces, the server-render stand-in for `expo-sqlite` and the
- * resolution of `@supabase/realtime-js` that is a set of throws.
- */
+// Files in that scope with no logic to mutate: generated migrations; the schema,
+// whose mutants are all static and test a mirror of what Postgres enforces;
+// server and web stand-ins that only throw.
 const MUTATION_EXCLUDED = /^src\/(?:db\/(?:migrations\/|schema\.ts$|expo-sqlite\.server\.js$)|data\/hooks\.ts$|sync\/realtime-absent\.js$)/;
 
-// Everything below is the same file in Helix and Gital.
+// Everything below is the same file in both repositories.
 
 /**
  * Whether a path is inside the gate at all. Exported so the rule can be asked
@@ -90,8 +78,7 @@ export function selectMutationScope({ base, head, eventName = "local", cwd = pro
       .filter((file) => file.startsWith("tests/"))
       .flatMap((file) => importedSources(file, cwd))
       .flatMap((source) => [source, `${source}.ts`, `${source}.tsx`]);
-    // A raised floor is a claim about a file's tests: Gital's 581bb68 raised
-    // wishes.ts's and CI mutated the sentinels instead.
+    // A raised floor is a claim about a file's tests, so the file is mutated.
     const floors = (ref) => {
       try {
         return JSON.parse(git("show", `${ref}:mutation-baseline.json`)).files ?? {};

@@ -1,20 +1,18 @@
 /**
- * The outbox engine (SPEC 10.2), Helix's (`src/sync/engine.ts`): push, then
- * pull, one run at a time, last writer wins on the server's clock, a delete
- * generation over any clock. A failure is shown in the status store and
- * retried with backoff; a late answer from a session that has ended is
- * dropped by the epoch.
+ * The outbox engine (SPEC 10.2): push, then pull, one run at a time, last
+ * writer wins on the server's clock, a delete generation over any clock. A
+ * failure is shown in the status store and retried with backoff; a late
+ * answer from a session that has ended is dropped by the epoch.
  *
- * Where it departs, each for a reason in `docs/ARCHITECTURE.md` (2026-09-27):
- * a personal row is keyed by its person on the server; a batch the server
- * refuses is sent row by row, so one bad row waits aside instead of stopping
- * every other; a row this device made afresh over a delete it never saw is
- * added again rather than lost; the pull reaches back a few seconds past its
- * cursor; photos travel beside the rows, before the row that names one; a
- * list shared with this person is fetched whole when they join it and
- * dropped from the device when they leave it (`docs/ARCHITECTURE.md`,
- * sharing); and Kiler is the household's while the person is in one, which
- * the probe names and the device follows (SPEC 12.13).
+ * Beyond that (`docs/ARCHITECTURE.md`): a personal row is keyed by its person
+ * on the server; a batch the server refuses is sent row by row, so one bad row
+ * waits aside instead of stopping every other; a row this device made afresh
+ * over a delete it never saw is added again rather than lost; the pull reaches
+ * back a few seconds past its cursor; photos travel beside the rows, before
+ * the row that names one; a list shared with this person is fetched whole when
+ * they join it and dropped from the device when they leave it; and Kiler is
+ * the household's while the person is in one, which the probe names and the
+ * device follows (SPEC 12.13).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -28,6 +26,7 @@ import { tr } from "../i18n/tr";
 import { retryDeadLetter } from "./dead-letters";
 import {
   classifyOutboxBatch,
+  cursorInstant,
   cursorIsAtServerHead,
   formatPullCursor,
   isAddedAgain,
@@ -41,7 +40,7 @@ import {
   type RejectedOutboxEvent,
 } from "./merge-policy";
 import { fetchMissingPhotos, PHOTO_TABLES, sendPendingPhotos, sweepUnnamedPhotos } from "./photos";
-import { cursorInstant, keyColumns, toLocalRow, toServerRow } from "./rows";
+import { keyColumns, toLocalRow, toServerRow } from "./rows";
 import { SessionEpoch, SessionEpochCancelledError, type SessionEpochToken } from "./session-epoch";
 import { forgetOffers, listOffers, useOffers } from "./sharing";
 import { classifyRefreshFailure, completedSyncState, isNetworkFailure, useSyncStatus, type RefreshOutcome } from "./status";
@@ -58,18 +57,17 @@ const PUSHED = [...TABLES.filter((table) => table !== "list_members"), "list_mem
 const PANTRY: ReadonlySet<SyncedTableName> = new Set(["pantry_items", "pantry_moves"]);
 const PULL_PAGE = 1000;
 const PUSH_BATCH = 200;
-/** SQLite binds this many ids per statement comfortably on every build (Helix's). */
+/** Ids bound per statement: five of 200 prepare cheaper than one 1000-placeholder string. */
 const ID_CHUNK = 200;
 /**
  * How far before its cursor a table's pull starts. `updated_at` is when a
  * transaction began, not when it committed, so a row can become visible after
- * a later one has already moved the cursor past it; Helix, with one writer,
- * never met that. Re-reading five seconds costs a few rows the merge takes
- * again unchanged, and a late row is found at its table's next change.
+ * a later one has already moved the cursor past it. Re-reading five seconds
+ * costs a few rows the merge takes again unchanged, and a late row is found at
+ * its table's next change.
  */
 const PULL_OVERLAP_MS = 5000;
 
-type Supabase = SupabaseClient;
 type LocalDatabase = Awaited<ReturnType<typeof getSqliteAsync>>;
 
 /** The session the client holds is not the account whose rows these are. */
@@ -108,12 +106,11 @@ function isRefusal(error: { code?: string; message: string }): boolean {
  * the generation the server holds, and its answer brings the device back to it.
  * Asked by what the server holds, not by the refusal's words: ahead is the only
  * way the trigger refuses a generation, and a message can be reworded.
- * Measured 2026-09-30: such rows waited aside for good, and Helix's engine
- * has the same hole. Stepping a live row down onto a delete made elsewhere
- * would restore it over that delete (pre-push review, 2026-10-09).
+ * Without this such rows wait aside for good. Stepping a live row down onto a
+ * delete made elsewhere would restore it over that delete.
  */
 async function atServerGeneration(
-  supabase: Supabase,
+  supabase: SupabaseClient,
   table: SyncedTableName,
   row: Record<string, unknown>,
   token: SessionEpochToken,
@@ -138,7 +135,7 @@ function assertActive(token: SessionEpochToken): void {
   sessionEpoch.assertCurrent(token);
 }
 
-async function tryRefreshSession(supabase: Supabase): Promise<RefreshOutcome> {
+async function tryRefreshSession(supabase: SupabaseClient): Promise<RefreshOutcome> {
   const { data, error } = await supabase.auth.refreshSession();
   return !error && data.session ? "refreshed" : classifyRefreshFailure(error);
 }
@@ -148,22 +145,15 @@ async function tryRefreshSession(supabase: Supabase): Promise<RefreshOutcome> {
  * personal row is stamped with `userId`, and under another account's session
  * every one of them would be refused and set aside as if it were bad.
  */
-async function assertSessionIs(supabase: Supabase, userId: string): Promise<void> {
+async function assertSessionIs(supabase: SupabaseClient, userId: string): Promise<void> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
   if (data.session?.user.id !== userId) throw new SessionMismatchError("session: not this account's");
 }
 
 /**
- * The server's copy, `created_at` included, unlike a local write's upsert: a
- * row added again carries a new one, and a device that kept the old would
- * push its next edit as if that too were made afresh (`isAddedAgain`).
- */
-/**
- * The device keys every row by id alone; the server keys a shop or item by its
- * list too (migration 14). So a row from another list under an id this device
- * already holds is someone's copy of that id, and never moves the row here
- * into their list.
+ * The server's copy, `created_at` included (`isAddedAgain` needs the new one). A shop or item from another
+ * list under an id held here is someone's copy of that id (migration 14) and never moves the local row.
  */
 async function upsertLocal(sqlite: LocalDatabase, table: SyncedTableName, row: Record<string, unknown>): Promise<void> {
   const keys = Object.keys(row);
@@ -209,7 +199,7 @@ function matchAnswers(table: SyncedTableName, events: readonly ParsedOutboxEvent
  * the one it will not waits aside.
  */
 async function sendRows(
-  supabase: Supabase,
+  supabase: SupabaseClient,
   table: SyncedTableName,
   events: ParsedOutboxEvent[],
   rows: Record<string, unknown>[],
@@ -239,7 +229,7 @@ async function sendRows(
 }
 
 /** `owner` is whose a personal row is: the person, or for a pantry row the Kiler this device holds. */
-async function pushTable(supabase: Supabase, table: SyncedTableName, owner: string, token: SessionEpochToken): Promise<void> {
+async function pushTable(supabase: SupabaseClient, table: SyncedTableName, owner: string, token: SessionEpochToken): Promise<void> {
   const sqlite = await getSqliteAsync();
   // Read with the table's first batch: only a migration writes the mark, and
   // only the pull after this push clears it.
@@ -317,7 +307,7 @@ async function pushTable(supabase: Supabase, table: SyncedTableName, owner: stri
   }
 }
 
-async function pushOutbox(supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
+async function pushOutbox(supabase: SupabaseClient, userId: string, token: SessionEpochToken): Promise<void> {
   const pantry = (await heldPantry(userId)).id;
   for (const table of PUSHED) await pushTable(supabase, table, PANTRY.has(table) ? pantry : userId, token);
 }
@@ -336,7 +326,7 @@ interface ServerHead {
  * function's list is a second copy of `SYNCED_TABLES`, and a copy can fall behind.
  */
 async function fetchServerHeads(
-  supabase: Supabase,
+  supabase: SupabaseClient,
   token: SessionEpochToken,
 ): Promise<{ heads: Map<string, PullCursor | null>; home: string | null; offers: string | null | undefined } | null> {
   if (changeProbeUnavailable) return null;
@@ -383,7 +373,7 @@ async function switchPantry(sqlite: LocalDatabase, from: string, to: string, use
     assertActive(token);
     for (const table of PANTRY) {
       // A bare DELETE empties the table without the update hook, so Kiler's
-      // live query would never hear its rows went (measured, SQLite 3.54).
+      // live query would never hear its rows went (SQLite 3.54).
       await sqlite.runAsync(`DELETE FROM ${table} WHERE true`);
       for (const queue of ["outbox", "sync_dead_letters"]) await sqlite.runAsync(`DELETE FROM ${queue} WHERE table_name = ?`, [table]);
     }
@@ -410,8 +400,8 @@ async function localMergeState(
   return state;
 }
 
-/** One table from `from` on, or with `list` one list's rows from the beginning, which moves no cursor. `owner` is `pushTable`'s. */
-function fetchPage(supabase: Supabase, table: SyncedTableName, cursor: PullCursor, first: boolean, token: SessionEpochToken, list?: string) {
+/** One page of `table` after `cursor`; with `list`, that list's rows from the start, moving no cursor. */
+function fetchPage(supabase: SupabaseClient, table: SyncedTableName, cursor: PullCursor, first: boolean, token: SessionEpochToken, list?: string) {
   let query = supabase.from(table).select("*").order("updated_at", { ascending: true }).order("id", { ascending: true }).limit(PULL_PAGE);
   if (list) query = query.eq(table === "lists" ? "id" : "list_id", list);
   const page = first
@@ -430,11 +420,11 @@ type Page = ReturnType<typeof fetchPage>;
  * cannot reject unobserved, since PostgREST without `throwOnError` answers a
  * failed or aborted fetch with `{ error }`.
  */
-function prefetch(tables: readonly SyncedTableName[], cursorFor: (table: SyncedTableName) => PullCursor, supabase: Supabase, token: SessionEpochToken, list?: string): Map<SyncedTableName, Page> {
+function prefetch(tables: readonly SyncedTableName[], cursorFor: (table: SyncedTableName) => PullCursor, supabase: SupabaseClient, token: SessionEpochToken, list?: string): Map<SyncedTableName, Page> {
   return new Map(tables.map((table) => [table, fetchPage(supabase, table, cursorFor(table), true, token, list)] as const));
 }
 
-async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullCursor, owner: string, token: SessionEpochToken, firstPage: Page, list?: string): Promise<void> {
+async function pullTable(supabase: SupabaseClient, table: SyncedTableName, from: PullCursor, owner: string, token: SessionEpochToken, firstPage: Page, list?: string): Promise<void> {
   const sqlite = await getSqliteAsync();
   let cursor = from;
   let next = firstPage;
@@ -470,7 +460,7 @@ async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullC
         await sqlite.runAsync(`UPDATE shops SET updated_at = updated_at WHERE id IN (${chunk.map(() => "?").join(", ")})`, chunk);
       }
       const last = (data as Record<string, unknown>[]).at(-1)!;
-      cursor = { ts: cursorInstant(last.updated_at), id: String(last.id) };
+      cursor = { ts: cursorInstant(String(last.updated_at)), id: String(last.id) };
       if (list) return;
       await sqlite.runAsync(
         `INSERT INTO sync_state (table_name, last_pulled_at) VALUES (?, ?) ON CONFLICT(table_name) DO UPDATE SET last_pulled_at = excluded.last_pulled_at`,
@@ -482,7 +472,7 @@ async function pullTable(supabase: Supabase, table: SyncedTableName, from: PullC
   }
 }
 
-async function pullAll(supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
+async function pullAll(supabase: SupabaseClient, userId: string, token: SessionEpochToken): Promise<void> {
   const sqlite = await getSqliteAsync();
   assertActive(token);
   // Asked even by a device that has never pulled: it says which Kiler to pull.
@@ -530,7 +520,7 @@ const FROM_START = parsePullCursor(null);
  * removed by the owner — drops the list from the device, with whatever was
  * still to send for it, since the server will take none of it.
  */
-async function followMemberships(supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
+async function followMemberships(supabase: SupabaseClient, userId: string, token: SessionEpochToken): Promise<void> {
   const sqlite = await getSqliteAsync();
   if (membershipsSweptFor !== userId) {
     await sweepMemberships(sqlite, supabase, userId, token);
@@ -567,7 +557,7 @@ const SWEEP_LIMIT = 1000;
  * goes here too — the person's own drops its list, as a removal does; another's
  * leaves the members sheet.
  */
-async function sweepMemberships(sqlite: LocalDatabase, supabase: Supabase, userId: string, token: SessionEpochToken): Promise<void> {
+async function sweepMemberships(sqlite: LocalDatabase, supabase: SupabaseClient, userId: string, token: SessionEpochToken): Promise<void> {
   const { data, error } = await supabase.from("list_members").select("id").limit(SWEEP_LIMIT).abortSignal(token.signal);
   if (error) throw new Error(`memberships: ${error.message}`);
   const held = new Set((data as { id: string }[]).map((row) => row.id));
@@ -622,7 +612,7 @@ const RETRIED = "retried:";
 /**
  * A refusal is final only for the engine that met it: 1.4.0 sends at the
  * server's generation the rows 1.3 set aside, and those waited on the owner's
- * phone until a sign-out wiped them (measured 2026-09-30). A new version sends
+ * phone until a sign-out wiped them. A new version sends
  * what waits aside once more, before its first push; a row it refuses too
  * waits until the next version, not the next sync.
  */

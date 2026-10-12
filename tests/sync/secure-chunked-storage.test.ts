@@ -1,8 +1,3 @@
-/**
- * The session's SecureStore adapter, Helix's test as it stands: a value past
- * the keychain's 2 KB limit is chunked, and a corrupt marker fails closed.
- */
-
 import { describe, expect, it } from "vitest";
 import {
   createSecureChunkedStorage,

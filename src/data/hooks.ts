@@ -10,25 +10,29 @@ import { liveStore, type LiveStore } from "./live-query";
 import { heldPantry, readLasted, readPantry } from "./pantry";
 import { readProducts } from "./products";
 import { readSets } from "./sets";
-import { frozenFrom, readSettings } from "./settings";
+import { frozenFrom, memberNameOf, readSettings } from "./settings";
 import { readPricedSince, readPurchases, readShops } from "./shops";
 import { readCollections, readKnownWishes, readWishes } from "./wishes";
+
+function useStore<T>(store: LiveStore<T>) {
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
 
 // A list's screen and its people panel watch its members: the role decides what the screen offers.
 export function useMembers(listId: string) {
   const store = useMemo(() => liveStore(() => readMembers(listId), ["list_members"]), [listId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 export function usePlaces(userId: string) {
   const store = useMemo(() => liveStore(() => readPlaces(userId), ["list_members"]), [userId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // Listeler's count of what is new on each shared list (SPEC 1.9), for the person signed in.
 export function useFresh(userId: string) {
   const store = useMemo(() => liveStore(() => readFresh(userId), ["items", "list_members"]), [userId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // Who has ticked what, on the lists this person is in: who is shopping now is worked out from it (SPEC 1.6).
@@ -43,34 +47,34 @@ function ticksStore(userId: string) {
 }
 export function useShoppingTicks(userId: string) {
   const store = ticksStore(userId);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // The Kiler this device holds (SPEC 12.13). It changes at a sync that empties
 // Kiler and fills it again, which a membership coming or going goes with.
 export function useHeldPantry(userId: string) {
   const store = useMemo(() => liveStore(async () => [await heldPantry(userId)], ["pantry_items", "list_members"]), [userId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // The lists kept live, each on its own channel (SPEC 1.3).
 export function useSharedLists(userId: string) {
   const store = useMemo(() => liveStore(() => readSharedLists(userId), ["list_members"]), [userId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // Items, because each card counts what is on its list; members, because a viewer sends nothing.
 const listsStore = liveStore(readLists, ["lists", "items", "list_members", "settings"]);
 
 export function useLists() {
-  return useSyncExternalStore(listsStore.subscribe, listsStore.getSnapshot, listsStore.getSnapshot);
+  return useStore(listsStore);
 }
 
 // One screen watches a list's items, so the store lives and goes with it;
 // the lists store is shared by the tab and the screen pushed over it.
 export function useItems(listId: string) {
   const store = useMemo(() => liveStore(() => readItems(listId), ["items"]), [listId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // Lists, because a shop's card names its list. Not items: what a shop counts
@@ -80,18 +84,18 @@ export function useItems(listId: string) {
 const shopsStore = liveStore(readShops, ["shops", "lists"]);
 
 export function useShops() {
-  return useSyncExternalStore(shopsStore.subscribe, shopsStore.getSnapshot, shopsStore.getSnapshot);
+  return useStore(shopsStore);
 }
 
 // Keyed by the month's start, so a new month reads afresh.
 export function usePricedSince(since: string) {
   const store = useMemo(() => liveStore(() => readPricedSince(since), ["shops", "lists", "items"]), [since]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 export function useShopItems(shopId: string) {
   const store = useMemo(() => liveStore(() => readShopItems(shopId), ["items"]), [shopId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // Watched only while the quick-add field holds text, when the suggestions are
@@ -99,52 +103,52 @@ export function useShopItems(shopId: string) {
 const knownStore = liveStore(readKnownProducts, ["items", "lists"]);
 
 export function useKnownProducts() {
-  return useSyncExternalStore(knownStore.subscribe, knownStore.getSnapshot, knownStore.getSnapshot);
+  return useStore(knownStore);
 }
 
 // İstekler's own, watched the same way: a wish is not a product.
 const knownWishesStore = liveStore(readKnownWishes, ["wishes", "lists"]);
 
 export function useKnownWishes() {
-  return useSyncExternalStore(knownWishesStore.subscribe, knownWishesStore.getSnapshot, knownWishesStore.getSnapshot);
+  return useStore(knownWishesStore);
 }
 
 // Mounted with the item panel, and gone with it.
 export function useBought(itemId: string) {
   const store = useMemo(() => liveStore(() => readBought(itemId), ["items", "lists"]), [itemId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // Shops only: a finish writes its shop after its items, and an undo tombstones
 // it, so a tick on the list never re-reads the history.
 export function usePurchases(listId: string) {
   const store = useMemo(() => liveStore(() => readPurchases(listId), ["shops"]), [listId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 // Every wish and link, because each card counts and prices its collection.
 const collectionsStore = liveStore(readCollections, ["lists", "wishes", "wish_links"]);
 
 export function useCollections() {
-  return useSyncExternalStore(collectionsStore.subscribe, collectionsStore.getSnapshot, collectionsStore.getSnapshot);
+  return useStore(collectionsStore);
 }
 
 export function useWishes(listId: string) {
   const store = useMemo(() => liveStore(() => readWishes(listId), ["wishes", "wish_links"]), [listId]);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return useStore(store);
 }
 
 const pantryStore = liveStore(readPantry, ["pantry_items", "pantry_moves"]);
 
 export function usePantry() {
-  return useSyncExternalStore(pantryStore.subscribe, pantryStore.getSnapshot, pantryStore.getSnapshot);
+  return useStore(pantryStore);
 }
 
 // Mounted with the restock chips, which show while the add field is empty.
 const lastedStore = liveStore(readLasted, ["pantry_items", "pantry_moves"]);
 
 export function useLasted() {
-  return useSyncExternalStore(lastedStore.subscribe, lastedStore.getSnapshot, lastedStore.getSnapshot);
+  return useStore(lastedStore);
 }
 
 // Shared by the item panel's star and aisle, the catalogue's Favoriler, and
@@ -152,7 +156,7 @@ export function useLasted() {
 const productsStore = liveStore(readProducts, ["products"]);
 
 export function useProducts() {
-  return useSyncExternalStore(productsStore.subscribe, productsStore.getSnapshot, productsStore.getSnapshot);
+  return useStore(productsStore);
 }
 
 /** Where the person moved each product, by folded name (SPEC 5.4). */
@@ -165,15 +169,17 @@ export function useMovedAisles(): ReadonlyMap<string, Aisle> {
 const setsStore = liveStore(readSets, ["sets", "set_items"]);
 
 export function useSets() {
-  return useSyncExternalStore(setsStore.subscribe, setsStore.getSnapshot, setsStore.getSnapshot);
+  return useStore(setsStore);
 }
 
 const settingsStore = liveStore(readSettings, ["settings"]);
 const unwatched = () => () => {};
 
 export function useSettings() {
-  return useSyncExternalStore(settingsStore.subscribe, settingsStore.getSnapshot, settingsStore.getSnapshot);
+  return useStore(settingsStore);
 }
+
+export const useMemberName = () => memberNameOf(useSettings().data);
 
 /**
  * Whether the account is frozen (SPEC 9.1); watched only while signed in, since

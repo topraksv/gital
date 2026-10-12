@@ -1,7 +1,6 @@
 /**
- * Helix's press-and-drag list (`~/helix/src/ui/draggable-list.tsx`), for rows
- * of their own heights: an item with a note is taller than one without, where
- * Helix's settings rows share one. Only the grip starts a drag, so the rest of
+ * A press-and-drag list for rows of their own heights: an item with a note is
+ * taller than one without. Only the grip starts a drag, so the rest of
  * a row stays tappable; the lifted row rises under the finger and the rows it
  * crosses slide out of its way (`docs/UI.md` section 7, "Reorder"). The order
  * is committed on release, and the grip's increment and decrement move a row
@@ -17,15 +16,17 @@ import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
 import Check from "lucide-react-native/icons/check";
 import GripVertical from "lucide-react-native/icons/grip-vertical";
 
+import type { Section } from "../domain/catalogue";
 import { tr } from "../i18n/tr";
-import { IconButton } from "./components";
-import { errorNotice, mediumImpact, selectionTap } from "./haptics";
+import { AisleHeader, IconButton } from "./components";
+import { appError } from "./dialog";
+import { errorNotice, mediumTap, selectionTap } from "./haptics";
 import { webKeys } from "./keys";
 import { useReducedMotion } from "./motion";
 import { follow } from "./reorder";
-import { controlSize, drag, iconSize, motion, useTheme } from "./theme";
+import { controlSize, density, drag, iconSize, motion, useTheme } from "./theme";
 
-export interface DragHandle {
+interface DragHandle {
   panHandlers: GestureResponderHandlers;
   /** This row is the one held. */
   lifted: boolean;
@@ -77,7 +78,7 @@ export function DraggableList<T>({
 
   // A live query can render the old order after the drag ends but before its
   // write is read back; the dragged order is kept through that window, or the
-  // row snaps back and the drag looks as if it did nothing (Helix's reason).
+  // row snaps back and the drag looks as if it did nothing.
   useEffect(() => {
     if (dragging.current) return;
     const incoming = items.map(keyOf);
@@ -112,6 +113,7 @@ export function DraggableList<T>({
     const incoming = latest.current.items.map(latest.current.keyOf);
     pending.current = incoming.every((key, index) => key === keys[index]) ? null : keys;
     latest.current.onReorder(keys).catch(() => {
+      void appError(tr.errors.saveFailed);
       pending.current = null;
       setOrder(latest.current.items);
       errorNotice();
@@ -133,7 +135,7 @@ export function DraggableList<T>({
     setActiveKey(key);
     if (reducedMotion) lift.setValue(1);
     else Animated.spring(lift, { toValue: 1, ...motion.spring.entrance, useNativeDriver: nativeDriver }).start();
-    mediumImpact();
+    mediumTap();
     latest.current.onDragging(true);
   };
   api.current.move = (dy) => {
@@ -243,7 +245,7 @@ function DraggableRow({
 /**
  * The grip a row is dragged by. `adjustable`, because increment and decrement
  * move the row without a drag; the role needs a value, so the row's place is
- * published, which also makes it heard as "3 of 12" (Helix's axe finding).
+ * published, which also makes it heard as "3 of 12".
  */
 export function ReorderGrip({ handle, name, position, count }: { handle: DragHandle; name: string; position: number; count: number }) {
   const { palette } = useTheme();
@@ -276,5 +278,43 @@ export function SortToggle({ sorting, canSort, onChange }: { sorting: boolean; c
     <IconButton icon={Check} text={tr.items.sortDone} label={tr.items.sortDone} tone="primary" onPress={() => onChange(false)} />
   ) : (
     <IconButton icon={ArrowUpDown} label={tr.items.sort} disabled={!canSort} onPress={() => onChange(true)} />
+  );
+}
+
+const idOf = (item: { id: string }) => item.id;
+
+/**
+ * Sections that drag each on its own, so a row stays with its aisle and its kind; the
+ * whole order is written, so the stored one is the order drawn.
+ */
+export function SortSections<T extends { id: string; name: string }>({
+  sections,
+  reorder,
+  renderRow,
+  onDragging,
+}: {
+  sections: readonly Section<T>[];
+  reorder: (ids: string[]) => Promise<void>;
+  renderRow: (item: T, grip: ReactNode, handle: DragHandle) => ReactNode;
+  onDragging: (dragging: boolean) => void;
+}) {
+  return (
+    <View style={{ gap: density.list.rowGap }}>
+      {sections.map((section, at) => (
+        <View key={section.key} style={{ gap: density.list.rowGap }}>
+          {section.aisle ? <AisleHeader aisle={section.aisle} first={at === 0} /> : null}
+          <DraggableList
+            items={section.items}
+            keyOf={idOf}
+            gap={density.list.rowGap}
+            onReorder={(keys) => reorder(sections.flatMap((other, index) => (index === at ? keys : other.items.map(idOf))))}
+            onDragging={onDragging}
+            renderRow={(item, handle, position) =>
+              renderRow(item, <ReorderGrip handle={handle} name={item.name} position={position + 1} count={section.items.length} />, handle)
+            }
+          />
+        </View>
+      ))}
+    </View>
   );
 }

@@ -5,23 +5,19 @@ import LogIn from "lucide-react-native/icons/log-in";
 import Mail from "lucide-react-native/icons/mail";
 import Plus from "lucide-react-native/icons/plus";
 import ShoppingBasket from "lucide-react-native/icons/shopping-basket";
-import Trash from "lucide-react-native/icons/trash";
 
 import { useSession } from "../../auth/session";
 import { useFresh, useLists } from "../../data/hooks";
-import { createList, deleteLists, restoreList, type ListSummary } from "../../data/lists";
+import { deleteLists, restoreList, type ListSummary } from "../../data/lists";
 import { setListOrder } from "../../data/settings";
-import { NAME_MAX } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import { useOffers } from "../../sync/sharing";
 import { ProgressRing } from "../../ui/charts";
-import { ArrivalScope, Button, Card, Divider, EmptyState, IconButton, LinkCard, ListRow, ReadFailed, Screen, SectionHeader, SlideUp, Tile, cardEdge } from "../../ui/components";
-import { appError, appPrompt } from "../../ui/dialog";
+import { ArrivalScope, Button, Card, Divider, EmptyState, IconButton, ListRow, ReadFailed, Screen, SectionHeader, SlideUp, Tile, cardEdge } from "../../ui/components";
 import { DraggableList, ReorderGrip, SortToggle } from "../../ui/draggable-list";
-import { selectionTap } from "../../ui/haptics";
-import { RowMotion, RowSwipe } from "../../ui/list-motion";
+import { createNamedList } from "../../ui/list-sheet";
 import { useShoppingNotices, useShoppingNow } from "../../ui/members-sheet";
-import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
+import { OwnedCard, deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
 import { FirstRunTour } from "../../ui/tour";
 import { density, font, listCard, motion, spacing, type, useTheme } from "../../ui/theme";
 
@@ -57,20 +53,12 @@ function OffersWaiting() {
  */
 function SortLists({ lists, onDragging }: { lists: readonly ListSummary[]; onDragging: (dragging: boolean) => void }) {
   const { palette } = useTheme();
-  const reorder = (keys: string[]) =>
-    setListOrder(keys).then(
-      () => undefined,
-      (error: unknown) => {
-        void appError(tr.errors.saveFailed);
-        throw error;
-      },
-    );
   return (
     <DraggableList
       items={lists}
       keyOf={(list) => list.id}
       gap={density.list.rowGap}
-      onReorder={reorder}
+      onReorder={(keys) => setListOrder(keys)}
       onDragging={onDragging}
       renderRow={(list, handle, position) => (
         <View style={{ ...cardEdge(palette), flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: palette.surface }}>
@@ -88,7 +76,8 @@ export default function Lists() {
   const [sorting, setSorting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const router = useRouter();
-  const fresh = new Map(useFresh(useSession((s) => s.userId) ?? "").data.map((row) => [row.listId, row.count]));
+  const freshRows = useFresh(useSession((s) => s.userId) ?? "");
+  const fresh = new Map(freshRows.data.map((row) => [row.listId, row.count]));
   // The Lists tab is the tabs' first screen and stays mounted under every list pushed over it, so the watcher lives here.
   const shoppers = useShoppingNow();
   useShoppingNotices(shoppers);
@@ -100,26 +89,13 @@ export default function Lists() {
     return here ? `${tr.sharing.shoppingCount(here)} · ${summary}` : summary;
   };
 
-  const create = async () => {
-    const name = await appPrompt(tr.lists.createTitle, tr.lists.createMessage, {
-      examples: tr.placeholders.listName,
-      confirmLabel: tr.lists.createConfirm,
-      maxLength: NAME_MAX,
-    });
-    if (name == null) return;
-    try {
-      await createList(name);
-      selectionTap();
-    } catch {
-      void appError(tr.errors.saveFailed);
-    }
-  };
+  const create = () => createNamedList("shop");
 
   const removeLists = (chosen: readonly { id: string; name: string }[]) => deleteWithUndo(chosen, tr.selection.nouns.list, deleteLists, restoreList);
 
   // Nothing is drawn until the query has answered once: "no lists" from a
   // query that has not run would be a lie for a frame.
-  const answered = lists.updatedAt != null;
+  const answered = lists.updatedAt != null && freshRows.updatedAt != null;
   return (
     <Screen
       {...selectionHeader(
@@ -154,31 +130,23 @@ export default function Lists() {
             <SortLists lists={lists.data} onDragging={setDragging} />
           ) : (
             <View style={{ gap: density.list.rowGap }}>
-              {lists.data.map((list) => {
-                const left = list.owner
-                  ? { icon: Trash, tone: "destructive" as const, label: tr.lists.delete(list.name), run: () => void removeLists([list]) }
-                  : undefined;
-                return (
-                <RowMotion key={list.id}>
-                <SlideUp distance={motion.travel.bar}>
-                  <RowSwipe left={selection.active ? undefined : left}>
-                  <LinkCard
-                    tileId={list.id}
-                    look={list}
-                    title={list.name}
-                    detail={detail(list)}
-                    badge={fresh.has(list.id) ? tr.sharing.freshCount(fresh.get(list.id)!) : null}
-                    accessory={list.total > 0 ? <ProgressRing value={list.inBasket / list.total} /> : null}
-                    hint={tr.lists.openHint}
-                    onOpen={() => (selection.active ? (list.owner ? selection.toggle(list.id) : undefined) : router.push({ pathname: "/list/[id]", params: { id: list.id } }))}
-                    onLongPress={list.owner ? () => selection.begin(list.id) : undefined}
-                    selected={selection.active && list.owner ? selection.has(list.id) : undefined}
-                  />
-                  </RowSwipe>
-                </SlideUp>
-                </RowMotion>
-                );
-              })}
+              {lists.data.map((list) => (
+                <OwnedCard
+                  key={list.id}
+                  item={list}
+                  selection={selection}
+                  deleteLabel={tr.lists.delete(list.name)}
+                  onDelete={() => void removeLists([list])}
+                  open={() => router.push({ pathname: "/list/[id]", params: { id: list.id } })}
+                  tileId={list.id}
+                  look={list}
+                  title={list.name}
+                  detail={detail(list)}
+                  badge={fresh.has(list.id) ? tr.sharing.freshCount(fresh.get(list.id)!) : null}
+                  accessory={list.total > 0 ? <ProgressRing value={list.inBasket / list.total} /> : null}
+                  hint={tr.lists.openHint}
+                />
+              ))}
             </View>
           )}
         </ArrivalScope>

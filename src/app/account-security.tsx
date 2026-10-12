@@ -1,9 +1,5 @@
-/**
- * Helix's account security screen (SPEC 9.1): the e-mail, the password, a
- * reset link to one's own address, the data reset, and the two ways an
- * account ends, all on one screen. A change asks for the current password in
- * its own card, as Helix's does, rather than in a dialog after the fact.
- */
+/** Account security (SPEC 9.1): e-mail, password, a reset link to one's own address, the data reset
+ *  and the two endings. A change asks for the current password in its own card, not after the fact. */
 
 import { useEffect, useState } from "react";
 import { Redirect, router } from "expo-router";
@@ -22,7 +18,7 @@ import { lastLogin } from "../domain/logins";
 import { tr } from "../i18n/tr";
 import { kv } from "../services/kv";
 import { isSupabaseConfigured } from "../sync/supabase";
-import { Body, Button, Card, Divider, ListRow, PanelHeader, Screen, TextField } from "../ui/components";
+import { Body, Button, Card, Divider, EMAIL_FIELD, ListRow, PanelHeader, Screen, TextField } from "../ui/components";
 import { appConfirm, appError, appPrompt } from "../ui/dialog";
 import { useDirtyExitGuard } from "../ui/dirty-exit";
 import { spacing, type, useTheme } from "../ui/theme";
@@ -65,7 +61,7 @@ function CloudAccountSecurity() {
 
   const emailReady = isEmail(newEmail) && emailPassword !== "";
   const submitEmail = run("email", async () => {
-    const refused = (await verifyPassword(emailPassword)) ?? (await changeEmail(newEmail.trim()));
+    const refused = (await verifyPassword(emailPassword)) ?? (await changeEmail(newEmail));
     if (refused) return void (await appError(refused));
     setNewEmail("");
     setEmailPassword("");
@@ -119,12 +115,7 @@ function CloudAccountSecurity() {
           label={tr.account.newEmail}
           value={newEmail}
           onChangeText={setNewEmail}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          autoComplete="email"
-          textContentType="emailAddress"
-          placeholder={tr.placeholders.email}
+          {...EMAIL_FIELD}
           style={{ marginBottom: spacing.md }}
         />
         <TextField

@@ -21,8 +21,8 @@ const PAINT_GROUND = [
   `r.style.colorScheme=d?"dark":"light"}catch(e){}`,
 ].join("");
 
-// Helix's registration, under Gital's base only: the dev server serves the
-// root, where a worker scoped to `/gital/` would never control a page.
+// Only under the deployed base: the dev server serves the root, where a worker scoped to
+// `/gital/` would never control a page.
 const REGISTER_WORKER = [
   `if("serviceWorker" in navigator&&location.pathname.indexOf("/gital/")===0){`,
   `addEventListener("load",function(){navigator.serviceWorker.register("/gital/sw.js",{scope:"/gital/"}).catch(function(){})})}`,
@@ -30,29 +30,22 @@ const REGISTER_WORKER = [
 
 const { light, dark } = PALETTES[DEFAULT_PALETTE_ID];
 
-// Where the export is published, and the card a pasted link becomes: Helix's,
-// served from `public/` because Expo renames what it copies from `assets/`.
-// JPEG, since the card is flat colour and a crawler is its only reader.
+// Served from `public/`, since Expo renames what it copies from `assets/`; JPEG, as the card is flat colour.
 const SITE_URL = "https://topraksv.github.io/gital/";
 const OG_IMAGE = "og-cover.jpg";
 
-/**
- * The web shell. The export is one static document for every visitor, so it
- * cannot know the stored palette or the system's scheme; the script paints the
- * right ground before the bundle loads, and the root layout takes over from it.
- * `viewport-fit=cover` is Helix's, and is what gives iOS Safari real safe-area
- * insets.
- */
+/** One static document for every visitor: the script paints the stored ground before the bundle
+ *  loads. `viewport-fit=cover` gives iOS Safari real safe-area insets. */
 export default function Root({ children }: PropsWithChildren) {
   return (
     <html lang="tr">
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        <meta httpEquiv="Content-Security-Policy" content={contentSecurityPolicy(process.env.EXPO_PUBLIC_SUPABASE_URL)} />
-        {/* A reset link's code must not ride the page's asset requests as a
-            referrer before supabase-js takes it from the address. Helix's. */}
+        {/* A reset link's code must not ride the page's asset requests as a referrer before
+            supabase-js takes it from the address. */}
         <meta name="referrer" content="no-referrer" />
+        <meta httpEquiv="Content-Security-Policy" content={contentSecurityPolicy(process.env.EXPO_PUBLIC_SUPABASE_URL)} />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
         <title>{tr.meta.title}</title>
         <meta name="description" content={tr.meta.social} />

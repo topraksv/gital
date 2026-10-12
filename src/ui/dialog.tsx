@@ -1,5 +1,5 @@
 /**
- * Themed alert and prompt, Helix's `dialog.tsx`: the one replacement for
+ * Themed alert and prompt: the one replacement for
  * `window.alert` and native `Alert.alert`, promise-based so a call site reads
  * like the blocking API it replaces:
  *
@@ -8,9 +8,8 @@
  *
  * The hosts render inside the newest open sheet, or at the root when none is
  * open (`presenterOf`): iOS presents one modal from a controller at a time.
- * An answer settles once its modal has gone. Helix's operation header is left
- * out until a caller needs it; a confirm is only for what the undo bar cannot
- * take back, which a list's delete is not.
+ * An answer settles once its modal has gone. A confirm is only for what the
+ * undo bar cannot take back, which a list's delete is not.
  */
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -25,7 +24,7 @@ import { KeyboardSafeScrollView } from "./keyboard-safe";
 import { PanelMotion } from "./list-motion";
 import { useDragAway, useReducedMotion } from "./motion";
 import { closeRequest, emptyRequestQueue, enqueueRequest, presenterOf, type OpenModal, type RequestQueue } from "./request-queue";
-import { shouldPresentAsSheet } from "./responsive";
+import { shouldPresentOptionsAsSheet } from "./responsive";
 import { circle, dialog, motion, radius, spacing, themeShadow, type, useTheme } from "./theme";
 
 interface DialogRequest {
@@ -47,16 +46,13 @@ function ask(request: Omit<DialogRequest, "id" | "resolve">): Promise<boolean> {
   });
 }
 
-/**
- * Helix's `appAlert`, cut to the one kind Gital shows: a failure, which says
- * so on the device too. Resolves when dismissed.
- */
+/** A failure, which says so on the device too. Resolves when dismissed. */
 export function appError(message: string): Promise<void> {
   errorNotice();
   return ask({ title: tr.errors.title, message, confirmLabel: null }).then(() => {});
 }
 
-/** Helix's `appConfirm`: true only for the named action, never for a tap outside. */
+/** True only for the named action, never for a tap outside. */
 export function appConfirm(title: string, message: string, confirmLabel: string): Promise<boolean> {
   return ask({ title, message, confirmLabel });
 }
@@ -67,7 +63,7 @@ interface PromptRequest {
   title: string;
   message: string;
   placeholder: string;
-  /** Helix's rotating examples (`placeholders.ts`), in place of a fixed hint. */
+  /** Rotating examples (`placeholders.ts`), in place of a fixed hint. */
   examples?: readonly string[];
   confirmLabel: string;
   initialValue: string;
@@ -211,7 +207,7 @@ export function DialogShell({
   const reducedMotion = useReducedMotion();
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const asSheet = shouldPresentAsSheet(width);
+  const asSheet = shouldPresentOptionsAsSheet(width);
   const modal = useModalSlot(kind);
   // A sheet goes down by its handle and title, not by its body, whose own
   // fields and lists take a vertical drag first.

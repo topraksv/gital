@@ -3,7 +3,7 @@
 import { formatQuantity, type Unit } from "../domain/items";
 import { formatMinor } from "../domain/money";
 
-/** Helix's `dateTimeLabel`, its formatter made once: "24 Eylül 2026 14:05", on the device's clock. */
+/** The formatter made once: "24 Eylül 2026 14:05", on the device's clock. */
 const DATE_TIME = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long", timeStyle: "short" });
 
 function dateTimeLabel(iso: string): string {
@@ -33,10 +33,10 @@ function basketProgress(done: number, total: number): string {
 }
 
 export const tr = {
-  /** The browser tab, the search result and a shared link's headline: what Gital is for, not its name alone (Helix's reasoning). */
+  /** The browser tab, the search result and a shared link's headline: what Gital is for, not its name alone. */
   meta: { title: "Gital · Ne eksik?", social: "Evin alışveriş listesi, hafızası ve istekleri tek yerde." },
   /**
-   * Helix's rotating examples (`src/ui/placeholders.ts`): each pool is written
+   * Rotating examples (`src/ui/placeholders.ts`): each pool is written
    * WITHOUT a prefix, and `example` adds the one "Ör." the app uses, so no
    * field says it twice.
    */
@@ -109,11 +109,11 @@ export const tr = {
     undoFailed: "Geri alınamadı. Lütfen tekrar dene.",
     shareFailed: "Paylaşılamadı. Lütfen tekrar dene.",
     openFailed: "Açılamadı. İnternete bağlanıp tekrar dene.",
-    /** Helix's words for a screen that threw while drawing. */
+    /** A screen that threw while drawing. */
     appCrashed: "Beklenmeyen bir sorun oluştu.",
     appCrashedHint: "Gital bu ekranı gösteremedi. Yeniden dene; sorun sürerse uygulamayı kapatıp aç.",
   },
-  /** Helix's `forms`: leaving a form with a draft that was not saved. */
+  /** Leaving a form with a draft that was not saved. */
   forms: {
     discardTitle: "Kaydedilmemiş değişiklikler var",
     discardBody: "Şimdi çıkarsan yaptığın değişiklikler kaybolacak.",
@@ -235,7 +235,6 @@ export const tr = {
     carryMessage: (names: readonly string[]) =>
       `${names.length > 1 ? `${names.slice(0, -1).join(", ")} ve ${names.at(-1)}` : names[0]} bulunamadı. Sonraki alışverişte hangi listede olsun?`,
   },
-  /** Helix's calculator (SPEC 4.4). */
   celebration: {
     title: "Alışveriş bitti",
     bought: (count: number) => `${count}\u00a0ürün alındı`,
@@ -438,7 +437,7 @@ export const tr = {
     ],
   },
   settings: {
-    /** Helix's greeting, by `partOfDay`. */
+    /** The greeting, by `partOfDay`. */
     greeting: { night: "İyi geceler", morning: "Günaydın", day: "İyi günler", evening: "İyi akşamlar" },
     welcome: (name: string | null) => (name ? `Hoş geldin, ${name}.` : "Gital'a hoş geldin."),
     name: "Adın",
@@ -451,7 +450,6 @@ export const tr = {
     shoppingNoticesHint: "Listendeki biri alışverişe başlayınca Gital'ın içinde haber verir.",
     syncSection: "Cihazlar",
     syncExplain: "Değişikliklerin önce bu cihazda saklanır. İnternet geldiğinde diğer cihazlarınla ve listeyi paylaştığın kişilerle kendiliğinden eşitlenir.",
-    quarantineHint: (count: number) => `${count}\u00a0kayıt yalnızca bu cihazda; hiçbiri silinmedi.`,
     footer: "Gital · Evin alışveriş listesi, hafızası ve istekleri tek yerde.",
     theme: "Tema",
     themeSystem: "Sistem",
@@ -466,7 +464,7 @@ export const tr = {
     paletteForestDesc: "Taş nötrleri, koyu servi ve yaban eriği.",
   },
   auth: {
-    /** The one greeting over all three forms, so the card does not move between them (Helix's). */
+    /** The one greeting over all three forms, so the card does not move between them. */
     welcomeTitle: "Gital'a hoş geldin",
     welcomeBody: "Evin alışveriş listeleri, aldıklarının hafızası ve isteklerin tek yerde.",
     signInTitle: "Hesabına giriş yap",
@@ -485,14 +483,18 @@ export const tr = {
     toSignUp: "Yeni hesap oluştur",
     toSignIn: "Zaten hesabım var, giriş yap",
     offlineNote: "Listelerin cihazında saklanır, internet yokken de çalışır.",
-    /** Helix's three-step picture under the greeting, told for a household's shopping. */
+    /** The three-step picture under the greeting, told for a household's shopping. */
     journeyWrite: "Yaz",
     journeyShop: "Al",
     journeyRemember: "Hatırla",
     forgotPassword: "Şifremi unuttum",
     backToSignIn: "Giriş ekranına dön",
     confirmationSent: "Doğrulama bağlantısı e-posta adresine gönderildi. Gelen kutunu ve gereksiz klasörünü kontrol et.",
-    /** Hedged, so the form never says which addresses have an account (Helix's). */
+    emailLinkConfirmed: "E-posta adresin onaylandı. Şimdi e-postan ve şifrenle giriş yapabilirsin.",
+    emailChangeLinkConfirmed: "Onayın alındı. Diğer adrese giden bağlantı da onaylanınca yeni adresinle giriş yaparsın; o zamana kadar eski adresin geçerli.",
+    emailLinkUnusable: "Bu e-posta bağlantısı artık geçerli değil. Hesabın zaten onaylandıysa giriş yapabilirsin; değilse aynı e-postayla yeniden Hesap oluştur'a dokun, yeni bir bağlantı gönderilir.",
+    emailLinkOffline: "Bağlantı doğrulanamadı, internete ulaşılamıyor. Bağlantı harcanmadı: internet gelince sayfayı yenile.",
+    /** Hedged, so the form never says which addresses have an account. */
     resetSentToOwnAddress: (email: string) => `Şifre yenileme bağlantısı ${email} adresine gönderildi. Gelen kutunu ve gereksiz klasörünü kontrol et.`,
     resetSent: "Bu adresle bir hesap varsa şifre yenileme bağlantısı gönderildi. Gelen kutunu ve gereksiz klasörünü kontrol et.",
     resetTitle: "Yeni şifreni belirle",
@@ -531,8 +533,7 @@ export const tr = {
     /** Said only once a send has been tried: what it names exists nowhere else. */
     signOutPending: "Bazı değişikliklerin henüz gönderilemedi. Şimdi çıkış yaparsan bu cihazdan silinirler ve geri getirilemezler.",
   },
-  /** SPEC 13.1, Helix's words where the report is the same. */
-  /* The KVKK notice (Helix's `legal`). `docs/PRIVACY.md` is its engineering
+  /* The KVKK notice. `docs/PRIVACY.md` is its engineering
      source; this is the text a person reads, before an account exists. */
   legal: {
     title: "Aydınlatma Metni",
@@ -798,7 +799,7 @@ export const tr = {
     } as Record<string, string>,
     record: "Kayıt",
   },
-  /** Helix's waiting page, one per account operation, each named. */
+  /** The waiting page, one per account operation, each named. */
   operation: {
     "sign-in": { title: "Giriş yapılıyor", body: "E-posta ve şifren doğrulanıyor" },
     "sign-out": { title: "Güvenli çıkış", body: "Son değişikliklerin eşitleniyor; ardından oturumun kapanacak" },
@@ -828,7 +829,6 @@ export const tr = {
     changePassword: "Şifreyi Değiştir",
     passwordChanged: "Şifren değişti.",
     confirmPasswordTitle: "Şifreni doğrula",
-    confirmPasswordBody: "Devam etmek için şifreni gir.",
     signOut: "Çıkış Yap",
     signOutTitle: "Çıkış yapılsın mı?",
     signOutAnyway: "Sil ve Çık",

@@ -169,16 +169,16 @@ describe("formatQuantity", () => {
   });
 });
 
-describe("formatList", () => {
-  const item = (name: string, more: Partial<ItemChange> = {}) => ({
-    name,
-    quantityMilli: null,
-    unit: null,
-    note: null,
-    urgent: false,
-    ...more,
-  });
+const item = (name: string, more: Partial<ItemChange> = {}) => ({
+  name,
+  quantityMilli: null,
+  unit: null,
+  note: null,
+  urgent: false,
+  ...more,
+});
 
+describe("formatList", () => {
   it("writes the name, then a line per item in the order given, quantity first", () => {
     expect(
       formatList("Market", [
@@ -191,15 +191,6 @@ describe("formatList", () => {
 });
 
 describe("parseList", () => {
-  const item = (name: string, more: Partial<ItemChange> = {}) => ({
-    name,
-    quantityMilli: null,
-    unit: null,
-    note: null,
-    urgent: false,
-    ...more,
-  });
-
   it("reads formatList's text back as the same items, notes and urgency", () => {
     const items = [
       item("Ekmek", { urgent: true }),

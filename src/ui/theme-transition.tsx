@@ -1,55 +1,57 @@
 /**
- * Changing the whole window's colour without it reading as a reload, ported
- * from Helix's `theme-transition.ts` and `ThemeDissolve`. Helix tried an
- * instant swap ("tak diye değişiyor") and a full-screen veil over the new
- * theme ("still feels like a refresh") before this.
- *
- * Where the browser has View Transitions it cross-fades the real pixels.
- * Everywhere else the PREVIOUS background is laid over the new theme and
- * fades: a veil in the new colour cannot soften a dark-to-light edge, the old
- * one can. The old background is armed before the preference commits, so the
- * veil is present in the first native frame of the new palette.
+ * A theme change that does not read as a reload. View Transitions cross-fade the real pixels; elsewhere the
+ * PREVIOUS background fades over the new theme, armed before the change commits so the first frame is veiled.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, StyleSheet, type ViewStyle } from "react-native";
+import { kv } from "../services/kv";
 import { useReducedMotion } from "./motion";
-import { motion, useTheme } from "./theme";
+import { APPEARANCE_KEYS, motion, useTheme, type PaletteId, type ThemePreference } from "./theme";
 
-type ViewTransitionStarter = { startViewTransition?: (callback: () => void) => unknown };
+type ViewTransitionStarter = { startViewTransition: (callback: () => void) => unknown };
 
 let pendingBackground: string | null = null;
 
+/** The document, where the browser can cross-fade a change itself. */
 function viewTransitionDocument(): ViewTransitionStarter | null {
-  return typeof document === "undefined" ? null : (document as unknown as ViewTransitionStarter);
+  const doc = typeof document === "undefined" ? null : (document as unknown as Partial<ViewTransitionStarter>);
+  return typeof doc?.startViewTransition === "function" ? (doc as ViewTransitionStarter) : null;
 }
 
-function crossFadesNatively(): boolean {
-  return typeof viewTransitionDocument()?.startViewTransition === "function";
+export interface Appearance {
+  theme: ThemePreference;
+  palette: PaletteId;
 }
 
-export function applyThemeChange(commit: () => void, fromBackground: string): void {
-  const doc = viewTransitionDocument();
-  if (!doc || typeof doc.startViewTransition !== "function") {
-    pendingBackground = fromBackground;
-    commit();
-    return;
-  }
-  pendingBackground = null;
+const appearanceListeners = new Set<(next: Partial<Appearance>) => void>();
+
+export function subscribeAppearance(listener: (next: Partial<Appearance>) => void): () => void {
+  appearanceListeners.add(listener);
+  return () => void appearanceListeners.delete(listener);
+}
+
+/** The settings screen's one door into the theme. `fromBackground` is what the veil fades out of. */
+export function setAppearance(next: Partial<Appearance>, fromBackground: string) {
+  // A write the keychain refuses still leaves the choice applied for this run.
+  if (next.theme) kv.set(APPEARANCE_KEYS.theme, next.theme).catch(() => {});
+  if (next.palette) kv.set(APPEARANCE_KEYS.palette, next.palette).catch(() => {});
   let committed = false;
-  const commitOnce = () => {
+  const commit = () => {
     if (committed) return;
     committed = true;
-    commit();
+    for (const listener of appearanceListeners) listener(next);
   };
+  const doc = viewTransitionDocument();
+  pendingBackground = doc ? null : fromBackground;
+  if (!doc) return commit();
   try {
-    // React 19 flushes a click synchronously, so the commit lands before the
-    // browser's "after" snapshot. Helix tried `flushSync` via a dynamic import
-    // first; in the Metro web bundle it never resolved and the theme stopped changing.
-    doc.startViewTransition(commitOnce);
+    // React 19 flushes a click synchronously, so the commit lands before the "after" snapshot.
+    // `flushSync` through a dynamic import never resolved in the Metro web bundle.
+    doc.startViewTransition(commit);
   } catch {
     // A backgrounded document can refuse a transition; the preference still applies.
-    commitOnce();
+    commit();
   }
 }
 
@@ -62,18 +64,15 @@ const useThemeChangeEffect = typeof window === "undefined" ? useEffect : useLayo
 
 /** Rendered last in the root, so the palette being left covers everything while it fades. */
 export function ThemeDissolve() {
-  // Out of the React Compiler: this reads `pendingBackground`, armed outside
-  // React so the veil is up in the first frame, and the compiler cached the
-  // veil's style on its hook inputs alone. Compiled, the native fade froze at
-  // full strength and then vanished; Helix's `peek` call is cached at mount,
-  // so its first frame is never veiled at all.
+  // Out of the React Compiler: this reads `pendingBackground`, armed outside React, and compiled the
+  // veil's style was cached on hook inputs alone, so the native fade froze at full strength.
   "use no memo";
   const { palette, scheme, paletteId, preference } = useTheme();
   const reducedMotion = useReducedMotion();
   const identity = `${paletteId}|${scheme}`;
   const previous = useRef(identity);
   const previousBackground = useRef(palette.background);
-  const browserCrossFades = crossFadesNatively();
+  const browserCrossFades = viewTransitionDocument() != null;
   const [progress] = useState(() => new Animated.Value(0));
   const [from, setFrom] = useState<string | null>(null);
   const [webFade, setWebFade] = useState<"visible" | "fading">("fading");

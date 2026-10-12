@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * The browser suite, Helix's shape: the local-only export
+ * The browser suite: the local-only export
  * (`scripts/export-e2e-web.mjs`) served the way Pages serves it, one browser
  * at a time, in the owner's locale and zone.
  */
@@ -24,9 +24,8 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  // Helix's pair: every test in Chromium, the `@cross-browser` ones again in
-  // Firefox. Firefox has no mobile emulation, so it gets the phone's viewport
-  // and touch without the user agent.
+  // Every test in Chromium, the `@cross-browser` ones again in Firefox, which
+  // has no mobile emulation, so it gets the phone's viewport and touch only.
   projects: [
     { name: "chromium", use: { ...devices["Pixel 7"], browserName: "chromium" } },
     {

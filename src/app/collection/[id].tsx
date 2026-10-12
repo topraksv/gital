@@ -1,47 +1,41 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Text, View, type TextInput } from "react-native";
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
 import Check from "lucide-react-native/icons/check";
 import Gift from "lucide-react-native/icons/gift";
-import Pencil from "lucide-react-native/icons/pencil";
 import Plus from "lucide-react-native/icons/plus";
 import Trash from "lucide-react-native/icons/trash";
 import Undo2 from "lucide-react-native/icons/undo-2";
 
 import { useCollections, useWishes } from "../../data/hooks";
-import { deleteLists, editList, restoreList } from "../../data/lists";
 import { addWish, deleteWishes, restoreWish, saveWish, toggleWishBought, type Collection, type WishChange } from "../../data/wishes";
-import type { ListLook } from "../../domain/lists";
 import { LINK_MAX, WISH_ORDERS, leadOf, shopOf, sortWishes, type Wish, type WishOrder } from "../../domain/wishes";
 import { formatMinor } from "../../domain/money";
 import { tr } from "../../i18n/tr";
 import { ArrivalScope, Body, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, TextField, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError } from "../../ui/dialog";
-import { mediumImpact, selectionTap } from "../../ui/haptics";
+import { selectionTap } from "../../ui/haptics";
 import type { MemberRole } from "../../db/schema";
-import { ListSheet } from "../../ui/list-sheet";
+import { EditLook } from "../../ui/list-sheet";
 import { EditorsOnly, PeopleActions, emptyHintFor, useShare } from "../../ui/members-sheet";
 import { RowMotion, RowSwipe } from "../../ui/list-motion";
 import { useCountUp } from "../../ui/motion";
-import { navigateBack } from "../../ui/navigation";
 import { readLinkPages, readUnreadPages, useReadingWish } from "../../ui/page-reader";
 import { density, font, itemRow, motion, offset, spacing, type, useTheme } from "../../ui/theme";
 import { WishSuggestions } from "../../ui/suggestions";
-import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
-import { showUndo } from "../../ui/undo";
+import { deleteWithUndo, selectionHeader, useLeaveDeleted, useSelection } from "../../ui/selection";
 import { WishSheet, WishView } from "../../ui/wish-sheet";
 
 /** One wish collection (SPEC 7): what is wished, the most wanted first, and what it comes to. */
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const collections = useCollections();
   const wishes = useWishes(id);
   // A collection is shared as a list is (SPEC 7.8).
   const { members, userId, role, viewer } = useShare(id);
   const queries = [collections, wishes, members];
-  const [leaving, setLeaving] = useState<Collection | null>(null);
+  const { leaving, remove } = useLeaveDeleted<Collection>("/wishes");
   const [editing, setEditing] = useState<Wish | null>(null);
   // How the open wishes are ordered, for this visit: a price order is a question asked now.
   const [order, setOrder] = useState<WishOrder>("wanted");
@@ -58,19 +52,6 @@ export default function CollectionScreen() {
 
   const open = shown.filter((wish) => wish.boughtAt == null);
   const bought = shown.filter((wish) => wish.boughtAt != null);
-
-  const remove = async (current: Collection) => {
-    setLeaving(current);
-    mediumImpact();
-    try {
-      const snapshot = await deleteLists([current.id]);
-      if (snapshot) showUndo(tr.common.deleted(current.name), () => restoreList(snapshot));
-      navigateBack(router, "/wishes");
-    } catch {
-      setLeaving(null);
-      void appError(tr.errors.deleteFailed);
-    }
-  };
 
   const toggle = async (wish: Wish) => {
     try {
@@ -97,34 +78,28 @@ export default function CollectionScreen() {
   const removeWish = (wish: Wish) => removeWishes([wish]);
 
   const row = (wish: Wish) => {
-    if (viewer) {
-      return (
-        <RowMotion key={wish.id}>
-          <SlideUp distance={motion.travel.bar}>
-            <WishRow wish={wish} onOpen={() => setEditing(wish)} onToggle={() => undefined} readOnly />
-          </SlideUp>
-        </RowMotion>
-      );
-    }
-    const right = { icon: wish.boughtAt != null ? Undo2 : Check, tone: "secondary" as const, label: wish.boughtAt != null ? tr.wishes.markNotBought(wish.name) : tr.wishes.markBought(wish.name), run: () => void toggle(wish) };
+    const right = { icon: wish.boughtAt != null ? Undo2 : Check, tone: "secondary" as const, label: (wish.boughtAt != null ? tr.wishes.markNotBought : tr.wishes.markBought)(wish.name), run: () => void toggle(wish) };
     const left = { icon: Trash, tone: "destructive" as const, label: tr.wishes.deleteWish(wish.name), run: () => void removeWish(wish) };
     return (
       <RowMotion key={wish.id}>
         <SlideUp distance={motion.travel.bar}>
-          <RowSwipe right={selection.active ? undefined : right} left={selection.active ? undefined : left}>
-            <WishRow
-              wish={wish}
-              onOpen={() => (selection.active ? selection.toggle(wish.id) : setEditing(wish))}
-              onLongPress={() => selection.begin(wish.id)}
-              selected={selection.active ? selection.has(wish.id) : undefined}
-              onToggle={() => {
-                if (selection.active) return selection.toggle(wish.id);
-                selectionTap();
-                void toggle(wish);
-              }}
-              readOnly={false}
-            />
-          </RowSwipe>
+          {viewer ? (
+            <WishRow wish={wish} onOpen={() => setEditing(wish)} onToggle={() => undefined} readOnly />
+          ) : (
+            <RowSwipe {...(selection.active ? {} : { right, left })}>
+              <WishRow
+                wish={wish}
+                onOpen={() => (selection.active ? selection.toggle(wish.id) : setEditing(wish))}
+                onLongPress={() => selection.begin(wish.id)}
+                selected={selection.active ? selection.has(wish.id) : undefined}
+                onToggle={() => {
+                  if (selection.active) return selection.toggle(wish.id);
+                  selectionTap();
+                  void toggle(wish);
+                }}
+              />
+            </RowSwipe>
+          )}
         </SlideUp>
       </RowMotion>
     );
@@ -231,7 +206,7 @@ function CollectionActions({
       />
       <PeopleActions list={collection} userId={userId} role={role} back="/wishes" deleteLabel={tr.wishes.delete(collection.name)} onDelete={() => onRemove(collection)}>
         <EditorsOnly viewer={viewer}>
-          <EditCollection collection={collection} />
+          <EditLook list={collection} label={tr.wishes.edit(collection.name)} />
         </EditorsOnly>
       </PeopleActions>
     </>
@@ -311,7 +286,7 @@ function WishRow({
   onToggle,
   onLongPress,
   selected,
-  readOnly,
+  readOnly = false,
 }: {
   wish: Wish;
   onOpen: () => void;
@@ -319,7 +294,7 @@ function WishRow({
   onLongPress?: () => void;
   /** Defined while a selection is under way: whether this row is in it. */
   selected?: boolean;
-  readOnly: boolean;
+  readOnly?: boolean;
 }) {
   const { palette } = useTheme();
   const done = wish.boughtAt != null;
@@ -358,24 +333,5 @@ function WishRow({
         disabled={readOnly}
       />
     </View>
-  );
-}
-
-/** The pencil and the collection panel: the list panel, since a collection is a list of its own kind. */
-function EditCollection({ collection }: { collection: Collection }) {
-  const [open, setOpen] = useState(false);
-  const save = async (look: ListLook) => {
-    setOpen(false);
-    try {
-      await editList(collection.id, look);
-    } catch {
-      void appError(tr.errors.saveFailed);
-    }
-  };
-  return (
-    <>
-      <IconButton icon={Pencil} label={tr.wishes.edit(collection.name)} onPress={() => setOpen(true)} />
-      {open ? <ListSheet list={collection} onSave={save} onClose={() => setOpen(false)} /> : null}
-    </>
   );
 }

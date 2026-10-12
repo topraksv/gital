@@ -118,8 +118,7 @@ describe("addWish", () => {
 });
 
 describe("readKnownWishes", () => {
-  // The add field's suggestions (SPEC 2.4 on İstekler, the owner asked
-  // 2026-09-27): every wish named before, in any live collection, however
+  // The add field's suggestions (SPEC 2.4 on İstekler): every wish named before, in any live collection, however
   // it is spelt, the latest spelling kept and counted once per wish.
   it("offers each name once, the latest first, and leaves out a deleted wish or collection", async () => {
     await addWish(collection, "Kahve makinesi");

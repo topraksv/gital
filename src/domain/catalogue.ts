@@ -11,9 +11,7 @@ import { NO_QUANTITY, TYPO_FROM, foldName, knownFrom, nearly, suggestProducts, t
 export const AISLES = ["produce", "fruit", "bakery", "dairy", "meat", "fish", "staples", "frozen", "snacks", "drinks", "cleaning", "laundry", "paper", "care", "baby", "pet", "pharmacy", "home"] as const;
 export type Aisle = (typeof AISLES)[number];
 
-// Stryker disable all: a table of names and pictures is 1,072 static mutants,
-// each re-running the whole suite, and took the gate from 4 minutes to 18.
-// The catalogue's tests hold its entries; the functions below stay mutated.
+// Stryker disable all: a name table yields only static mutants, each a whole-suite run; its tests hold the entries.
 export const PRODUCT_PICTURES = [
   "avocado", "baby-bottle", "bagel", "baguette", "banana", "bandage", "basket", "battery", "beans", "bell-pepper", "bird", "blueberries", "bone",
   "bowl", "bread", "broccoli", "broom", "bubbles", "bucket", "bulb", "burger", "butter", "cake", "candle", "candy", "canned", "carrot", "cat",

@@ -1,7 +1,5 @@
 /**
  * Every width that changes a layout mode, named for what the width buys.
- * Ported from Helix's `src/ui/responsive.ts` one rule at a time, as a screen
- * needs it.
  */
 
 /**
@@ -29,7 +27,7 @@ export function shouldUseCompactNavigationMaterial(viewportWidth: number): boole
 }
 
 /**
- * Air a tab label keeps from its neighbours. Helix measured 6 as the boundary
+ * Air a tab label keeps from its neighbours. 6 is the boundary
  * between "tight but separate" at 360px and "one run of text" at 320px.
  */
 const LABEL_BREATHING = 6;
@@ -70,11 +68,11 @@ export function isMobileViewportWidth(viewportWidth: number): boolean {
  */
 const SHEET_WIDTH = 640;
 
-export function shouldPresentAsSheet(viewportWidth: number): boolean {
+export function shouldPresentOptionsAsSheet(viewportWidth: number): boolean {
   return viewportWidth < SHEET_WIDTH;
 }
 
-/** Where the sign-in's greeting and its form stand side by side, Helix's. */
+/** Where the sign-in's greeting and its form stand side by side. */
 const SPLIT_AUTH_HERO_WIDTH = 820;
 
 export function shouldSplitAuthHero(viewportWidth: number): boolean {

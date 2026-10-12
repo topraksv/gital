@@ -1,9 +1,8 @@
 /**
  * A row, or a panel's part, on the web moves without motion and does not
  * swipe. Reanimated's web support runs its layout animations in JavaScript
- * without springs, and
- * pulling it and gesture-handler into the entry bundle would cost every
- * visitor the download for a cosmetic gain — Helix's reason, and the boundary
+ * without springs, and pulling it and gesture-handler into the entry bundle
+ * would cost every visitor the download for a cosmetic gain — the boundary
  * `keyboard-safe.tsx` draws too. A pointer ticks with the circle and deletes
  * from the item panel, the swipe's twins (`docs/UI.md` section 8).
  */

@@ -1,10 +1,10 @@
 /**
- * One-at-a-time request queue for the promise-based overlays, Helix's.
+ * One-at-a-time request queue for the promise-based overlays.
  *
  * `appError` and `appPrompt` hand a `resolve` to a store and await it, so a
  * store that keeps a SINGLE slot loses a promise as soon as two requests
  * overlap: the second overwrites `current`, the first `resolve` is dropped, and
- * its `await` never settles. Helix hung a re-auth flow that way.
+ * its `await` never settles.
  *
  * The reducer lives here, outside the component file, for one reason: `dialog.tsx`
  * imports react-native and cannot be loaded by vitest, so the logic could only be
@@ -69,8 +69,7 @@ export interface OpenModal {
  * hold it, `null` for the root, or "wait" while any modal is leaving. iOS
  * presents one modal from a controller at a time, so an overlay drawn beside an
  * open sheet rather than inside it is refused, and one presented while another
- * leaves is stranded on screen, unseen, taking every touch: the owner's freeze
- * of 2026-10-01, which only restarting Expo Go ended.
+ * leaves is stranded on screen, unseen, taking every touch.
  */
 export function presenterOf(open: readonly OpenModal[], kind: "prompt" | "dialog"): number | null | "wait" {
   if (open.some((modal) => modal.leaving)) return "wait";

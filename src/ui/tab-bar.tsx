@@ -1,6 +1,5 @@
 /**
- * Helix's floating tab bar, ported exactly (`~/helix/src/ui/tab-bar.tsx`,
- * where each choice below has its full reason): one bounded bar along the
+ * The floating tab bar: one bounded bar along the
  * bottom at every width, a translucent material that Reduce Transparency makes
  * opaque, a selection that travels as one shape rather than five that light
  * in turn, a horizontal scrub across the bar, and labels that drop when the
@@ -8,7 +7,7 @@
  *
  * The press and the scrub reproduce the navigator's own `tabPress` contract,
  * so a listener can still cancel navigation — and that listener carries the
- * selection haptic, once per crossing. Helix also tapped here, which doubled it.
+ * selection haptic, once per crossing.
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -85,9 +84,8 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const barRef = useRef<View>(null);
   const [barWidth, setBarWidth] = useState(0);
   const [barX, setBarX] = useState(0);
-  // The columns share what lies inside the outline and the padding. Helix
-  // subtracted only the padding, so its selection drifted 0.4pt a tab and
-  // overran the fifth column by 2pt.
+  // The columns share what lies inside the outline and the padding;
+  // subtracting only the padding drifts the selection 0.4pt a tab.
   const edge = TAB_BAR.border + TAB_BAR.padding;
   const measureBarX = () =>
     barRef.current?.measureInWindow((x, y, width, height) => {
@@ -102,7 +100,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   // Rebuilt only when the bar moves, never mid-scrub: a new responder would
   // drop the gesture in flight. The current tab is read from the navigator at
-  // event time, where Helix kept it in a ref written during render.
+  // event time, not from a ref written during render.
   const pan = useMemo(() => {
     const goToIndex = (index: number) => {
       const { routes, index: current } = navigation.getState();
@@ -137,8 +135,8 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   // Each label's latest width, remembered with the bar width it was measured
   // at, so a new bar width reads as "not measured yet". A report replaces, never
   // raises, and a dropped label stays mounted unseen: shrinking the text lowers
-  // the widest and the labels come back. Helix kept only a maximum and unmounted
-  // the labels, so once dropped they stayed dropped until the bar resized.
+  // the widest and the labels come back. Keeping only a maximum and unmounting
+  // the labels would leave them dropped until the bar resized.
   const [measured, setMeasured] = useState<{ barWidth: number; widths: Record<string, number> }>({ barWidth: 0, widths: {} });
   const labelWidth = measured.barWidth === barWidth ? Math.max(0, ...Object.values(measured.widths)) : 0;
   const labelsFit = tabLabelsFit(labelWidth, slotWidth);
@@ -298,7 +296,7 @@ function Landing({ name, children }: { name: string; children: ReactNode }) {
  *
  * Native reports through `onTextLayout`. RN Web dispatches none, so web reads
  * the DOM in a layout effect — keyed on the geometry, not on every render:
- * Helix's inline ref ran the read per render and profiled at 233ms of
+ * An inline ref ran the read per render and profiled at 233ms of
  * getClientRects over three tab round trips.
  */
 function TabLabel({ id, label, focused, hidden, slotWidth, onMeasure }: {

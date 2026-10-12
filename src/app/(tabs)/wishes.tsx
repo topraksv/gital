@@ -3,18 +3,14 @@ import { useRouter } from "expo-router";
 import Gift from "lucide-react-native/icons/gift";
 import LogIn from "lucide-react-native/icons/log-in";
 import Plus from "lucide-react-native/icons/plus";
-import Trash from "lucide-react-native/icons/trash";
 
 import { useCollections } from "../../data/hooks";
-import { createList, deleteLists, restoreList } from "../../data/lists";
-import { NAME_MAX } from "../../domain/names";
+import { deleteLists, restoreList } from "../../data/lists";
 import { tr } from "../../i18n/tr";
-import { ArrivalScope, Button, EmptyState, IconButton, LinkCard, ReadFailed, Screen, SlideUp } from "../../ui/components";
-import { appError, appPrompt } from "../../ui/dialog";
-import { selectionTap } from "../../ui/haptics";
-import { RowMotion, RowSwipe } from "../../ui/list-motion";
-import { deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
-import { density, listCard, motion } from "../../ui/theme";
+import { ArrivalScope, Button, EmptyState, IconButton, ReadFailed, Screen } from "../../ui/components";
+import { createNamedList } from "../../ui/list-sheet";
+import { OwnedCard, deleteWithUndo, selectionHeader, useSelection } from "../../ui/selection";
+import { density, listCard } from "../../ui/theme";
 
 /** İstekler (SPEC 7): the wish collections, drawn as Listeler draws its lists. */
 export default function Wishes() {
@@ -25,20 +21,7 @@ export default function Wishes() {
 
   const removeCollections = (chosen: readonly { id: string; name: string }[]) => deleteWithUndo(chosen, tr.selection.nouns.collection, deleteLists, restoreList);
 
-  const create = async () => {
-    const name = await appPrompt(tr.wishes.createTitle, tr.wishes.createMessage, {
-      examples: tr.placeholders.collectionName,
-      confirmLabel: tr.lists.createConfirm,
-      maxLength: NAME_MAX,
-    });
-    if (name == null) return;
-    try {
-      await createList(name, "wish");
-      selectionTap();
-    } catch {
-      void appError(tr.errors.saveFailed);
-    }
-  };
+  const create = () => createNamedList("wish");
 
   const answered = collections.updatedAt != null;
   return (
@@ -70,35 +53,21 @@ export default function Wishes() {
             />
           ) : (
             <View style={{ gap: density.list.rowGap }}>
-              {collections.data.map((collection) => {
-                const left = collection.owner
-                  ? { icon: Trash, tone: "destructive" as const, label: tr.wishes.delete(collection.name), run: () => void removeCollections([collection]) }
-                  : undefined;
-                return (
-                <RowMotion key={collection.id}>
-                <SlideUp distance={motion.travel.bar}>
-                  <RowSwipe left={selection.active ? undefined : left}>
-                  <LinkCard
-                    tileId={collection.id}
-                    look={collection}
-                    title={collection.name}
-                    detail={tr.wishes.summary(collection.open, collection.openTotalMinor)}
-                    hint={tr.wishes.openHint}
-                    onOpen={() =>
-                      selection.active
-                        ? collection.owner
-                          ? selection.toggle(collection.id)
-                          : undefined
-                        : router.push({ pathname: "/collection/[id]", params: { id: collection.id } })
-                    }
-                    onLongPress={collection.owner ? () => selection.begin(collection.id) : undefined}
-                    selected={selection.active && collection.owner ? selection.has(collection.id) : undefined}
-                  />
-                  </RowSwipe>
-                </SlideUp>
-                </RowMotion>
-                );
-              })}
+              {collections.data.map((collection) => (
+                <OwnedCard
+                  key={collection.id}
+                  item={collection}
+                  selection={selection}
+                  deleteLabel={tr.wishes.delete(collection.name)}
+                  onDelete={() => void removeCollections([collection])}
+                  open={() => router.push({ pathname: "/collection/[id]", params: { id: collection.id } })}
+                  tileId={collection.id}
+                  look={collection}
+                  title={collection.name}
+                  detail={tr.wishes.summary(collection.open, collection.openTotalMinor)}
+                  hint={tr.wishes.openHint}
+                />
+              ))}
             </View>
           )}
         </ArrivalScope>

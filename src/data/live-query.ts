@@ -1,8 +1,7 @@
 /**
  * Live queries: a read that re-runs when a table it reads changes, retries a
  * failure for ever on a capped backoff, and says which of those it is doing.
- * Helix's `data/live-state.ts` and the runner in `data/hooks.ts`, ported for
- * the shared case only — one query per key, however many screens watch it.
+ * One query per key, however many screens watch it.
  */
 
 import { addDatabaseChangeListener } from "expo-sqlite";
@@ -25,9 +24,9 @@ export interface LiveResult<T> {
 type Snapshot<T> = Omit<LiveResult<T>, "retry">;
 
 /**
- * The wait before attempt N+1. It never gives up: Helix's screens froze on
- * empty data when a wedged worker outlasted a fixed number of tries, and the
- * ceiling is what keeps "for ever" from being a tight loop.
+ * The wait before attempt N+1. It never gives up: a fixed number of tries
+ * froze screens on empty data behind a wedged worker; the ceiling keeps
+ * "for ever" from being a tight loop.
  */
 export function retryDelayMs(attempt: number): number {
   return Math.min(250 * 2 ** (attempt - 1), 5000);
@@ -122,7 +121,7 @@ const NOT_YET: Snapshot<never> = { data: [], status: "loading", error: null, upd
 /**
  * A store shaped for `useSyncExternalStore`. The query starts with the first
  * subscriber and stops with the last, so a tab screen and the screen pushed
- * over it read one query, not two (Helix's `useSharedLive`) — as long as they
+ * over it read one query, not two — as long as they
  * hold the same store, which `hooks.ts` keeps at module scope.
  */
 export function liveStore<T>(query: () => PromiseLike<T[]>, tables: readonly SyncedTableName[]): LiveStore<T> {

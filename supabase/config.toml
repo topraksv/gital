@@ -234,6 +234,8 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
+# Five minutes: the owner's window for a reset link. Auth has ONE expiry for
+# every e-mail link, so sign-up confirmation and e-mail change share it.
 otp_expiry = 300
 
 # Use a production-ready SMTP server
@@ -251,7 +253,7 @@ otp_expiry = 300
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# Helix's: the reset link lands on the app with its token UNSPENT and the app
+# The reset link lands on the app with its token UNSPENT and the app
 # redeems it on save. The default template links through Auth's verify
 # endpoint, which spends the token on the first GET — a mail client's link
 # checker was enough. The hosted project does not read this file: see
@@ -260,12 +262,16 @@ otp_expiry = 300
 subject = "🔑 Gital şifre yenileme bağlantın"
 content_path = "./supabase/templates/recovery.html"
 
-# Unlike the reset link, these go through Auth's verify endpoint: that GET is
-# what confirms the address, whichever browser makes it.
+# Like the reset link, the token reaches the app unspent and the app asks Auth:
+# the verify endpoint's GET confirmed the address on whatever fetched it first,
+# a mail scanner included, and its PKCE code proves nothing outside the browser
+# that signed up, so the app could not say whether anything was confirmed.
 [auth.email.template.confirmation]
 subject = "✉️ Gital hesabını onayla"
 content_path = "./supabase/templates/confirmation.html"
 
+# Sent to both addresses while double_confirm_changes is on, each with its own
+# token hash, redeemed by the app the same way.
 [auth.email.template.email_change]
 subject = "📧 Gital e-posta adresi değişikliği"
 content_path = "./supabase/templates/email_change.html"

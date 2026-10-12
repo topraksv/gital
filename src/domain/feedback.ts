@@ -1,12 +1,12 @@
 /**
- * What a feedback report is allowed to be (SPEC 13.1), Helix's
- * `domain/feedback.ts`. The form, the service that posts and the function that
- * mails it each check these rules, since a replayed request walks around a
- * rule only the form holds; the function keeps its own copy, being Deno.
+ * What a feedback report is allowed to be (SPEC 13.1). The form, the service
+ * that posts and the function that mails it each check these rules, since a
+ * replayed request walks around a rule only the form holds; the function keeps
+ * its own copy, being Deno.
  *
- * Helix's rules on a picture's type and size are not here: Gital's screenshots
- * come through its own photo picker, already a JPEG of bounded size, and the
- * function still refuses anything else.
+ * A picture's type and size are not checked here: screenshots come through the
+ * photo picker, already a JPEG of bounded size, and the function still refuses
+ * anything else.
  */
 
 /** The words the reporter and the fixer must mean the same thing by. */

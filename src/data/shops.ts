@@ -86,21 +86,24 @@ export async function readPricedSince(since: string): Promise<{ name: string; pr
   return rows.map(({ name, priceMinor }) => ({ name, priceMinor: priceMinor! }));
 }
 
+async function liveShop(id: string): Promise<RowSnapshot> {
+  const shop = await readLiveRow("shops", id);
+  await readLiveRow("lists", String(shop.list_id));
+  return shop;
+}
+
 /** Correct a shop's total to its receipt, or with `null` go back to the sum of its prices. */
 export async function setShopTotal(shopId: string, totalMinor: number | null): Promise<void> {
   if (totalMinor != null && !isPrice(totalMinor)) throw new Error("A total is whole kuruş");
   await writeRows(async () => {
-    const shop = await readLiveRow("shops", shopId);
-    await readLiveRow("lists", String(shop.list_id));
-    return editRow("shops", shop, { totalMinor });
+    return editRow("shops", await liveShop(shopId), { totalMinor });
   });
 }
 
 /** The receipt's photo on a finished shop, or with `null` taken off. */
 export async function setShopReceipt(shopId: string, change: NewPhoto | null): Promise<void> {
   await writeRows(async () => {
-    const shop = await readLiveRow("shops", shopId);
-    await readLiveRow("lists", String(shop.list_id));
+    const shop = await liveShop(shopId);
     return editRow("shops", shop, await photoColumn(change));
   });
 }
@@ -119,6 +122,8 @@ async function lastShopNumber(listId: string): Promise<number> {
   return row?.last ?? 0;
 }
 
+type FinishedShop = { id: string; bought: number; spentMinor: number | null; stocked: number; stayed: string[] };
+
 /**
  * Finish the list's shop: each item in the basket leaves the list for a row
  * under the next shop, and what was not bought stays. `null` when the basket
@@ -135,8 +140,6 @@ async function lastShopNumber(listId: string): Promise<number> {
  * inside the same write: a tick that lands as Bitir is pressed is bought,
  * which the screen's snapshot was not.
  */
-type FinishedShop = { id: string; bought: number; spentMinor: number | null; stocked: number; stayed: string[] };
-
 export async function finishShop(listId: string): Promise<FinishedShop | null> {
   const sqlite = await getSqliteAsync();
   let finished: FinishedShop | null = null;
@@ -175,9 +178,9 @@ export async function finishShop(listId: string): Promise<FinishedShop | null> {
       listId,
       home.map((at) => boughtEntry({ ...bought[at]!, id: copies[at]!.id })),
     );
-    // An undone shop finished again is the same rows, brought back, summed
-    // afresh rather than wearing the total typed before. The shop goes last: Geçmiş re-reads on a shop's change and not on an item's, so
-    // its read must not start before the items are written.
+    // An undone shop finished again is the same rows, brought back, summed afresh
+    // rather than wearing the total typed before. The shop goes last: Geçmiş
+    // re-reads on a shop's change and not on an item's.
     return [...moves.flat(), ...arrivals, { table: "shops", row: { id, listId, number, finishedAt: now, totalMinor: null, deletedAt: null } }];
   });
   return finished;

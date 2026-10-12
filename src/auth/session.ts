@@ -1,15 +1,13 @@
 /**
- * The account session (SPEC 9.1), Helix's `src/auth/session.ts`. The last
- * account signed in is kept on the device, so the app opens offline, and
- * Supabase refreshes the session when it can. Sync runs exactly while an
- * account is open here: this file starts it, and stops it before anything
- * empties the device under it.
+ * The account session (SPEC 9.1). The last account signed in is kept on the
+ * device, so the app opens offline, and Supabase refreshes the session when it
+ * can. Sync runs exactly while an account is open here: this file starts it,
+ * and stops it before anything empties the device under it.
  *
- * Where it departs (`docs/ARCHITECTURE.md`, 2026-09-26 and 2026-09-27): the
- * first account to sign in adopts the lists made before accounts; a session
- * Supabase ends by itself keeps what was never sent behind the sign-in
- * screen rather than wiping it; and no account signs in over another's lists
- * while any change is unsent.
+ * The first account to sign in adopts the lists made before accounts; a session
+ * Supabase ends by itself keeps what was never sent behind the sign-in screen
+ * rather than wiping it; and no account signs in over another's lists while any
+ * change is unsent (`docs/ARCHITECTURE.md`).
  */
 
 import { create } from "zustand";
@@ -41,7 +39,7 @@ async function wipeWorkspace(): Promise<void> {
 export const LOCAL_USER_ID = "local";
 
 /** The server's `minimum_password_length`, checked before asking so the form can say it. */
-export const PASSWORD_MIN = 8;
+const PASSWORD_MIN = 8;
 
 export function isValidNewPassword(password: string): boolean {
   return [...password].length >= PASSWORD_MIN;
@@ -100,9 +98,9 @@ function webPage(): { origin: string; baseUrl: string } | null {
 
 /**
  * Prove the database is `userId`'s before the account opens on it. Read,
- * write and read back, as Helix does: a read that fails must not pass for "no
- * owner", which is the answer that skips a wipe, and on the web `kv` drops a
- * write the browser refuses, so only reading the marker back proves it landed.
+ * write and read back: a read that fails must not pass for "no owner", which
+ * is the answer that skips a wipe, and on the web `kv` drops a write the
+ * browser refuses, so only reading the marker back proves it landed.
  */
 async function ensureWorkspaceFor(userId: string): Promise<string | null> {
   let owner: string | null;
@@ -134,7 +132,7 @@ async function ensureWorkspaceFor(userId: string): Promise<string | null> {
  * Open the account on this device once its workspace is proven its own, or
  * end the session Auth just gave. Past the proof, everything is convenience —
  * who to reopen offline, a date to show — and a store that refuses it costs
- * the convenience, never the session (Helix's lesson).
+ * the convenience, never the session.
  */
 async function claim(supabase: SupabaseClient, user: { id: string; email?: string }, email: string): Promise<string | null> {
   const refused = await ensureWorkspaceFor(user.id);
@@ -153,9 +151,9 @@ async function forgetAccount(): Promise<void> {
 
 /**
  * End the session on this device only, unless the account itself is going:
- * Supabase's default scope is global, and Helix's web sign-out ended the
- * phone's session with it. A refused revoke still clears it here, or the next
- * launch would find it.
+ * Supabase's default scope is global, which would end every other device's
+ * session. A refused revoke still clears it here, or the next launch would
+ * find it.
  */
 async function endAuthSession(supabase: SupabaseClient, scope: "local" | "global"): Promise<void> {
   explicitSignOut = true;
@@ -169,10 +167,9 @@ async function endAuthSession(supabase: SupabaseClient, scope: "local" | "global
 
 /**
  * A session that ended without a sign-out — revoked, deleted elsewhere,
- * replaced — closes the app on the sign-in screen. Helix wipes the device
- * here, because its cloud holds the rows. So does Gital once nothing is
- * waiting to be sent; what is waiting may exist nowhere else, so it stays,
- * still owned, and only its account reopens it.
+ * replaced — closes the app on the sign-in screen. The device is wiped once
+ * nothing is waiting to be sent; what is waiting may exist nowhere else, so it
+ * stays, still owned, and only its account reopens it.
  */
 async function closeEndedSession(): Promise<void> {
   useSession.setState(signedOut);
@@ -416,7 +413,7 @@ export const useSession = create<SessionStore>((set, get) => ({
       await setAccountFrozen(true);
       const refused = await get().signOut().catch(() => tr.account.freezeSyncFailed);
       if (!refused) return null;
-      // Helix's lesson: a failure after the flag must put it back, or every launch opens on the gate.
+      // A failure after the flag must put it back, or every launch opens on the gate.
       if (!(await setAccountFrozen(false).then(() => true, () => false))) return tr.account.freezeRollbackFailed;
       return refused === SIGN_OUT_PENDING_CHANGES ? tr.account.freezeSyncFailed : refused;
     }),
@@ -451,8 +448,10 @@ export const useSession = create<SessionStore>((set, get) => ({
       ]);
       if (!wiped) {
         set(signedOut);
+        // The marker replaces the owner rather than following its removal: a
+        // device left with no owner adopts the next account with these rows.
         await kv.set(OWNER_KEY, WIPE_PENDING).catch(ignore);
-        await kv.remove(LAST_USER_KEY).catch(ignore);
+        for (const key of [LAST_USER_KEY, LAST_EMAIL_KEY]) await kv.remove(key).catch(ignore);
         return tr.account.deleteWipeFailed;
       }
       set(signedOut);

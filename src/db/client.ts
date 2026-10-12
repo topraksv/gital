@@ -1,8 +1,7 @@
 /**
  * The one way into the database: expo-sqlite's asynchronous API on every
- * platform, with Drizzle over it through the generic sqlite-proxy driver.
- * Ported from Helix's `src/db/client.ts`; `docs/ARCHITECTURE.md` "Local storage
- * is Helix's" says why the synchronous web bridge is ruled out.
+ * platform, with Drizzle over it through the generic sqlite-proxy driver. The
+ * synchronous web bridge is ruled out (`docs/ARCHITECTURE.md`, "Local storage").
  */
 
 import { deleteDatabaseAsync, openDatabaseAsync, type SQLiteBindParams, type SQLiteDatabase } from "expo-sqlite";
@@ -25,8 +24,7 @@ async function open(): Promise<SQLiteDatabase> {
     await db.execAsync("PRAGMA foreign_keys = ON;");
     return db;
   } catch (error) {
-    // Left open, the connection keeps the file — on the web, OPFS's exclusive
-    // handle — and every retry after it meets the lock. Helix drops it open.
+    // Left open, the connection keeps the file (on web OPFS's exclusive handle) and every retry meets the lock.
     await db.closeAsync().catch(() => {});
     throw error;
   }
@@ -42,10 +40,9 @@ function isCorrupt(error: unknown): boolean {
 
 /**
  * A corrupt copy is deleted and opened afresh, and the next pull brings the
- * account's rows back. Helix renames it aside instead, because a Helix ledger
- * may live on one device only; every Gital row but the unsent ones is in the
- * account, and a file kept in an app's sandbox is one nobody here would
- * recover by hand. What may be lost is said once (`takeDatabaseRebuilt`).
+ * account's rows back. It is not kept aside: every row but the unsent ones is
+ * in the account, and nobody would recover a file from the sandbox by hand.
+ * What may be lost is said once (`takeDatabaseRebuilt`).
  */
 async function rebuild(): Promise<void> {
   await deleteDatabaseAsync(DB_NAME);
@@ -54,10 +51,8 @@ async function rebuild(): Promise<void> {
 
 /**
  * On the web the previous page's worker can still hold OPFS's exclusive access
- * handle for a moment after a refresh. Helix measured that as an intermittent
- * "Tekrar dene" screen a plain reload could not clear, so opening backs off and
- * tries again, about two seconds in all, before it reports a failure. A
- * corrupt file is rebuilt once and opened again at once.
+ * handle for a moment after a refresh, so opening backs off and retries before
+ * it reports a failure. A corrupt file is rebuilt once and opened again at once.
  */
 async function openWithRetry(): Promise<SQLiteDatabase> {
   const attempts = 6;
@@ -113,7 +108,7 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
 /**
  * Every transaction goes through this one queue. The async driver shares a
  * single connection, and two overlapping `withTransactionAsync` calls issue a
- * nested BEGIN, which wedged Helix's worker into a white screen. No task opens
+ * nested BEGIN, which wedges the worker. No task opens
  * another transaction, so the queue cannot deadlock.
  */
 let txChain: Promise<void> = Promise.resolve();

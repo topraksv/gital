@@ -1,8 +1,6 @@
 /**
- * The undo bar, Helix's `undo.tsx`: it takes back what just happened, and
- * without an action it confirms what has nothing to take back. Helix's second
- * line and second action are left out until a save has an effect worth
- * reporting.
+ * The undo bar: it takes back what just happened, and
+ * without an action it confirms what has nothing to take back.
  */
 
 import { useEffect, useState } from "react";
@@ -54,7 +52,7 @@ function present(offer: UndoOffer): void {
   if (hideTimer) clearTimeout(hideTimer);
   useUndo.setState({ offer });
   announce(offer.message);
-  // Helix's two holds: a bare confirmation leaves quickly, an offer stays long enough to be taken.
+  // Two holds: a bare confirmation leaves quickly, an offer stays long enough to be taken.
   hideTimer = setTimeout(clearUndo, offer.onUndo ? motion.undoHold : motion.noticeHold);
 }
 

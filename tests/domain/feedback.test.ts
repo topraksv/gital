@@ -1,5 +1,5 @@
 /**
- * What a feedback report is allowed to be (SPEC 13.1), Helix's rules: the
+ * What a feedback report is allowed to be (SPEC 13.1): the
  * form, the service that posts and the function that mails each check them,
  * and none can see the others, so they are asserted once here.
  */

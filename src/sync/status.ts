@@ -1,4 +1,4 @@
-/** What sync is doing, for Ayarlar (SPEC 10.3): a failure is shown, never swallowed. Helix's. */
+/** What sync is doing, for Ayarlar (SPEC 10.3): a failure is shown, never swallowed. */
 
 import { create } from "zustand";
 
@@ -13,9 +13,8 @@ export type RefreshOutcome = "refreshed" | "expired" | "unavailable";
 
 /**
  * Only an answer from Auth retires a session. A refresh that never arrived
- * says nothing about it, and Helix once told a person in a tunnel to sign in
- * again, at a screen they could not reach either, and stopped the retries
- * that would have recovered by themselves.
+ * says nothing about it, and calling it "signed out" would stop the retries
+ * that recover by themselves.
  */
 export function classifyRefreshFailure(error: unknown): Exclude<RefreshOutcome, "refreshed"> {
   return isNetworkFailure(error instanceof Error ? `${error.name} ${error.message}` : String(error)) ? "unavailable" : "expired";

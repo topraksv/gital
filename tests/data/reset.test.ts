@@ -1,11 +1,10 @@
 /**
- * Resetting the data (SPEC 9.1), Helix's, over the real write layer: each
+ * Resetting the data (SPEC 9.1) over the real write layer: each
  * part goes whole, with what hangs from it, and only it; the count shown
  * before is the count taken; and what goes leaves as tombstones, so every
  * device the account holds follows.
  */
 
-import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,10 +15,7 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-vi.mock("expo-crypto", () => ({
-  CryptoDigestAlgorithm: { SHA256: "SHA256" },
-  digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
-}));
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 
 const { addEntries, readItems, toggleChecked } = await import("../../src/data/items");
 const { createList, readLists } = await import("../../src/data/lists");

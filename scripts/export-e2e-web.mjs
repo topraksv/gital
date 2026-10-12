@@ -1,14 +1,5 @@
-#!/usr/bin/env node
-/**
- * The web export the browser suite drives, Helix's: the product's own
- * device-only path, built with no Supabase project, so no test bypass is
- * compiled into the app and nothing reaches the network.
- *
- * `--clear` is load-bearing. Metro's transform cache key does not include
- * EXPO_PUBLIC_* values, so a warm cache ships the real project's URL and key
- * inside this artifact; Helix measured it both ways. `EXPO_NO_DOTENV` stops
- * Expo reloading `.env` over the empty values.
- */
+// The browser suite's export: no Supabase project, so nothing reaches the network and no test bypass is compiled in.
+// --clear because Metro's cache key ignores EXPO_PUBLIC_*; EXPO_NO_DOTENV stops .env refilling the blanks.
 import { spawn } from "node:child_process";
 import { copyFile, rm } from "node:fs/promises";
 

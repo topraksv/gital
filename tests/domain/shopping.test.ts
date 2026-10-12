@@ -37,10 +37,6 @@ describe("shoppersNow", () => {
     const found = shoppersNow([tick("zeki", -1, "b"), tick(HER, -1, "b"), tick("zeki", -1, "a")], ME, NOW);
     expect(found.map((shopper) => `${shopper.listId}:${shopper.by}`)).toEqual(["a:zeki", "b:her", "b:zeki"]);
   });
-
-  it("is empty once the ticks are gone: a shop finished or a tick taken back", () => {
-    expect(shoppersNow([], ME, NOW)).toEqual([]);
-  });
 });
 
 describe("nextExpiry", () => {

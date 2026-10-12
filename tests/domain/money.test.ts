@@ -1,7 +1,6 @@
 /**
  * Prices as Gital reads and writes them (SPEC 3.8): integer kuruş, typed the
- * Turkish way. Ported from Helix's `src/domain/money.ts`, without the minus
- * sign a price never has.
+ * Turkish way. Without the minus sign a price never has.
  */
 
 import { describe, expect, it } from "vitest";

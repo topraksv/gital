@@ -5,9 +5,9 @@
  * clock in microseconds, one `now()` per statement, the delete generation,
  * who may read and write which row, a personal row keyed by its person, a
  * list's members and their invitations (migration 5), the household Kiler
- * (migration 12), offers in the app (migration 13), and a statement that fails whole — so the engine is tested against the rules it
- * will meet, and `supabase/tests/sync_rls.sql` proves the real server keeps
- * the same ones.
+ * (migration 12), offers in the app (migration 13), and a statement that
+ * fails whole — so the engine is tested against the rules it will meet, and
+ * `supabase/tests/sync_rls.sql` proves the real server keeps the same ones.
  */
 
 import { createHash } from "node:crypto";
@@ -21,7 +21,7 @@ const PERSONAL = new Set(["products", "sets", "set_items", "pantry_items", "pant
 const PANTRY = new Set(["pantry_items", "pantry_moves"]);
 const LIST_CHILDREN = new Set(["shops", "items", "wishes", "wish_links"]);
 const FRESH_OVER_LIVE = new Set(["shops", "items", "products", "pantry_items"]);
-export const TABLES = ["lists", "list_members", "shops", "items", "wishes", "wish_links", "products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"];
+const TABLES = ["lists", "list_members", "shops", "items", "wishes", "wish_links", "products", "sets", "set_items", "pantry_items", "pantry_moves", "settings"];
 const PHOTO_OBJECT = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(full|thumb)\.jpg$/;
 
 /** Microseconds since the epoch, as Postgres keeps a timestamptz. */
@@ -73,7 +73,7 @@ export class FakeCloud {
    * rather than imported from `src/sync/rows.ts`, so a key the client gets
    * wrong is one this server does not have.
    */
-  keyColumns(table: string): string[] {
+  private keyColumns(table: string): string[] {
     if (PERSONAL.has(table)) return ["user_id", "id"];
     return table === "shops" || table === "items" ? ["list_id", "id"] : ["id"];
   }
@@ -91,7 +91,7 @@ export class FakeCloud {
   }
 
   /** `private.my_pantry()`: the household the person joined, else their own Kiler. */
-  home(uid: string): string {
+  private home(uid: string): string {
     const joined = this.rows("list_members").find(
       (row) => row.user_id === uid && row.role !== "owner" && row.deleted_at == null && this.tables.get("lists")!.get(String(row.list_id))?.kind === "pantry",
     );
@@ -296,6 +296,22 @@ export class FakeCloud {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
+  /** A person's own list is their household's Kiler, made on first use, and only for editors. */
+  private openKiler(uid: string, role: unknown): Reply | null {
+    if (this.home(uid) !== uid) return { data: null, error: { message: "in another household", code: "ZK001" } };
+    if (role !== "editor") return { data: null, error: { message: "a household has no viewers", code: "22023" } };
+    if (!this.tables.get("lists")!.has(uid)) {
+      this.serverWrite("lists", { id: uid, owner_id: uid, name: "Kiler", kind: "pantry", color: null, icon: null, pantry: true });
+    }
+    return null;
+  }
+
+  private ensureOwnerMember(list: string, uid: string, name: unknown) {
+    if (!this.rows("list_members").some((row) => row.list_id === list && row.user_id === uid)) {
+      this.serverWrite("list_members", { id: crypto.randomUUID(), list_id: list, user_id: uid, role: "owner", name: name ?? "", seen_at: null });
+    }
+  }
+
   /** `offer_list`: the owner of a live list, to someone in a live list with them and not yet in this one. */
   private offerList(uid: string, args: Record<string, unknown>): Reply {
     const invalid = (message: string) => ({ data: null, error: { message, code: "22023" } });
@@ -307,11 +323,8 @@ export class FakeCloud {
     }
     if (args.role !== "editor" && args.role !== "viewer") return invalid("invalid role");
     if (list === uid) {
-      if (this.home(uid) !== uid) return { data: null, error: { message: "in another household", code: "ZK001" } };
-      if (args.role !== "editor") return invalid("a household has no viewers");
-      if (!this.tables.get("lists")!.has(uid)) {
-        this.serverWrite("lists", { id: uid, owner_id: uid, name: "Kiler", kind: "pantry", color: null, icon: null, pantry: true });
-      }
+      const refused = this.openKiler(uid, args.role);
+      if (refused) return refused;
     }
     if (!this.isOwner(list, uid) || !this.isLive(list)) return { data: null, error: { message: "not the owner of this list", code: "42501" } };
     if (!person || person === uid) return invalid("an offer is to someone else");
@@ -320,9 +333,7 @@ export class FakeCloud {
       (theirs) => theirs.user_id === person && theirs.deleted_at == null && this.isLive(String(theirs.list_id)) && this.membership(theirs.list_id, uid),
     );
     if (!shared) return { data: null, error: { message: "shares no list with you", code: "ZK005" } };
-    if (!this.rows("list_members").some((row) => row.list_id === list && row.user_id === uid)) {
-      this.serverWrite("list_members", { id: crypto.randomUUID(), list_id: list, user_id: uid, role: "owner", name: args.owner_name ?? "", seen_at: null });
-    }
+    this.ensureOwnerMember(list, uid, args.owner_name);
     this.offers.set(`${list}|${person}`, { list, role: String(args.role), by: uid, to: person });
     return { data: null, error: null };
   }
@@ -351,18 +362,13 @@ export class FakeCloud {
       const list = String(args.list);
       if (args.invite_role !== "editor" && args.invite_role !== "viewer") return invalid("invalid role");
       if (list === uid) {
-        if (this.home(uid) !== uid) return { data: null, error: { message: "in another household", code: "ZK001" } };
-        if (args.invite_role !== "editor") return invalid("a household has no viewers");
-        if (!this.tables.get("lists")!.has(uid)) {
-          this.serverWrite("lists", { id: uid, owner_id: uid, name: "Kiler", kind: "pantry", color: null, icon: null, pantry: true });
-        }
+        const refused = this.openKiler(uid, args.invite_role);
+        if (refused) return refused;
       }
       if (!this.isOwner(list, uid) || this.tables.get("lists")!.get(list)?.deleted_at != null) {
         return { data: null, error: { message: "not the owner of this list", code: "42501" } };
       }
-      if (!this.rows("list_members").some((row) => row.list_id === list && row.user_id === uid)) {
-        this.serverWrite("list_members", { id: crypto.randomUUID(), list_id: list, user_id: uid, role: "owner", name: args.owner_name ?? "", seen_at: null });
-      }
+      this.ensureOwnerMember(list, uid, args.owner_name);
       const token = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
       this.invites.set(token, { list, role: String(args.invite_role) });
       return { data: token, error: null };

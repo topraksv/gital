@@ -1,8 +1,4 @@
-/**
- * SecureStore under Supabase's session, Helix's (`src/sync/secure-chunked-storage.ts`)
- * as it stands: a keychain value past 2 KB warns and may fail, and a session
- * with its tokens runs past that, so it is kept in chunks, bounded both ways.
- */
+/** SecureStore under Supabase's session: a keychain value past 2 KB warns and may fail, so the session is kept in chunks, bounded both ways. */
 
 export interface SecureStorageBackend {
   getItemAsync(key: string): Promise<string | null>;

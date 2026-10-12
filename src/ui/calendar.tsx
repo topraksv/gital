@@ -1,8 +1,6 @@
 /**
- * Helix's calendar (`src/ui/calendar.tsx`): a field that opens a month grid,
- * so a date is picked and never typed. Here the grid is Gital's sheet rather
- * than Helix's centred modal, as the calculator's is, and it opens over the
- * sheet that holds the field.
+ * A field that opens a month grid, so a date is picked and never typed. The grid is a sheet,
+ * as the calculator's is, and it opens over the sheet that holds the field.
  */
 
 import { useState } from "react";

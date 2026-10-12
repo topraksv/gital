@@ -28,6 +28,7 @@ export default function ShopScreen() {
   const shop = shops.data.find((candidate) => candidate.id === id);
   // A viewer reads the shop; the server would refuse anything it changed.
   const { viewer, members, userId } = useShare(shop?.listId ?? "");
+  const queries = [shops, items, members];
   // Who bought each, on a shared list (SPEC 1.5, 3.5): the one who ticked it.
   const boughtBy = (item: Item): ShownItem => ({ ...item, people: tr.sharing.by(null, rowPeople(item, members.data, userId).checked) || null });
 
@@ -49,9 +50,9 @@ export default function ShopScreen() {
 
   return (
     <Screen back="/history" title={shop?.listName} width="workspace">
-      {shops.status === "error" || items.status === "error" ? (
-        <ReadFailed queries={[shops, items]} />
-      ) : shop && items.updatedAt != null ? (
+      {queries.some((query) => query.status === "error") ? (
+        <ReadFailed queries={queries} />
+      ) : shop && queries.every((query) => query.updatedAt != null) ? (
         <ArrivalScope>
           <Text style={[type.small, { color: palette.textSecondary, marginBottom: spacing.md }]}>
             {tr.common.joined(tr.history.summary(shop.finishedAt, shop.bought), tr.history.spent(shop.spentMinor))}
@@ -73,8 +74,7 @@ export default function ShopScreen() {
 /**
  * The receipt (SPEC 3.8): its photo and, with it, the total it shows. The
  * photo is written as it is chosen, a receipt having no panel whose save could
- * wait for it. Reading the total off a new photo would be done here, once the
- * photo has been set; nothing is read yet.
+ * wait for it.
  */
 function ReceiptCard({ shop, viewer }: { shop: Shop; viewer: boolean }) {
   const { palette } = useTheme();

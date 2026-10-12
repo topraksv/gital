@@ -1,7 +1,6 @@
 /**
- * Sync's selection rules, Helix's (`src/sync/merge-policy.ts`), kept apart
- * from I/O so every conflict edge is a unit test. Gital's one departure: an
- * outbox event carries no `user_id` to check, since the device holds one
+ * Sync's selection rules, kept apart from I/O so every conflict edge is a unit
+ * test. An outbox event carries no `user_id` to check: the device holds one
  * account's workspace and a list row is not scoped by a person.
  */
 
@@ -53,9 +52,9 @@ export function shouldApplyServerAck(pushedOutboxId: number, newestOutboxId: num
 
 /**
  * A live row this device made afresh, answered with a delete it never saw.
- * Helix's generation rule would drop it; here it is a product added again
- * after another device bought it, or a shop finished on both (12.9), and
- * losing it would lose what the person just did. `created_at` tells the two
+ * The generation rule would drop it, but it is a product added again after
+ * another device bought it, or a shop finished on both (12.9), and losing it
+ * would lose what the person just did. `created_at` tells the two
  * apart: an edit carries the row's own, and a row made afresh a new one.
  */
 export function isAddedAgain(pushed: Record<string, unknown>, answer: Record<string, unknown>): boolean {
@@ -117,12 +116,18 @@ export function formatPullCursor(cursor: PullCursor): string {
   return `${cursor.ts}|${cursor.id}`;
 }
 
+/** A pull cursor's instant at the server's microsecond precision; cut to the millisecond, `updated_at.gt` would match a page stamped by one `now()` again for ever. */
+export function cursorInstant(value: string): string {
+  const sub = /T[\d:]+\.\d{3}(\d{1,3})/.exec(value)?.[1] ?? "";
+  return new Date(value).toISOString().replace("Z", `${sub}Z`);
+}
+
 /**
  * Whether the cursor stands on the newest row the server holds, so the table
  * can be skipped. Only an exact match on both halves: Postgres keeps
- * microseconds and a cursor written before 2026-10-07 milliseconds, so "not
- * greater" would skip a row written 400µs after the cursor's for ever (Helix
- * measured it). A table the probe reports empty (`null`) has nothing to pull.
+ * microseconds and a millisecond cursor would, under "not greater", skip a row
+ * written 400µs after the cursor's for ever. A table the probe reports empty
+ * (`null`) has nothing to pull.
  */
 export function cursorIsAtServerHead(cursor: PullCursor, head: PullCursor | null): boolean {
   if (head == null) return true;

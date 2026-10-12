@@ -9,7 +9,7 @@ import { uuidv7 } from "uuidv7";
 import { getDb } from "../db/client";
 import { deleteRows, writeRows, type RowsWritten } from "../db/mutations";
 import { setItems, sets } from "../db/schema";
-import { foldName, type ListedEntry } from "../domain/items";
+import { foldName, mergeEntry, type ListedEntry } from "../domain/items";
 import { nameFrom } from "../domain/names";
 
 export interface ProductSet {
@@ -42,9 +42,7 @@ export async function createSet(input: string, entries: readonly ListedEntry[]):
   const held = new Map<string, ListedEntry>();
   for (const entry of entries) {
     const key = foldName(entry.name);
-    const before = held.get(key);
-    const quantity = entry.quantityMilli == null && before ? before : entry;
-    held.set(key, { ...(before ?? entry), quantityMilli: quantity.quantityMilli, unit: quantity.unit, note: entry.note ?? before?.note ?? null });
+    held.set(key, mergeEntry(held.get(key), entry));
   }
   // The screens offer neither; this is the layer that cannot rely on it.
   if (name == null || held.size === 0) throw new Error("A set needs a name and a product");

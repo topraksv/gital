@@ -1,11 +1,5 @@
-/**
- * Reporting a problem from inside the app (SPEC 13.1), Helix's `feedback.tsx`:
- * a category among tiles, since each carries the sentence that makes the
- * reporter and the owner mean one thing by it; a description; screenshots.
- * Each refusal is said inline, beside what caused it. Opened from Ayarlar, a
- * root route, so closing it returns there; or signed out from the sign-in
- * screen when it failed, with an address to answer and no screenshots.
- */
+/** Reporting a problem (SPEC 13.1). Categories are tiles, since each carries the sentence that makes
+ *  reporter and owner mean one thing. Signed out, it asks an address and takes no screenshots. */
 
 import { useState } from "react";
 import { Image, View } from "react-native";

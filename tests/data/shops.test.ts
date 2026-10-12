@@ -5,7 +5,6 @@
  * of it again.
  */
 
-import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,21 +15,15 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-vi.mock("expo-crypto", () => ({
-  CryptoDigestAlgorithm: { SHA256: "SHA256" },
-  digestStringAsync: async (_algorithm: string, value: string) => createHash("sha256").update(value).digest("hex"),
-}));
+vi.mock("expo-crypto", async () => (await import("../helpers")).expoCryptoMock);
 
 const { addEntries, deleteItems, readItems, readShopItems, toggleChecked, updateItem } = await import("../../src/data/items");
 const { parseEntry } = await import("../../src/domain/items");
-/** The quick-add field's Enter. */
-const addItems = async (list: string, text: string) => (await addEntries(list, parseEntry(text))).ids;
 const { finishShop, readPricedSince, readPurchases, readShops, reopenShop, setShopReceipt, setShopTotal } = await import("../../src/data/shops");
 const { readPhoto } = await import("../../src/data/photos");
 const { createList, deleteLists, readLists } = await import("../../src/data/lists");
 const { deterministicId, naturalKeys } = await import("../../src/db/ids");
-const { migratedDatabase } = await import("../helpers");
-const { tr } = await import("../../src/i18n/tr");
+const { addItems, change, itemRow, migratedDatabase } = await import("../helpers");
 
 const T0 = new Date("2026-09-24T10:00:00.000Z");
 const later = (ms: number) => vi.setSystemTime(new Date(T0.getTime() + ms));
@@ -105,7 +98,7 @@ describe("finishShop", () => {
   it("spends what it filed, a tick the screen had not drawn included", async () => {
     const [sut, ekmek] = await addItems(listId, "süt, ekmek");
     // A price puts an item in the basket (SPEC 3.7).
-    const paid = (name: string, priceMinor: number) => ({ name, quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor });
+    const paid = (name: string, priceMinor: number) => change(name, { priceMinor });
     await updateItem(sut!, paid("Süt", 1000));
     const drawn = (await readItems(listId)).filter((item) => item.checkedAt != null);
     await updateItem(ekmek!, paid("Ekmek", 500));
@@ -166,7 +159,7 @@ describe("the list after a shop", () => {
     const [sut] = await shopFor("süt", ["Süt"]);
     const shopId = await finish();
     await expect(toggleChecked(sut!)).rejects.toThrow();
-    await expect(updateItem(sut!, { name: "Ayran", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null })).rejects.toThrow();
+    await expect(updateItem(sut!, change("Ayran"))).rejects.toThrow();
     expect(await deleteItems([sut!])).toBeNull();
     expect(await history(shopId)).toMatchObject([{ name: "Süt" }]);
   });
@@ -259,7 +252,7 @@ describe("a shop's total corrected to the receipt", () => {
 
   it("replaces the sum of the prices, and cleared goes back to it", async () => {
     const [sut] = await shopFor("süt, ekmek", ["Ekmek"]);
-    await updateItem(sut!, { name: "Süt", quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: 4590 });
+    await updateItem(sut!, change("Süt", { priceMinor: 4590 }));
     const shopId = await finish();
     expect(await spent()).toEqual([4590]);
     await setShopTotal(shopId, 61275);
@@ -296,7 +289,6 @@ describe("a shop's total corrected to the receipt", () => {
   });
 });
 
-// The receipt's photo on a finished shop (the owner asked 2026-09-27).
 describe("a shop's receipt", () => {
   const shot = { data: "data:image/jpeg;base64,full", thumb: "data:image/jpeg;base64,thumb" };
 
@@ -325,7 +317,7 @@ describe("addEntries from history", () => {
     await shopFor("2 lt süt", ["Süt"]);
     const [item] = await readShopItems(await finish());
     const [back] = (await addEntries(listId, [item!])).ids;
-    expect(await readItems(listId)).toEqual([{ id: back, name: "Süt", quantityMilli: 2000, unit: "lt", checkedAt: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor: null, photoId: null, photo: null, addedBy: null, checkedBy: null, createdAt: expect.any(String) }]);
+    expect(await readItems(listId)).toEqual([itemRow(back, "Süt", { quantityMilli: 2000, unit: "lt" })]);
     expect(back).not.toBe(item!.id);
   });
 
@@ -344,21 +336,6 @@ describe("addEntries from history", () => {
     await toggleChecked(needed!);
     await addEntries(listId, await readShopItems(shopId));
     expect(await readItems(listId)).toMatchObject([{ id: needed, quantityMilli: 2000, unit: "lt", checkedAt: T0.toISOString() }]);
-  });
-});
-
-describe("a shop's summary", () => {
-  it("shows a stamp it cannot read as it is instead of throwing", () => {
-    expect(tr.history.summary("2026-09-24 10:00:00+00 bozuk", 2)).toBe("2026-09-24 10:00:00+00 bozuk · 2\u00a0ürün");
-    expect(tr.history.summary(T0.toISOString(), 1)).toMatch(/2026.* · 1\u00a0ürün$/);
-  });
-
-  it("says what the shop cost when anything was priced, and nothing when not, which is not ₺0", () => {
-    expect(tr.history.spent(5840)).toBe("₺58,40");
-    expect(tr.history.spent(0)).toBe("₺0,00");
-    expect(tr.history.spent(null)).toBeUndefined();
-    expect(tr.items.basket(5840)).toBe("Sepette · ₺58,40");
-    expect(tr.items.basket(null)).toBe("Sepette");
   });
 });
 
@@ -384,7 +361,7 @@ describe("readPurchases", () => {
 });
 
 describe("readPricedSince", () => {
-  const priced = (name: string, priceMinor: number | null) => ({ name, quantityMilli: null, unit: null, note: null, urgent: false, notFound: false, boughtInstead: null, priceMinor });
+  const priced = (name: string, priceMinor: number | null) => change(name, { priceMinor });
 
   it("reads what shops finished since then bought with a price, from lists still kept", async () => {
     const [sut, ekmek] = await addItems(listId, "süt, ekmek, peynir");

@@ -1,5 +1,5 @@
 /**
- * Helix's error boundary: a screen that throws while drawing would otherwise
+ * A screen that throws while drawing would otherwise
  * unmount the whole tree to a blank page with no way back. This catches it and
  * shows a themed screen whose retry mounts the routes again. It sits inside
  * the theme so the fallback wears the palette. Nothing leaves the device:

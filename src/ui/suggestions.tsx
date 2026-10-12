@@ -1,10 +1,4 @@
-/**
- * The chips under an add field (SPEC 2.4, 2.13): what was had before, then
- * for a product the catalogue, that begins with what is typed or nearly
- * does. One strip for Listeler, Kiler and İstekler, as the owner asked
- * 2026-09-27. It offers and never takes: the field keeps its text and its
- * focus until a chip is pressed (`docs/UI.md` section 5).
- */
+/** The chips under an add field (SPEC 2.4, 2.13). They offer and never take: the field keeps its text and focus until a chip is pressed (`docs/UI.md` section 5). */
 
 import { ScrollView } from "react-native";
 import Plus from "lucide-react-native/icons/plus";
@@ -34,8 +28,9 @@ export function WishSuggestions(props: Props) {
 
 function Strip({ text, listed, onPick, known }: Props & { known: readonly KnownProduct[] }) {
   const typed = typedProduct(text);
-  const picks = typed ? suggestProducts(known, typed, listed) : [];
-  if (!typed || picks.length === 0) return null;
+  if (!typed) return null;
+  const picks = suggestProducts(known, typed, listed);
+  if (picks.length === 0) return null;
   return (
     <SlideUp distance={motion.travel.rise}>
       <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
