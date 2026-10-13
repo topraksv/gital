@@ -200,7 +200,7 @@ export const setItems = sqliteTable(
  * A product at home (SPEC 12.2), one row per product: its id comes from the
  * folded name, so every shop that brings it meets the same row. What it holds
  * is not a column but the sum of its moves (`docs/ARCHITECTURE.md`, "The pantry
- * counts arrivals"). Personal, not a list's; the person joins its id with accounts.
+ * counts arrivals"). The household's, not a list's ("One household Kiler").
  */
 export const pantryItems = sqliteTable("pantry_items", {
   ...syncColumns,

@@ -1,8 +1,7 @@
 /**
  * Whether reminders are on and the shopping day (SPEC 12.1), kept on this
  * device: a reminder is this phone's, so a shared list's other member keeps
- * their own day. `docs/ARCHITECTURE.md` "Tables" names a synced `settings`
- * table for this; it lands with accounts, when there is a person to hold it.
+ * their own day. It is not in the synced `settings` table for that reason.
  */
 
 import type { ShoppingDay } from "../domain/reminders";

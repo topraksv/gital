@@ -1,4 +1,4 @@
--- One household Kiler (SPEC 12.2, 12.13; `docs/ARCHITECTURE.md`, 2026-10-01).
+-- One household Kiler (SPEC 12.2, 12.13; `docs/ARCHITECTURE.md` "One household Kiler").
 --
 -- A household is a list of kind `pantry` whose id is its owner's user id, so
 -- members, invitations, leaving, removal and the live channel are migration

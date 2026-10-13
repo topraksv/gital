@@ -1,8 +1,9 @@
--- Realtime as a nudge (SPEC 1.3, 1.6; `docs/ARCHITECTURE.md`, 2026-09-23): a
--- list has a private channel, `list:<id>`. The server says on it that the list
--- moved, from a trigger, and the rows still come by the pull; its members say
--- on it who is shopping, as presence, which nothing stores. Only members hear
--- it, and only they speak there, and then only presence.
+-- Realtime as a nudge (SPEC 1.3, 1.6; `docs/ARCHITECTURE.md` "Live lists hear
+-- the server's nudge…"): a list has a private channel, `list:<id>`. The
+-- server says on it that the list moved, from a trigger, and the rows still
+-- come by the pull; its members say on it who is shopping, as presence, which
+-- nothing stores. Only members hear it, and only they speak there, and then
+-- only presence.
 
 begin;
 
