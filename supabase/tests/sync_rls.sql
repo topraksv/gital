@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(76);
+select extensions.plan(78);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -369,7 +369,7 @@ select set_config('request.jwt.claim.sub', '20000000-0000-4000-8000-000000000002
 select ok(public.record_feedback_send(), 'B''s limit is B''s own');
 -- Concurrency needs two sessions, so this pins the mechanism, not the race.
 select ok(
-  (select prosrc from pg_proc where oid = 'public.record_feedback_send()'::regprocedure) ~ 'pg_advisory_xact_lock',
+  (select prosrc from pg_proc where oid = 'definers.record_feedback_send()'::regprocedure) ~ 'pg_advisory_xact_lock',
   'record_feedback_send serialises the calls of one account'
 );
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
@@ -413,6 +413,24 @@ select is(
       and proname in ('can_read_list', 'can_write_list', 'is_list_owner', 'is_member_row')),
   null,
   'no RLS helper is callable through the API'
+);
+
+-- Migration 19: what PostgREST exposes runs as its caller. A definer a client
+-- role can execute belongs in `definers`, behind an invoker of the same name.
+select is(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef
+      and (has_function_privilege('anon', p.oid, 'EXECUTE')
+        or has_function_privilege('authenticated', p.oid, 'EXECUTE'))),
+  0::bigint,
+  'no exposed function runs as its owner for a client'
+);
+select is(
+  (select count(*) from pg_class c
+    where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relrowsecurity
+      and not exists (select 1 from pg_policy p where p.polrelid = c.oid)),
+  0::bigint,
+  'every table with RLS states who reaches its rows'
 );
 
 select * from extensions.finish();

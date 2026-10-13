@@ -286,7 +286,7 @@ select is((select count(*) from public.pantry_items where deleted_at is null), 5
 reset role;
 select ok(not has_function_privilege('anon', 'public.peek_list_invite(text)', 'execute'), 'only a signed-in person looks at a link');
 select is(
-  (select count(*) from pg_proc where proname = 'accept_list_invite'),
+  (select count(*) from pg_proc where proname = 'accept_list_invite' and pronamespace = 'public'::regnamespace),
   1::bigint,
   'one way to accept, so PostgREST never has two to choose from'
 );
