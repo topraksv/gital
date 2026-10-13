@@ -20,10 +20,10 @@ describe("mutation ratchet", () => {
     expect(evaluateMutation({ "a.ts": 91.2 }, { files: { "a.ts": { score: 91.8 } } }, present).problems[0]).toMatch(/^WORSE a\.ts: 91\.80 -> 91\.20\./);
   });
 
-  it("records the counts behind each score and the tree it was measured on", () => {
-    const mutants = ["Killed", "Timeout", "Survived", "NoCoverage", "CompileError"].map((status) => ({ status }));
+  it("records the counts behind each score, what they cost, and the tree it was measured on", () => {
+    const mutants = ["Killed", "Timeout", "Survived", "NoCoverage", "CompileError"].map((status, index) => ({ status, ...(index < 3 && { testsCompleted: 10 * (index + 1) }) }));
     expect(recordedFrom({ files: { "a.ts": { mutants } } }, "abc", "2026-10-08")).toEqual({
-      "a.ts": { score: 50, killed: 1, timeout: 1, survived: 1, noCoverage: 1, measuredOn: "abc", measuredDate: "2026-10-08" },
+      "a.ts": { score: 50, killed: 1, timeout: 1, survived: 1, noCoverage: 1, cost: 60, measuredOn: "abc", measuredDate: "2026-10-08" },
     });
   });
 

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { isMutationScoped, selectMutationScope, shardOfScope } from "../../stryker.ci.config.mjs";
+import { isMutationScoped, selectMutationScope, shardOfScope, weigherOf } from "../../stryker.ci.config.mjs";
 
 const root = join(import.meta.dirname, "../..");
 
@@ -75,5 +75,16 @@ describe("mutation scope", () => {
     const shards = [1, 2, 3].map((shard) => shardOfScope(files, `${shard}/3`, (file: string) => sizes[file]!));
     expect(shards).toEqual([["a.ts"], ["b.ts", "e.ts"], ["c.ts", "d.ts"]]);
     expect(() => shardOfScope(files, "4/3", () => 1)).toThrow(/MUTATION_SHARD/);
+  });
+
+  it("weighs a file by its recorded cost, and an unrecorded one by bytes at the recorded rate", () => {
+    const sizes: Record<string, number> = { "static.ts": 100, "plain.ts": 300, "new.ts": 200 };
+    const sizeOf = (file: string) => {
+      if (!(file in sizes)) throw new Error(`ENOENT ${file}`);
+      return sizes[file]!;
+    };
+    const weightOf = weigherOf({ "static.ts": { cost: 3000 }, "plain.ts": { cost: 1000 }, "gone.ts": { cost: 50 } }, sizeOf);
+    expect(["static.ts", "plain.ts", "new.ts", "gone.ts", "missing.ts"].map(weightOf)).toEqual([3000, 1000, 2000, 50, 0]);
+    expect(weigherOf({}, sizeOf)("new.ts")).toBe(200);
   });
 });
