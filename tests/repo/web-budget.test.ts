@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { appVersionOf, entryOf, greenRun, openRuns, otaRecord, titleOf } from "../../scripts/check-published.mjs";
+import { appStoreMajor, appVersionOf, entryOf, greenRun, openRuns, otaRecord, titleOf } from "../../scripts/check-published.mjs";
 
 const root = join(import.meta.dirname, "../..");
 
@@ -57,6 +57,12 @@ describe("check-published", () => {
     expect(otaRecord([update("ios"), update("android", "exposdk:57.0.0", "g2")], 57).problems).toEqual(["expected one update group, got 2"]);
     expect(otaRecord([update("ios", "1.0.0"), update("android")], 57).problems).toEqual(["the ios update targets 1.0.0, not exposdk:57.0.0"]);
     expect(otaRecord(null, 57).problems).toHaveLength(2);
+  });
+
+  it("reads the App Store's Expo Go major from Apple's lookup", () => {
+    expect(appStoreMajor({ resultCount: 1, results: [{ version: "57.0.9" }] })).toBe(57);
+    expect(appStoreMajor({ resultCount: 0, results: [] })).toBeNull();
+    expect(appStoreMajor({ results: [{ version: "" }] })).toBeNull();
   });
 
   // `eas.json` names the CLI the project needs; the publish runs another only
