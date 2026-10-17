@@ -1,6 +1,6 @@
 /**
- * The cold start: the native splash hands over to the mark drawing itself on
- * the ground, the name writing itself under it, and the app comes up from under it once it is ready and the
+ * The cold start: the native splash's bare ground, then the mark drawing itself on
+ * it, the name writing itself under it, and the app comes up from under it once it is ready and the
  * drawing is done and has rested — whichever is later, so a ready app waits
  * no longer than `brandMark.launch`. It lives as long as the root layout and leaves once, so coming
  * back from the background never replays it. Reduced motion shows the mark at
@@ -17,11 +17,13 @@ import { useReducedMotion } from "./motion";
 import { brandMark, motion, useTheme } from "./theme";
 
 /**
- * `imageWidth` of the expo-splash-screen plugin in `app.json`: the native
- * splash centres `assets/brand/splash.png` (the mark's own view box) at this
- * width, so the drawn mark takes over at the same place and size.
+ * The drawn mark's width. The native splash is the bare ground
+ * (`assets/brand/splash-blank.png`, transparent: the plugin's Android 12
+ * theme names an icon drawable whether or not an image is given): a splash showing the finished mark
+ * handed over to this one starting from nothing, so the owner saw the logo
+ * twice. Expo Go shows the app icon in its place, which no setting reaches.
  */
-const SPLASH_IMAGE_WIDTH = 150;
+const MARK_WIDTH = 150;
 
 /** `shown` waits for the palette; `ready` is the app's first screen drawn under this one. */
 export function Launch({ shown, ready }: { shown: boolean; ready: boolean }) {
@@ -76,7 +78,7 @@ export function Launch({ shown, ready }: { shown: boolean; ready: boolean }) {
           : { opacity },
       ]}
     >
-      <BrandMark height={SPLASH_IMAGE_WIDTH / ASPECT} duration={brandMark.launch.draw} named />
+      <BrandMark height={MARK_WIDTH / ASPECT} duration={brandMark.launch.draw} named />
     </Animated.View>
   );
 }

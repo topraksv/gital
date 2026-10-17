@@ -33,7 +33,7 @@ import EyeOff from "lucide-react-native/icons/eye-off";
 import Minus from "lucide-react-native/icons/minus";
 import type { LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { catalogueProduct, type Aisle, type ProductPicture } from "../domain/catalogue";
+import { pictureOf, type Aisle, type ProductPicture } from "../domain/catalogue";
 import { foldName, formatQuantity, type ItemChange } from "../domain/items";
 import { formatMinor } from "../domain/money";
 import type { ListColor, ListIcon } from "../domain/lists";
@@ -510,7 +510,7 @@ export function ItemLabel({ item, struck = false }: { item: ShownItem; struck?: 
   const parts = detailOf(item);
   return (
     <>
-      <Tile id={foldName(item.name)} name={item.name} picture={catalogueProduct(item.name)?.picture} photo={item.photo} size={itemRow.tile} />
+      <Tile id={foldName(item.name)} name={item.name} picture={pictureOf(item.name)} photo={item.photo} size={itemRow.tile} />
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
         <ItemName name={item.name} struck={struck} checkedAt={item.checkedAt} />
         {parts.length > 0 ? (
@@ -875,17 +875,15 @@ export function LinkCard({
     >
       <Tile id={tileId} name={title} size={listCard.tile} color={look?.color} icon={look?.icon} />
       <View style={{ flex: 1, minWidth: 0, gap: offset.tight }}>
-        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
           <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold, flex: 1 }]}>{title}</Text>
+          {/* Helix's badge: a view for the pill, its words centred in it. A Text
+              wearing the fill was its bare line box, unrounded on iOS and with
+              Android's font padding above the glyphs, so its words sat off the title's line. */}
           {badge ? (
-            <Text
-              style={[
-                type.small,
-                { color: palette.accentText, backgroundColor: palette.primarySoft, fontFamily: font.semibold, paddingHorizontal: spacing.sm, borderRadius: radius.full, alignSelf: "center" },
-              ]}
-            >
-              {badge}
-            </Text>
+            <View style={{ backgroundColor: palette.primarySoft, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: offset.tuck }}>
+              <Text style={[type.small, { color: palette.accentText, fontFamily: font.semibold }]}>{badge}</Text>
+            </View>
           ) : null}
           {figure ? <Text style={[type.body, { color: palette.textStrong, fontFamily: font.semibold }]}>{figure}</Text> : null}
         </View>
@@ -990,6 +988,22 @@ export function FieldLabel({ children }: { children: string }) {
 }
 
 /** What an e-mail address field asks of the keyboard and the browser's autofill. */
+/**
+ * A code an e-mail carries (`otp_length` in `supabase/config.toml`). Offered
+ * above the keyboard: iOS reads it from Mail, and Android's autofill from the
+ * notification where its service does.
+ */
+export const CODE_LENGTH = 6;
+export const CODE_FIELD = {
+  autoCapitalize: "none",
+  autoCorrect: false,
+  keyboardType: "number-pad",
+  autoComplete: "one-time-code",
+  textContentType: "oneTimeCode",
+  maxLength: CODE_LENGTH,
+  placeholder: "••••••",
+} as const;
+
 export const EMAIL_FIELD = {
   autoCapitalize: "none",
   autoCorrect: false,

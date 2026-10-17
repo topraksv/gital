@@ -13,16 +13,17 @@ export type Aisle = (typeof AISLES)[number];
 
 // Stryker disable all: a name table yields only static mutants, each a whole-suite run; its tests hold the entries.
 export const PRODUCT_PICTURES = [
-  "avocado", "baby-bottle", "bagel", "baguette", "banana", "bandage", "basket", "battery", "beans", "bell-pepper", "bird", "blueberries", "bone",
-  "bowl", "bread", "broccoli", "broom", "bubbles", "bucket", "bulb", "burger", "butter", "cake", "candle", "candy", "canned", "carrot", "cat",
-  "cheese", "cherries", "chestnut", "chocolate", "coconut", "coffee", "cookie", "corn", "crab", "croissant", "cucumber", "cup-straw", "cupcake",
-  "custard", "dog", "doughnut", "droplet", "dumpling", "egg", "eggplant", "falafel", "fish", "flatbread", "foil", "fries", "garlic", "ginger",
-  "gloves", "grapes", "green-apple", "herb", "honey", "hot-dog", "hot-pepper", "ice", "ice-cream", "jar", "juice", "kiwi", "leafy-green", "lemon",
-  "lipstick", "lollipop", "lotion", "mango", "mask", "matches", "meat", "meat-bone", "melon", "milk", "mushroom", "noodles", "olive", "onion", "paw",
-  "pea-pod", "peach", "peanuts", "pear", "pie", "pill", "pineapple", "pizza", "plug", "popcorn", "potato", "poultry", "pouring", "pretzel", "razor",
-  "red-apple", "rice", "safety-pin", "salad", "salt", "scissors", "sheaf", "shrimp", "soap", "spaghetti", "sparkles", "sponge", "squid",
-  "strawberry", "sunflower", "sweet-potato", "tangerine", "tea", "teapot", "thermometer", "tissue", "toilet-paper", "tomato", "toothbrush", "waffle",
-  "wastebasket", "watermelon",
+  "avocado", "baby-bottle", "bagel", "baguette", "banana", "bandage", "basket", "battery", "beans", "beer", "bell-pepper", "bird", "blueberries",
+  "bone", "bowl", "bread", "broccoli", "broom", "bubbles", "bucket", "bulb", "burger", "butter", "cake", "candle", "candy", "canned", "carrot",
+  "cat", "cheese", "cherries", "chestnut", "chocolate", "coconut", "coffee", "comb", "cookie", "corn", "crab", "croissant", "cucumber",
+  "cup-straw", "cupcake", "custard", "dog", "doughnut", "droplet", "dumpling", "egg", "eggplant", "falafel", "fish", "flatbread", "foil",
+  "fries", "garlic", "ginger", "gloves", "grapes", "green-apple", "herb", "honey", "hot-dog", "hot-pepper", "ice", "ice-cream", "jar", "juice",
+  "kiwi", "leafy-green", "lemon", "lipstick", "lollipop", "lotion", "mango", "mask", "matches", "meat", "meat-bone", "melon", "milk", "mushroom",
+  "noodles", "olive", "onion", "oyster", "pancakes", "paw", "pea-pod", "peach", "peanuts", "pear", "pie", "pill", "pineapple", "pizza", "plug",
+  "popcorn", "potato", "potted-plant", "poultry", "pouring", "pretzel", "razor", "red-apple", "rice", "safety-pin", "salad", "salt", "sandwich",
+  "scissors", "sheaf", "shrimp", "soap", "spaghetti", "sparkles", "sponge", "squid", "stew", "strawberry", "stuffed-flatbread", "sunflower",
+  "sweet-potato", "tangerine", "tea", "teapot", "thermometer", "tissue", "toilet-paper", "tomato", "toothbrush", "tulip", "tumbler", "waffle",
+  "wastebasket", "watermelon", "wine",
 ] as const;
 export type ProductPicture = (typeof PRODUCT_PICTURES)[number];
 
@@ -44,6 +45,7 @@ const SHELVES: Record<Aisle, readonly (readonly [name: string, picture: ProductP
     ["Avokado", "avocado"], ["Limon", "lemon"], ["Maydanoz", "herb"], ["Dereotu", "herb"], ["Nane", "herb"], ["Fesleğen", "herb"], ["Tere", "herb"],
     ["Semizotu", "herb"], ["Pırasa", "herb"], ["Kereviz", "herb"], ["Turp", "carrot"], ["Pancar", "sweet-potato"], ["Tatlı patates", "sweet-potato"],
     ["Zencefil", "ginger"], ["Enginar", "leafy-green"], ["Salata", "salad"], ["Cherry domates", "tomato"],
+    ["Biber", "hot-pepper"], ["Kırmızı biber", "bell-pepper"], ["Soğan", "onion"], ["Sebze", "broccoli"], ["Yeşillik", "herb"], ["Misket limonu", "lemon"], ["Mor lahana", "leafy-green"], ["Kuşkonmaz", "herb"], ["Bal kabağı", "sweet-potato"], ["Börülce", "pea-pod"], ["Fasulye", "pea-pod"],
   ],
   fruit: [
     ["Elma", "red-apple"], ["Yeşil elma", "green-apple"], ["Armut", "pear"], ["Portakal", "tangerine"], ["Mandalina", "tangerine"],
@@ -51,12 +53,14 @@ const SHELVES: Record<Aisle, readonly (readonly [name: string, picture: ProductP
     ["Kiraz", "cherries"], ["Vişne", "cherries"], ["Şeftali", "peach"], ["Kayısı", "peach"], ["Erik", "grapes"], ["Nar", "red-apple"],
     ["Ayva", "pear"], ["İncir", "grapes"], ["Mango", "mango"], ["Ananas", "pineapple"], ["Kivi", "kiwi"], ["Hindistan cevizi", "coconut"],
     ["Yaban mersini", "blueberries"], ["Böğürtlen", "blueberries"], ["Ahududu", "strawberry"], ["Hurma", "chestnut"],
+    ["Meyve", "red-apple"], ["Dut", "blueberries"], ["Trabzon hurması", "tangerine"], ["Yenidünya", "peach"], ["Nektarin", "peach"], ["Ejder meyvesi", "kiwi"],
   ],
   bakery: [
     ["Ekmek", "bread"], ["Tam buğday ekmeği", "bread"], ["Çavdar ekmeği", "bread"], ["Tost ekmeği", "bread"], ["Baget", "baguette"],
     ["Simit", "bagel"], ["Poğaça", "croissant"], ["Açma", "croissant"], ["Kruvasan", "croissant"], ["Pide", "flatbread"], ["Lavaş", "flatbread"],
     ["Yufka", "flatbread"], ["Bazlama", "flatbread"], ["Galeta", "pretzel"], ["Grissini", "pretzel"], ["Börek", "pie"], ["Kek", "cake"],
     ["Hamburger ekmeği", "burger"], ["Sandviç ekmeği", "baguette"],
+    ["Köy ekmeği", "bread"], ["Kepekli ekmek", "bread"], ["Ekşi mayalı ekmek", "bread"], ["Somun", "bread"], ["Francala", "baguette"], ["Tortilla", "flatbread"], ["Lahmacun", "flatbread"], ["Krep", "pancakes"], ["Pankek", "pancakes"], ["Sandviç", "sandwich"], ["Tost", "sandwich"], ["Çörek", "croissant"],
   ],
   dairy: [
     ["Süt", "milk"], ["Laktozsuz süt", "milk"], ["Yoğurt", "bowl"], ["Süzme yoğurt", "bowl"], ["Ayran", "milk"], ["Kefir", "milk"],
@@ -66,15 +70,18 @@ const SHELVES: Record<Aisle, readonly (readonly [name: string, picture: ProductP
     ["Tahin pekmez", "jar"], ["Siyah zeytin", "olive"], ["Yeşil zeytin", "olive"], ["Fındık ezmesi", "jar"], ["Fıstık ezmesi", "peanuts"],
     ["Kahvaltılık gevrek", "bowl"], ["Yulaf ezmesi", "bowl"], ["Granola", "bowl"], ["Sucuk", "hot-dog"], ["Pastırma", "meat"], ["Sosis", "hot-dog"],
     ["Salam", "hot-dog"], ["Hindi füme", "poultry"], ["Puding", "custard"], ["Sütlaç", "custard"], ["Helva", "cake"],
+    ["Peynir", "cheese"], ["Zeytin", "olive"], ["Kaşar", "cheese"], ["Tost peyniri", "cheese"], ["Dil peyniri", "cheese"], ["Çökelek", "cheese"], ["Cheddar", "cheese"], ["Krem şanti", "milk"], ["Kakaolu süt", "milk"], ["Meyveli yoğurt", "bowl"], ["Jambon", "hot-dog"], ["Kavurma", "meat"], ["Mısır gevreği", "bowl"], ["Müsli", "bowl"],
   ],
   meat: [
     ["Kıyma", "meat"], ["Kuşbaşı et", "meat"], ["Biftek", "meat"], ["Antrikot", "meat"], ["Kuzu pirzola", "meat-bone"], ["Kuzu but", "meat-bone"],
     ["Köfte", "falafel"], ["Hamburger köftesi", "burger"], ["Tavuk göğsü", "poultry"], ["Tavuk but", "poultry"], ["Tavuk kanat", "poultry"],
-    ["Bütün tavuk", "poultry"], ["Tavuk baget", "poultry"], ["Hindi", "poultry"], ["Ciğer", "meat"], ["Döner", "meat"], ["Mantı", "dumpling"],
+    ["Bütün tavuk", "poultry"], ["Tavuk baget", "poultry"], ["Hindi", "poultry"], ["Ciğer", "meat"], ["Döner", "stuffed-flatbread"], ["Mantı", "dumpling"],
+    ["Et", "meat"], ["Kırmızı et", "meat"], ["Dana eti", "meat"], ["Kuzu eti", "meat-bone"], ["Pirzola", "meat-bone"], ["Bonfile", "meat"], ["Tavuk", "poultry"], ["Tavuk eti", "poultry"], ["Tavuk pirzola", "poultry"], ["Şnitzel", "poultry"], ["Nugget", "poultry"], ["İnegöl köfte", "falafel"], ["Dürüm", "stuffed-flatbread"], ["Kebap", "stuffed-flatbread"], ["Tavuk döner", "stuffed-flatbread"],
   ],
   fish: [
     ["Balık", "fish"], ["Somon", "fish"], ["Levrek", "fish"], ["Çipura", "fish"], ["Hamsi", "fish"], ["İstavrit", "fish"], ["Palamut", "fish"],
-    ["Uskumru", "fish"], ["Karides", "shrimp"], ["Kalamar", "squid"], ["Midye", "crab"], ["Ton balığı", "canned"],
+    ["Uskumru", "fish"], ["Karides", "shrimp"], ["Kalamar", "squid"], ["Midye", "oyster"], ["Ton balığı", "canned"],
+    ["Alabalık", "fish"], ["Sardalya", "fish"], ["Lüfer", "fish"], ["Barbun", "fish"], ["Mezgit", "fish"], ["Kalkan", "fish"], ["Ahtapot", "squid"], ["Yengeç", "crab"], ["İstiridye", "oyster"], ["Midye dolma", "oyster"],
   ],
   staples: [
     ["Pirinç", "rice"], ["Baldo pirinç", "rice"], ["Bulgur", "sheaf"], ["Makarna", "spaghetti"], ["Spagetti", "spaghetti"], ["Erişte", "noodles"],
@@ -84,13 +91,15 @@ const SHELVES: Record<Aisle, readonly (readonly [name: string, picture: ProductP
     ["Vanilya", "salt"], ["Maya", "sheaf"], ["Ayçiçek yağı", "pouring"], ["Zeytinyağı", "olive"], ["Mısır yağı", "pouring"], ["Sirke", "pouring"],
     ["Nar ekşisi", "pouring"], ["Domates salçası", "jar"], ["Biber salçası", "jar"], ["Ketçap", "canned"], ["Mayonez", "jar"], ["Hardal", "jar"],
     ["Kırmızı mercimek", "beans"], ["Yeşil mercimek", "beans"], ["Nohut", "beans"], ["Kuru fasulye", "beans"], ["Barbunya", "beans"],
-    ["Konserve mısır", "corn"], ["Konserve bezelye", "canned"], ["Domates konservesi", "canned"], ["Turşu", "jar"], ["Bulyon", "canned"],
-    ["Hazır çorba", "canned"], ["Ay çekirdeği", "sunflower"], ["Susam", "sheaf"], ["Kakao", "chocolate"], ["Hindistan cevizi rendesi", "coconut"],
+    ["Konserve mısır", "corn"], ["Konserve bezelye", "canned"], ["Domates konservesi", "canned"], ["Turşu", "jar"], ["Bulyon", "stew"],
+    ["Hazır çorba", "stew"], ["Ay çekirdeği", "sunflower"], ["Susam", "sheaf"], ["Kakao", "chocolate"], ["Hindistan cevizi rendesi", "coconut"],
+    ["Yağ", "pouring"], ["Sıvı yağ", "pouring"], ["Mercimek", "beans"], ["Bakliyat", "beans"], ["Salça", "jar"], ["Sos", "jar"], ["Soya sosu", "pouring"], ["Elma sirkesi", "pouring"], ["Baharat", "salt"], ["Toz biber", "hot-pepper"], ["Köri", "salt"], ["Defne yaprağı", "herb"], ["Galeta unu", "sheaf"], ["Kinoa", "rice"], ["Kuskus", "rice"], ["Lazanya", "spaghetti"], ["Konserve", "canned"], ["Çorba", "stew"], ["Tarhana", "stew"], ["Mercimek çorbası", "stew"], ["Zeytin ezmesi", "olive"], ["Karbonat", "salt"], ["Bitter kakao", "chocolate"],
   ],
   frozen: [
     ["Dondurma", "ice-cream"], ["Buz", "ice"], ["Dondurulmuş bezelye", "pea-pod"], ["Dondurulmuş sebze", "broccoli"],
     ["Dondurulmuş patates", "fries"], ["Pizza", "pizza"], ["Dondurulmuş mantı", "dumpling"], ["Waffle", "waffle"], ["Milföy", "croissant"],
     ["Dondurulmuş balık", "fish"],
+    ["Dondurulmuş pizza", "pizza"], ["Sigara böreği", "pie"], ["Dondurulmuş meyve", "strawberry"], ["Buzlu çay", "cup-straw"],
   ],
   snacks: [
     ["Çikolata", "chocolate"], ["Bitter çikolata", "chocolate"], ["Sütlü çikolata", "chocolate"], ["Gofret", "chocolate"], ["Bisküvi", "cookie"],
@@ -98,47 +107,57 @@ const SHELVES: Record<Aisle, readonly (readonly [name: string, picture: ProductP
     ["Badem", "chestnut"], ["Antep fıstığı", "peanuts"], ["Yer fıstığı", "peanuts"], ["Leblebi", "beans"], ["Kuru üzüm", "grapes"],
     ["Kuru kayısı", "peach"], ["Kuru incir", "grapes"], ["Lokum", "candy"], ["Şekerleme", "candy"], ["Sakız", "candy"], ["Lolipop", "lollipop"],
     ["Pasta", "cake"], ["Cupcake", "cupcake"], ["Donut", "doughnut"], ["Baklava", "pie"], ["Kuruyemiş", "peanuts"],
+    ["Fıstık", "peanuts"], ["Çerez", "peanuts"], ["Kuru meyve", "grapes"], ["Jelibon", "candy"], ["Tatlı", "cake"], ["Kadayıf", "pie"], ["Künefe", "pie"], ["Bar", "chocolate"], ["Pestil", "candy"],
   ],
   drinks: [
     ["Su", "droplet"], ["Damacana su", "droplet"], ["Maden suyu", "bubbles"], ["Soda", "bubbles"], ["Meyve suyu", "juice"],
     ["Portakal suyu", "tangerine"], ["Kola", "cup-straw"], ["Gazoz", "cup-straw"], ["Limonata", "lemon"], ["Soğuk çay", "cup-straw"],
     ["Enerji içeceği", "cup-straw"], ["Şalgam", "juice"], ["Çay", "teapot"], ["Bitki çayı", "tea"], ["Yeşil çay", "tea"], ["Türk kahvesi", "coffee"],
     ["Filtre kahve", "coffee"], ["Hazır kahve", "coffee"], ["Kahve", "coffee"], ["Sıcak çikolata", "coffee"], ["Salep", "coffee"], ["Boza", "milk"],
+    ["İçecek", "cup-straw"], ["Gazlı içecek", "cup-straw"], ["Elma suyu", "juice"], ["Vişne suyu", "juice"], ["Nar suyu", "juice"], ["Şeftali suyu", "juice"], ["Smoothie", "juice"], ["Espresso", "coffee"], ["Süt kahve", "coffee"], ["Şarap", "wine"], ["Kırmızı şarap", "wine"], ["Beyaz şarap", "wine"], ["Bira", "beer"], ["Alkolsüz bira", "beer"], ["Rakı", "tumbler"], ["Viski", "tumbler"], ["Votka", "tumbler"], ["Cin", "tumbler"],
   ],
   cleaning: [
     ["Bulaşık deterjanı", "soap"], ["Bulaşık makinesi tableti", "soap"], ["Parlatıcı", "sparkles"], ["Yüzey temizleyici", "lotion"],
     ["Çamaşır suyu", "bucket"], ["Cam sil", "sparkles"], ["Kireç çözücü", "lotion"], ["Tuz ruhu", "bucket"], ["Sünger", "sponge"], ["Bez", "sponge"],
     ["Mikrofiber bez", "sponge"], ["Çöp poşeti", "wastebasket"], ["Paspas", "broom"], ["Süpürge", "broom"], ["Eldiven", "gloves"],
     ["Oda kokusu", "sparkles"], ["Böcek ilacı", "lotion"],
+    ["Deterjan", "soap"], ["Arap sabunu", "soap"], ["Bulaşık süngeri", "sponge"], ["Tel sünger", "sponge"], ["Toz bezi", "sponge"], ["Çöp torbası", "wastebasket"], ["Kova", "bucket"], ["Klor", "bucket"], ["Yağ çözücü", "lotion"], ["Banyo temizleyici", "lotion"], ["Lavabo açıcı", "lotion"], ["Faraş", "broom"], ["Mop", "broom"], ["Sinek ilacı", "lotion"],
   ],
   laundry: [
     ["Çamaşır deterjanı", "basket"], ["Sıvı deterjan", "lotion"], ["Yumuşatıcı", "lotion"], ["Leke çıkarıcı", "lotion"],
     ["Çamaşır mandalı", "safety-pin"], ["Kireç önleyici", "lotion"], ["Çamaşır filesi", "basket"],
+    ["Toz deterjan", "basket"], ["Kapsül deterjan", "basket"], ["Ütü suyu", "droplet"], ["Çamaşır sepeti", "basket"],
   ],
   paper: [
     ["Tuvalet kağıdı", "toilet-paper"], ["Kağıt havlu", "toilet-paper"], ["Peçete", "tissue"], ["Mendil", "tissue"], ["Islak mendil", "tissue"],
     ["Alüminyum folyo", "foil"], ["Streç film", "foil"], ["Pişirme kağıdı", "foil"], ["Buzdolabı poşeti", "foil"], ["Kürdan", "scissors"],
+    ["Kağıt bardak", "cup-straw"], ["Kağıt tabak", "bowl"], ["Pipet", "cup-straw"], ["Kağıt", "toilet-paper"], ["Havlu", "toilet-paper"], ["Selpak", "tissue"],
   ],
   care: [
     ["Şampuan", "lotion"], ["Saç kremi", "lotion"], ["Duş jeli", "lotion"], ["Sabun", "soap"], ["Sıvı sabun", "soap"], ["Diş macunu", "toothbrush"],
     ["Diş fırçası", "toothbrush"], ["Diş ipi", "toothbrush"], ["Ağız gargarası", "lotion"], ["Deodorant", "lotion"], ["Parfüm", "sparkles"],
     ["Tıraş bıçağı", "razor"], ["Tıraş köpüğü", "lotion"], ["Nemlendirici", "lotion"], ["Güneş kremi", "lotion"], ["Pamuk", "soap"],
     ["Kulak çubuğu", "toothbrush"], ["Hijyenik ped", "tissue"], ["Makyaj temizleyici", "lotion"], ["Ruj", "lipstick"],
+    ["El kremi", "lotion"], ["Vücut losyonu", "lotion"], ["Yüz temizleme jeli", "lotion"], ["Tonik", "lotion"], ["Kolonya", "lotion"], ["Dezenfektan", "lotion"], ["Saç boyası", "lotion"], ["Jilet", "razor"], ["Tarak", "comb"], ["Saç fırçası", "comb"], ["Maskara", "lipstick"], ["Oje", "lipstick"], ["Fondöten", "lipstick"], ["Dudak kremi", "lipstick"], ["Tampon", "tissue"], ["Ped", "tissue"],
   ],
   baby: [
     ["Bebek bezi", "safety-pin"], ["Bebek maması", "baby-bottle"], ["Biberon", "baby-bottle"], ["Bebek şampuanı", "lotion"],
     ["Bebek ıslak mendili", "tissue"], ["Pişik kremi", "lotion"], ["Emzik", "baby-bottle"],
+    ["Mama", "baby-bottle"], ["Bebek sütü", "baby-bottle"], ["Bebek kremi", "lotion"], ["Bebek yağı", "lotion"], ["Bebek bisküvisi", "cookie"],
   ],
   pet: [
     ["Kedi maması", "cat"], ["Köpek maması", "dog"], ["Kedi kumu", "cat"], ["Kuş yemi", "bird"], ["Köpek ödülü", "bone"], ["Kedi ödülü", "paw"],
+    ["Kedi konservesi", "cat"], ["Köpek konservesi", "dog"], ["Balık yemi", "fish"], ["Kum", "cat"],
   ],
   pharmacy: [
     ["Ağrı kesici", "pill"], ["Vitamin", "pill"], ["Yara bandı", "bandage"], ["Maske", "mask"], ["Ateş ölçer", "thermometer"],
     ["Burun spreyi", "lotion"], ["Pastil", "candy"],
+    ["İlaç", "pill"], ["Şurup", "pill"], ["Aspirin", "pill"], ["Gazlı bez", "bandage"], ["Göz damlası", "droplet"], ["Probiyotik", "pill"], ["Magnezyum", "pill"], ["Balık yağı", "pill"],
   ],
   home: [
     ["Ampul", "bulb"], ["Pil", "battery"], ["Mum", "candle"], ["Kibrit", "matches"], ["Çakmak", "matches"], ["Uzatma kablosu", "plug"],
     ["Makas", "scissors"], ["Bant", "toilet-paper"],
+    ["Çiçek", "tulip"], ["Saksı", "potted-plant"], ["Toprak", "potted-plant"], ["Gübre", "potted-plant"], ["Çöp kovası", "wastebasket"], ["Şarj kablosu", "plug"], ["Priz", "plug"], ["Led ampul", "bulb"], ["Koli bandı", "toilet-paper"],
   ],
 };
 // Stryker restore all
@@ -152,6 +171,30 @@ const BY_KEY = new Map(CATALOGUE.map((product) => [product.key, product]));
 /** The catalogue's product of this name, however it was typed. */
 export function catalogueProduct(name: string): CatalogueProduct | undefined {
   return BY_KEY.get(foldName(name));
+}
+
+// A possessive ending, after a vowel or a consonant; the consonant it softened back ("ekmeği" is ekmek).
+const POSSESSIVE = /(?<=[aeiou])s[iu]$|(?<=[^aeiou])[iu]$/u;
+const SOFTENED: Record<string, string> = { g: "k", b: "p", d: "t" };
+
+/**
+ * A name's picture (SPEC 8.1): its catalogue product's, else the one of the
+ * product its last word names, bare or possessed. A Turkish compound ends in
+ * what it is, so "Pınar süt" is milk, "Köy ekmeği" bread and "Domates
+ * salatası" a salad, never a tomato. Only the picture is taken so: the aisle
+ * stays the whole name's (5.4).
+ */
+export function pictureOf(name: string): ProductPicture | undefined {
+  const whole = catalogueProduct(name);
+  if (whole) return whole.picture;
+  const words = foldName(name).split(" ");
+  if (words.length < 2) return undefined;
+  const head = words.at(-1)!;
+  const bare = head.replace(POSSESSIVE, "");
+  const last = bare.at(-1)!;
+  // The unsoftened spelling is tried off a bare word too: "Taze kebab" is a kebap.
+  const heads = [head, bare, bare.slice(0, -1) + (SOFTENED[last] ?? last)];
+  return heads.map((key) => BY_KEY.get(key)).find(Boolean)?.picture;
 }
 
 /** Whether a name is a product the catalogue or these rows know, for `parseEntry`. */

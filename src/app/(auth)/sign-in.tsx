@@ -11,8 +11,7 @@ import { isValidNewPassword, useSession } from "../../auth/session";
 import { isEmail } from "../../domain/names";
 import { tr } from "../../i18n/tr";
 import { heldInvite } from "../../sync/sharing";
-import { takeEmailLinkLanding } from "../../sync/supabase";
-import { Body, Button, Card, EMAIL_FIELD, Notice, Screen, TextField } from "../../ui/components";
+import { Body, Button, Card, CODE_FIELD, CODE_LENGTH, EMAIL_FIELD, Notice, Screen, TextField } from "../../ui/components";
 import { interactionSurface } from "../../ui/interaction";
 import { Press } from "../../ui/press";
 import { LegalConsentControl, LegalNoticeSheet } from "../../ui/legal-notice";
@@ -20,14 +19,23 @@ import { BrandMark } from "../../ui/brand";
 import { shouldSplitAuthHero } from "../../ui/responsive";
 import { alpha, authHero, contentWidth, controlSize, font, maxFontScale, radius, spacing, type, useTheme } from "../../ui/theme";
 
-type Mode = "signIn" | "signUp" | "forgot";
+/** `confirm` and `reset` take the code the e-mail of `signUp` and `forgot` carries. */
+type Mode = "signIn" | "signUp" | "forgot" | "confirm" | "reset";
 
-/** What each mode says, what its password must be, and where its second link goes. */
-const MODE: Record<Mode, { heading: string; subtitle: string; action: string; other: string; otherMode: Mode; passwordReady: (password: string) => boolean }> = {
-  signIn: { heading: tr.auth.signInTitle, subtitle: tr.auth.signInSubtitle, action: tr.auth.signIn, other: tr.auth.toSignUp, otherMode: "signUp", passwordReady: (password) => password !== "" },
-  signUp: { heading: tr.auth.signUpTitle, subtitle: tr.auth.signUpSubtitle, action: tr.auth.signUpTitle, other: tr.auth.toSignIn, otherMode: "signIn", passwordReady: isValidNewPassword },
-  forgot: { heading: tr.auth.forgotTitle, subtitle: tr.auth.forgotSubtitle, action: tr.auth.sendResetLink, other: tr.auth.backToSignIn, otherMode: "signIn", passwordReady: () => true },
+/** What each mode says, which fields it asks for, what its password must be, and where its second link goes. */
+const MODE: Record<
+  Mode,
+  { heading: string; subtitle: (email: string) => string; action: string; other: string; otherMode: Mode; email: boolean; code: boolean; password: "current" | "new" | null }
+> = {
+  signIn: { heading: tr.auth.signInTitle, subtitle: () => tr.auth.signInSubtitle, action: tr.auth.signIn, other: tr.auth.toSignUp, otherMode: "signUp", email: true, code: false, password: "current" },
+  signUp: { heading: tr.auth.signUpTitle, subtitle: () => tr.auth.signUpSubtitle, action: tr.auth.signUpTitle, other: tr.auth.toSignIn, otherMode: "signIn", email: true, code: false, password: "new" },
+  forgot: { heading: tr.auth.forgotTitle, subtitle: () => tr.auth.forgotSubtitle, action: tr.auth.sendResetCode, other: tr.auth.backToSignIn, otherMode: "signIn", email: true, code: false, password: null },
+  confirm: { heading: tr.auth.confirmTitle, subtitle: tr.auth.confirmSubtitle, action: tr.auth.confirmAction, other: tr.auth.backToSignIn, otherMode: "signIn", email: false, code: true, password: null },
+  reset: { heading: tr.auth.resetTitle, subtitle: tr.auth.resetSubtitle, action: tr.auth.resetSave, other: tr.auth.backToSignIn, otherMode: "signIn", email: false, code: true, password: "new" },
 };
+
+const passwordReady = (kind: "current" | "new" | null, password: string) => (kind === "new" ? isValidNewPassword(password) : kind === null || password !== "");
+const codeReady = (code: string) => new RegExp(`^\\d{${CODE_LENGTH}}$`).test(code);
 
 function JourneyNode({ icon: Icon, label, active = false }: { icon: LucideIcon; label: string; active?: boolean }) {
   const { palette } = useTheme();
@@ -157,20 +165,30 @@ function ReportProblem({ outcome, email }: { outcome: Outcome | null; email: str
   );
 }
 
-/** What the mode's request answered; null is a session, which the layout's guard takes from here. */
-async function attempt(mode: Mode, email: string, password: string): Promise<Outcome | null> {
-  const { signIn, signUp, requestPasswordReset } = useSession.getState();
+/** What the mode's request answered, and the mode it leads to; no outcome and no mode is a session, which the layout's guard takes from here. */
+async function attempt(mode: Mode, email: string, password: string, code: string): Promise<{ outcome: Outcome | null; next?: Mode }> {
+  const { signIn, signUp, requestPasswordReset, confirmSignUp, resetPassword, resendSignUpCode } = useSession.getState();
+  const failed = (text: string | null) => ({ outcome: text ? { tone: "error" as const, text } : null });
   if (mode === "signIn") {
     const error = await signIn(email, password);
-    return error ? { tone: "error", text: error } : null;
+    if (error !== tr.auth.errEmailNotConfirmed) return failed(error);
+    // An account never confirmed is one code away, not a dead end. A resend
+    // refused for coming too soon leaves the code already mailed to type.
+    const resent = await resendSignUpCode(email);
+    return !resent || resent === tr.auth.errRateLimit ? { outcome: null, next: "confirm" } : failed(resent);
   }
   if (mode === "forgot") {
     const error = await requestPasswordReset(email);
-    return error ? { tone: "error", text: error } : { tone: "success", text: tr.auth.resetSent };
+    return error ? failed(error) : { outcome: null, next: "reset" };
+  }
+  if (mode === "confirm") return failed(await confirmSignUp(email, code));
+  if (mode === "reset") {
+    const error = await resetPassword(email, code, password);
+    return failed(error ?? (await signIn(email, password)));
   }
   const result = await signUp(email, password);
-  if (result.status === "error") return { tone: "error", text: result.message };
-  return result.status === "confirmation-required" ? { tone: "success", text: tr.auth.confirmationSent } : null;
+  if (result.status === "error") return failed(result.message);
+  return result.status === "confirmation-required" ? { outcome: null, next: "confirm" } : { outcome: null };
 }
 
 /** Greeting beside the form when there is room for both, above it when not. */
@@ -238,36 +256,7 @@ function InviteWaiting() {
   return invited ? <Notice tone="success" text={tr.sharing.inviteWaiting} /> : null;
 }
 
-const LANDING: Record<"confirmed" | "changeConfirmed" | "unusable" | "offline", Outcome> = {
-  confirmed: { tone: "success", text: tr.auth.emailLinkConfirmed },
-  changeConfirmed: { tone: "success", text: tr.auth.emailChangeLinkConfirmed },
-  unusable: { tone: "error", text: tr.auth.emailLinkUnusable },
-  offline: { tone: "error", text: tr.auth.emailLinkOffline },
-};
-
-/**
- * What the confirmation or e-mail change link this page opened from did. The
- * browser a mail opens in is often not the one that signed up, so it lands
- * here signed out.
- */
-function EmailLinkLanding() {
-  // Held in state so Strict Mode's second effect run reads the same answer
-  // rather than the empty one a second take would give.
-  const [answer] = useState(takeEmailLinkLanding);
-  const [landing, setLanding] = useState<Outcome | null>(null);
-  useEffect(() => {
-    let live = true;
-    void answer?.then((said) => {
-      if (live) setLanding(LANDING[said]);
-    });
-    return () => {
-      live = false;
-    };
-  }, [answer]);
-  return landing ? <Notice {...landing} /> : null;
-}
-
-/** The address, which is the last field only when a reset link is all that is asked for. */
+/** The address, which is the last field only when a reset code is all that is asked for. */
 function EmailField({ value, onChangeText, last, onSubmit, onNext }: { value: string; onChangeText: (value: string) => void; last: boolean; onSubmit: () => void; onNext: () => void }) {
   return (
     <TextField
@@ -279,6 +268,22 @@ function EmailField({ value, onChangeText, last, onSubmit, onNext }: { value: st
       onSubmitEditing={last ? onSubmit : onNext}
       // Waits for a plausible attempt rather than the first letter.
       error={value.trim().length > 3 && !isEmail(value) ? tr.auth.emailInvalid : null}
+      style={{ marginBottom: spacing.md }}
+    />
+  );
+}
+
+/** The e-mail's code: offered above the keyboard where the platform reads it, and sent as soon as it is whole. */
+function CodeField({ value, onChangeText, onSubmit }: { value: string; onChangeText: (value: string) => void; onSubmit: () => void }) {
+  return (
+    <TextField
+      label={tr.auth.code}
+      value={value}
+      onChangeText={(typed) => onChangeText(typed.replace(/\D/g, ""))}
+      {...CODE_FIELD}
+      autoFocus
+      returnKeyType="go"
+      onSubmitEditing={onSubmit}
       style={{ marginBottom: spacing.md }}
     />
   );
@@ -304,17 +309,18 @@ function PasswordField({ ref, creating, value, onChangeText, onSubmit }: { ref: 
   );
 }
 
-function ModeLinks({ mode, busy, onSwitch }: { mode: Mode; busy: boolean; onSwitch: (next: Mode) => void }) {
+function ModeLinks({ mode, busy, onSwitch, onResend }: { mode: Mode; busy: boolean; onSwitch: (next: Mode) => void; onResend: () => void }) {
   const { other, otherMode } = MODE[mode];
   return (
     <View style={{ alignItems: "center", marginTop: spacing.sm }}>
       {mode === "signIn" ? <AuthLink label={tr.auth.forgotPassword} onPress={() => onSwitch("forgot")} disabled={busy} /> : null}
+      {MODE[mode].code ? <AuthLink label={tr.auth.resendCode} onPress={onResend} disabled={busy} /> : null}
       <AuthLink label={other} onPress={() => onSwitch(otherMode)} disabled={busy} />
     </View>
   );
 }
 
-/** Sign-in (SPEC 9.1): one card in three modes on one skeleton, the notice opened over the form.
+/** Sign-in (SPEC 9.1): one card in five modes on one skeleton, the notice opened over the form.
  *  Success needs no navigation: the root layout's guard swaps this screen out. */
 export default function SignInScreen() {
   const { palette } = useTheme();
@@ -323,6 +329,7 @@ export default function SignInScreen() {
   const [mode, setMode] = useState<Mode>("signIn");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [consented, setConsented] = useState(false);
@@ -332,22 +339,39 @@ export default function SignInScreen() {
   const passwordRef = useRef<TextInput>(null);
 
   const text = MODE[mode];
-  const emailValid = isEmail(email);
-  const passwordReady = text.passwordReady(password);
   // Consent is kept out of `formReady`, so the button stays pressable while it
   // is all that is missing, and pressing it says so; a greyed button never does.
-  const formReady = emailValid && passwordReady && !busy;
-  const canSubmit = formReady && (mode !== "signUp" || consented);
-  const resent = mode === "forgot" && outcome?.tone === "success";
-  const action = resent ? tr.auth.resendResetLink : text.action;
+  // A code is read as typed, since a whole one is sent before its state lands.
+  const readyWith = (typed: string) => isEmail(email) && (!text.code || codeReady(typed)) && passwordReady(text.password, password) && !busy;
+  const formReady = readyWith(code);
 
-  const submit = async () => {
-    if (!canSubmit) return;
+  const submit = async (typedCode = code) => {
+    if (!readyWith(typedCode) || (mode === "signUp" && !consented)) return;
     setBusy(true);
     setOutcome(null);
-    const answered = await attempt(mode, email.trim(), password).catch((): Outcome => ({ tone: "error", text: tr.auth.errGeneric }));
+    const answered = await attempt(mode, email.trim(), password, typedCode).catch((): { outcome: Outcome; next?: Mode } => ({ outcome: { tone: "error", text: tr.auth.errGeneric } }));
     setBusy(false);
-    setOutcome(answered);
+    setOutcome(answered.outcome);
+    if (answered.next) {
+      setMode(answered.next);
+      setCode("");
+      // The reset step asks for a new password; the one typed to sign in is not it.
+      if (answered.next === "reset") setPassword("");
+    }
+  };
+  /** A whole code goes at once where it is all that is asked: the step after autofill is the app's. */
+  const typeCode = (typed: string) => {
+    setCode(typed);
+    if (outcome?.tone === "error") setOutcome(null);
+    if (mode === "confirm" && codeReady(typed)) void submit(typed);
+  };
+  const resend = async () => {
+    setBusy(true);
+    const { resendSignUpCode, requestPasswordReset } = useSession.getState();
+    const error = await (mode === "confirm" ? resendSignUpCode : requestPasswordReset)(email.trim()).catch(() => tr.auth.errGeneric);
+    setBusy(false);
+    setCode("");
+    setOutcome(error ? { tone: "error", text: error } : { tone: "success", text: tr.auth.codeResent });
   };
   const press = () => {
     if (mode === "signUp" && !consented) setConsentRefused(true);
@@ -358,6 +382,7 @@ export default function SignInScreen() {
     setMode(next);
     setOutcome(null);
     setPassword("");
+    setCode("");
     setConsented(false);
     setConsentRefused(false);
   };
@@ -377,15 +402,19 @@ export default function SignInScreen() {
           in the card's height, and the mark drifted with each mode. */}
       <AuthSplit wide={wide}>
         <AuthGreeting wide={wide} artwork={wide || mode === "signIn"} />
-        {/* One skeleton for all three modes, so switching does not redraw three card sizes. */}
+        {/* One skeleton for every mode, so switching does not redraw a card of each size. */}
         <AuthColumn wide={wide} share={0.92}>
           <Card>
             <Text accessibilityRole="header" aria-level={2} style={[type.heading, { color: palette.text, marginBottom: spacing.xs }]}>{text.heading}</Text>
-            <Body muted style={{ marginBottom: spacing.lg }}>{text.subtitle}</Body>
+            <Body muted style={{ marginBottom: spacing.lg }}>{text.subtitle(email.trim())}</Body>
             <InviteWaiting />
-            <EmailLinkLanding />
-            <EmailField value={email} onChangeText={edit(setEmail)} last={mode === "forgot"} onSubmit={press} onNext={() => passwordRef.current?.focus()} />
-            {mode !== "forgot" ? <PasswordField ref={passwordRef} creating={mode === "signUp"} value={password} onChangeText={edit(setPassword)} onSubmit={press} /> : null}
+            {text.email ? (
+              <EmailField value={email} onChangeText={edit(setEmail)} last={text.password === null} onSubmit={press} onNext={() => passwordRef.current?.focus()} />
+            ) : null}
+            {text.code ? <CodeField value={code} onChangeText={typeCode} onSubmit={press} /> : null}
+            {text.password ? (
+              <PasswordField ref={passwordRef} creating={text.password === "new"} value={password} onChangeText={edit(setPassword)} onSubmit={press} />
+            ) : null}
             {outcome ? <Notice {...outcome} /> : null}
             <ReportProblem outcome={outcome} email={email} />
             {/* Before the account exists, not after: creating one is when an
@@ -396,8 +425,8 @@ export default function SignInScreen() {
                 <LegalConsentControl consented={consented} onOpen={() => setNoticeOpen(true)} invalid={consentRefused && !consented} />
               </>
             ) : null}
-            <Button label={action} loading={busy} disabled={!formReady} onPress={press} />
-            <ModeLinks mode={mode} busy={busy} onSwitch={switchTo} />
+            <Button label={text.action} loading={busy} disabled={!formReady} onPress={press} />
+            <ModeLinks mode={mode} busy={busy} onSwitch={switchTo} onResend={() => void resend()} />
             <OfflineNote />
           </Card>
         </AuthColumn>

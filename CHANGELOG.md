@@ -8,6 +8,18 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.8.2
+
+### Patch Changes
+
+- Kayıt onayı, şifre sıfırlama ve e-posta değişikliği bağlantıyla değil, e-postana gelen 6 haneli kodla yapılıyor; kodu uygulamaya yazıyorsun.
+- E-posta değişikliğinde şu anki ve yeni adresine birer kod geliyor; ikisini de Hesap ve Güvenlik'te aynı karta yazıyorsun. Yanlış yazılan kodun hangi adrese ait olduğu söyleniyor, doğru olan saklanıyor.
+- Hesap ve Güvenlik'te "Şifremi unuttum" kodu ve yeni şifreyi aynı kartta istiyor; kodu tekrar isteyebilir ya da vazgeçebilirsin.
+- iOS ve Android'de şifre ve kod alanları klavyenin üstünde otomatik doldurma öneriyor.
+- Daha çok ürünün kendi resmi var.
+- Açılış ekranında logo bir kez çiziliyor; önce sabit hâli görünüp sonra yeniden çizilmiyor.
+- Gizlilik bildirimi, hesap e-postalarında bağlantı yerine kod gittiğini yazıyor.
+
 ## 1.8.1
 
 ### Patch Changes

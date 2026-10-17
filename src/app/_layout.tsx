@@ -44,10 +44,7 @@ const Inter_500Medium = require("../../assets/fonts/Inter_500Medium.ttf");
 const Inter_600SemiBold = require("../../assets/fonts/Inter_600SemiBold.ttf");
 const IBMPlexSerif_600SemiBold = require("../../assets/fonts/IBMPlexSerif_600SemiBold.ttf");
 
-/** A reset link opened on the web runs with no database or session: the mail app may open it beside a
- *  tab that holds the database, and the web's database admits one tab. */
 const WEB = Platform.OS === "web" && typeof location !== "undefined";
-const RECOVERY_PAGE = WEB && /\/reset-password\/?$/.test(location.pathname);
 
 /**
  * A web invitation opened signed out: signing in sends the page to the tabs
@@ -64,12 +61,11 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 /** Every screen reads the database, so none draws until it is migrated; a failure gets its own screen.
  *  "retrying" keeps that screen up with its button busy rather than dropping to plain ground. */
 function useDatabase() {
-  const [database, setDatabase] = useState<"opening" | "ready" | "failed" | "retrying">(RECOVERY_PAGE ? "ready" : "opening");
+  const [database, setDatabase] = useState<"opening" | "ready" | "failed" | "retrying">("opening");
   const [openAttempt, setOpenAttempt] = useState(0);
-  const { heldElsewhere } = useDatabaseHandoff(database === "ready" && !RECOVERY_PAGE, database === "failed");
+  const { heldElsewhere } = useDatabaseHandoff(database === "ready", database === "failed");
 
   useEffect(() => {
-    if (RECOVERY_PAGE) return;
     let cancelled = false;
     migrateDb().then(
       () => {
@@ -227,9 +223,8 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
   const userId = useSession((s) => s.userId);
   const operation = useSession((s) => s.operation);
   const signedIn = userId != null;
-  const frozen = useAccountFrozen(signedIn && !RECOVERY_PAGE);
+  const frozen = useAccountFrozen(signedIn);
   useEffect(() => {
-    if (RECOVERY_PAGE) return;
     // A launch that cannot decide opens on sign-in rather than on nothing.
     useSession.getState().bootstrap().catch(() => useSession.setState({ ready: true }));
   }, []);
@@ -242,7 +237,7 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
       if (token && !/\/invite\/?$/.test(location.pathname)) router.push({ pathname: "/invite", params: { token } });
     });
   }, [signedIn]);
-  const settled = RECOVERY_PAGE || (ready && !(signedIn && frozen == null));
+  const settled = ready && !(signedIn && frozen == null);
   // The launch screen stays over this gap, so it never shows as a blank frame.
   useEffect(() => {
     if (settled) onSettled();
@@ -270,7 +265,6 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="(auth)/sign-in" />
           </Stack.Protected>
-          <Stack.Screen name="(auth)/reset-password" />
           <Stack.Screen name="privacy" />
           {/* Signed out too: sign-in sends a failure here. */}
           <Stack.Screen name="feedback" />

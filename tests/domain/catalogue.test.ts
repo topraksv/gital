@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AISLES, CATALOGUE, aisleShares, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, knowsProduct, listSections, nearMiss, searchCatalogue, withCatalogue } from "../../src/domain/catalogue";
+import { AISLES, CATALOGUE, aisleShares, PRODUCT_PICTURES, catalogueNamed, catalogueProduct, knowsProduct, listSections, nearMiss, pictureOf, searchCatalogue, withCatalogue } from "../../src/domain/catalogue";
 import { foldName, parseEntry, suggestProducts, typedProduct } from "../../src/domain/items";
 
 describe("the catalogue", () => {
@@ -27,6 +27,27 @@ describe("the catalogue", () => {
     expect(catalogueProduct("  domates ")).toMatchObject({ aisle: "produce", picture: "tomato" });
     expect(catalogueProduct("Domates salatası")).toBeUndefined();
     expect(catalogueProduct("Domatesss")).toBeUndefined();
+  });
+
+  it("draws a name outside the catalogue with its last word's picture, bare or possessed, and nothing else", () => {
+    expect(pictureOf("süt")).toBe("milk");
+    expect(pictureOf("Pınar süt")).toBe("milk");
+    expect(pictureOf("Domates salatası")).toBe("salad");
+    expect(pictureOf("Köy yumurtası")).toBe("egg");
+    expect(pictureOf("Somon balığı")).toBe("fish");
+    expect(pictureOf("Kaşar peyniri")).toBe("cheese");
+    expect(pictureOf("Pastırmalı kebabı")).toBe("stuffed-flatbread");
+    expect(pictureOf("Mercimek çorbası")).toBe("stew");
+    expect(pictureOf("Organik köy yumurtası"), "the last word, however many lead").toBe("egg");
+    expect(pictureOf("Koçan mısırı"), "only the ending is a possessive").toBe("corn");
+    expect(pictureOf("Köy ekmeği")).toBe("bread");
+    expect(pictureOf("Keçi yoğurdu")).toBe("bowl");
+    expect(pictureOf("Taze kebab")).toBe("stuffed-flatbread");
+    // A possessive is read only off a word that wears one: "Bal" never lends "Balı" to "Çam bal".
+    expect(pictureOf("Köfte harcı")).toBeUndefined();
+    expect(pictureOf("Tavuk suyu")).toBeUndefined();
+    expect(pictureOf("Peyniri")).toBeUndefined();
+    expect(pictureOf("Bambaşka şey")).toBeUndefined();
   });
 
   it("offers what the household never had, after what it did, and never twice", () => {
@@ -61,7 +82,7 @@ describe("the catalogue", () => {
     it("folds Turkish case and marks, ı and i alike", () => {
       expect(names("sut")[0]).toBe("Süt");
       expect(names("SÜT")[0]).toBe("Süt");
-      expect(names("kirmizi")).toEqual(["Kırmızı mercimek"]);
+      expect(names("kirmizi")).toEqual(["Kırmızı biber", "Kırmızı et", "Kırmızı mercimek", "Kırmızı şarap"]);
       expect(names("ıslak")[0]).toBe("Islak mendil");
       expect(names("INCIR")[0]).toBe("İncir");
     });
@@ -82,7 +103,8 @@ describe("the catalogue", () => {
 
     it("ranks the household's products by how often they were had, its own beside the catalogue's, each once", () => {
       const known = [{ name: "Ezine peyniri", times: 3 }, { name: "Krem peynir", times: 1 }, { name: "ezine peyniri", times: 0 }];
-      expect(names("peynir", known).slice(0, 2)).toEqual(["Ezine peyniri", "Krem peynir"]);
+      // The catalogue's product of that very name first: it is what was typed.
+      expect(names("peynir", known).slice(0, 3)).toEqual(["Peynir", "Ezine peyniri", "Krem peynir"]);
       expect(names("peynir", known).filter((name) => name === "Krem peynir")).toHaveLength(1);
       expect(names("ezine", known)).toEqual(["Ezine peyniri"]);
     });

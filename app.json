@@ -2,7 +2,7 @@
   "expo": {
     "name": "Gital",
     "slug": "gital",
-    "version": "1.8.1",
+    "version": "1.8.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "gital",
@@ -88,7 +88,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#F1EDE8",
-          "image": "./assets/brand/splash.png",
+          "image": "./assets/brand/splash-blank.png",
           "imageWidth": 150,
           "dark": {
             "backgroundColor": "#090807"

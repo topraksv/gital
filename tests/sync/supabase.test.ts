@@ -1,19 +1,10 @@
-/**
- * A sign-up confirmation or e-mail change link, landing on the Site URL with
- * its token unspent. It is read before the app's client exists, and redeemed
- * on a client of its own: the account it confirms may not be the one this
- * device is signed in with, and confirming it signs nobody in here. Only
- * Auth's answer is reported as "confirmed".
- */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const harness = vi.hoisted(() => {
   const callbacks: ((event: string, session: unknown) => void)[] = [];
   const client = {
     auth: {
-      verifyOtp: vi.fn(async (_request: { token_hash: string; type: string }) => ({ error: null as { name?: string; message: string } | null })),
-      signOut: vi.fn(async (_options: { scope: string }) => ({ error: null })),
+      getSession: vi.fn(async () => ({ data: { session: null as { access_token: string } | null } })),
       onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
         callbacks.push(callback);
         return { data: { subscription: { unsubscribe: () => {} } } };
@@ -31,14 +22,12 @@ vi.mock("expo-secure-store", () => ({
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn(() => harness.client) }));
 
-const site = "https://topraksv.github.io/gital/";
-
-/** A fresh copy of the module, so its client and landing start empty. */
-async function load() {
+/** A fresh copy of the module, so its client starts empty. */
+async function load(env: { url?: string; key?: string } = { url: "https://example.supabase.co", key: "publishable-test-key" }) {
   vi.resetModules();
   harness.callbacks.length = 0;
-  vi.stubEnv("EXPO_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
-  vi.stubEnv("EXPO_PUBLIC_SUPABASE_ANON_KEY", "publishable-test-key");
+  vi.stubEnv("EXPO_PUBLIC_SUPABASE_URL", env.url ?? "");
+  vi.stubEnv("EXPO_PUBLIC_SUPABASE_ANON_KEY", env.key ?? "");
   const module = await import("../../src/sync/supabase");
   const { createClient } = await import("@supabase/supabase-js");
   vi.mocked(createClient).mockClear();
@@ -51,114 +40,76 @@ function emitter() {
   return emit;
 }
 
-describe("an e-mail link landing on the Site URL", () => {
-  const replaceState = vi.fn();
-
+describe("the Supabase clients", () => {
   beforeEach(() => {
     harness.platform.OS = "web";
-    vi.stubGlobal("history", { state: { key: 1 }, replaceState });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
-    replaceState.mockClear();
-    harness.client.auth.verifyOtp.mockClear();
-    harness.client.auth.signOut.mockClear();
   });
 
-  it("confirms a sign-up token with Auth, once, on a client that keeps nothing", async () => {
-    vi.stubGlobal("location", { href: `${site}?token_hash=pkce_0b6f&type=email` });
+  it("creates one persisted PKCE client that reads no session from an address", async () => {
     const web = await load();
-    expect(web.takeEmailLinkLanding()).toBeNull();
-    web.getSupabase();
-    // Out of the address bar before anything else runs: a reload must not
-    // spend the same token a second time and report the refusal.
-    expect(replaceState).toHaveBeenCalledWith({ key: 1 }, "", site);
-    await expect(web.takeEmailLinkLanding()).resolves.toBe("confirmed");
-    expect(web.takeEmailLinkLanding()).toBeNull();
-    expect(harness.client.auth.verifyOtp).toHaveBeenCalledWith({ token_hash: "pkce_0b6f", type: "email" });
-    expect(harness.client.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
-    expect(web.createClient).toHaveBeenCalledTimes(2);
-    expect(web.createClient.mock.calls[0]?.[2]).toMatchObject({ auth: { persistSession: false } });
-  });
+    const client = web.getSupabase();
+    expect(web.getSupabase()).toBe(client);
+    expect(web.createClient).toHaveBeenCalledTimes(1);
+    expect(web.createClient).toHaveBeenCalledWith("https://example.supabase.co", "publishable-test-key", {
+      auth: { storage: undefined, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false, flowType: "pkce" },
+    });
 
-  // One side of a change is not the change: with both addresses asked, Auth
-  // accepts the first link and still waits for the other.
-  it("confirms one side of an e-mail change, and says only that", async () => {
-    vi.stubGlobal("location", { href: `${site}?token_hash=pkce_7c1d&type=email_change` });
-    const change = await load();
-    change.getSupabase();
-    await expect(change.takeEmailLinkLanding()).resolves.toBe("changeConfirmed");
-    expect(harness.client.auth.verifyOtp).toHaveBeenLastCalledWith({ token_hash: "pkce_7c1d", type: "email_change" });
-  });
-
-  it("reports a used or expired token as a link that no longer works", async () => {
-    harness.client.auth.verifyOtp.mockResolvedValueOnce({ error: { message: "Token has expired or is invalid" } });
-    vi.stubGlobal("location", { href: `${site}?token_hash=pkce_0b6f&type=email` });
-    const refused = await load();
-    refused.getSupabase();
-    await expect(refused.takeEmailLinkLanding()).resolves.toBe("unusable");
-    expect(harness.client.auth.signOut).not.toHaveBeenCalled();
-
-    // Auth's own verify link, from a mail sent before the template moved, refusing.
-    vi.stubGlobal("location", { href: `${site}#error=access_denied&error_code=otp_expired` });
-    const expired = await load();
-    expired.getSupabase();
-    await expect(expired.takeEmailLinkLanding()).resolves.toBe("unusable");
-  });
-
-  it("keeps a link a dropped connection never delivered, for a reload", async () => {
-    harness.client.auth.verifyOtp.mockResolvedValueOnce({ error: { name: "AuthRetryableFetchError", message: "Failed to fetch" } });
-    const href = `${site}?token_hash=pkce_0b6f&type=email`;
-    vi.stubGlobal("location", { href });
-    const offline = await load();
-    offline.getSupabase();
-    await expect(offline.takeEmailLinkLanding()).resolves.toBe("offline");
-    expect(replaceState).toHaveBeenLastCalledWith({ key: 1 }, "", href);
-    expect(harness.client.auth.signOut).not.toHaveBeenCalled();
-  });
-
-  // A mail sent before the template moved returns a PKCE code, which the app's
-  // own client redeems in the browser that signed up; nothing here may claim it.
-  it("leaves an old link's code, and any other address, to the app's own client", async () => {
-    for (const href of [`${site}?code=0b6f`, `${site}?tab=listeler`]) {
-      vi.stubGlobal("location", { href });
-      const ordinary = await load();
-      expect(ordinary.getSupabase()).toBe(harness.client);
-      expect(ordinary.takeEmailLinkLanding(), href).toBeNull();
-    }
-    expect(replaceState).not.toHaveBeenCalled();
-    expect(harness.client.auth.verifyOtp).not.toHaveBeenCalled();
-  });
-
-  it("reads no landing on a phone, nor without an address", async () => {
-    // A native build has no address bar; a location stubbed onto it is not one.
-    vi.stubGlobal("location", { href: `${site}?token_hash=pkce_0b6f&type=email` });
     harness.platform.OS = "ios";
     const native = await load();
     native.getSupabase();
-    expect(native.takeEmailLinkLanding()).toBeNull();
-
-    harness.platform.OS = "web";
-    vi.stubGlobal("location", undefined);
-    const bare = await load();
-    expect(() => bare.getSupabase()).not.toThrow();
-    expect(bare.takeEmailLinkLanding()).toBeNull();
+    const options = native.createClient.mock.calls[0]?.[2] as { auth: Record<string, unknown> };
+    expect(options.auth.detectSessionInUrl).toBe(false);
+    expect(options.auth.storage).toEqual(expect.objectContaining({ getItem: expect.any(Function), setItem: expect.any(Function), removeItem: expect.any(Function) }));
   });
 
-  // A signed-in device has no sign-in screen to show it on; after a sign-out
-  // it would greet the next person with news about somebody else's link.
-  it("drops an unread landing once a session exists", async () => {
-    vi.stubGlobal("location", { href: `${site}#error_code=otp_expired` });
-    const web = await load();
-    web.getSupabase();
-    emitter()("INITIAL_SESSION", null);
-    await expect(web.takeEmailLinkLanding()).resolves.toBe("unusable");
+  it("hands every auth event to subscribers until they leave", async () => {
+    const { createClient, subscribeSupabaseAuthEvents } = await load();
+    const seen: unknown[] = [];
+    const leave = subscribeSupabaseAuthEvents((event, session) => seen.push([event, session]));
+    expect(createClient).toHaveBeenCalledTimes(1);
 
-    const signedIn = await load();
-    signedIn.getSupabase();
-    emitter()("SIGNED_IN", { user: { id: "user-b" } });
-    expect(signedIn.takeEmailLinkLanding()).toBeNull();
+    const session = { user: { id: "user-a" } };
+    emitter()("SIGNED_IN", session);
+    expect(leave()).toBe(true);
+    emitter()("SIGNED_OUT", null);
+    expect(seen).toEqual([["SIGNED_IN", session]]);
+  });
+
+  it("gives live lists the project and the session's current token, or none signed out", async () => {
+    const { realtimeAccess } = await load();
+    const access = realtimeAccess();
+    expect(access).toMatchObject({ url: "https://example.supabase.co", apiKey: "publishable-test-key" });
+    await expect(access!.accessToken()).resolves.toBeNull();
+    harness.client.auth.getSession.mockResolvedValueOnce({ data: { session: { access_token: "token-a" } } });
+    await expect(access!.accessToken()).resolves.toBe("token-a");
+  });
+
+  it("offers no client when the project is not configured", async () => {
+    for (const env of [{}, { url: "https://example.supabase.co" }, { key: "publishable-test-key" }]) {
+      const { createClient, createRecoveryClient, getSupabase, isSupabaseConfigured, realtimeAccess } = await load(env);
+      expect(isSupabaseConfigured, JSON.stringify(env)).toBe(false);
+      expect(getSupabase()).toBeNull();
+      expect(realtimeAccess()).toBeNull();
+      expect(createRecoveryClient()).toBeNull();
+      expect(createClient).not.toHaveBeenCalled();
+    }
+  });
+
+  /**
+   * supabase-js mirrors a persisted session to every tab over a
+   * BroadcastChannel named after its storage key, and opens that channel only
+   * for a persisted session — so this keeps the account a reset code belongs
+   * to out of the tab already running Gital.
+   */
+  it("redeems reset codes on a client whose session never leaves the tab", async () => {
+    const { createClient, createRecoveryClient } = await load();
+    expect(createRecoveryClient()).toBe(harness.client);
+    expect(createClient).toHaveBeenCalledWith("https://example.supabase.co", "publishable-test-key", {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, flowType: "implicit", storageKey: "gital-password-recovery" },
+    });
   });
 });

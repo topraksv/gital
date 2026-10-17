@@ -19,10 +19,8 @@ node_modules/
 /ios/
 .kotlin/
 /dist/
-web-build/
 expo-env.d.ts
 *.tsbuildinfo
-.metro-health-check*
 
 # Test and analysis output
 /coverage/

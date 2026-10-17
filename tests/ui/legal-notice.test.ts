@@ -64,13 +64,13 @@ describe("the privacy notice", () => {
   const DISCLOSED_AS: Record<string, string | null> = {
     "world.openfoodfacts.org": "Open Food Facts",
     "images.openfoodfacts.org": "Open Food Facts",
-    // The invitation and reset pages the app links to: the site itself.
+    // The invitation page the app links to: the site itself.
     "topraksv.github.io": "GitHub Pages",
   };
 
   it("names every party the code sends data to, and where the store is", () => {
     const hosts = new Set<string>();
-    for (const file of ["src/services/barcode.ts", "src/sync/sharing.ts", "src/auth/recovery.ts", "src/domain/web-security.ts"]) {
+    for (const file of ["src/services/barcode.ts", "src/sync/sharing.ts", "src/domain/web-security.ts"]) {
       for (const [, host] of read(file).matchAll(/https:\/\/([A-Za-z0-9.-]+\.[a-z]{2,})/g)) hosts.add(host!);
     }
     expect(hosts.size, "discovery stopped finding the URLs").toBeGreaterThanOrEqual(3);

@@ -13,7 +13,7 @@ import X from "lucide-react-native/icons/x";
 
 import { useKnownProducts, useProducts, useSets } from "../data/hooks";
 import { createSet, deleteSet, restoreSet, type ProductSet } from "../data/sets";
-import { AISLES, CATALOGUE, catalogueProduct, searchCatalogue, type Aisle, type CatalogueProduct } from "../domain/catalogue";
+import { AISLES, CATALOGUE, catalogueProduct, pictureOf, searchCatalogue, type Aisle, type CatalogueProduct } from "../domain/catalogue";
 import { foldName, type ListedEntry } from "../domain/items";
 import { NAME_MAX, nameFrom } from "../domain/names";
 import { tr } from "../i18n/tr";
@@ -27,14 +27,14 @@ import { radioGroupKeys, webKeys } from "./keys";
 import { borderWidth, catalogueSheet, controlSize, font, iconSize, iconStroke, offset, radius, spacing, themeShadow, type, useTheme } from "./theme";
 import { Press } from "./press";
 
-/** What a tile needs: a product outside the catalogue has no picture. */
+/** What a tile needs: a product outside the catalogue has its head noun's picture, or none (`pictureOf`). */
 type Shown = Pick<CatalogueProduct, "key" | "name"> & { picture?: CatalogueProduct["picture"] };
 
 type Shelf = "catalogue" | "favourites" | "sets";
 
 type Chip = { label: string; selected: boolean; onPress: () => void };
 
-const shownAs = ({ name }: { name: string }): Shown => catalogueProduct(name) ?? { key: foldName(name), name };
+const shownAs = ({ name }: { name: string }): Shown => catalogueProduct(name) ?? { key: foldName(name), name, picture: pictureOf(name) };
 
 export function CatalogueSheet<T extends { name: string }>({
   items,

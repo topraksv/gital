@@ -38,9 +38,11 @@ const cloud = vi.hoisted(() => ({
   updateError: null as { message: string } | null,
   signUpError: null as { message: string } | null,
   resetError: null as { message: string } | null,
-  setSessionError: null as { name: string; message: string } | null,
   verifyError: null as { name: string; message: string; code?: string } | null,
   signUpSession: true,
+  savedPassword: null as string | null,
+  /** The code each address of an e-mail change still owes, as Auth holds them. */
+  emailChange: null as { to: string; owed: Map<string, string> } | null,
   /** A client that throws instead of answering, as a fetch polyfill can. */
   throws: false,
   calls: [] as string[],
@@ -112,7 +114,8 @@ vi.mock("../../src/sync/supabase", () => {
       },
       getUser: async () => ({ data: { user: cloud.session?.user ?? null } }),
       signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
-        const found = cloud.users.find((candidate) => candidate.email === email && candidate.password === password);
+        // Auth reads an address in any case.
+        const found = cloud.users.find((candidate) => candidate.email === email.toLowerCase() && candidate.password === password);
         if (!found) return { data: { user: null, session: null }, error: { message: "Invalid login credentials" } };
         cloud.session = { user: user(found) };
         return { data: { user: user(found), session: cloud.session }, error: null };
@@ -135,6 +138,28 @@ vi.mock("../../src/sync/supabase", () => {
         cloud.calls.push(`updateUser:${Object.keys(change).sort().join(",")}`);
         return { error: cloud.updateError };
       },
+      verifyOtp: async ({ email, token, type }: { email: string; token: string; type: string }) => {
+        cloud.calls.push(`verifyOtp:${email}:${token}:${type}`);
+        if (type === "email_change") {
+          const change = cloud.emailChange;
+          if (cloud.verifyError) return { data: { user: null, session: null }, error: cloud.verifyError };
+          if (!change || change.owed.get(email) !== token) return { data: { user: null, session: null }, error: { name: "AuthApiError", message: "Token has expired or is invalid" } };
+          change.owed.delete(email);
+          // One side taken is not the change: Auth answers with nobody until both are in.
+          if (change.owed.size) return { data: { user: null, session: null }, error: null };
+          const moved = { ...cloud.session!.user, email: change.to };
+          cloud.session = { user: moved };
+          return { data: { user: moved, session: cloud.session }, error: null };
+        }
+        const found = cloud.users.find((candidate) => candidate.email === email);
+        if (cloud.verifyError || !found) return { data: { user: null, session: null }, error: cloud.verifyError ?? { name: "AuthApiError", message: "Token has expired or is invalid" } };
+        cloud.session = { user: user(found) };
+        return { data: { user: user(found), session: cloud.session }, error: null };
+      },
+      resend: async ({ type, email }: { type: string; email: string }) => {
+        cloud.calls.push(`resend:${type}:${email}`);
+        return { error: cloud.resetError };
+      },
     },
     rpc: async (name: string) => {
       cloud.calls.push(`rpc:${name}`);
@@ -143,24 +168,24 @@ vi.mock("../../src/sync/supabase", () => {
   };
   const recovery = {
     auth: {
-      resetPasswordForEmail: async (email: string, { redirectTo }: { redirectTo: string }) => {
-        cloud.calls.push(`reset:${email}:${redirectTo}`);
+      resetPasswordForEmail: async (email: string, options?: unknown) => {
+        cloud.calls.push(`reset:${email}${options === undefined ? "" : ":with-options"}`);
         return { error: cloud.resetError };
       },
-      verifyOtp: async ({ token_hash, type }: { token_hash: string; type: string }) => {
-        cloud.calls.push(`recovery:verifyOtp:${token_hash}:${type}`);
+      verifyOtp: async ({ email, token, type }: { email: string; token: string; type: string }) => {
+        cloud.calls.push(`recovery:verifyOtp:${email}:${token}:${type}`);
         return { error: cloud.verifyError };
       },
-      setSession: async ({ access_token }: { access_token: string }) => {
-        cloud.calls.push(`recovery:setSession:${access_token}`);
-        return { error: cloud.setSessionError };
-      },
-      updateUser: async () => {
+      updateUser: async ({ password }: { password: string }) => {
         cloud.calls.push("recovery:updateUser");
-        return { error: cloud.updateError };
+        if (cloud.updateError) return { error: cloud.updateError };
+        // A new password ends the account's other sessions, the app's among them.
+        cloud.savedPassword = password;
+        cloud.session = null;
+        return { error: null };
       },
-      signOut: async () => {
-        cloud.calls.push("recovery:signOut");
+      signOut: async ({ scope }: { scope: string }) => {
+        cloud.calls.push(`recovery:signOut:${scope}`);
         return { error: null };
       },
     },
@@ -179,7 +204,6 @@ vi.mock("../../src/sync/supabase", () => {
 });
 
 const { LOCAL_USER_ID, SIGN_OUT_PENDING_CHANGES, useSession } = await import("../../src/auth/session");
-const { HOSTED_RECOVERY_PAGE } = await import("../../src/auth/recovery");
 const { VERIFY_COOLDOWN_MS, VERIFY_MAX_FAILURES } = await import("../../src/auth/verification-brake");
 const { createList, readLists } = await import("../../src/data/lists");
 const { photoColumn } = await import("../../src/data/photos");
@@ -211,7 +235,7 @@ beforeEach(() => {
   device.failing.clear();
   device.readFailsOnce.clear();
   device.cancelled = 0;
-  Object.assign(cloud, { configured: true, users: [A, B], session: null, sessionError: null, rpcError: null, updateError: null, signUpError: null, resetError: null, setSessionError: null, verifyError: null, signUpSession: true, throws: false, calls: [] });
+  Object.assign(cloud, { configured: true, users: [A, B], session: null, sessionError: null, rpcError: null, updateError: null, signUpError: null, resetError: null, verifyError: null, signUpSession: true, savedPassword: null, emailChange: null, throws: false, calls: [] });
   Object.assign(sync, { calls: [], flushSends: false, purgeFails: false, sent: [], onFlush: null });
   useSession.setState({ userId: null, email: null, ready: false, previousLoginAt: null });
 });
@@ -378,6 +402,9 @@ describe("opening the app", () => {
       session().signIn(A.email, A.password),
       session().signUp(A.email, A.password).then((result) => result.status === "error" && result.message),
       session().requestPasswordReset(A.email),
+      session().confirmSignUp(A.email, "123456"),
+      session().resendSignUpCode(A.email),
+      session().resetPassword(A.email, "123456", "yeni-parola1"),
       session().signOut({ force: true }),
       session().deleteAccount(),
       session().verifyPassword(A.password),
@@ -386,7 +413,6 @@ describe("opening the app", () => {
     ]) {
       expect(await refused).toBe(tr.auth.errNotConfigured);
     }
-    expect(await session().preparePasswordRecovery(`${HOSTED_RECOVERY_PAGE}#access_token=a&refresh_token=r&type=recovery`)).toBe("invalid");
   });
 
   it("keeps what was never sent behind sign-in when Supabase ends the session by itself", async () => {
@@ -434,6 +460,31 @@ describe("creating an account", () => {
     expect(cloud.users.map((user) => user.email)).not.toContain("d@ev.com");
     cloud.signUpError = { message: "User already registered" };
     expect(await session().signUp(A.email, "yeni-parola1")).toEqual({ status: "error", message: tr.auth.errUserExists });
+  });
+
+  it("opens the account with the code the e-mail carries, telling a refused code from a dropped connection", async () => {
+    cloud.signUpSession = false;
+    await session().signUp("c@ev.com", "yeni-parola1");
+    cloud.verifyError = { name: "AuthApiError", message: "Token has expired or is invalid" };
+    expect(await session().confirmSignUp("c@ev.com", "000000")).toBe(tr.auth.errCode);
+    cloud.verifyError = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
+    expect(await session().confirmSignUp("c@ev.com", "123456")).toBe(tr.auth.errNetwork);
+    cloud.verifyError = { name: "AuthApiError", message: "Too many requests" };
+    expect(await session().confirmSignUp("c@ev.com", "123456")).toBe(tr.auth.errRateLimit);
+    expect(session().userId).toBeNull();
+    cloud.verifyError = null;
+    expect(await session().confirmSignUp(" c@ev.com ", "123456")).toBeNull();
+    expect(cloud.calls.at(-1), "a reset code is no sign-up code").toBe("verifyOtp:c@ev.com:123456:signup");
+    expect(session()).toMatchObject({ userId: "u-c@ev.com", email: "c@ev.com", previousLoginAt: null, operation: null });
+    expect(device.stored.get(OWNER)).toBe("u-c@ev.com");
+    expect(sync.calls).toEqual(["start:u-c@ev.com"]);
+  });
+
+  it("mails the sign-up code again on asking", async () => {
+    expect(await session().resendSignUpCode(" c@ev.com ")).toBeNull();
+    expect(cloud.calls).toEqual(["resend:signup:c@ev.com"]);
+    cloud.resetError = { message: "Email rate limit exceeded" };
+    expect(await session().resendSignUpCode("c@ev.com")).toBe(tr.auth.errRateLimit);
   });
 });
 
@@ -646,6 +697,77 @@ describe("deleting the account", () => {
   });
 });
 
+describe("changing the e-mail address", () => {
+  const NEW = "yeni@ev.com";
+  /** Signed in as A, with a change to NEW asked and its two codes mailed. */
+  async function asked(owed: [string, string][] = [[A.email, "111111"], [NEW, "222222"]]) {
+    expect(await session().signIn(A.email, A.password)).toBeNull();
+    expect(await session().changeEmail(` ${NEW} `)).toBeNull();
+    cloud.emailChange = { to: NEW, owed: new Map(owed) };
+    cloud.calls = [];
+  }
+  const checked = () => cloud.calls.filter((call) => call.endsWith(":email_change"));
+
+  it("makes the change once both codes are in, the new address's first", async () => {
+    await asked();
+    expect(await session().confirmEmailChange(NEW, { current: "111111", next: "222222" })).toEqual({ error: null, accepted: { current: true, next: true } });
+    expect(checked()).toEqual([`verifyOtp:${NEW}:222222:email_change`, `verifyOtp:${A.email}:111111:email_change`]);
+    expect(session().email).toBe(NEW);
+    expect(device.stored.get(LAST_EMAIL), "an offline start reopens the account under its new address").toBe(NEW);
+  });
+
+  it("says which code was refused, and does not check again the one Auth took", async () => {
+    await asked();
+    expect(await session().confirmEmailChange(NEW, { current: "999999", next: "222222" })).toEqual({ error: tr.account.emailCodeRefused.current, accepted: { current: false, next: true } });
+    expect(session().email).toBe(A.email);
+    expect(await session().confirmEmailChange(NEW, { current: "111111", next: "" })).toMatchObject({ error: null });
+    expect(checked()).toEqual([`verifyOtp:${NEW}:222222:email_change`, `verifyOtp:${A.email}:999999:email_change`, `verifyOtp:${A.email}:111111:email_change`]);
+    await asked();
+    expect(await session().confirmEmailChange(NEW, { current: "111111", next: "000000" })).toMatchObject({ error: tr.account.emailCodeRefused.next, accepted: { current: false, next: false } });
+  });
+
+  it("starts over when the codes are asked for again, or for another address", async () => {
+    await asked();
+    await session().confirmEmailChange(NEW, { current: "999999", next: "222222" });
+    expect(await session().changeEmail(NEW)).toBeNull();
+    cloud.emailChange = { to: NEW, owed: new Map([[A.email, "333333"], [NEW, "444444"]]) };
+    expect(await session().confirmEmailChange(NEW, { current: "333333", next: "444444" })).toMatchObject({ error: null });
+    expect(checked().slice(-2), "fresh codes replace every one already taken").toEqual([`verifyOtp:${NEW}:444444:email_change`, `verifyOtp:${A.email}:333333:email_change`]);
+  });
+
+  it("keeps the codes Auth took when a resend is refused", async () => {
+    await asked();
+    await session().confirmEmailChange(NEW, { current: "999999", next: "222222" });
+    cloud.updateError = { message: "For security purposes, you can only request this after 60 seconds." };
+    expect(await session().changeEmail(NEW)).not.toBeNull();
+    expect(await session().confirmEmailChange(NEW, { current: "111111", next: "" })).toMatchObject({ error: null });
+  });
+
+  it("calls the change made only on Auth's session, and starts over when Auth did", async () => {
+    await asked();
+    await session().confirmEmailChange(NEW, { current: "999999", next: "222222" });
+    // Asked again in another tab: Auth owes both codes anew, this device still holds one as taken.
+    cloud.emailChange = { to: NEW, owed: new Map([[A.email, "333333"], [NEW, "444444"]]) };
+    expect(await session().confirmEmailChange(NEW, { current: "333333", next: "" })).toEqual({ error: tr.account.emailChangeRestarted, accepted: { current: false, next: false } });
+    expect(session().email).toBe(A.email);
+    expect(await session().confirmEmailChange(NEW, { current: "", next: "444444" })).toMatchObject({ error: tr.account.emailCodeRefused.current });
+  });
+
+  it("tells a dropped connection from a refused code, and changes nothing on either", async () => {
+    await asked();
+    cloud.verifyError = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
+    expect(await session().confirmEmailChange(NEW, { current: "111111", next: "222222" })).toEqual({ error: tr.auth.errNetwork, accepted: { current: false, next: false } });
+    expect(session().email).toBe(A.email);
+  });
+
+  it("asks for a sign-in with no account open, and says when there is no project", async () => {
+    expect(await session().confirmEmailChange(NEW, { current: "111111", next: "222222" })).toMatchObject({ error: tr.auth.errSessionExpired });
+    cloud.configured = false;
+    expect(await session().confirmEmailChange(NEW, { current: "111111", next: "222222" })).toMatchObject({ error: tr.auth.errNotConfigured });
+    expect(checked()).toEqual([]);
+  });
+});
+
 describe("checking the password again", () => {
   it("says a wrong password plainly, and pauses after a run of them", async () => {
     await session().signIn(A.email, A.password);
@@ -697,81 +819,84 @@ describe("checking the password again", () => {
 });
 
 describe("a forgotten password", () => {
-  const link = `${HOSTED_RECOVERY_PAGE}#access_token=access&expires_in=3600&refresh_token=refresh&token_type=bearer&type=recovery`;
-
-  it("sends the link to the hosted page, and says the same for an address with no account", async () => {
+  it("mails a code, and says the same for an address with no account", async () => {
     expect(await session().requestPasswordReset("  a@ev.com ")).toBeNull();
-    expect(cloud.calls).toEqual([`reset:a@ev.com:${HOSTED_RECOVERY_PAGE}`]);
+    expect(cloud.calls, "a code needs no page to come back to").toEqual(["reset:a@ev.com"]);
     cloud.resetError = { message: "User not found" };
+    expect(await session().requestPasswordReset("x@ev.com")).toBeNull();
+    cloud.resetError = { message: "User with this address was not found" };
     expect(await session().requestPasswordReset("x@ev.com")).toBeNull();
     cloud.resetError = { message: "Email rate limit exceeded" };
     expect(await session().requestPasswordReset("a@ev.com")).toBe(tr.auth.errRateLimit);
   });
 
-  it("sends a link back to the page it was asked from on the web", async () => {
-    device.os = "web";
-    vi.stubGlobal("location", { origin: "https://example.com" });
-    vi.stubEnv("EXPO_BASE_URL", "/gital");
-    await session().requestPasswordReset("a@ev.com");
-    expect(cloud.calls).toEqual(["reset:a@ev.com:https://example.com/gital/reset-password"]);
-    expect(await session().preparePasswordRecovery(link.replace(HOSTED_RECOVERY_PAGE, "https://example.com/gital/reset-password"))).toBe("ready");
-    vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
-  });
-
-  it("sets the new password on the link's own session, which then ends", async () => {
-    // A link that failed forgets any the page opened before it.
-    expect(await session().preparePasswordRecovery("not a link")).toBe("invalid");
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
-    expect(await session().preparePasswordRecovery(link)).toBe("ready");
-    expect(await session().completePasswordRecovery("kisa")).toBe(tr.auth.errWeakPassword);
-    // A refused save keeps the link's session, so the next press needs no new e-mail.
+  it("sets the new password with the code on a client of its own, signing nobody in", async () => {
+    expect(await session().resetPassword("a@ev.com", "123456", "kisa")).toBe(tr.auth.errWeakPassword);
+    expect(cloud.calls, "a short password spends no code").toEqual([]);
     cloud.updateError = { message: "New password should be different from the old password." };
-    expect(await session().completePasswordRecovery("eski-parola1")).toBe(tr.auth.errSamePassword);
+    expect(await session().resetPassword("a@ev.com", "123456", "eski-parola1")).toBe(tr.auth.errSamePassword);
     cloud.updateError = null;
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBeNull();
-    expect(cloud.calls).toEqual(["recovery:setSession:access", "recovery:updateUser", "recovery:updateUser", "recovery:signOut"]);
-    // The device's own session was never touched, and the link is spent.
+    expect(await session().resetPassword(" a@ev.com ", "000000", "yeni-parola1")).toBeNull();
+    expect(cloud.calls, "a refused save keeps the code it already spent").toEqual([
+      "recovery:verifyOtp:a@ev.com:123456:recovery", "recovery:updateUser",
+      "recovery:updateUser", "recovery:signOut:local",
+    ]);
+    expect(cloud.savedPassword).toBe("yeni-parola1");
     expect(session().userId).toBeNull();
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
+    await session().resetPassword("a@ev.com", "654321", "yeni-parola2");
+    expect(cloud.calls.at(-3), "a saved password spends the kept client").toBe("recovery:verifyOtp:a@ev.com:654321:recovery");
   });
 
-  const tokenLink = `${HOSTED_RECOVERY_PAGE}?token_hash=hash&type=recovery`;
-
-  it("spends a token link only on save, so opening it spends nothing", async () => {
-    expect(await session().preparePasswordRecovery(tokenLink)).toBe("ready");
-    expect(await session().preparePasswordRecovery(tokenLink)).toBe("ready");
-    expect(cloud.calls).toEqual([]);
-    expect(await session().completePasswordRecovery("kisa")).toBe(tr.auth.errWeakPassword);
-    expect(cloud.calls).toEqual([]);
-    // A refused save keeps the redeemed session: the token is not asked again.
+  it("checks a fresh code once another is asked for, or for another address", async () => {
     cloud.updateError = { message: "New password should be different from the old password." };
-    expect(await session().completePasswordRecovery("eski-parola1")).toBe(tr.auth.errSamePassword);
+    await session().resetPassword("a@ev.com", "123456", "eski-parola1");
+    await session().resetPassword("b@ev.com", "222222", "eski-parola1");
+    await session().requestPasswordReset("a@ev.com");
     cloud.updateError = null;
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBeNull();
-    expect(cloud.calls).toEqual(["recovery:verifyOtp:hash:recovery", "recovery:updateUser", "recovery:updateUser", "recovery:signOut"]);
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
+    await session().resetPassword("a@ev.com", "333333", "yeni-parola1");
+    expect(cloud.calls.filter((call) => call.startsWith("recovery:verifyOtp"))).toEqual([
+      "recovery:verifyOtp:a@ev.com:123456:recovery",
+      "recovery:verifyOtp:b@ev.com:222222:recovery",
+      "recovery:verifyOtp:a@ev.com:333333:recovery",
+    ]);
   });
 
-  it("keeps a token a dropped connection never delivered, and drops one Auth refused", async () => {
-    await session().preparePasswordRecovery(tokenLink);
+  it("keeps the checked code when a resend is refused", async () => {
+    cloud.updateError = { message: "New password should be different from the old password." };
+    await session().resetPassword("a@ev.com", "123456", "eski-parola1");
+    cloud.resetError = { message: "For security purposes, you can only request this after 60 seconds." };
+    expect(await session().requestPasswordReset("a@ev.com")).not.toBeNull();
+    cloud.updateError = null;
+    expect(await session().resetPassword("a@ev.com", "123456", "yeni-parola1")).toBeNull();
+    expect(cloud.calls.filter((call) => call.startsWith("recovery:verifyOtp"))).toEqual(["recovery:verifyOtp:a@ev.com:123456:recovery"]);
+  });
+
+  it("says the password is saved when signing in again with it fails", async () => {
+    expect(await session().signIn(A.email, A.password)).toBeNull();
+    expect(await session().resetPassword(A.email, "123456", "yeni-parola1")).toBe(tr.auth.passwordResetSignInAgain);
+  });
+
+  it("signs this device in again when it reset its own account, whose sessions the new password ended", async () => {
+    const renewed = { ...A };
+    cloud.users = [renewed, B];
+    expect(await session().signIn(A.email, A.password)).toBeNull();
+    // Reopened offline, the device holds the address as it was typed.
+    useSession.setState({ email: "A@EV.com" });
+    renewed.password = "yeni-parola1";
+    expect(await session().resetPassword("a@Ev.com", "123456", "yeni-parola1")).toBeNull();
+    expect(session()).toMatchObject({ userId: A.id, email: A.email });
+    expect(cloud.session?.user.email, "the main client holds a session the reset did not revoke").toBe(A.email);
+    cloud.session = { user: { id: A.id, email: A.email, last_sign_in_at: "2026-09-26T09:00:00.000Z" } };
+    expect(await session().resetPassword(B.email, "123456", "baska-parola1"), "another account's reset leaves this one alone").toBeNull();
+    expect(session().userId).toBe(A.id);
+  });
+
+  it("tells a refused code from a dropped connection, and saves nothing on either", async () => {
     cloud.verifyError = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.errNetwork);
-    cloud.verifyError = { name: "AuthApiError", message: "Email link is invalid or has expired", code: "otp_expired" };
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetExpiredBody);
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
-    await session().preparePasswordRecovery(tokenLink);
-    cloud.verifyError = { name: "AuthApiError", message: "Token has been used" };
-    expect(await session().completePasswordRecovery("yeni-parola1")).toBe(tr.auth.resetInvalidBody);
-    expect(cloud.calls.filter((call) => call.startsWith("recovery:verifyOtp"))).toHaveLength(3);
-  });
-
-  it("tells an expired link, a refused one and a dropped connection apart", async () => {
-    expect(await session().preparePasswordRecovery(`${HOSTED_RECOVERY_PAGE}#error=access_denied&error_code=otp_expired`)).toBe("expired");
-    expect(await session().preparePasswordRecovery("https://evil.example/reset-password")).toBe("invalid");
-    cloud.setSessionError = { name: "AuthRetryableFetchError", message: "Failed to fetch" };
-    expect(await session().preparePasswordRecovery(link)).toBe("offline");
-    cloud.setSessionError = { name: "AuthApiError", message: "Invalid Refresh Token" };
-    expect(await session().preparePasswordRecovery(link)).toBe("invalid");
+    expect(await session().resetPassword("a@ev.com", "123456", "yeni-parola1")).toBe(tr.auth.errNetwork);
+    cloud.verifyError = { name: "AuthApiError", message: "Token has expired or is invalid", code: "otp_expired" };
+    expect(await session().resetPassword("a@ev.com", "123456", "yeni-parola1")).toBe(tr.auth.errCode);
+    expect(cloud.calls.filter((call) => call === "recovery:updateUser")).toEqual([]);
   });
 });
+

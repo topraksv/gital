@@ -15,7 +15,7 @@ const limits = {
   totalJavaScript: 2_599_500,
   totalExport: 4_406_100,
   // The catalogue's hundreds of WebP would otherwise hide a code regression in the total.
-  pictureBytes: 401_200,
+  pictureBytes: 430_000,
   // Exact, so adding a weight has to be a decision.
   fontFiles: 4,
   fontBytes: 621_500,

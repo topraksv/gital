@@ -1,6 +1,6 @@
 {
   "name": "gital",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "main": "expo-router/entry",
   "license": "UNLICENSED",
   "private": true,

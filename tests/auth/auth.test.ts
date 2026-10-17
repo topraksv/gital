@@ -1,8 +1,7 @@
 /**
  * The account's pure rules (SPEC 9.1): Auth's English errors in Turkish, the
- * previous sign-in, the reset link, which reaches the page with its token
- * unspent and is redeemed on save, and the confirmation links, which reach
- * the app the same way.
+ * previous sign-in, the e-mailed codes, and the e-mail change link, which
+ * reaches the app with its token unspent.
  */
 
 import { readFileSync } from "node:fs";
@@ -11,7 +10,6 @@ import { describe, expect, it } from "vitest";
 
 import { friendlyAuthError } from "../../src/auth/auth-errors";
 import { loadPreviousLogin, recordSuccessfulLogin, startLoginHistory, type LoginHistoryStorage } from "../../src/auth/login-history";
-import { HOSTED_RECOVERY_PAGE, parseEmailLinkLanding, parseRecoveryLink, recoveryPage, recoveryRedirect } from "../../src/auth/recovery";
 import { tr } from "../../src/i18n/tr";
 
 function memoryStorage(): LoginHistoryStorage {
@@ -71,103 +69,6 @@ describe("Auth's errors, in Turkish", () => {
   });
 });
 
-describe("the reset link", () => {
-  const page = recoveryPage("https://topraksv.github.io", "/gital");
-  const session = "access_token=access&expires_in=3600&refresh_token=refresh&token_type=bearer&type=recovery";
-
-  it("lands on the hosted page from a phone, and on this page's own address on the web", () => {
-    expect(HOSTED_RECOVERY_PAGE).toBe("https://topraksv.github.io/gital/reset-password");
-    expect(recoveryRedirect(null)).toBe(HOSTED_RECOVERY_PAGE);
-    expect(recoveryRedirect({ origin: "https://example.com", baseUrl: "/nested//path/" })).toBe("https://example.com/nested/path/reset-password");
-    expect(recoveryRedirect({ origin: "http://localhost:8081", baseUrl: "" })).toBe("http://localhost:8081/reset-password");
-  });
-
-  it("is the only address Auth may send a reset to, since the link carries its token unspent", () => {
-    const config = readFileSync(join(import.meta.dirname, "../../supabase/config.toml"), "utf8");
-    const allowed = /additional_redirect_urls = \[([^\]]*)\]/.exec(config)![1]!.match(/"[^"]+"/g)!.map((url) => JSON.parse(url) as string);
-    expect(allowed).toEqual([HOSTED_RECOVERY_PAGE]);
-  });
-
-  it("holds an unspent recovery token, and only a recovery one", () => {
-    expect(parseRecoveryLink(`${page}?token_hash=abc&type=recovery`, page)).toEqual({ kind: "tokenHash", tokenHash: "abc" });
-    expect(parseRecoveryLink(`${page}?token_hash=abc&type=signup`, page)).toEqual({ kind: "invalid" });
-    expect(parseRecoveryLink(`${page}?token_hash=abc`, page)).toEqual({ kind: "invalid" });
-    expect(parseRecoveryLink(`https://evil.example/gital/reset-password?token_hash=abc&type=recovery`, page)).toEqual({ kind: "invalid" });
-  });
-
-  // Links already in an inbox from before the template moved.
-  it("takes the recovery session from the fragment, whole and only for recovery", () => {
-    expect(parseRecoveryLink(`${page}#${session}`, page)).toEqual({ kind: "session", accessToken: "access", refreshToken: "refresh" });
-    for (const fragment of ["access_token=a&type=recovery", "refresh_token=r&type=recovery", session.replace("recovery", "signup"), session.replace("&type=recovery", "")]) {
-      expect(parseRecoveryLink(`${page}#${fragment}`, page), fragment).toEqual({ kind: "invalid" });
-    }
-    // Gital asks for no PKCE reset, so a code is nobody's to redeem here.
-    expect(parseRecoveryLink(`${page}?code=one-time`, page)).toEqual({ kind: "invalid" });
-  });
-
-  it("tells an expired link from any other refusal, and an error beats a session beside it", () => {
-    expect(parseRecoveryLink(`${page}#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`, page)).toEqual({ kind: "expired" });
-    expect(parseRecoveryLink(`${page}?error_description=OTP+expired`, page)).toEqual({ kind: "expired" });
-    expect(parseRecoveryLink(`${page}#error=access_denied&${session}`, page)).toEqual({ kind: "invalid" });
-    expect(parseRecoveryLink(`${page}#error_code=bad_jwt`, page)).toEqual({ kind: "invalid" });
-    expect(parseRecoveryLink(page, page)).toEqual({ kind: "invalid" });
-  });
-
-  it("is refused anywhere but the exact page", () => {
-    for (const url of [
-      `https://evil.example/gital/reset-password#${session}`,
-      `https://topraksv.github.io/reset-password#${session}`,
-      `https://topraksv.github.io/gital/other#${session}`,
-      `https://topraksv.github.io:8443/gital/reset-password#${session}`,
-      `https://user:secret@topraksv.github.io/gital/reset-password#${session}`,
-      `javascript://topraksv.github.io/gital/reset-password#${session}`,
-      "not a URL",
-      null,
-    ]) {
-      expect(parseRecoveryLink(url, page), String(url)).toEqual({ kind: "invalid" });
-    }
-    expect(parseRecoveryLink(`${page}#${session}`, "not a page")).toEqual({ kind: "invalid" });
-  });
-});
-
-/**
- * What a confirmation or e-mail change link brings to the Site URL. Only a
- * token Auth can check, or Auth's own refusal, is an answer; a bare `code`,
- * which no browser but the one that signed up can redeem, is not.
- */
-describe("an e-mail link landing on the Site URL", () => {
-  const site = "https://topraksv.github.io/gital/";
-
-  it("hands a confirmation or change token on to be checked", () => {
-    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f&type=email`)).toEqual({ tokenHash: "pkce_0b6f", type: "email" });
-    expect(parseEmailLinkLanding(`${site}#token_hash=pkce_0b6f&type=email`)).toEqual({ tokenHash: "pkce_0b6f", type: "email" });
-    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f&type=email_change`)).toEqual({ tokenHash: "pkce_0b6f", type: "email_change" });
-  });
-
-  it("reads Auth's error, in the query or the fragment, as a link that no longer works", () => {
-    expect(parseEmailLinkLanding(`${site}?error=access_denied&error_code=otp_expired`)).toBe("unusable");
-    expect(parseEmailLinkLanding(`${site}#error_code=otp_expired&error_description=Email+link+is+invalid`)).toBe("unusable");
-    expect(parseEmailLinkLanding(`${site}#error=server_error`)).toBe("unusable");
-    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f&type=email&error=access_denied`)).toBe("unusable");
-  });
-
-  it("claims nothing it cannot prove", () => {
-    expect(parseEmailLinkLanding(`${site}?code=0b6f`)).toBeNull();
-    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f`)).toBeNull();
-    expect(parseEmailLinkLanding(`${site}?token_hash=pkce_0b6f&type=recovery`)).toBeNull();
-    expect(parseEmailLinkLanding(`${site}?token_hash=&type=email`)).toBeNull();
-    expect(parseEmailLinkLanding(site)).toBeNull();
-    expect(parseEmailLinkLanding("not a url")).toBeNull();
-  });
-
-  it("leaves reset links to the reset page", () => {
-    expect(parseEmailLinkLanding(`${site}reset-password?token_hash=pkce_0b6f&type=email`)).toBeNull();
-    expect(parseEmailLinkLanding(`${site}reset-password/#error_code=otp_expired`)).toBeNull();
-    // Only the reset page itself: a path that merely passes through the name is not it.
-    expect(parseEmailLinkLanding(`${site}reset-password/done?token_hash=pkce_0b6f&type=email`)).toEqual({ tokenHash: "pkce_0b6f", type: "email" });
-  });
-});
-
 describe("the server's account settings", () => {
   const config = readFileSync(join(import.meta.dirname, "../../supabase/config.toml"), "utf8");
 
@@ -177,30 +78,26 @@ describe("the server's account settings", () => {
     expect(config).toMatch(/\[auth\.email\][\s\S]*?^enable_confirmations = true$/m);
   });
 
-  // The template: the token reaches the page unspent, where a mail
-  // client's link checker cannot spend it, and lives five minutes.
-  it("mails a reset link that carries its token to the page, for five minutes", () => {
+  // A code, not a link: nothing a mail scanner fetches can spend it, and it
+  // works on whichever device reads the mail.
+  it.each([
+    ["confirmation", "Gital onay kodun"],
+    ["recovery", "Gital şifre yenileme kodun"],
+    ["email_change", "Gital e-posta değişikliği kodun"],
+  ])("mails the %s as a five-minute code with no link, subject or body built to pass spam filters", (kind, subject) => {
     expect(config).toMatch(/^otp_expiry = 300$/m);
-    expect(config).toMatch(/\[auth\.email\.template\.recovery\][\s\S]*?^content_path = "\.\/supabase\/templates\/recovery\.html"$/m);
-    const template = readFileSync(join(import.meta.dirname, "../../supabase/templates/recovery.html"), "utf8");
-    expect(template).toContain('href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery"');
-    expect(template).not.toContain("{{ .ConfirmationURL }}");
-    expect(template).not.toMatch(/Helix/);
+    expect(config).toMatch(new RegExp(`\\[auth\\.email\\.template\\.${kind}\\]\\nsubject = "${subject}"\\ncontent_path = "\\./supabase/templates/${kind}\\.html"$`, "m"));
+    const template = readFileSync(join(import.meta.dirname, `../../supabase/templates/${kind}.html`), "utf8");
+    expect(template).toContain("{{ .Token }}");
+    expect(template).not.toMatch(/href=|<img|TokenHash|ConfirmationURL|&#(8199|65279|847);|Helix/);
   });
 
-  // Auth's verify GET confirmed the address on whatever fetched it first, a
-  // mail client's link checker included. The token reaches the app unspent,
-  // and Auth checks it there from any browser, as a PKCE code could not be.
-  it.each([
-    ["confirmation", "email", "{{ .Email }}"],
-    ["email_change", "email_change", "{{ .NewEmail }}"],
-  ])("mails a %s link that carries its token to the app, in Gital's own words", (kind, type, address) => {
-    expect(config).toMatch(new RegExp(`\\[auth\\.email\\.template\\.${kind}\\][\\s\\S]*?^content_path = "\\./supabase/templates/${kind}\\.html"$`, "m"));
-    const template = readFileSync(join(import.meta.dirname, `../../supabase/templates/${kind}.html`), "utf8");
-    expect(template).toContain(`href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=${type}"`);
-    expect(template).toContain(address);
-    expect(template).not.toContain("{{ .ConfirmationURL }}");
-    expect(template).not.toMatch(/Helix|Gital'(e|i|in|de|den|le)\b/);
+  it("asks both addresses of an e-mail change for a code of their own, and leaves no address to come back to", () => {
+    expect(config).toMatch(/^double_confirm_changes = true$/m);
+    expect(config).toMatch(/^additional_redirect_urls = \[\]$/m);
+    const template = readFileSync(join(import.meta.dirname, "../../supabase/templates/email_change.html"), "utf8");
+    expect(template).toContain("{{ .NewEmail }}");
+    expect(template).not.toMatch(/Gital'(e|i|in|de|den|le)\b/);
   });
 
   it("lets a signed-in account delete itself and nothing else", () => {
