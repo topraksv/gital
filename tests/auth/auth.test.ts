@@ -81,9 +81,9 @@ describe("the server's account settings", () => {
   // A code, not a link: nothing a mail scanner fetches can spend it, and it
   // works on whichever device reads the mail.
   it.each([
-    ["confirmation", "Gital onay kodun"],
+    ["confirmation", "Gital hesabını onayla"],
     ["recovery", "Gital şifre yenileme kodun"],
-    ["email_change", "Gital e-posta değişikliği kodun"],
+    ["email_change", "Gital e-posta adresi değişikliği"],
   ])("mails the %s as a five-minute code with no link, subject or body built to pass spam filters", (kind, subject) => {
     expect(config).toMatch(/^otp_expiry = 300$/m);
     expect(config).toMatch(new RegExp(`\\[auth\\.email\\.template\\.${kind}\\]\\nsubject = "${subject}"\\ncontent_path = "\\./supabase/templates/${kind}\\.html"$`, "m"));
