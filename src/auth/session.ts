@@ -221,7 +221,7 @@ interface SessionStore {
 /** The code mailed to the address now on the account, and the one mailed to the address it moves to. */
 export type EmailChangeCodes = { current: string; next: string };
 /** No error is the change made; otherwise which codes Auth has already taken. */
-export type EmailChangeAnswer = { error: string | null; accepted: Record<keyof EmailChangeCodes, boolean> };
+type EmailChangeAnswer = { error: string | null; accepted: Record<keyof EmailChangeCodes, boolean> };
 
 export type AccountOperation = "sign-in" | "sign-out" | "freeze" | "delete";
 
