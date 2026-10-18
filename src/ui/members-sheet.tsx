@@ -326,7 +326,9 @@ function Invite({ list, household }: { list: { id: string; name: string }; house
     selectionTap();
     setLink(inviteLink(made.token));
   };
+  const [attempted, setAttempted] = useState(false);
   const create = async () => {
+    if (name === "") return setAttempted(true);
     setBusy(true);
     setRefused(null);
     await make().catch(() => setRefused(tr.sharing.errGeneric));
@@ -367,7 +369,14 @@ function Invite({ list, household }: { list: { id: string; name: string }; house
       )}
       <Body muted>{tr.sharing.inviteHint}</Body>
       {known ? null : (
-        <TextField label={tr.sharing.nameTitle} value={typed} onChangeText={setTyped} maxLength={NAME_MAX} examples={tr.placeholders.memberName} />
+        <TextField
+          label={tr.sharing.nameTitle}
+          value={typed}
+          onChangeText={setTyped}
+          maxLength={NAME_MAX}
+          examples={tr.placeholders.memberName}
+          error={attempted && name === "" ? tr.forms.nameRequired : null}
+        />
       )}
       {refused ? <Notice tone="error" text={refused} /> : null}
       {link ? (
@@ -378,7 +387,7 @@ function Invite({ list, household }: { list: { id: string; name: string }; house
           <Button label={tr.sharing.inviteShare} icon={Share} onPress={() => share(link)} />
         </View>
       ) : (
-        <Button label={tr.sharing.inviteCreate} icon={Link} loading={busy} disabled={busy || name === ""} onPress={create} />
+        <Button label={tr.sharing.inviteCreate} icon={Link} loading={busy} disabled={busy} onPress={create} />
       )}
     </View>
   );

@@ -313,9 +313,10 @@ function ModeLinks({ mode, busy, onSwitch, onResend }: { mode: Mode; busy: boole
   const { other, otherMode } = MODE[mode];
   return (
     <View style={{ alignItems: "center", marginTop: spacing.sm }}>
-      {mode === "signIn" ? <AuthLink label={tr.auth.forgotPassword} onPress={() => onSwitch("forgot")} disabled={busy} /> : null}
       {MODE[mode].code ? <AuthLink label={tr.auth.resendCode} onPress={onResend} disabled={busy} /> : null}
+      {/* The way to an account first: someone new looks for it, someone locked out reads on. */}
       <AuthLink label={other} onPress={() => onSwitch(otherMode)} disabled={busy} />
+      {mode === "signIn" ? <AuthLink label={tr.auth.forgotPassword} onPress={() => onSwitch("forgot")} disabled={busy} /> : null}
     </View>
   );
 }

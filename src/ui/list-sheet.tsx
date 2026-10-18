@@ -36,8 +36,9 @@ function ListSheet({
   const [color, setColor] = useState(list.color);
   const [icon, setIcon] = useState(list.icon);
   const [pantry, setPantry] = useState(list.pantry);
+  const [attempted, setAttempted] = useState(false);
   const ready = name.trim() !== "";
-  const save = () => ready && onSave({ name, color, icon, pantry });
+  const save = () => (ready ? onSave({ name, color, icon, pantry }) : setAttempted(true));
   const dirty = useDraftDirty(JSON.stringify({ name, color, icon, pantry }));
   const close = () => confirmDiscard(dirty, onClose);
 
@@ -48,6 +49,7 @@ function ListSheet({
         maxLength={NAME_MAX}
         onChangeText={setName}
         accessibilityLabel={tr.lists.nameLabel}
+        error={attempted && !ready ? tr.forms.nameRequired : null}
         returnKeyType="done"
         onSubmitEditing={save}
         style={{ marginTop: spacing.lg }}
@@ -84,7 +86,7 @@ function ListSheet({
       ) : null}
       <Actions>
         <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={close} />
-        <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
+        <Button label={tr.common.save} size="sm" onPress={save} />
       </Actions>
     </DialogShell>
   );

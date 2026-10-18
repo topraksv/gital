@@ -33,7 +33,7 @@ import { BrandMark } from "../../ui/brand";
 import { setShoppingNoticesAllowed, useShoppingNoticesAllowed } from "../../ui/members-sheet";
 import { setStayAwakeAllowed, stayAwakeAvailable, useStayAwakeAllowed } from "../../ui/stay-awake";
 import { Body, Button, Card, ChoiceTile, ListRow, Screen, SectionHeader, ToggleRow, rowsOf } from "../../ui/components";
-import { appConfirm, appError, appPrompt } from "../../ui/dialog";
+import { appError, appPrompt } from "../../ui/dialog";
 import { TourModal } from "../../ui/tour";
 import { shouldPairTiles } from "../../ui/responsive";
 import { alpha, appearanceTile, authHero, borderWidth, circle, controlSize, density, PALETTES, radius, spacing, type, useTheme, type Palette, type PaletteId, type ThemePreference } from "../../ui/theme";
@@ -118,7 +118,7 @@ export default function SettingsScreen() {
             <ListRow icon={KeyRound} title={tr.account.security} subtitle={tr.account.securityDesc} chevron onPress={() => router.push("/account-security")} />
           </Card>
           <Card rows>
-            <ListRow icon={LogOut} title={tr.account.signOut} subtitle={tr.account.signOutDescription} chevron onPress={() => void signOut()} />
+            <ListRow icon={LogOut} title={tr.account.signOut} subtitle={tr.account.signOutDescription} chevron onPress={() => void leaveAccount()} />
           </Card>
         </>
       ) : null}
@@ -179,10 +179,6 @@ function ShoppingNoticesRow() {
   return <ToggleRow icon={ShoppingBasket} title={tr.settings.shoppingNotices} subtitle={tr.settings.shoppingNoticesHint} value={on} onValueChange={setShoppingNoticesAllowed} />;
 }
 
-/** Asked before signing out; the layout asks again only if something would be lost. */
-async function signOut() {
-  if (await appConfirm(tr.account.signOutTitle, tr.account.signOutDescription, tr.account.signOut)) await leaveAccount();
-}
 
 /** Sync (SPEC 10.3): its state, when it last finished, a button to run it; what the server refused
  *  opens on its own screen, since nothing is lost and nothing is urgent. */

@@ -67,8 +67,9 @@ export function WishSheet({
   const prices = links.map((link) => readPrice(link.price));
   const ready = name.trim() !== "" && estimated.ok && prices.every((price) => price.ok);
   const lead = leadOf(links.map((link, at) => ({ key: link.key, priceMinor: prices[at]!.ok ? prices[at]!.minor : null })));
-  const save = () =>
-    ready &&
+  const [attempted, setAttempted] = useState(false);
+  const save = () => {
+    if (!ready) return setAttempted(true);
     onSave({
       name,
       note,
@@ -78,6 +79,7 @@ export function WishSheet({
       links: links.map((link, at) => ({ id: link.id, url: link.url, priceMinor: prices[at]!.ok ? prices[at]!.minor : null })),
       photo,
     });
+  };
   const submits = { returnKeyType: "done", onSubmitEditing: save } as const;
   const dirty = useDraftDirty(JSON.stringify({ name, note, priority, estimate, links, typedLink, photo: photo !== undefined, dueOn }));
   const close = () => confirmDiscard(dirty, onClose);
@@ -93,7 +95,7 @@ export function WishSheet({
 
   return (
     <DialogShell title={wish.name} titleRef={titleRef} onDismiss={close} dirty={dirty}>
-      <TextField value={name} maxLength={NAME_MAX} onChangeText={setName} accessibilityLabel={tr.wishes.nameLabel} {...submits} style={{ marginTop: spacing.lg }} />
+      <TextField value={name} maxLength={NAME_MAX} onChangeText={setName} accessibilityLabel={tr.wishes.nameLabel} error={attempted && name.trim() === "" ? tr.forms.nameRequired : null} {...submits} style={{ marginTop: spacing.lg }} />
       <TextField
         value={note}
         maxLength={NOTE_MAX}
@@ -131,6 +133,7 @@ export function WishSheet({
         value={estimate}
         onChangeText={setEstimate}
         label={tr.wishes.estimateLabel}
+        error={attempted && !estimated.ok ? tr.forms.priceInvalid : null}
         examples={tr.placeholders.estimate}
         {...submits}
         style={{ marginTop: spacing.lg }}
@@ -156,6 +159,7 @@ export function WishSheet({
                 onChangeText={(price) => setLinks(links.map((other, index) => (index === at ? { ...other, price } : other)))}
                 label={tr.wishes.linkPrice(shop)}
                 placeholder={tr.wishes.linkPrice(shop)}
+                error={attempted && !prices[at]!.ok ? tr.forms.priceInvalid : null}
                 {...submits}
               />
             </View>
@@ -190,7 +194,7 @@ export function WishSheet({
           <IconButton icon={Trash} label={tr.wishes.deleteWish(wish.name)} tone="danger" onPress={onDelete} />
         </View>
         <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={close} />
-        <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
+        <Button label={tr.common.save} size="sm" onPress={save} />
       </Actions>
     </DialogShell>
   );

@@ -13,7 +13,7 @@ import CalculatorIcon from "lucide-react-native/icons/calculator";
 import { formatQuantity, type Quantity, type Unit } from "../domain/items";
 import { formatMinorInput, formatPriceInput } from "../domain/money";
 import { tr } from "../i18n/tr";
-import { FieldLabel, TextField, fieldAccessoryStyle } from "./components";
+import { FieldError, FieldLabel, TextField, fieldAccessoryStyle } from "./components";
 import { appError } from "./dialog";
 import { interactionSurface } from "./interaction";
 import { Press } from "./press";
@@ -32,6 +32,7 @@ export function PriceField({
   onResult,
   label,
   named = false,
+  error,
   style,
   ...props
 }: Omit<TextInputProps, "value" | "onChangeText" | "style"> & {
@@ -42,6 +43,8 @@ export function PriceField({
   label: string;
   /** Draws the label above the field, as `TextField`'s own does; the accessory is laid against the field alone. */
   named?: boolean;
+  /** Under the field, not inside `TextField`: there the error would stretch the calculator's column over it. */
+  error?: string | null;
   examples?: readonly string[];
   style?: StyleProp<ViewStyle>;
 }) {
@@ -76,6 +79,7 @@ export function PriceField({
           <CalculatorIcon accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} />
         </Pressable>
       </View>
+      {error ? <FieldError text={error} /> : null}
       {sheet}
     </View>
   );

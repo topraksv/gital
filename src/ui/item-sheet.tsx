@@ -141,9 +141,11 @@ export function ItemSheet({
   // planning ("Sütaş if there is no Pınar") would tick it as bought.
   const offersBought = !moving && (item.checkedAt != null || outcome === "other");
   const paid = readPrice(offersBought ? price : "");
+  const [attempted, setAttempted] = useState(false);
   const ready = name.trim() !== "" && paid.ok;
+  const errors = itemErrors(attempted, name, paid.ok);
   const save = () => {
-    if (!ready) return;
+    if (!ready) return setAttempted(true);
     if (aisle !== placed) moveProduct(name, aisle);
     onSave(
       { name, ...quantity, note, urgent, notFound, boughtInstead: offersBought ? instead : null, priceMinor: paid.minor, photo },
@@ -173,6 +175,7 @@ export function ItemSheet({
         maxLength={NAME_MAX}
         onChangeText={setName}
         accessibilityLabel={tr.items.nameLabel}
+        error={errors.name}
         {...submits}
         style={{ marginTop: spacing.lg }}
       />
@@ -210,6 +213,7 @@ export function ItemSheet({
               before={before}
               product={{ name, ...quantity }}
               paidMinor={paid.ok ? paid.minor : null}
+              priceError={errors.price}
               instead={instead}
               price={price}
               onInstead={setInstead}
@@ -241,7 +245,7 @@ export function ItemSheet({
             <IconButton icon={Trash} label={tr.items.delete(item.name)} tone="danger" onPress={onDelete} />
           </View>
           <Button label={tr.common.cancel} variant="ghost" size="sm" onPress={close} />
-          <Button label={tr.common.save} size="sm" disabled={!ready} onPress={save} />
+          <Button label={tr.common.save} size="sm" onPress={save} />
         </Actions>
       </PanelPart>
       {calculator}
@@ -324,10 +328,19 @@ function NotFound({ value, onChange }: { value: Outcome; onChange: (outcome: Out
 }
 
 /** What was bought and paid, said to be dear when it is (SPEC 3.12): here, because the row has no room for the sentence. */
+/** Red only after a refused save: nothing is wrong before the person has tried. */
+function itemErrors(attempted: boolean, name: string, paidOk: boolean) {
+  return {
+    name: attempted && name.trim() === "" ? tr.forms.nameRequired : null,
+    price: attempted && !paidOk ? tr.forms.priceInvalid : null,
+  };
+}
+
 function Bought({
   before,
   product,
   paidMinor,
+  priceError,
   instead,
   price,
   onInstead,
@@ -336,6 +349,7 @@ function Bought({
 }: {
   before: readonly BoughtBefore[];
   product: Quantity & { name: string };
+  priceError: string | null;
   paidMinor: number | null;
   instead: string;
   price: string;
@@ -358,7 +372,7 @@ function Bought({
         style={{ marginTop: spacing.sm }}
       />
       <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
-        <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} named examples={tr.placeholders.price} {...submits} />
+        <PriceField value={price} onChangeText={onPrice} label={tr.items.priceLabel} named error={priceError} examples={tr.placeholders.price} {...submits} />
         {rise == null ? null : <Text style={[type.small, { color: palette.warningText }]}>{tr.items.priceRise(rise)}</Text>}
       </View>
     </>

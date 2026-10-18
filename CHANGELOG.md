@@ -12,6 +12,9 @@ bölümü olmayan sürüm yayımlanamaz.
 
 ### Patch Changes
 
+- Giriş ekranında "Hesap oluştur" bağlantısı "Şifremi unuttum"un üstünde; kod e-postası gelmezse gereksiz (spam) klasörüne bakman hatırlatılıyor.
+- Çıkış soru sormadan yapılıyor; gönderilmemiş değişiklik varsa uyarıyor.
+- Kaydet düğmeleri eksik alanda sönmüyor; dokununca eksik ad ya da geçersiz fiyat kırmızıyla gösteriliyor.
 - Kayıt onayı, şifre sıfırlama ve e-posta değişikliği bağlantıyla değil, e-postana gelen 6 haneli kodla yapılıyor; kodu uygulamaya yazıyorsun.
 - E-posta değişikliğinde şu anki ve yeni adresine birer kod geliyor; ikisini de Hesap ve Güvenlik'te aynı karta yazıyorsun. Yanlış yazılan kodun hangi adrese ait olduğu söyleniyor, doğru olan saklanıyor.
 - Hesap ve Güvenlik'te "Şifremi unuttum" kodu ve yeni şifreyi aynı kartta istiyor; kodu tekrar isteyebilir ya da vazgeçebilirsin.
