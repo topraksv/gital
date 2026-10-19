@@ -15,7 +15,7 @@ bölümü olmayan sürüm yayımlanamaz.
 - Giriş ekranında "Hesap oluştur" bağlantısı "Şifremi unuttum"un üstünde; kod e-postası gelmezse gereksiz (spam) klasörüne bakman hatırlatılıyor.
 - Çıkış soru sormadan yapılıyor; gönderilmemiş değişiklik varsa uyarıyor.
 - Kaydet düğmeleri eksik alanda sönmüyor; dokununca eksik ad ya da geçersiz fiyat kırmızıyla gösteriliyor.
-- Expo Go'da açılışta logo iki kez görünmüyor: Expo Go'nun gösterdiği simgeden sonra ikinci bir çizim gelmiyor.
+- Açılış logosu Expo Go'da da yalnız ilk açılışta ve bir kez çiziliyor.
 - İç düzen: liste, kiler ve istek listesindeki ekleme satırı tek bileşen; veritabanı, cihaz deposu ve paylaşma için testler eklendi.
 
 ## 1.8.2
