@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { Animated, Platform, StyleSheet, type ViewStyle } from "react-native";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as SplashScreen from "expo-splash-screen";
 
 import { BrandMark } from "./brand";
@@ -21,9 +22,13 @@ import { brandMark, motion, useTheme } from "./theme";
  * (`assets/brand/splash-blank.png`, transparent: the plugin's Android 12
  * theme names an icon drawable whether or not an image is given): a splash showing the finished mark
  * handed over to this one starting from nothing, so the owner saw the logo
- * twice. Expo Go shows the app icon in its place, which no setting reaches.
+ * twice. Expo Go shows the app icon in its place, which no setting reaches, so
+ * there the icon is the one mark: the splash holds until the app is ready and
+ * the app shows without a drawing after it.
  */
 const MARK_WIDTH = 150;
+
+const SPLASH_SHOWS_ICON = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 /** `shown` waits for the palette; `ready` is the app's first screen drawn under this one. */
 export function Launch({ shown, ready }: { shown: boolean; ready: boolean }) {
@@ -32,13 +37,14 @@ export function Launch({ shown, ready }: { shown: boolean; ready: boolean }) {
   const [drawn, setDrawn] = useState(false);
   const [gone, setGone] = useState(false);
   const [opacity] = useState(() => new Animated.Value(1));
-  const done = ready && (drawn || reducedMotion);
+  const still = reducedMotion || SPLASH_SHOWS_ICON;
+  const done = ready && (drawn || still);
 
   useEffect(() => {
-    if (!shown || reducedMotion) return;
+    if (!shown || still) return;
     const timer = setTimeout(() => setDrawn(true), brandMark.launch.draw + brandMark.launch.rest);
     return () => clearTimeout(timer);
-  }, [shown, reducedMotion]);
+  }, [shown, still]);
 
   useEffect(() => {
     if (!done) return;
@@ -48,22 +54,22 @@ export function Launch({ shown, ready }: { shown: boolean; ready: boolean }) {
     // RN Web's JS-driven opacity repaints the whole window every frame while
     // the first screen mounts under it; CSS fades it off the main thread, as
     // the theme veil does.
-    if (Platform.OS === "web" || reducedMotion) {
-      const timer = setTimeout(() => setGone(true), reducedMotion ? 0 : brandMark.launch.fade + motion.fadeTail);
+    if (Platform.OS === "web" || still) {
+      const timer = setTimeout(() => setGone(true), still ? 0 : brandMark.launch.fade + motion.fadeTail);
       return () => clearTimeout(timer);
     }
     const animation = Animated.timing(opacity, { toValue: 0, duration: brandMark.launch.fade, useNativeDriver: true });
     animation.start(({ finished }) => finished && setGone(true));
     return () => animation.stop();
-  }, [done, reducedMotion, opacity]);
+  }, [done, still, opacity]);
 
   if (!shown || gone) return null;
-  const leaving = done && !reducedMotion;
+  const leaving = done && !still;
   return (
     <Animated.View
       // Hidden only once a frame of this screen is laid out, so the native
       // splash gives way to the same ground with no blank frame between.
-      onLayout={() => SplashScreen.hide()}
+      onLayout={SPLASH_SHOWS_ICON ? undefined : () => SplashScreen.hide()}
       pointerEvents={leaving ? "none" : "auto"}
       style={[
         StyleSheet.absoluteFill,
@@ -78,7 +84,7 @@ export function Launch({ shown, ready }: { shown: boolean; ready: boolean }) {
           : { opacity },
       ]}
     >
-      <BrandMark height={MARK_WIDTH / ASPECT} duration={brandMark.launch.draw} named />
+      {SPLASH_SHOWS_ICON ? null : <BrandMark height={MARK_WIDTH / ASPECT} duration={brandMark.launch.draw} named />}
     </Animated.View>
   );
 }

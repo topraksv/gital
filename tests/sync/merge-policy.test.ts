@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyOutboxBatch,
+  cursorInstant,
   cursorIsAtServerHead,
   formatPullCursor,
   isAddedAgain,
@@ -100,6 +101,25 @@ describe("the pull cursor", () => {
     expect(cursorIsAtServerHead(HEAD, { ...HEAD, ts: "2026-09-02T10:00:01.000Z" })).toBe(false);
     expect(cursorIsAtServerHead(parsePullCursor(null), HEAD)).toBe(false);
     expect(cursorIsAtServerHead(HEAD, { ...HEAD, ts: "not a date" })).toBe(false);
+  });
+
+  it("reads an id written with no instant before it as the id", () => {
+    expect(parsePullCursor("|aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).toEqual({ ts: "", id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+  });
+
+  it("keeps the server's microseconds, and reads an instant without them as whole milliseconds", () => {
+    expect(cursorInstant("2026-09-02T10:00:00.123456+00:00")).toBe("2026-09-02T10:00:00.123456Z");
+    expect(cursorInstant("2026-09-02T10:00:00Z")).toBe("2026-09-02T10:00:00.000Z");
+  });
+});
+
+describe("a pulled row's clock", () => {
+  it("never lets a stamp that is not a date win, even over a row with none", () => {
+    expect(remoteWinsLww(null, "not a date")).toBe(false);
+  });
+
+  it("is not UUID-shaped with a short last group", () => {
+    expect(isUuidShaped("019f6bba-2c65-7ea8-a6c9-96d8911")).toBe(false);
   });
 });
 

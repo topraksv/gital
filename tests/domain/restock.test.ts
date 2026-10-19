@@ -66,4 +66,11 @@ describe("restockDue", () => {
     expect(restockDue([bought("Süt", 10)], [], on(13), lasted)).toMatchObject([{ everyDays: 3 }]);
     expect(restockDue(every5, [], on(15), new Map([["sut", [3 * DAY]]]))).toMatchObject([{ everyDays: 5 }]);
   });
+
+  it("takes an even count's rhythm halfway between its two middle stays, and two stays are enough", () => {
+    const lasted = new Map([["sut", [6 * DAY, 2 * DAY]]]);
+    expect(restockDue([bought("Süt", 10)], [], on(14), lasted)).toMatchObject([{ everyDays: 4 }]);
+    // One purchase with nothing measured is no rhythm at all.
+    expect(restockDue([bought("Süt", 10)], [], on(14))).toEqual([]);
+  });
 });

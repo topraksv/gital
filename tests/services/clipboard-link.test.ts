@@ -56,3 +56,9 @@ it("makes a clipboard the phone refuses no offer rather than an error", async ()
   phone.text = undefined as unknown as string;
   await expect(clipboardOffer()).resolves.toBeNull();
 });
+
+// A browser asks before a page reads the clipboard (SPEC 2.9), so the web stand-in offers nothing.
+it("offers nothing on the web", async () => {
+  const web = await import("../../src/services/clipboard-link");
+  await expect(web.clipboardOffer()).resolves.toBeNull();
+});

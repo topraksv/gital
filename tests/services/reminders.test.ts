@@ -156,3 +156,21 @@ describe("a tap on a reminder", () => {
     expect(opened).toEqual([{ pathname: "/" }]);
   });
 });
+
+// `expo-notifications` schedules on phones only (SPEC 12.1); Settings hides the switch on this answer.
+describe("on the web", () => {
+  it("has no reminders: switching on is refused and nothing is scheduled", async () => {
+    const web = await import("../../src/services/reminders");
+    expect(web.remindersAvailable).toBe(false);
+    await expect(web.enableReminders()).resolves.toBe(false);
+    await expect(web.disableReminders()).resolves.toBeUndefined();
+    await expect(web.replanReminders()).resolves.toBeUndefined();
+    await expect(web.cancelReminders()).resolves.toBeUndefined();
+    const open = vi.fn();
+    const stop = web.followReminderTaps(open);
+    expect(stop).toBeTypeOf("function");
+    stop();
+    expect(open).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+  });
+});

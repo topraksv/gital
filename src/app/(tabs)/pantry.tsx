@@ -21,7 +21,7 @@ import { tr } from "../../i18n/tr";
 import { useModalAccessibility } from "../../ui/accessibility";
 import { QuantityFace, useCalculator } from "../../ui/calculator";
 import { DateField } from "../../ui/calendar";
-import { AisleHeader, ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SlideUp, cardEdge, itemDetail, RowOpen, RowTick, TextField } from "../../ui/components";
+import { AisleHeader, ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, ReadFailed, Screen, SlideUp, cardEdge, itemDetail, RowOpen, RowTick, EntryRow } from "../../ui/components";
 import { CatalogueSheet } from "../../ui/catalogue-sheet";
 import { Actions, DialogShell, appError, appPrompt } from "../../ui/dialog";
 import { SortSections, SortToggle } from "../../ui/draggable-list";
@@ -198,23 +198,19 @@ function PantryAdd({ held }: { held: readonly PantryItem[] }) {
   };
   return (
     <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-        <TextField
-          ref={field}
-          value={text}
-          onChangeText={setText}
-          onSubmitEditing={() => void add()}
-          blurOnSubmit={false}
-          returnKeyType="done"
-          accessibilityLabel={tr.pantry.addLabel}
-          examples={tr.placeholders.pantryAdd}
-          maxLength={ENTRY_MAX}
-          style={{ flex: 1 }}
-        />
+      <EntryRow
+        ref={field}
+        value={text}
+        onChangeText={setText}
+        onSubmitEditing={() => void add()}
+        accessibilityLabel={tr.pantry.addLabel}
+        examples={tr.placeholders.pantryAdd}
+        maxLength={ENTRY_MAX}
+      >
         {/* The list's order, so the two fields read as one. */}
         <IconButton icon={LayoutGrid} label={tr.catalogue.open} field onPress={() => setBrowsing(true)} />
         <IconButton icon={Plus} label={tr.pantry.add} tone="primary" field onPress={() => void add()} />
-      </View>
+      </EntryRow>
       {browsing ? (
         <CatalogueSheet
           items={held}

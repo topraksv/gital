@@ -57,3 +57,17 @@ describe("onScanned", () => {
     expect(phone.listener).toBeNull();
   });
 });
+
+// The web bundles the stand-in (SPEC 2.8), and the list hides its scan button on this answer.
+describe("on the web", () => {
+  it("has no scanner, never opens one, and hears no code", async () => {
+    const web = await import("../../src/services/barcode-scan");
+    const read = vi.fn();
+    expect(web.canScan).toBe(false);
+    await expect(web.launchScanner()).resolves.toBe(false);
+    const stop = web.onScanned(read);
+    expect(stop).toBeTypeOf("function");
+    stop();
+    expect(read).not.toHaveBeenCalled();
+  });
+});

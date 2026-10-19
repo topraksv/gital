@@ -29,7 +29,7 @@ import { tr } from "../../i18n/tr";
 import { lookUpBarcode, type ScannedProduct } from "../../services/barcode";
 import { canScan, launchScanner, onScanned } from "../../services/barcode-scan";
 import { shareText } from "../../services/share";
-import { AisleHeader, ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, TextField, announce, cardEdge, RowOpen, RowTick } from "../../ui/components";
+import { AisleHeader, ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, EntryRow, announce, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { selectionTap, successNotice } from "../../ui/haptics";
 import { FinishedCard, type ShopSummary } from "../../ui/celebration";
@@ -476,25 +476,19 @@ function QuickAdd({
 
   return (
     <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-        <TextField
-          ref={field}
-          value={text}
-          onChangeText={setText}
-          onSubmitEditing={() => add(parseEntry(text, knowsProduct([...items, ...purchases])))}
-          // Enter adds and keeps the keyboard up (SPEC 2.1). React Native Web
-          // reads `blurOnSubmit` and not `submitBehavior`, so the older prop.
-          blurOnSubmit={false}
-          returnKeyType="done"
-          accessibilityLabel={tr.items.addLabel}
-          examples={tr.placeholders.itemAdd}
-          maxLength={ENTRY_MAX}
-          style={{ flex: 1 }}
-        />
+      <EntryRow
+        ref={field}
+        value={text}
+        onChangeText={setText}
+        onSubmitEditing={() => add(parseEntry(text, knowsProduct([...items, ...purchases])))}
+        accessibilityLabel={tr.items.addLabel}
+        examples={tr.placeholders.itemAdd}
+        maxLength={ENTRY_MAX}
+      >
         {canScan ? <ScanButton listId={listId} /> : null}
         <IconButton icon={LayoutGrid} label={tr.catalogue.open} field onPress={() => setBrowsing(true)} />
         <IconButton icon={Plus} label={tr.items.add} tone="primary" field onPress={() => add(parseEntry(text, knowsProduct([...items, ...purchases])))} />
-      </View>
+      </EntryRow>
       {asking ? (
         <SlideUp distance={motion.travel.rise}>
           <View accessibilityLiveRegion="polite" style={{ gap: spacing.sm }}>

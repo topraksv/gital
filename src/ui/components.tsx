@@ -1,6 +1,6 @@
 /** The primitives every screen is built from: screens, cards, fields, rows, tiles, buttons and notices. */
 
-import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { Fragment, createContext, useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode, type Ref } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -1067,6 +1067,20 @@ export function TextField({
         {secure ? <PasswordEye hidden={hidden} onPress={() => setHidden(!hidden)} /> : null}
       </View>
       {error ? <FieldError text={error} /> : null}
+    </View>
+  );
+}
+
+/**
+ * The add row atop a list: the field takes the width and its buttons follow
+ * at its height. Enter adds and keeps the keyboard up (SPEC 2.1); React Native
+ * Web reads `blurOnSubmit` and not `submitBehavior`, so the older prop.
+ */
+export function EntryRow({ children, ...field }: ComponentProps<typeof TextField> & { children: ReactNode }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+      <TextField blurOnSubmit={false} returnKeyType="done" style={{ flex: 1 }} {...field} />
+      {children}
     </View>
   );
 }

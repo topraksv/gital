@@ -13,7 +13,7 @@ import { addWish, deleteWishes, restoreWish, saveWish, toggleWishBought, type Co
 import { LINK_MAX, WISH_ORDERS, leadOf, shopOf, sortWishes, type Wish, type WishOrder } from "../../domain/wishes";
 import { formatMinor } from "../../domain/money";
 import { tr } from "../../i18n/tr";
-import { ArrivalScope, Body, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, TextField, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
+import { ArrivalScope, Body, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, EntryRow, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError } from "../../ui/dialog";
 import { selectionTap } from "../../ui/haptics";
 import type { MemberRole } from "../../db/schema";
@@ -237,22 +237,18 @@ function AddWish({ listId, open }: { listId: string; open: readonly { name: stri
   };
   return (
     <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-        <TextField
-          ref={field}
-          value={text}
-          onChangeText={setText}
-          onSubmitEditing={() => void add()}
-          blurOnSubmit={false}
-          returnKeyType="done"
-          autoCapitalize="none"
-          accessibilityLabel={tr.wishes.addLabel}
-          examples={tr.placeholders.wishAdd}
-          maxLength={LINK_MAX}
-          style={{ flex: 1 }}
-        />
+      <EntryRow
+        ref={field}
+        value={text}
+        onChangeText={setText}
+        onSubmitEditing={() => void add()}
+        autoCapitalize="none"
+        accessibilityLabel={tr.wishes.addLabel}
+        examples={tr.placeholders.wishAdd}
+        maxLength={LINK_MAX}
+      >
         <IconButton icon={Plus} label={tr.wishes.add} tone="primary" field onPress={() => void add()} />
-      </View>
+      </EntryRow>
       {text ? (
         <WishSuggestions
           text={text}

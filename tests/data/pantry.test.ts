@@ -228,7 +228,7 @@ describe("setStock", () => {
   it("finishes the product at nothing, and refuses what is not an amount", async () => {
     await shop(market, "süt");
     const id = await idOf("Süt");
-    for (const bad of [-1000, 1.5, Number.NaN]) await expect(setStock(id, bad)).rejects.toThrow();
+    for (const bad of [-1000, 1.5, Number.NaN]) await expect(setStock(id, bad)).rejects.toThrow("A stock is whole thousandths");
     expect((await setStock(id, 0))?.listName).toBe("Market");
     expect(await stock()).toEqual([]);
   });
@@ -285,7 +285,7 @@ describe("finishPantryItem", () => {
     const id = await idOf("Süt");
     await finishPantryItem(id);
     await expect(finishPantryItem(id)).rejects.toThrow();
-    await expect(takeSome(id)).rejects.toThrow();
+    await expect(takeSome(id)).rejects.toThrow("Cannot use what is not at home");
   });
 });
 
@@ -320,7 +320,7 @@ describe("setExpiry", () => {
 
   it("refuses a day that is not one", async () => {
     await shop(market, "süt");
-    await expect(setExpiry(await idOf("Süt"), "2026-02-30")).rejects.toThrow();
+    await expect(setExpiry(await idOf("Süt"), "2026-02-30")).rejects.toThrow("An expiry is a calendar day");
   });
 
   it("goes with the stay: finishing clears it, and its undo brings it back", async () => {

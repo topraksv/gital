@@ -307,7 +307,7 @@ describe("updateItem", () => {
 
   it("refuses an empty name, and an item deleted under the screen", async () => {
     const [id] = await addItems(listId, "süt");
-    await expect(updateItem(id!, as("  "))).rejects.toThrow();
+    await expect(updateItem(id!, as("  "))).rejects.toThrow("An item needs a name");
     await deleteItems([id!]);
     await expect(updateItem(id!, as("Ayran"))).rejects.toThrow();
   });
@@ -488,7 +488,7 @@ describe("a price", () => {
   it("refuses a price that is not whole, non-negative kuruş", async () => {
     const [sut] = await addItems(listId, "süt");
     for (const priceMinor of [-1, 12.5, Number.NaN, 100_000_000_000_000]) {
-      await expect(updateItem(sut!, { ...as("Süt"), priceMinor }), String(priceMinor)).rejects.toThrow();
+      await expect(updateItem(sut!, { ...as("Süt"), priceMinor }), String(priceMinor)).rejects.toThrow("A price is whole kuruş");
     }
     expect(stored(sut!)).toMatchObject({ price_minor: null, checked_at: null });
   });
@@ -561,7 +561,7 @@ describe("a save that sends an item to another list, and its undo", () => {
     const pazar = await createList("Pazar");
     await deleteLists([pazar]);
     await expect(send(sut!, as("Süt"), pazar)).rejects.toThrow();
-    await expect(send(sut!, as("Süt"), listId, true)).rejects.toThrow();
+    await expect(send(sut!, as("Süt"), listId, true)).rejects.toThrow("An item is sent to another list");
     const again = await send(sut!, as("Süt"), eczane);
     await deleteLists([listId]);
     await expect(undoSave(again.written, listId)).rejects.toThrow();
@@ -619,7 +619,7 @@ describe("a photo", () => {
     expect(await readItems(listId)).toMatchObject([{ id, name: "Süt", quantityMilli: 2000, note: "Pınar", photo: shot("b").thumb }]);
     const bare = await addScanned(listId, { name: "Zeytin", note: null, photo: null });
     expect((await readItems(listId)).find((item) => item.id === bare)).toMatchObject({ name: "Zeytin", note: null, photoId: null });
-    await expect(addScanned(listId, { name: "  ", note: null, photo: null })).rejects.toThrow();
+    await expect(addScanned(listId, { name: "  ", note: null, photo: null })).rejects.toThrow("An item needs a name");
   });
 
   it("reads as nothing where the photo has not reached this device", async () => {
