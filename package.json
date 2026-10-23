@@ -96,6 +96,9 @@
     "esbuild": "^0.25.12",
     "typed-rest-client": {
       "qs": "^6.16.0"
+    },
+    "@expo/cli": {
+      "zod": "^4.6.6"
     }
   }
 }
