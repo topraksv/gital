@@ -8,6 +8,8 @@
 
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+// Named, not through the namespace: eslint-plugin-import cannot follow expo-notifications 58's re-exported enums.
+import { AndroidImportance, IosAuthorizationStatus } from "expo-notifications";
 
 import { readItems } from "../data/items";
 import { readLists } from "../data/lists";
@@ -31,15 +33,15 @@ function granted(status: Notifications.NotificationPermissionsStatus): boolean {
   if (Platform.OS !== "ios") return status.granted;
   const ios = status.ios?.status;
   return (
-    ios === Notifications.IosAuthorizationStatus.AUTHORIZED ||
-    ios === Notifications.IosAuthorizationStatus.PROVISIONAL ||
-    ios === Notifications.IosAuthorizationStatus.EPHEMERAL
+    ios === IosAuthorizationStatus.AUTHORIZED ||
+    ios === IosAuthorizationStatus.PROVISIONAL ||
+    ios === IosAuthorizationStatus.EPHEMERAL
   );
 }
 
 async function ensureChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
-  await Notifications.setNotificationChannelAsync(CHANNEL, { name: tr.reminders.title, importance: Notifications.AndroidImportance.DEFAULT });
+  await Notifications.setNotificationChannelAsync(CHANNEL, { name: tr.reminders.title, importance: AndroidImportance.DEFAULT });
 }
 
 /** Asked only from Ayarlar's switch; `false` when the phone refused. */
