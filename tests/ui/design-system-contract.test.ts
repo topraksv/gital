@@ -221,8 +221,9 @@ describe("the floating tab bar", () => {
 describe("theme.ts holds the only literals", () => {
   const sources = sourceFiles("src", { atLeast: 120 }).filter((path) => path !== join("src", "ui", "theme.ts"));
 
-  // A quoted pair of hex digits is an alpha channel appended to a palette hex.
-  const COLOUR = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(|"[0-9a-f]{2}"/i;
+  // A pair of hex digits appended to a palette colour is an alpha channel; a
+  // quoted pair alone is not, or every "01" and "20" in a parser would be one.
+  const COLOUR = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(|\+\s*"[0-9a-f]{2}"|\}[0-9a-f]{2}`/i;
   // `\w*` before Width and Height, so a stroke or border weight is a size too.
   const RAW_SIZE =
     /\b(?:margin|padding|gap|top|bottom|left|right|\w*[wW]idth|\w*[hH]eight|size|fontSize|lineHeight|borderRadius|duration)\w*\s*[:=]\s*\{?-?(?:[1-9]|0\.\d)/;

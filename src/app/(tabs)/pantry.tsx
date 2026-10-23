@@ -1,5 +1,13 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, Platform, Text, View, type TextInput } from "react-native";
+import {
+  Animated,
+  Easing,
+  Platform,
+  Text,
+  View,
+  type TextInputInstance,
+  type ViewInstance,
+} from "react-native";
 import ClipboardPaste from "lucide-react-native/icons/clipboard-paste";
 import LayoutGrid from "lucide-react-native/icons/layout-grid";
 import Trash from "lucide-react-native/icons/trash";
@@ -173,7 +181,7 @@ const listed = (item: PantryItem): ListedEntry => ({ name: item.name, quantityMi
 function PantryAdd({ held }: { held: readonly PantryItem[] }) {
   const [text, setText] = useState("");
   const [browsing, setBrowsing] = useState(false);
-  const field = useRef<TextInput>(null);
+  const field = useRef<TextInputInstance>(null);
   const add = async (entries = parseEntry(text, knowsProduct(held))) => {
     if (entries.length === 0) return;
     setText("");
@@ -273,7 +281,7 @@ function PantryRow({
   onSelect?: () => void;
   onToggle: () => void;
 }) {
-  const rowRef = useRef<View>(null);
+  const rowRef = useRef<ViewInstance>(null);
   const [flight] = useState(() => new Animated.Value(0));
   const [path, setPath] = useState({ dx: 0, dy: 0 });
   // A second tap mid-flight would finish a product already finished, and its

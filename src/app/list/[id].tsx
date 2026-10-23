@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, ScrollView, StyleSheet, Text, View, type TextInput } from "react-native";
+import { Animated, ScrollView, StyleSheet, Text, View, type TextInputInstance } from "react-native";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import Check from "lucide-react-native/icons/check";
 import CheckCheck from "lucide-react-native/icons/check-check";
@@ -429,7 +429,7 @@ function QuickAdd({
   const [browsing, setBrowsing] = useState(false);
   // An entry held while one of its items is asked about (SPEC 2.14).
   const [asking, setAsking] = useState<{ entries: Entry[]; at: number; product: CatalogueProduct; typed: string } | null>(null);
-  const field = useRef<TextInput>(null);
+  const field = useRef<TextInputInstance>(null);
 
   // The household's products are read only for a name the catalogue nearly
   // is: they are watched only while suggestions are shown.

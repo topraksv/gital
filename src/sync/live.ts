@@ -35,6 +35,11 @@ export async function startLive(options: LiveOptions): Promise<void> {
   if (run !== generation) return;
   close();
   const client = new RealtimeClient(`${options.url}/realtime/v1`, { params: { apikey: options.apiKey }, accessToken: options.accessToken });
+  // A channel joins with the token it has when it subscribes, and the callback
+  // has not answered yet: joined as anon, a private channel is refused and
+  // retried seconds later, and a nudge in between is lost.
+  await client.setAuth();
+  if (run !== generation) return void quietly(client.disconnect());
   session = { client, options, channels: new Map() };
   follow();
 }

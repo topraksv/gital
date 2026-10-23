@@ -12,6 +12,7 @@
  * the account is new when its first sync here brings no list, read from the
  * database once that sync has finished rather than from a screen's query,
  * which may not have caught up. A build with no cloud has only this device.
+ * It waits for the launch screen to leave, or it opens over the mark drawing.
  */
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -25,6 +26,7 @@ import { kv } from "../services/kv";
 import { useModalAccessibility } from "./accessibility";
 import { Button, SlideUp, usePulledOnce } from "./components";
 import { Actions, DialogShell } from "./dialog";
+import { useLaunched } from "./launch";
 import { circle, font, iconSize, iconStroke, motion, radius, spacing, tour, type, useTheme, type Palette } from "./theme";
 
 const SEEN_KEY = "gital.tour.seen";
@@ -32,7 +34,8 @@ const SLIDES = tr.tour.slides;
 
 /** Mounted on Listeler: the one screen every first open reaches. */
 export function FirstRunTour() {
-  const settled = usePulledOnce();
+  const launched = useLaunched();
+  const settled = usePulledOnce() && launched;
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!settled) return;

@@ -8,6 +8,14 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.8.4
+
+### Patch Changes
+
+- Uygulama Expo SDK 58'e geçti: telefonda Expo Go'yu güncellemen gerekiyor (App Store'da 58.0.5 ve sonrası).
+- Ortak bir listede yapılan değişiklik, uygulama açılır açılmaz diğer cihaza anında düşüyor; açılıştaki ilk saniyelerde gelen değişiklik artık kaçmıyor.
+- İlk açılış turu açılış logosunun üstünde açılmıyor; logo bitince geliyor.
+
 ## 1.8.3
 
 ### Patch Changes

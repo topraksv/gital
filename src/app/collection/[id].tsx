@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { Text, View, type TextInput } from "react-native";
+import { Text, View, type TextInputInstance } from "react-native";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import ArrowUpDown from "lucide-react-native/icons/arrow-up-down";
 import Check from "lucide-react-native/icons/check";
@@ -223,7 +223,7 @@ function OpenTotal({ totalMinor }: { totalMinor: number }) {
 /** A name or a pasted link; a link becomes a wish named after its shop (SPEC 7.1). */
 function AddWish({ listId, open }: { listId: string; open: readonly { name: string }[] }) {
   const [text, setText] = useState("");
-  const field = useRef<TextInput>(null);
+  const field = useRef<TextInputInstance>(null);
   const add = async (typed = text) => {
     if (typed.trim() === "") return;
     setText("");

@@ -7,6 +7,7 @@ class FakeChannel {
   constructor(
     readonly topic: string,
     readonly options: unknown,
+    readonly token: string | null,
   ) {}
   on(type: string, filter: { event: string }, handler: Handler) {
     this.handlers.set(`${type}:${filter.event}`, handler);
@@ -25,14 +26,19 @@ class FakeClient {
   channels: FakeChannel[] = [];
   removed: FakeChannel[] = [];
   disconnected = false;
+  token: string | null = null;
   constructor(
     readonly endpoint: string,
     readonly options: { params: { apikey: string }; accessToken: () => Promise<string | null> },
   ) {
     clients.push(this);
   }
+  // The real client sends the token it holds when a channel joins.
+  async setAuth() {
+    this.token = await this.options.accessToken();
+  }
   channel(topic: string, options: unknown) {
-    const made = new FakeChannel(topic, options);
+    const made = new FakeChannel(topic, options, this.token);
     this.channels.push(made);
     return made;
   }
@@ -73,6 +79,7 @@ describe("live lists", () => {
     expect(await client().options.accessToken()).toBe("jwt");
     expect(client().channels.map((c) => c.topic)).toEqual([`user:${ME}`, "list:a", "list:b"]);
     expect(channelOf("a").options).toEqual({ config: { private: true } });
+    expect(client().channels.map((c) => c.token)).toEqual(["jwt", "jwt", "jwt"]);
   });
 
   it("follows the lists as they change: a new one joined, one left dropped, one kept not joined twice", async () => {
@@ -81,6 +88,8 @@ describe("live lists", () => {
     followLists(["b", "c"]);
     expect(client().channels.map((c) => c.topic)).toEqual([`user:${ME}`, "list:a", "list:b", "list:c"]);
     expect(client().removed.map((c) => c.topic)).toEqual(["list:a"]);
+    followLists(["a"]);
+    expect(client().channels.map((c) => c.topic), "one left is joined afresh when it comes back").toEqual([`user:${ME}`, "list:a", "list:b", "list:c", "list:a"]);
   });
 
   it("pulls when someone else moved a list, and not for the person's own push", async () => {
@@ -113,6 +122,18 @@ describe("live lists", () => {
     expect(clients).toHaveLength(1);
     followLists(["b"]);
     expect(first.channels).toHaveLength(2);
+  });
+
+  it("closes a client whose start was overtaken while its token was asked for", async () => {
+    followLists(["a"]);
+    let answer!: (token: string) => void;
+    const late = startLive({ url: "https://x.supabase.co", apiKey: "anon", accessToken: () => new Promise((resolve) => (answer = resolve)), userId: ME, onMoved });
+    await vi.waitFor(() => expect(clients).toHaveLength(1));
+    stopLive();
+    answer("jwt");
+    await late;
+    expect(client().disconnected).toBe(true);
+    expect(client().channels).toHaveLength(0);
   });
 
   it("starts again cleanly, following what it was told before", async () => {

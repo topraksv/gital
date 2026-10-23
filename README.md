@@ -18,7 +18,7 @@ list fed by links and photos. iOS, Android and the web from one codebase.*
 
 [![ci](https://github.com/topraksv/gital/actions/workflows/ci.yml/badge.svg)](https://github.com/topraksv/gital/actions/workflows/ci.yml)
 [![sürüm](https://img.shields.io/github/v/release/topraksv/gital?label=s%C3%BCr%C3%BCm&color=A55335)](https://github.com/topraksv/gital/releases)
-[![Expo SDK 57](https://img.shields.io/badge/Expo-SDK%2057-0F0F0D?logo=expo&logoColor=white)](https://docs.expo.dev/versions/v57.0.0/)
+[![Expo SDK 58](https://img.shields.io/badge/Expo-SDK%2058-0F0F0D?logo=expo&logoColor=white)](https://docs.expo.dev/versions/v58.0.0/)
 [![Node 22](https://img.shields.io/badge/Node-22-0F0F0D?logo=nodedotjs&logoColor=5FA04E)](#geliştirici-kurulumu)
 [![Proprietary](https://img.shields.io/badge/license-proprietary-A55335)](LICENSE)
 
@@ -127,7 +127,7 @@ sayfasında, tag'iyle birlikte duruyor; aynı notlar [CHANGELOG.md](CHANGELOG.md
 içinde.
 
 Telefonlar uygulamayı Expo Go'da açar; development client yok ve mobil kullanım
-Expo Go'nun SDK 57 ile sunduğu native kütüphanelerle sınırlı. TestFlight için
+Expo Go'nun SDK 58 ile sunduğu native kütüphanelerle sınırlı. TestFlight için
 bir EAS Build profili (`eas.json` `production`) hazır, henüz hiç koşmadı.
 
 ---
@@ -167,7 +167,7 @@ Gital, Helix'in tasarım dilini taşır ve ona biraz daha hareket ekler.
 
 ## Geliştirici kurulumu
 
-> **Node 22 zorunlu** (`.nvmrc`) — Expo SDK 57'nin derleyip test ettiği sürüm.
+> **Node 22 zorunlu** (`.nvmrc`) — Expo SDK 58'in derleyip test ettiği sürüm.
 
 ```bash
 git clone https://github.com/topraksv/gital.git

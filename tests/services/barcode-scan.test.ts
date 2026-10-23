@@ -49,10 +49,11 @@ describe("onScanned", () => {
     const read: string[] = [];
     const stop = onScanned((code) => read.push(code));
     phone.listener!({ type: "ean13", data: "8690000000001" });
+    expect(phone.dismissed).toBe(1);
     phone.os = "android";
     phone.listener!({ type: "ean13", data: "8690000000002" });
     expect(read).toEqual(["8690000000001", "8690000000002"]);
-    expect(phone.dismissed).toBe(1);
+    expect(phone.dismissed, "Android closes its own").toBe(1);
     stop();
     expect(phone.listener).toBeNull();
   });
