@@ -491,14 +491,14 @@
       "measuredDate": "2026-10-19"
     },
     "src/sync/live.ts": {
-      "score": 91.07,
-      "killed": 51,
+      "score": 93.22,
+      "killed": 55,
       "timeout": 0,
-      "survived": 5,
+      "survived": 4,
       "noCoverage": 0,
-      "cost": 2010,
-      "measuredOn": "8ad9f893915d0494c9e9aaf09fd8abe7fde37335",
-      "measuredDate": "2026-10-19"
+      "cost": 2030,
+      "measuredOn": "627821d6549c5bcd7ff34139831a85d50b80e070",
+      "measuredDate": "2026-10-23"
     },
     "src/sync/merge-policy.ts": {
       "score": 92.14,
