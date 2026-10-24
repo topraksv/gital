@@ -29,7 +29,7 @@ import { tr } from "../../i18n/tr";
 import { lookUpBarcode, type ScannedProduct } from "../../services/barcode";
 import { canScan, launchScanner, onScanned } from "../../services/barcode-scan";
 import { shareText } from "../../services/share";
-import { AisleHeader, ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, ReadFailed, Screen, SectionHeader, SlideUp, EntryRow, announce, cardEdge, RowOpen, RowTick } from "../../ui/components";
+import { AisleHeader, ArrivalScope, Body, Button, EmptyState, IconButton, ItemLabel, itemDetail, ProgressBar, Missing, ReadFailed, Screen, SectionHeader, SlideUp, EntryRow, announce, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError, appPrompt } from "../../ui/dialog";
 import { selectionTap, successNotice } from "../../ui/haptics";
 import { FinishedCard, type ShopSummary } from "../../ui/celebration";
@@ -258,7 +258,9 @@ export default function ListScreen() {
             </>
           )}
         </ArrivalScope>
-      ) : null}
+      ) : (
+        <Missing query={lists} text={tr.lists.notFound} found={list != null} />
+      )}
       {editing ? (
         <ItemSheet
           key={editing.id}

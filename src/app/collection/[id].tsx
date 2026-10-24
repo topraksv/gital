@@ -13,7 +13,7 @@ import { addWish, deleteWishes, restoreWish, saveWish, toggleWishBought, type Co
 import { LINK_MAX, WISH_ORDERS, leadOf, shopOf, sortWishes, type Wish, type WishOrder } from "../../domain/wishes";
 import { formatMinor } from "../../domain/money";
 import { tr } from "../../i18n/tr";
-import { ArrivalScope, Body, EmptyState, IconButton, ReadFailed, Screen, SectionHeader, SlideUp, EntryRow, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
+import { ArrivalScope, Body, EmptyState, IconButton, Missing, ReadFailed, Screen, SectionHeader, SlideUp, EntryRow, Tile, cardEdge, RowOpen, RowTick } from "../../ui/components";
 import { appError } from "../../ui/dialog";
 import { selectionTap } from "../../ui/haptics";
 import type { MemberRole } from "../../db/schema";
@@ -152,7 +152,9 @@ export default function CollectionScreen() {
             </View>
           )}
         </ArrivalScope>
-      ) : null}
+      ) : (
+        <Missing query={collections} text={tr.wishes.notFound} found={collection != null} />
+      )}
       {editing ? (
         <WishPanel
           key={editing.id}

@@ -373,6 +373,10 @@ export function ListRow({
   onPress?: () => void;
 }) {
   const { palette } = useTheme();
+  // A row that opens something holds its own control beside it, not inside:
+  // inside, a screen reader reads the row as one button and never reaches it,
+  // and the web nests a button in a button.
+  const beside = onPress != null && right != null;
   const content = (
     <View style={{ paddingVertical: spacing.md - 2 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
@@ -381,13 +385,13 @@ export function ListRow({
           <Text style={[type.body, { color: palette.text, fontFamily: font.medium }]}>{title}</Text>
           {subtitle ? <Text style={[type.small, { color: palette.textSecondary, marginTop: offset.hair }]}>{subtitle}</Text> : null}
         </View>
-        {right}
+        {beside ? null : right}
         {chevron ? <ChevronRight accessible={false} size={iconSize.control} color={palette.textSecondary} strokeWidth={iconStroke.regular} /> : null}
       </View>
     </View>
   );
   if (!onPress) return content;
-  return (
+  const row = (
     <Press
       accessibilityRole="button"
       accessibilityLabel={tr.common.withDetail(title, subtitle ?? "")}
@@ -396,6 +400,13 @@ export function ListRow({
     >
       {content}
     </Press>
+  );
+  if (!beside) return row;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+      <View style={{ flex: 1, minWidth: 0 }}>{row}</View>
+      {right}
+    </View>
   );
 }
 
@@ -1454,6 +1465,12 @@ export function ReadFailed({ queries }: { queries: readonly { retry: () => void 
       action={<Button label={tr.common.retry} onPress={() => queries.forEach((query) => query.retry())} />}
     />
   );
+}
+
+/** A record's screen once its read has answered without it: the record is gone, which an empty screen would not say (Fiala's). */
+export function Missing({ query, text, found = false }: { query: { status: string; retry: () => void }; text: string; /** The record is there and only waits on the rest of the screen. */ found?: boolean }) {
+  if (found || query.status === "loading") return null;
+  return query.status === "error" ? <ReadFailed queries={[query]} /> : <Notice tone="error" text={text} />;
 }
 
 /** `pulledOnce` on screen; a build with no server has nothing to wait for. */

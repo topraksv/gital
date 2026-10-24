@@ -9,7 +9,7 @@ import { rowPeople } from "../../data/members";
 import { setShopReceipt, setShopTotal, type Shop } from "../../data/shops";
 import { formatMinorInput, readPrice } from "../../domain/money";
 import { tr } from "../../i18n/tr";
-import { ArrivalScope, CheckMark, IconButton, ItemLabel, ReadFailed, Screen, SlideUp, cardEdge, type ShownItem } from "../../ui/components";
+import { ArrivalScope, CheckMark, IconButton, ItemLabel, Missing, ReadFailed, Screen, SlideUp, cardEdge, type ShownItem } from "../../ui/components";
 import { PriceField } from "../../ui/calculator";
 import { PhotoField } from "../../ui/photo-field";
 import { appError } from "../../ui/dialog";
@@ -66,7 +66,9 @@ export default function ShopScreen() {
           </View>
           <ReceiptCard shop={shop} viewer={viewer} />
         </ArrivalScope>
-      ) : null}
+      ) : (
+        <Missing query={shops} text={tr.history.notFound} found={shop != null} />
+      )}
     </Screen>
   );
 }

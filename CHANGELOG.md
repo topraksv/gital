@@ -8,6 +8,12 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.8.5
+
+### Patch Changes
+
+- Silinmiş ya da paylaşımdan çıkarıldığın bir listeyi, koleksiyonu veya alışverişi bağlantıyla açınca boş ekran yerine "artık yok" yazıyor; yüklenirken bu yazı görünmüyor.
+
 ## 1.8.4
 
 ### Patch Changes

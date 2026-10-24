@@ -129,6 +129,7 @@ export const tr = {
     settings: "Ayarlar",
   },
   lists: {
+    notFound: "Bu liste artık yok ya da paylaşımdan çıkarıldın.",
     create: "Yeni Liste",
     createTitle: "Yeni liste",
     createMessage: "Listeye bir ad ver. Sonra değiştirebilirsin.",
@@ -320,6 +321,7 @@ export const tr = {
     delete: (name: string) => `${name} setini sil`,
   },
   wishes: {
+    notFound: "Bu koleksiyon artık yok.",
     orders: { wanted: "Öncelik", cheapest: "En ucuz", dearest: "En pahalı" },
     orderLabel: (order: string) => `Sıralama: ${order}. Değiştirmek için dokun`,
     create: "Yeni Koleksiyon",
@@ -365,6 +367,7 @@ export const tr = {
     deleteWish: (name: string) => `${name} isteğini sil`,
   },
   history: {
+    notFound: "Bu alışveriş artık yok.",
     receipt: "Fiş",
     receiptOf: (list: string) => `${list} alışverişinin fişi`,
     enlargeReceipt: "Fişi büyüt",
