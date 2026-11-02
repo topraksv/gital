@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(49);
+select extensions.plan(51);
 
 create function pg_temp.exec_sqlstate(command text)
 returns text
@@ -158,6 +158,26 @@ select is(
   '42501',
   'a member writes nobody new into the list'
 );
+
+-- An editor cannot carry a row off into a list of their own (migration 20).
+select pg_temp.act_as('20000000-0000-4000-8000-000000000002');
+insert into public.lists (id, name) values ('b0000000-0000-7000-8000-00000000000b', 'Benim');
+update public.items set list_id = 'b0000000-0000-7000-8000-00000000000b' where id = 'a1000000-0000-7000-8000-00000000000a';
+select is(
+  (select list_id from public.items where id = 'a1000000-0000-7000-8000-00000000000a'),
+  'a0000000-0000-7000-8000-00000000000a'::uuid,
+  'an editor''s update of a row''s list leaves it in the shared list'
+);
+select is(
+  (select count(*) from pg_catalog.pg_trigger
+    where tgname = 'keep_row_list'
+      and tgrelid in ('public.shops'::regclass, 'public.items'::regclass, 'public.wishes'::regclass, 'public.wish_links'::regclass)),
+  4::bigint,
+  'every list-scoped row keeps its list'
+);
+reset role;
+delete from public.lists where id = 'b0000000-0000-7000-8000-00000000000b';
+set local role authenticated;
 
 -- C joins as a viewer; the link B used is spent.
 select pg_temp.act_as('30000000-0000-4000-8000-000000000003');

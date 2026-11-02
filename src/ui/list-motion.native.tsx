@@ -26,9 +26,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 
-import { SwipeSides } from "./components";
+import { SwipeSides, type RowAction } from "./components";
 import { selectionTap } from "./haptics";
-import type { RowAction, RowSwipeProps } from "./list-motion";
+import type { RowSwipeProps } from "./list-motion";
 import { iconSize, iconStroke, itemRow, motion, radius, useTheme } from "./theme";
 
 export function RowMotion({ children }: { children: ReactNode }) {

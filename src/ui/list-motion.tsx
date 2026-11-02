@@ -7,18 +7,8 @@
  * from the item panel, the swipe's twins (`docs/UI.md` section 8).
  */
 import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react-native";
 
-import { SwipeSides } from "./components";
-
-/** What a swipe to one side does: its mark and colour while the thumb pulls, and what it runs on release. */
-export interface RowAction {
-  icon: LucideIcon;
-  tone: "secondary" | "primary" | "destructive";
-  /** What a screen reader is offered in place of the swipe. */
-  label: string;
-  run: () => void;
-}
+import { SwipeSides, type RowAction } from "./components";
 
 /** Declared here and imported by the `.native` file, so callers are checked against the real contract. A side with no action does not travel. */
 export interface RowSwipeProps {

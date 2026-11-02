@@ -43,7 +43,6 @@ import { tr } from "../i18n/tr";
 import { pulledOnce, useSyncStatus } from "../sync/status";
 import { isSupabaseConfigured } from "../sync/supabase";
 import { selectionTap } from "./haptics";
-import type { RowAction } from "./list-motion";
 import { interactionBleed, interactionSurface } from "./interaction";
 import { FOCUS_BOX } from "./focus-ring";
 import { webKeys } from "./keys";
@@ -624,6 +623,15 @@ export function CheckMark({ checked, tone = "done" }: { checked: boolean; tone?:
   ) : (
     <View style={[checkCircle, { borderWidth: borderWidth.selected, borderColor: palette.controlBorder }]} />
   );
+}
+
+/** What a swipe to one side does: its mark and colour while the thumb pulls, and what it runs on release. */
+export interface RowAction {
+  icon: LucideIcon;
+  tone: "secondary" | "primary" | "destructive";
+  /** What a screen reader is offered in place of the swipe. */
+  label: string;
+  run: () => void;
 }
 
 /**
