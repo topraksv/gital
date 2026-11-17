@@ -726,6 +726,8 @@ export async function flushOutbox(userId: string): Promise<void> {
   try {
     await assertSessionIs(supabase, userId);
     await pushOutbox(supabase, userId, token);
+    // A photo whose row went up without it has no outbox event left to carry it.
+    await sendPendingPhotos(supabase, token.signal);
   } catch {
     // Counted by the caller.
   }

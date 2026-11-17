@@ -1,6 +1,6 @@
 {
   "name": "gital",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "main": "expo-router/entry",
   "license": "UNLICENSED",
   "private": true,
@@ -89,7 +89,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "overrides": {
-    "node-forge": "1.4.1",
+    "node-forge": "1.4.3",
     "xcode": {
       "uuid": "^11.1.1"
     },

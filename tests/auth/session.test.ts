@@ -98,7 +98,8 @@ vi.mock("../../src/sync/engine", () => ({
     harness.db!.exec("DELETE FROM outbox");
   },
 }));
-vi.mock("../../src/sync/photos", () => ({
+vi.mock("../../src/sync/photos", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/sync/photos")>()),
   purgeOwnPhotos: async () => {
     cloud.calls.push("photos:purge");
     if (sync.purgeFails) throw new Error("Failed to fetch");
@@ -205,6 +206,7 @@ vi.mock("../../src/sync/supabase", () => {
 
 const { LOCAL_USER_ID, SIGN_OUT_PENDING_CHANGES, useSession } = await import("../../src/auth/session");
 const { VERIFY_COOLDOWN_MS, VERIFY_MAX_FAILURES } = await import("../../src/auth/verification-brake");
+const { addScanned } = await import("../../src/data/items");
 const { createList, readLists } = await import("../../src/data/lists");
 const { photoColumn } = await import("../../src/data/photos");
 const { frozenFrom, isFrozen, readSettings, setAccountFrozen } = await import("../../src/data/settings");
@@ -512,6 +514,22 @@ describe("signing out", () => {
     expect(cloud.calls).toEqual(["signOut:local"]);
     for (const key of [OWNER, LAST_USER, LAST_EMAIL]) expect(device.stored.has(key)).toBe(false);
     expect(device.cancelled).toBe(1);
+  });
+
+  it("asks as well for a write the server set aside, and for a photo Storage never took", async () => {
+    await session().signIn(A.email, A.password);
+    const photo = "data:image/jpeg;base64,AA";
+    await addScanned(await createList("Market"), { name: "süt", note: null, photo: { data: photo, thumb: photo } });
+    harness.db!.exec(
+      `INSERT INTO sync_dead_letters (outbox_id, table_name, row_id, payload, reason, quarantined_at)
+         SELECT id, table_name, row_id, payload, 'refused', created_at FROM outbox WHERE table_name = 'lists';
+       DELETE FROM outbox`,
+    );
+    expect(await session().signOut(), "refused by the server, the list is nowhere but here").toBe(SIGN_OUT_PENDING_CHANGES);
+    harness.db!.exec("DELETE FROM sync_dead_letters");
+    expect(await session().signOut(), "the item went up and its photo did not").toBe(SIGN_OUT_PENDING_CHANGES);
+    harness.db!.exec("UPDATE photos SET uploaded_at = '2026-09-27T00:00:00.000Z'");
+    expect(await session().signOut()).toBeNull();
   });
 
   it("keeps everything, the account still signed in, when the device cannot be emptied", async () => {

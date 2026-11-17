@@ -1,7 +1,7 @@
 /**
  * A scanned barcode looked up at Open Food Facts (SPEC 2.8), the open product
  * database: no key, and Turkish products are in it by the thousand. Only the
- * code leaves the phone; `docs/BACKLOG.md` holds what PRIVACY.md will say.
+ * code leaves the phone (`docs/PRIVACY.md`).
  */
 
 import type { NewPhoto } from "../data/photos";

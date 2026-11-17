@@ -63,7 +63,7 @@ const {
 } = await import("../../src/sync/sharing");
 const { flushOutbox, pantryToBring, scheduleSync, startSyncSession, stopSyncSession, syncNow } = await import("../../src/sync/engine");
 const { dismissDeadLetter, readDeadLetters, retryDeadLetter } = await import("../../src/sync/dead-letters");
-const { purgeOwnPhotos } = await import("../../src/sync/photos");
+const { purgeOwnPhotos, unsentPhotoCount } = await import("../../src/sync/photos");
 const { pulledOnce, useSyncStatus } = await import("../../src/sync/status");
 const { tr } = await import("../../src/i18n/tr");
 const { change, migratedDatabase } = await import("../helpers");
@@ -1149,7 +1149,7 @@ describe("what the server will not take", () => {
       await writeRows([{ table: "lists", row: { id: "019f6bba-2c65-7ea8-a6c9-96d891155e01", name: "x".repeat(201) } }]);
       expect(await sync()).toBe(true);
       expect(cloud.rows("lists").map((row) => row.name)).toEqual(["Market"]);
-      expect(await pendingOutboxCount()).toBe(0);
+      expect(await pendingOutboxCount(), "set aside, it is still nowhere but here").toBe(1);
       expect(await readDeadLetters(), "named as the person wrote it").toMatchObject([{ tableName: "lists", reason: "refused", subject: "x".repeat(201) }]);
       expect(useSyncStatus.getState()).toMatchObject({ state: "attention", error: null });
     });
@@ -1512,11 +1512,19 @@ describe("the session", () => {
     });
   });
 
-  it("flushes the outbox without pulling, for a sign-out", async () => {
+  it("flushes the outbox without pulling, for a sign-out, and sends a photo its row went up without", async () => {
     await on("A", async () => {
-      await createList("Market");
+      await scan(await createList("Market"), "süt");
+      await sync();
+      // As a purge that removed it leaves a photo: named by a row the server holds, and unsent.
+      devices.A.prepare("UPDATE photos SET uploaded_at = NULL").run();
+      cloud.objects.clear();
+      cloud.requests.length = 0;
+      await createList("Pazar");
+      expect(await unsentPhotoCount()).toBe(1);
       await flushOutbox(USER);
-      expect(await pendingOutboxCount()).toBe(0);
+      expect([await pendingOutboxCount(), await unsentPhotoCount()]).toEqual([0, 0]);
+      expect(cloud.objects.size).toBe(2);
       expect(cloud.requests.filter((request) => request.startsWith("select") || request.startsWith("rpc"))).toEqual([]);
     });
   });
