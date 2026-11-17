@@ -27,8 +27,14 @@ const NAMED = [...PHOTO_TABLES].map((table) => `SELECT photo_id FROM ${table} WH
 
 /** Photos Storage answered for with no file, not asked again until the next launch. */
 const unavailable = new Set<string>();
-/** Photos Storage refused for good, not offered again until the next launch. */
-const refused = new Set<string>();
+
+/**
+ * A photo Storage refused for good waits aside as a refused row does, under
+ * "Bekleyen Kayıtlar": counted there and not here, never offered again until
+ * that screen retries it, and given up there. Its clue's `outbox_id` is below
+ * zero, since no outbox event made it, and unique as the column asks.
+ */
+const ASIDE = "SELECT row_id FROM sync_dead_letters WHERE table_name = 'photos'";
 
 function bytesOf(dataUri: string): Uint8Array {
   const binary = atob(dataUri.slice(dataUri.indexOf(",") + 1));
@@ -97,21 +103,48 @@ async function sendPhoto(supabase: SupabaseClient, photo: { id: string; data: st
  */
 export async function sendPendingPhotos(supabase: SupabaseClient, signal: AbortSignal): Promise<void> {
   const sqlite = await getSqliteAsync();
+  // A clue whose photo no live row names, or that Storage holds after all,
+  // asks the person about nothing, yet would keep sign-out waiting on it.
+  await sqlite.runAsync(
+    `DELETE FROM sync_dead_letters WHERE table_name = 'photos'
+       AND row_id NOT IN (SELECT id FROM photos WHERE uploaded_at IS NULL AND id IN (${NAMED}))`,
+  );
   const pending = await sqlite.getAllAsync<{ id: string; data: string; thumb: string }>(
-    `SELECT id, data, thumb FROM photos WHERE uploaded_at IS NULL AND id IN (${NAMED})`,
+    `SELECT id, data, thumb FROM photos WHERE uploaded_at IS NULL AND id IN (${NAMED}) AND id NOT IN (${ASIDE})`,
   );
   // Every id here is the device's own, or one a fetch below checked.
   for (const photo of pending) {
-    if (refused.has(photo.id)) continue;
     if (await sendPhoto(supabase, photo, signal)) await sqlite.runAsync("UPDATE photos SET uploaded_at = ? WHERE id = ?", [nowIso(), photo.id]);
-    else refused.add(photo.id);
+    else await setAside(photo.id);
   }
 }
 
-/** Photos a live row names that Storage does not have: this device holds the only copy. */
+/** The name of a live item or wish showing the photo, so the screen can say whose it is; a receipt has none. */
+const SUBJECT = "SELECT name FROM items WHERE photo_id = ? AND deleted_at IS NULL UNION ALL SELECT name FROM wishes WHERE photo_id = ? AND deleted_at IS NULL";
+
+async function setAside(id: string): Promise<void> {
+  const sqlite = await getSqliteAsync();
+  const named = await sqlite.getFirstAsync<{ name: string }>(SUBJECT, [id, id]);
+  await sqlite.runAsync(
+    `INSERT INTO sync_dead_letters (outbox_id, table_name, row_id, payload, reason, quarantined_at)
+     SELECT * FROM (SELECT MIN(0, COALESCE(MIN(outbox_id), 0)) - 1, 'photos', ?, ?, 'refused', ? FROM sync_dead_letters)
+      WHERE NOT EXISTS (SELECT 1 FROM sync_dead_letters WHERE table_name = 'photos' AND row_id = ?)`,
+    [id, JSON.stringify(named ? { name: named.name } : {}), nowIso(), id],
+  );
+}
+
+/** Photos a live row names that Storage does not have, and none waits aside: this device holds the only copy. */
 export async function unsentPhotoCount(): Promise<number> {
   const sqlite = await getSqliteAsync();
-  return (await sqlite.getFirstAsync<{ n: number }>(`SELECT COUNT(*) AS n FROM photos WHERE uploaded_at IS NULL AND id IN (${NAMED})`))!.n;
+  return (await sqlite.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM photos WHERE uploaded_at IS NULL AND id IN (${NAMED}) AND id NOT IN (${ASIDE})`,
+  ))!.n;
+}
+
+/** Given up from "Bekleyen Kayıtlar": kept on this device and never offered again, as a dismissed row is never resent. */
+export async function giveUpPhoto(id: string): Promise<void> {
+  const sqlite = await getSqliteAsync();
+  await sqlite.runAsync("UPDATE photos SET uploaded_at = ? WHERE id = ? AND uploaded_at IS NULL", [nowIso(), id]);
 }
 
 async function download(supabase: SupabaseClient, path: string): Promise<string | null> {

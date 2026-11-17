@@ -4,9 +4,10 @@
  */
 
 import { asc, eq } from "drizzle-orm";
-import { getDb } from "../db/client";
+import { getDb, getSqliteAsync } from "../db/client";
 import { findRow, fromDbShape, writeRows } from "../db/mutations";
 import { SYNCED_TABLES, syncDeadLetters, type SyncedTableName } from "../db/schema";
+import { giveUpPhoto } from "./photos";
 
 export type DeadLetter = Pick<typeof syncDeadLetters.$inferSelect, "id" | "tableName" | "rowId" | "reason" | "quarantinedAt"> & {
   /** The row as the person would know it — a name, or a link — when it has one. */
@@ -36,6 +37,11 @@ export async function readDeadLetters(): Promise<DeadLetter[]> {
  */
 export async function retryDeadLetter(id: number): Promise<"requeued" | "missing"> {
   const [letter] = await getDb().select().from(syncDeadLetters).where(eq(syncDeadLetters.id, id));
+  // A photo is offered again by the next sync once its clue is gone.
+  if (letter?.tableName === "photos" && (await hasPhoto(letter.rowId))) {
+    await getDb().delete(syncDeadLetters).where(eq(syncDeadLetters.id, id));
+    return "requeued";
+  }
   if (!letter || !Object.hasOwn(SYNCED_TABLES, letter.tableName)) return "missing";
   const table = letter.tableName as SyncedTableName;
   const current = await findRow(table, letter.rowId);
@@ -45,7 +51,14 @@ export async function retryDeadLetter(id: number): Promise<"requeued" | "missing
   return "requeued";
 }
 
-/** Forget the clue; the row it names stays on the device as it is. */
+/** Forget the clue; the row it names stays on the device as it is, and a photo is never offered again. */
 export async function dismissDeadLetter(id: number): Promise<void> {
+  const [letter] = await getDb().select().from(syncDeadLetters).where(eq(syncDeadLetters.id, id));
+  if (letter?.tableName === "photos") await giveUpPhoto(letter.rowId);
   await getDb().delete(syncDeadLetters).where(eq(syncDeadLetters.id, id));
+}
+
+async function hasPhoto(id: string): Promise<boolean> {
+  const sqlite = await getSqliteAsync();
+  return (await sqlite.getFirstAsync("SELECT 1 FROM photos WHERE id = ?", [id])) != null;
 }

@@ -793,6 +793,7 @@ export const tr = {
       pantry_items: "Kilerdeki ürün",
       pantry_moves: "Kiler hareketi",
       settings: "Ayar",
+      photos: "Fotoğraf",
     } as Record<string, string>,
     record: "Kayıt",
   },

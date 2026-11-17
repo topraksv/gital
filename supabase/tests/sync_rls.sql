@@ -6,7 +6,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(78);
+select extensions.plan(80);
 
 -- SQLSTATE, not message text, under whichever role is active.
 create function pg_temp.exec_sqlstate(command text)
@@ -431,6 +431,23 @@ select is(
       and not exists (select 1 from pg_policy p where p.polrelid = c.oid)),
   0::bigint,
   'every table with RLS states who reaches its rows'
+);
+
+-- The sweep (migration 21): A is gone now, and the sweep names every photo
+-- A uploaded, as `purgeOwnPhotos` would have removed them; B's stay.
+select is(
+  array(select name from public.swept_objects()),
+  array[
+    'f0000000-0000-7000-8000-00000000000f/full.jpg', 'f1000000-0000-7000-8000-00000000000f/full.jpg',
+    'f2000000-0000-7000-8000-00000000000f/full.jpg', 'f6000000-0000-7000-8000-00000000000f/full.jpg'
+  ],
+  'the sweep names a deleted account''s photos, and no other'
+);
+select ok(
+  has_function_privilege('service_role', 'public.swept_objects()', 'EXECUTE')
+    and not has_function_privilege('anon', 'public.swept_objects()', 'EXECUTE')
+    and not has_function_privilege('authenticated', 'public.swept_objects()', 'EXECUTE'),
+  'only the server role may ask what the sweep removes'
 );
 
 select * from extensions.finish();

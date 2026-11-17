@@ -8,6 +8,15 @@ Notlar kısa tutulur: ne değişti, tek cümle. Sebebi ve ölçümü commit'te.
 `scripts/release-notes.mjs` bir bölümü etiketinin GitHub sürüm notuna çevirir;
 bölümü olmayan sürüm yayımlanamaz.
 
+## 1.8.8
+
+### Patch Changes
+
+- Bulutun kalıcı olarak kabul etmediği bir fotoğraf artık eşitlemeyi ve çıkışı bekletmiyor; hangi ürünün fotoğrafı olduğuyla "Bekleyen Kayıtlar"da görünüyor, oradan yeniden denenip bırakılabiliyor.
+- Girişte düğmeye iki kez dokununca hesap devralma sorusu iki kez açılmıyor.
+- Açılış ekranı, seçili renk paletine geçerek açılıyor; başka palet seçenlerde renk sıçraması olmuyor.
+- Hesap silindikten sonra başka bir cihazın yüklediği fotoğraflar da buluttan en geç bir gün içinde siliniyor.
+
 ## 1.8.7
 
 ### Patch Changes

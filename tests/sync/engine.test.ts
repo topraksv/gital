@@ -1662,7 +1662,51 @@ describe("photos", () => {
 
       const before = cloud.requests.length;
       await sync();
-      expect(cloud.requests.slice(before).filter((request) => request.startsWith("upload")), "not offered again this session").toEqual([]);
+      expect(cloud.requests.slice(before).filter((request) => request.startsWith("upload")), "not offered again").toEqual([]);
+      const [letter] = await readDeadLetters();
+      expect(letter, "waits under Bekleyen Kayıtlar, named by its item").toMatchObject({ tableName: "photos", rowId: photoId, reason: "refused", subject: "Süt" });
+      expect(await unsentPhotoCount(), "counted once, as the clue").toBe(0);
+
+      expect(await retryDeadLetter(letter!.id)).toBe("requeued");
+      cloud.failOn.set("upload", { message: "Internal error", status: 503 });
+      expect(await sync(), "no row waits on a retried photo, so Storage being down does not stop the sync").toBe(true);
+      expect(uploaded().uploaded_at).toBeNull();
+      cloud.failOn.delete("upload");
+      await sync();
+      expect(uploaded().uploaded_at, "sent once retried").not.toBeNull();
+      expect(await readDeadLetters()).toEqual([]);
+    });
+  });
+
+  it("forgets the clue of a refused photo no row names any more", async () => {
+    await on("A", async () => {
+      const id = await createList("Market");
+      await scan(id, "süt");
+      cloud.failOn.set("upload", { message: "new row violates row-level security policy", status: 403 });
+      await sync();
+      expect(await readDeadLetters()).toHaveLength(1);
+      await deleteItems([(await readItems(id))[0]!.id]);
+      await sync();
+      expect(await readDeadLetters(), "nothing left to ask the person about").toEqual([]);
+      expect(await pendingOutboxCount(), "so sign-out does not wait on it").toBe(0);
+    });
+  });
+
+  it("gives up a refused photo when its clue is dismissed, which lets the account freeze", async () => {
+    await on("A", async () => {
+      const id = await createList("Market");
+      await scan(id, "süt");
+      const photoId = (await readItems(id))[0]!.photoId!;
+      cloud.failOn.set("upload", { message: "new row violates row-level security policy", status: 403 });
+      await sync();
+      const [letter] = await readDeadLetters();
+      await dismissDeadLetter(letter!.id);
+      expect((await pendingOutboxCount()) + (await unsentPhotoCount()), "nothing waits, so a freeze may go").toBe(0);
+      expect(await readDeadLetters()).toEqual([]);
+      expect(devices.A.prepare("SELECT data FROM photos WHERE id = ?").get(photoId), "kept on the device").toBeTruthy();
+      const before = cloud.requests.length;
+      await sync();
+      expect(cloud.requests.slice(before).filter((request) => request.startsWith("upload")), "never offered again").toEqual([]);
     });
   });
 
@@ -2155,9 +2199,11 @@ describe("what one copy must not do to another's", () => {
       await scan(listId, "çay");
       release();
       await running;
+      expect(cloud.rows("items").filter((row) => row.photo_id != null), "written after the run began, it waits for the next").toEqual([]);
+      await sync();
     });
     const named = cloud.rows("items").filter((row) => row.photo_id != null);
-    expect(named, "the scanned row went up in that run").toHaveLength(1);
+    expect(named, "the scanned row went up in the next run").toHaveLength(1);
     expect([...cloud.objects.keys()], "so its photo must be up too").toContain(`${String(named[0]!.photo_id)}/full.jpg`);
   });
 });
