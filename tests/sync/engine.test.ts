@@ -1358,6 +1358,28 @@ describe("what the server will not take", () => {
       expect(await readDeadLetters()).toMatchObject([{ reason: "refused" }]);
     });
   });
+
+  it("does not let that retry overwrite what another device wrote since the row was set aside", async () => {
+    const listId = await on("A", async () => {
+      const id = await createList("Market");
+      await sync();
+      return id;
+    });
+    await on("B", async () => {
+      await sync();
+      await editList(listId, { name: "Bakkal", color: null, icon: null });
+      await sync();
+    });
+    await on("A", async () => {
+      devices.A.prepare(
+        "INSERT INTO sync_dead_letters (outbox_id, table_name, row_id, payload, reason, quarantined_at) VALUES (1, 'lists', ?, '{}', 'refused', '2026-09-30T14:27:31.000Z')",
+      ).run(listId);
+      harness.version = "1.4.3";
+      await sync();
+      expect(await readDeadLetters()).toEqual([]);
+      expect(serverRow("lists", listId), "pulled before it was requeued").toMatchObject({ name: "Bakkal" });
+    });
+  });
 });
 
 describe("the session", () => {
