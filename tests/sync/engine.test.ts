@@ -1710,6 +1710,33 @@ describe("photos", () => {
     });
   });
 
+  it("leaves a photo alone when the clue dismissed is another table's, and when none is left to dismiss", async () => {
+    await on("A", async () => {
+      const id = await createList("Market");
+      await scan(id, "süt");
+      const photoId = (await readItems(id))[0]!.photoId!;
+      devices.A.prepare(
+        "INSERT INTO sync_dead_letters (outbox_id, table_name, row_id, payload, reason, quarantined_at) VALUES (1, 'items', ?, '{}', 'refused', '2026-09-27T00:00:00.000Z')",
+      ).run(photoId);
+      const [letter] = await readDeadLetters();
+      await dismissDeadLetter(letter!.id);
+      expect(await readDeadLetters()).toEqual([]);
+      expect(devices.A.prepare("SELECT uploaded_at FROM photos WHERE id = ?").get(photoId), "only a photo's own clue gives it up").toMatchObject({ uploaded_at: null });
+      await expect(dismissDeadLetter(letter!.id), "a clue already gone is nothing to do").resolves.toBeUndefined();
+    });
+  });
+
+  it("keeps the clue of a photo this device no longer holds", async () => {
+    await on("A", async () => {
+      devices.A.prepare(
+        "INSERT INTO sync_dead_letters (outbox_id, table_name, row_id, payload, reason, quarantined_at) VALUES (1, 'photos', '019f6bba-2c65-7ea8-a6c9-96d891155e09', '{}', 'refused', '2026-09-27T00:00:00.000Z')",
+      ).run();
+      const [letter] = await readDeadLetters();
+      expect(await retryDeadLetter(letter!.id)).toBe("missing");
+      expect(await readDeadLetters(), "the only trace left").toHaveLength(1);
+    });
+  });
+
   it("finishes a photo whose send was cut short between its two sizes", async () => {
     await on("A", async () => {
       const id = await createList("Market");
