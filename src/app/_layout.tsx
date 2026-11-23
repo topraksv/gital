@@ -28,7 +28,7 @@ import { appConfirm, appError, appPrompt, OverlaySlot } from "../ui/dialog";
 import { FOCUS_PROPERTY } from "../ui/focus-ring";
 import { KeyboardSafeRoot } from "../ui/keyboard-safe";
 import { useDatabaseHandoff } from "../ui/database-handoff";
-import { Launch } from "../ui/launch";
+import { Launch, useMarkDrawn } from "../ui/launch";
 import { GestureRoot } from "../ui/list-motion";
 import { APPEARANCE_KEYS, isThemePreference, PALETTES, resolvePaletteId, ThemeContext } from "../ui/theme";
 import { subscribeAppearance, ThemeDissolve, type Appearance } from "../ui/theme-transition";
@@ -224,6 +224,12 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
   const operation = useSession((s) => s.operation);
   const signedIn = userId != null;
   const frozen = useAccountFrozen(signedIn);
+  // The first screen waits for the launch mark to finish drawing; so does anything that navigates in it.
+  const drawn = useMarkDrawn();
+  const settled = ready && !(signedIn && frozen == null);
+  const shown = settled && drawn;
+  // The device that freezes signs out; its own freezing is not a lock.
+  const locked = frozen === true && operation !== "freeze";
   useEffect(() => {
     // A launch that cannot decide opens on sign-in rather than on nothing.
     useSession.getState().bootstrap().catch(() => useSession.setState({ ready: true }));
@@ -231,23 +237,21 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
   // An undo offered to one account must not run against the next one's lists.
   useEffect(() => clearUndo(), [userId]);
   useEffect(() => {
-    if (!signedIn || !WEB) return;
+    // Only into the routes: a push with no navigator throws, and the token is already taken.
+    if (!signedIn || !WEB || !shown || locked) return;
     void heldInvite({ take: true }).then((token) => {
       // Signed in already, the invitation page opened with its own fragment.
       if (token && !/\/invite\/?$/.test(location.pathname)) router.push({ pathname: "/invite", params: { token } });
     });
-  }, [signedIn]);
-  const settled = ready && !(signedIn && frozen == null);
+  }, [signedIn, shown, locked]);
   // The launch screen stays over this gap, so it never shows as a blank frame.
   useEffect(() => {
-    if (settled) onSettled();
-  }, [settled, onSettled]);
+    if (shown) onSettled();
+  }, [shown, onSettled]);
   if (!settled) return null;
-  // The device that freezes signs out; its own freezing is not a lock.
-  const locked = frozen === true && operation !== "freeze";
   return (
     <>
-      {locked ? (
+      {!drawn ? null : locked ? (
         <FrozenGate />
       ) : (
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: background } }}>
@@ -276,7 +280,7 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
           <SyncRunner userId={userId} />
           <LiveRunner userId={userId} />
           <ReminderPlanner />
-          {locked ? null : (
+          {locked || !drawn ? null : (
             <>
               <ClipboardLinkOffer />
               <ReminderTaps />
