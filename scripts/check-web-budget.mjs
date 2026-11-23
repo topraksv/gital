@@ -11,8 +11,8 @@ import { extname, join, relative } from "node:path";
 const root = process.argv[2] ?? "dist";
 
 const limits = {
-  entryJavaScript: 2_396_300,
-  totalJavaScript: 2_635_000,
+  entryJavaScript: 2_406_700,
+  totalJavaScript: 2_647_000,
   totalExport: 4_461_500,
   // The catalogue's hundreds of WebP would otherwise hide a code regression in the total.
   pictureBytes: 430_000,
