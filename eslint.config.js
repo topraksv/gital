@@ -5,8 +5,9 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    // Deno's, with remote imports the app's toolchain cannot resolve.
-    ignores: ["dist/*", "dist-e2e/*", "test-results/*", "reports/*", "coverage/*", ".expo/**", ".stryker-tmp/**", "supabase/functions/**"],
+    // Deno's, with remote imports the app's toolchain cannot resolve. `src/engine` is gital-fiyat's build,
+    // linted, type-checked and tested by that repository's gate; `tests/repo/engine-stamp.test.ts` holds it.
+    ignores: ["dist/*", "dist-e2e/*", "test-results/*", "reports/*", "coverage/*", ".expo/**", ".stryker-tmp/**", "supabase/functions/**", "src/engine/**"],
   },
   {
     files: ["scripts/**/*.mjs", "scripts/**/*.js", ".claude/**/*.mjs"],
