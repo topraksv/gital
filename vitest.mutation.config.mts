@@ -9,6 +9,10 @@ export default defineConfig({
       // ("1a", "2f"), which read as an alpha channel, so the dry run dies. It
       // guards `src/ui`, which is not mutated, and stays in the normal gate.
       "tests/ui/design-system-contract.test.ts",
+      // Re-hashes gital-fiyat's build in `src/engine`, which Stryker's copy
+      // rewrites (`disableTypeChecks` prepends `// @ts-nocheck` under `src/`).
+      // Nothing it reads is mutated; it stays in the normal gate.
+      "tests/repo/engine-stamp.test.ts",
     ],
     environment: "node",
     // Instrumentation, not the tests, makes Vitest's 5-second default too
