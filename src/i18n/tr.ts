@@ -365,6 +365,9 @@ export const tr = {
     linkRemove: (shop: string) => `${shop} bağlantısını kaldır`,
     cheapest: "En ucuz",
     deleteWish: (name: string) => `${name} isteğini sil`,
+    /** The web's search, which the computer's gital uygun fiyat extension runs (SPEC 7.9). */
+    searchStores: "Diğer Mağazalarda Ara",
+    searchStoresHint: "Bu bilgisayardaki gital uygun fiyat eklentisinde açılır.",
   },
   history: {
     notFound: "Bu alışveriş artık yok.",
@@ -914,7 +917,7 @@ export const tr = {
   },
   reminders: {
     title: "Hatırlatıcılar",
-    hint: "Alışveriş gününde, kilerdeki bir tarih yaklaşınca ve bir ürün bitmiş olabilecekken telefonuna bildirim gelir.",
+    hint: "Alışveriş gününde, kilerdeki bir tarih yaklaşınca, bir ürün bitmiş olabilecekken ve bir isteğin fiyatı düşünce telefonuna bildirim gelir.",
     denied: "Bildirim izni verilmedi. Telefonun ayarlarından Gital'a bildirim izni verebilirsin.",
     day: "Alışveriş günü",
     noDay: "Yok",

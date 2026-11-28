@@ -89,7 +89,7 @@ const webHost = (url: string) => {
 };
 const hostOf = (url: string) => webHost(url) ?? url.toLowerCase();
 // Only a web address is at a shop: someone else's link reaches here unchecked, and `x:.trendyol.com` is no host.
-const namedShop = (url: string) => {
+export const namedShop = (url: string) => {
   const host = webHost(url);
   return host == null ? null : (SHOPS.find(([pattern]) => pattern.test(host))?.[1] ?? null);
 };

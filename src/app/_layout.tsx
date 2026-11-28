@@ -35,6 +35,7 @@ import { subscribeAppearance, ThemeDissolve, type Appearance } from "../ui/theme
 import { ErrorBoundary } from "../ui/error-boundary";
 import { FrozenGate, OperationWait } from "../ui/operation-wait";
 import { PageReaderHost, readLinkPages } from "../ui/page-reader";
+import { PriceReaderHost, PriceWatcher } from "../ui/price-search";
 import { useStayAwake } from "../ui/stay-awake";
 import { clearUndo, UndoSnackbar } from "../ui/undo";
 
@@ -280,6 +281,7 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
           <SyncRunner userId={userId} />
           <LiveRunner userId={userId} />
           <ReminderPlanner />
+          <PriceWatcher />
           {locked || !drawn ? null : (
             <>
               <ClipboardLinkOffer />
@@ -287,6 +289,7 @@ function Routes({ background, onSettled }: { background: string; onSettled: () =
             </>
           )}
           <PageReaderHost />
+          <PriceReaderHost />
         </>
       ) : null}
       {operation ? <OperationWait operation={operation} /> : null}

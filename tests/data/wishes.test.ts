@@ -15,7 +15,7 @@ vi.mock("../../src/db/client", async () => {
   return sqliteClientMock(() => harness.db!);
 });
 
-const { addWish, deleteWishes, fillFromPage, unpricedLinksOf, readCollections, readDueWishes, readKnownWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
+const { addWish, deleteWishes, fillFromPage, readWatchedLinks, unpricedLinksOf, readCollections, readDueWishes, readKnownWishes, readWishes, restoreWish, saveWish, toggleWishBought } = await import("../../src/data/wishes");
 const { createList, deleteLists, readLists } = await import("../../src/data/lists");
 const { readPhoto } = await import("../../src/data/photos");
 const { setActor, writeRows } = await import("../../src/db/mutations");
@@ -196,6 +196,27 @@ describe("a wish's date", () => {
     await saveWish(kettle, change({ name: "Kettle", dueOn: "2026-10-15" }));
     await deleteLists([collection]);
     expect(await readDueWishes()).toEqual([]);
+  });
+});
+
+describe("readWatchedLinks", () => {
+  it("lists the priced links of wishes not bought, in live collections", async () => {
+    const kettle = await addWish(collection, "Kettle");
+    await saveWish(kettle, change({ name: "Kettle", links: [{ url: "https://www.trendyol.com/k", priceMinor: 120000 }, { url: "https://www.n11.com/k", priceMinor: null }, { url: "https://a.com/k", priceMinor: 9000 }] }));
+    const lamp = await addWish(collection, "Lamba");
+    await saveWish(lamp, change({ name: "Lamba", links: [{ url: "https://www.trendyol.com/l", priceMinor: 50000 }] }));
+    await toggleWishBought(lamp);
+    expect(await readWatchedLinks()).toMatchObject([{ url: "https://www.trendyol.com/k", priceMinor: 120000, wishName: "Kettle" }]);
+    const DENIZ = "d0000000-0000-4000-8000-00000000000d";
+    await writeRows([{ table: "list_members", row: { id: crypto.randomUUID(), listId: collection, userId: DENIZ, role: "viewer" } }]);
+    setActor(DENIZ);
+    try {
+      expect(await readWatchedLinks()).toEqual([]);
+    } finally {
+      setActor(null);
+    }
+    await deleteLists([collection]);
+    expect(await readWatchedLinks()).toEqual([]);
   });
 });
 

@@ -17,7 +17,10 @@ import { readLasted, readPantry } from "../data/pantry";
 import { readSettings, restockAsideOf } from "../data/settings";
 import { readDueWishes } from "../data/wishes";
 import { readPurchases } from "../data/shops";
+import type { PriceDrop } from "../domain/price-watch";
 import { planReminders, routeOf, tapRoute, type Reminder, type ReminderRoute } from "../domain/reminders";
+import { shopOf } from "../domain/wishes";
+import { prices } from "../i18n/prices";
 import { tr } from "../i18n/tr";
 import { readReminderPreferences, saveRemindersOn } from "./reminder-preferences";
 
@@ -110,6 +113,26 @@ export function replanReminders(): Promise<void> {
   return queue;
 }
 
+/** Whether a notification may ring now: the switch on in Ayarlar and the phone's permission given. */
+export async function remindersAllowed(): Promise<boolean> {
+  return (await readReminderPreferences()).on && granted(await Notifications.getPermissionsAsync());
+}
+
+/**
+ * A wish's price fell (SPEC 7.5): shown at once, not scheduled, so `replace` cancelling the plan never takes
+ * it. A tap opens İstekler.
+ */
+export async function notifyPriceDrops(drops: readonly PriceDrop[]): Promise<void> {
+  if (drops.length === 0 || !(await remindersAllowed())) return;
+  await ensureChannel();
+  for (const drop of drops) {
+    await Notifications.scheduleNotificationAsync({
+      content: { title: prices.dropTitle(drop.wishName), body: prices.dropBody(shopOf(drop.url), drop.fromMinor, drop.toMinor), data: { route: { pathname: "/wishes" } } },
+      trigger: Platform.OS === "android" ? { channelId: CHANNEL } : null,
+    });
+  }
+}
+
 /**
  * Nothing left to ring, the switch left as it was: a sign-out takes the lists
  * the reminders name, and the next account's first plan starts afresh.
@@ -120,7 +143,7 @@ export function cancelReminders(): Promise<void> {
 }
 
 async function replace(): Promise<void> {
-  if (!(await readReminderPreferences()).on || !granted(await Notifications.getPermissionsAsync())) {
+  if (!(await remindersAllowed())) {
     await Notifications.cancelAllScheduledNotificationsAsync();
     return;
   }

@@ -27,6 +27,7 @@ import { Actions, DialogShell } from "./dialog";
 import { confirmDiscard, useDraftDirty } from "./dirty-exit";
 import { selectionTap } from "./haptics";
 import { PhotoField } from "./photo-field";
+import { PriceSearch } from "./price-search";
 import { controlSize, font, spacing, type, useTheme } from "./theme";
 import { radioGroupKeys } from "./keys";
 
@@ -189,6 +190,12 @@ export function WishSheet({
           </Text>
         ) : null}
       </View>
+      <PriceSearch
+        wishId={wish.id}
+        name={name}
+        links={links.map((link, at) => ({ url: link.url, priceMinor: prices[at]!.ok ? prices[at]!.minor : null }))}
+        onAdd={(url, priceMinor) => setLinks((now) => [...now, { key: `new-${(added.current += 1)}`, url, price: formatMinorInput(priceMinor) }])}
+      />
       <Actions>
         <View style={{ flex: 1, alignItems: "flex-start" }}>
           <IconButton icon={Trash} label={tr.wishes.deleteWish(wish.name)} tone="danger" onPress={onDelete} />

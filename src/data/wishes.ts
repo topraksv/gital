@@ -11,7 +11,7 @@ import { lookOf, type ListLook } from "../domain/lists";
 import { isPrice } from "../domain/money";
 import { owning, viewing } from "./lists";
 import { photoColumn, type NewPhoto, type PhotoChange } from "./photos";
-import { PRIORITIES, isNamedByLink, linkFrom, linkIn, openTotal, shopOf, sortWishes, type Priority, type Wish } from "../domain/wishes";
+import { PRIORITIES, isNamedByLink, namedShop, linkFrom, linkIn, openTotal, shopOf, sortWishes, type Priority, type Wish } from "../domain/wishes";
 
 export interface Collection extends ListLook {
   id: string;
@@ -186,6 +186,22 @@ export async function saveWish(id: string, change: WishChange): Promise<void> {
     for (const dropped of held.values()) writes.push({ table: "wish_links", row: { ...fromDbShape("wish_links", dropped), deletedAt } });
     return writes;
   });
+}
+
+/**
+ * The priced links of every wish not yet bought, in a live collection: what the price watch reads again
+ * (SPEC 7.5). As an unread link (`isUnread`), only one at a shop `SHOPS` names and never a viewer's: the
+ * read is unasked, and a link may be another member's.
+ */
+export async function readWatchedLinks(): Promise<{ id: string; url: string; priceMinor: number; wishName: string }[]> {
+  const rows = await getDb()
+    .select({ id: wishLinks.id, url: wishLinks.url, priceMinor: wishLinks.priceMinor, wishName: wishes.name, viewer: viewing() })
+    .from(wishLinks)
+    .innerJoin(wishes, and(eq(wishes.id, wishLinks.wishId), eq(wishes.listId, wishLinks.listId), isNull(wishes.deletedAt), isNull(wishes.boughtAt)))
+    .innerJoin(lists, and(eq(lists.id, wishes.listId), isNull(lists.deletedAt)))
+    .where(and(isNull(wishLinks.deletedAt), isNotNull(wishLinks.priceMinor)))
+    .orderBy(asc(wishLinks.createdAt), asc(wishLinks.id));
+  return rows.flatMap(({ viewer, priceMinor, ...row }) => (viewer || priceMinor == null || namedShop(row.url) == null ? [] : [{ ...row, priceMinor }]));
 }
 
 /** A wish's links with no price yet: the pages worth reading (SPEC 7.2). */

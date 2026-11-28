@@ -10,6 +10,12 @@ bölümü olmayan sürüm yayımlanamaz.
 
 ## 1.8.9
 
+### Minor Changes
+
+- İsteğin panelinde "Diğer Mağazalarda Ara": telefon Akakçe'ye, Cimri'ye ve dokuz mağazaya bakar, aynı ürünü en ucuzu üstte gösterir; "+" ile bağlantı olarak eklenir.
+- Hatırlatıcılar açıksa, bir isteğin bağlantısındaki fiyat düşünce telefona bildirim gelir; fiyatlar Gital açıldığında, en çok altı saatte bir okunur.
+- Bilgisayarda gital uygun fiyat eklentisi kuruluysa, web'deki istek panelinden de "Diğer Mağazalarda Ara" ile eklentide arama açılır.
+
 ### Patch Changes
 
 - Açılışta logo çizilirken görülen kısa takılma giderildi; ilk ekran artık çizim bittikten sonra hazırlanıyor.

@@ -4,6 +4,7 @@
  * the web bundles in its place, so the package never reaches the web entry.
  */
 
+import type { PriceDrop } from "../domain/price-watch";
 import type { ReminderRoute } from "../domain/reminders";
 
 export const remindersAvailable = false;
@@ -17,6 +18,12 @@ export async function disableReminders(): Promise<void> {}
 export async function replanReminders(): Promise<void> {}
 
 export async function cancelReminders(): Promise<void> {}
+
+export async function remindersAllowed(): Promise<boolean> {
+  return false;
+}
+
+export async function notifyPriceDrops(_drops: readonly PriceDrop[]): Promise<void> {}
 
 export function followReminderTaps(_open: (route: ReminderRoute) => void): () => void {
   return () => {};
