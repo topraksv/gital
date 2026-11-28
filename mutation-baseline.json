@@ -300,6 +300,26 @@
       "measuredOn": "8ad9f893915d0494c9e9aaf09fd8abe7fde37335",
       "measuredDate": "2026-10-19"
     },
+    "src/domain/price-watch.ts": {
+      "score": 100,
+      "killed": 47,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 0,
+      "cost": 105,
+      "measuredOn": "0486555f7e361f765113408da5dbc856cf825486",
+      "measuredDate": "2026-11-28"
+    },
+    "src/domain/prices.ts": {
+      "score": 100,
+      "killed": 130,
+      "timeout": 0,
+      "survived": 0,
+      "noCoverage": 0,
+      "cost": 401,
+      "measuredOn": "0486555f7e361f765113408da5dbc856cf825486",
+      "measuredDate": "2026-11-28"
+    },
     "src/domain/product-page.ts": {
       "score": 85.93,
       "killed": 171,
