@@ -48,7 +48,7 @@ export interface PriceSearchProps {
 
 // ---- The pages: two hidden WebViews, a queue in front of them ----
 
-type Kind = "search" | "sellers" | "product";
+export type Kind = "search" | "sellers" | "product";
 type Signal = { aborted: boolean };
 
 interface Job {
@@ -123,9 +123,10 @@ function load<T>(kind: Kind, sourceId: string, url: string, signal: Signal): Pro
 
 /**
  * The readers, then a look every second until the page shows what was asked or the tries run out; either way
- * it sends what it read. A bot wall's check reloads into the real page, which runs this again.
+ * it sends what it read, under the job's id. A bot wall's check reloads into the real page, which runs this
+ * again. A wish's own page is read with it too (`./page-reader.native.tsx`).
  */
-function readerScript(job: Job): string {
+export function readerScript(job: { id: number; kind: Kind; sourceId: string }): string {
   const { kind, sourceId } = job;
   const full = kind === "product" ? "!!value&&value.price!=null" : "!!value&&value.offers.length>0";
   return `${READERS};(function(){var tries=0;(function look(){var value=null;try{value=gitalFiyat.readPage(${JSON.stringify(kind)},${JSON.stringify(sourceId)});}catch(e){}var full=${full};if(full||++tries>=${TRIES})window.ReactNativeWebView.postMessage(JSON.stringify({job:${job.id},value:value,url:location.href}));else setTimeout(look,1000);})();})();true;`;

@@ -1,10 +1,10 @@
 {
-  "source": "topraksv/gital-fiyat@78b7424b7efc6296f2085643c48508d83cea3500",
+  "source": "topraksv/gital-fiyat@2ac97d345e5b9fcc75f77648675f31e79e0280a0",
   "version": "0.4.0",
   "files": {
     "engine.d.ts": "a9a704d39ff9b38cabaa7e6c026a2472480eab9ffcf2c02ccd33cb005f7d15a3",
     "engine.js": "e6349860f66119dcb724f591b23b1cddef50fff11d936e0fab65fb336fed56ab",
     "readers.d.ts": "f84757a03134f79932efc6144917d73d1a4baec1d6da651c0aa56530988ad8e2",
-    "readers.js": "b99747c013abbedf51952754d69f0031bb26269ffd835e2f789b326142d550b2"
+    "readers.js": "4e610bd10078b2ae83079d0a8b14d932887378dec4ddfa9986957d098ddc6e92"
   }
 }

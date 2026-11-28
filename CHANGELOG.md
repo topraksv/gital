@@ -18,6 +18,7 @@ bölümü olmayan sürüm yayımlanamaz.
 
 ### Patch Changes
 
+- Bir isteğin bağlantısındaki sayfa, eklentinin okuyucusuyla okunur: istek mağazanın uzun başlık cümlesiyle değil ürünün adıyla, Amazon'un büyük resmiyle kaydolur; başka para birimindeki fiyat atlanır.
 - Açılışta logo çizilirken görülen kısa takılma giderildi; ilk ekran artık çizim bittikten sonra hazırlanıyor.
 - Expo SDK 58'in son düzeltme sürümleri kuruldu; web'de arkada kalan ekran artık dokunuş ve klavye odağı almıyor.
 

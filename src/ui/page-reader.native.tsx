@@ -9,6 +9,8 @@ import { WebView } from "react-native-webview";
 
 import { fillFromPage, unpricedLinksOf } from "../data/wishes";
 import { productFromPage, type PageProduct } from "../domain/product-page";
+// The extension's product reader, as the price search injects it: one reader for every page (SPEC 7.2, 7.9).
+import { readerScript } from "./price-search.native";
 import { isUnread, linkFrom, type Wish } from "../domain/wishes";
 import { photoFromWeb } from "./photo-take";
 import { pageReader } from "./theme";
@@ -32,10 +34,6 @@ function tell(): void {
 }
 
 const GIVE_UP_MS = 25_000;
-// Run at the end of every load and polled: a shop may draw its product after
-// the load, and a bot wall's check reloads into the real page, which runs it
-// again. The page's HTML is all it sends; the reading is `productFromPage`'s.
-const READ = `(function(){var tries=0;(function look(){var html=document.documentElement.outerHTML;if(/application\\/ld\\+json|og:image|landingImage/.test(html)||++tries>=10)window.ReactNativeWebView.postMessage(html.slice(0,4000000));else setTimeout(look,1000);})();})();true;`;
 
 function next(): void {
   current = jobs.shift() ?? null;
@@ -76,10 +74,17 @@ export function PageReaderHost() {
       <WebView
         key={job.id}
         source={{ uri: job.url }}
-        injectedJavaScript={READ}
-        // A bot wall's page arrives first and shows no product; the page it reloads into does.
+        injectedJavaScript={readerScript({ id: job.id, kind: "product", sourceId: "" })}
+        // A bot wall's page arrives first and shows no product; the page it reloads into does. Only this job's
+        // message is read: any frame of the page may post too.
         onMessage={(event) => {
-          const product = productFromPage(event.nativeEvent.data);
+          let message: { job?: unknown; value?: unknown };
+          try {
+            message = JSON.parse(event.nativeEvent.data) as typeof message;
+          } catch {
+            return;
+          }
+          const product = message?.job === job.id ? productFromPage(message.value) : null;
           if (product) finish(job, product);
         }}
         onError={() => finish(job, null)}
