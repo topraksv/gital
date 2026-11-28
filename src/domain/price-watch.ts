@@ -67,8 +67,8 @@ export function pricesRead(links: readonly WatchedLink[], read: ReadonlyMap<stri
   for (const link of links) {
     const key = keyOf(link.id);
     const lowest = Math.min(before.seen[key] ?? link.priceMinor, link.priceMinor);
-    const price = read.get(link.id);
-    if (price != null && price > 0 && price < lowest * NOTICEABLE) {
+    const price = read.get(link.id) ?? 0;
+    if (price > 0 && price < lowest * NOTICEABLE) {
       drops.push({ wishName: link.wishName, url: link.url, fromMinor: lowest, toMinor: price });
       seen[key] = price;
     } else {

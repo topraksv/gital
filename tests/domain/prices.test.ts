@@ -47,6 +47,12 @@ describe("priceView", () => {
   it("saves nothing when a link is already cheaper, or none is priced, or nothing is the same", () => {
     expect(priceView([scored("same", 100)], [{ url: "https://a.com/x", priceMinor: 5000 }]).savingMinor).toBeNull();
     expect(priceView([scored("same", 100)], []).savingMinor).toBeNull();
+    expect(priceView([scored("same", 100)], [{ url: "https://a.com/x", priceMinor: 10000 }]).savingMinor, "the same price saves nothing").toBeNull();
+    expect(priceView([scored("same", 100)], [{ url: "https://a.com/x", priceMinor: 30000 }, { url: "https://a.com/y", priceMinor: 12000 }]).savingMinor, "against the cheapest link").toBe(2000);
+  });
+
+  it("never takes a listing with no address for the wish's link with none", () => {
+    expect(priceView([scored("same", 100, { url: "not a link" })], [{ url: "not a link either", priceMinor: null }]).same[0]).toMatchObject({ mine: false, take: null });
     expect(priceView([scored("same", 100, { suspicious: true })], [{ url: "https://a.com/x", priceMinor: 50000 }])).toMatchObject({ cheapest: null, savingMinor: null });
   });
 
@@ -61,6 +67,7 @@ describe("priceView", () => {
       ],
       [],
     );
+    expect(view.same).toEqual([]);
     expect(view.similar.map((row) => row.difference)).toEqual([null, "Deluxe modeli"]);
     expect(view.weak).toHaveLength(WEAK_SHOWN);
     expect(view.weak[0]!.title).toBe(`İlan ${made - 2}`);
@@ -75,5 +82,6 @@ describe("searchProgress", () => {
     expect(searchProgress([source("ok"), source("blocked"), source("running"), source("waiting"), source("disabled")], false)).toEqual({ looked: 2, asked: 4, share: 0.425 });
     expect(searchProgress([source("ok")], true).share).toBe(1);
     expect(searchProgress([], false)).toEqual({ looked: 0, asked: 0, share: 0 });
+    expect(searchProgress([source("empty"), source("error")], false).looked, "found nothing, or failed, is answered too").toBe(2);
   });
 });

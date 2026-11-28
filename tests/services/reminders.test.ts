@@ -11,7 +11,9 @@ const calls = vi.hoisted(() => [] as string[]);
 const taps = vi.hoisted(() => ({ last: null as unknown, cleared: 0, listener: null as ((response: unknown) => void) | null, removed: 0 }));
 const phone = vi.hoisted(() => ({ granted: true, stored: new Map<string, string>(), readFails: false, wishes: [] as { name: string; dueOn: string; boughtAt: null }[] }));
 
-vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
+const platform = vi.hoisted(() => ({ OS: "android" }));
+const sent = vi.hoisted(() => [] as unknown[]);
+vi.mock("react-native", () => ({ Platform: platform }));
 vi.mock("expo-notifications", () => ({
   SchedulableTriggerInputTypes: { DATE: "date" },
   AndroidImportance: { DEFAULT: 3 },
@@ -34,8 +36,10 @@ vi.mock("expo-notifications", () => ({
     taps.listener = listener;
     return { remove: () => void taps.removed++ };
   },
-  scheduleNotificationAsync: async (request: { content: { title: string; body: string }; trigger: { type: string } }) =>
-    void calls.push(`${request.trigger.type}: ${request.content.title} — ${request.content.body}`),
+  scheduleNotificationAsync: async (request: { content: { title: string; body: string }; trigger: { type?: string } | null }) => {
+    if (request.trigger?.type) calls.push(`${request.trigger.type}: ${request.content.title} — ${request.content.body}`);
+    else sent.push(request);
+  },
 }));
 vi.mock("../../src/services/kv", () => ({
   kv: { get: async (key: string) => phone.stored.get(key) ?? null, set: async (key: string, value: string) => void phone.stored.set(key, value) },
@@ -52,12 +56,14 @@ vi.mock("../../src/data/items", () => ({ readItems: async () => [] }));
 vi.mock("../../src/data/settings", () => ({ readSettings: async () => [], restockAsideOf: () => new Map() }));
 vi.mock("../../src/data/wishes", () => ({ readDueWishes: async () => phone.wishes }));
 
-const { cancelReminders, disableReminders, enableReminders, followReminderTaps, replanReminders } = await import("../../src/services/reminders.native");
+const { cancelReminders, disableReminders, enableReminders, followReminderTaps, notifyPriceDrops, remindersAllowed, replanReminders } = await import("../../src/services/reminders.native");
 const { saveShoppingDay } = await import("../../src/services/reminder-preferences");
 const { addDaysISO, todayISO } = await import("../../src/domain/dates");
 
 beforeEach(() => {
   calls.length = 0;
+  sent.length = 0;
+  platform.OS = "android";
   phone.granted = true;
   phone.readFails = false;
   phone.wishes = [];
@@ -123,6 +129,36 @@ describe("reminders on the phone", () => {
   });
 });
 
+// SPEC 7.5: a wish's price fell while Gital was open.
+describe("a price drop", () => {
+  const drop = { wishName: "Kulaklık", url: "https://www.trendyol.com/x/p-1", fromMinor: 100000, toMinor: 90000 };
+
+  it("rings at once, on the reminders' channel, and opens İstekler", async () => {
+    await enableReminders();
+    expect(await remindersAllowed()).toBe(true);
+    await notifyPriceDrops([drop, { ...drop, wishName: "Saat" }]);
+    expect(sent).toEqual([
+      { content: { title: "Kulaklık ucuzladı", body: "Trendyol: ₺1.000,00 → ₺900,00", data: { route: { pathname: "/wishes" } } }, trigger: { channelId: "gital-reminders" } },
+      expect.objectContaining({ content: expect.objectContaining({ title: "Saat ucuzladı" }) }),
+    ]);
+    platform.OS = "ios";
+    sent.length = 0;
+    await notifyPriceDrops([drop]);
+    expect(sent).toEqual([expect.objectContaining({ trigger: null })]);
+  });
+
+  it("stays silent with reminders off, permission taken back, or nothing fallen", async () => {
+    await notifyPriceDrops([drop]);
+    expect(await remindersAllowed()).toBe(false);
+    await enableReminders();
+    await notifyPriceDrops([]);
+    phone.granted = false;
+    expect(await remindersAllowed()).toBe(false);
+    await notifyPriceDrops([drop]);
+    expect(sent).toEqual([]);
+  });
+});
+
 describe("a tap on a reminder", () => {
   const tap = (identifier: string, route: unknown, actionIdentifier = "expo.modules.notifications.actions.DEFAULT") => ({
     actionIdentifier,
@@ -166,6 +202,8 @@ describe("on the web", () => {
     await expect(web.disableReminders()).resolves.toBeUndefined();
     await expect(web.replanReminders()).resolves.toBeUndefined();
     await expect(web.cancelReminders()).resolves.toBeUndefined();
+    await expect(web.remindersAllowed()).resolves.toBe(false);
+    await expect(web.notifyPriceDrops([])).resolves.toBeUndefined();
     const open = vi.fn();
     const stop = web.followReminderTaps(open);
     expect(stop).toBeTypeOf("function");

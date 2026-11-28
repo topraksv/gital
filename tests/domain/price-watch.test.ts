@@ -8,7 +8,7 @@ const link = (id: string, priceMinor: number) => ({ id, url: `https://a.com/${id
 
 describe("readWatchState", () => {
   it("reads what this phone stored, and starts afresh from anything else", () => {
-    expect(readWatchState(JSON.stringify({ at: 5, seen: { a: 100, b: -1, c: 1.5, d: "9" } }))).toEqual({ at: 5, seen: { a: 100 } });
+    expect(readWatchState(JSON.stringify({ at: 5, seen: { a: 100, b: -1, c: 1.5, d: "9", e: 0 } }))).toEqual({ at: 5, seen: { a: 100 } });
     expect(readWatchState(JSON.stringify({ at: "x" }))).toEqual({ at: 0, seen: {} });
     expect(readWatchState(null)).toEqual({ at: 0, seen: {} });
     expect(readWatchState("{")).toEqual({ at: 0, seen: {} });
@@ -17,8 +17,10 @@ describe("readWatchState", () => {
 
 describe("isWatchDue", () => {
   it("looks again once the interval has passed", () => {
-    expect(isWatchDue({ at: 0, seen: {} }, WATCH_EVERY_MS)).toBe(true);
-    expect(isWatchDue({ at: 1, seen: {} }, WATCH_EVERY_MS)).toBe(false);
+    const sixHours = 6 * 60 * 60 * 1000;
+    expect(WATCH_EVERY_MS).toBe(sixHours);
+    expect(isWatchDue({ at: 0, seen: {} }, sixHours)).toBe(true);
+    expect(isWatchDue({ at: 1, seen: {} }, sixHours)).toBe(false);
   });
 });
 
@@ -41,6 +43,7 @@ describe("pricesRead", () => {
 
   it("lets a fall under one per cent pass, and starts from a price the owner lowered by hand", () => {
     expect(pricesRead([link("a", 100000)], new Map([["a", 99500]]), { at: 0, seen: {} }, 1).drops).toEqual([]);
+    expect(pricesRead([link("a", 100000)], new Map([["a", 99000]]), { at: 0, seen: {} }, 1).drops, "exactly one per cent is not yet").toEqual([]);
     expect(pricesRead([link("a", 80000)], new Map([["a", 79500]]), { at: 0, seen: { a: 90000 } }, 1).state.seen).toEqual({ a: 80000 });
   });
 });

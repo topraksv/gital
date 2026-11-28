@@ -59,10 +59,11 @@ export function searchProgress(sources: readonly SourceStatus[], done: boolean):
 
 /** A link's address with no query or fragment, so a shop's tracking tail does not hide that it is the same page. */
 function pageOf(url: string): string | null {
-  return linkFrom(url)?.replace(/[?#].*$/, "") ?? null;
+  return linkFrom(url)?.replace(/[?#].*/, "") ?? null;
 }
 
-function rowOf(scored: ScoredOffer, mine: ReadonlySet<string>): PriceRow | null {
+/** `mine` never holds null, so a listing with no address is never the wish's own. */
+function rowOf(scored: ScoredOffer, mine: ReadonlySet<string | null>): PriceRow | null {
   if (scored.netPrice == null) return null;
   const { offer, match } = scored;
   const against = match.reasons.find((reason) => reason.tone === "bad") ?? null;
@@ -77,7 +78,7 @@ function rowOf(scored: ScoredOffer, mine: ReadonlySet<string>): PriceRow | null 
     take: link ? { url: link, priceMinor: Math.round((scored.cost?.price ?? scored.netPrice) * 100) } : null,
     freeShipping: scored.cost?.shipping === 0,
     suspicious: scored.suspicious,
-    mine: page != null && mine.has(page),
+    mine: mine.has(page),
     difference: against?.text ?? null,
   };
 }
@@ -95,13 +96,14 @@ export function priceView(results: readonly ScoredOffer[], links: readonly { url
   const weak = rows((s) => s.match.band === "weak").sort(byScore).slice(0, WEAK_SHOWN).map((entry) => entry.row);
   const cheapest = same.find((row) => !row.suspicious) ?? null;
   const linked = links.map((link) => link.priceMinor).filter((price): price is number => price != null);
-  const lowest = linked.length ? Math.min(...linked) : null;
+  // With no priced link nothing is cheaper than 0, so nothing is saved.
+  const lowest = linked.length ? Math.min(...linked) : 0;
   return {
     same,
     similar,
     weak,
     hidden: results.filter((s) => s.match.band === "unrelated").length,
     cheapest,
-    savingMinor: cheapest && lowest != null && cheapest.priceMinor < lowest ? lowest - cheapest.priceMinor : null,
+    savingMinor: cheapest && cheapest.priceMinor < lowest ? lowest - cheapest.priceMinor : null,
   };
 }
